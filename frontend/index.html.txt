@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>BRVM Analyzer</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f5f5f5; }
+    h1 { color: #2c3e50; }
+    table { width: 100%; border-collapse: collapse; background: white; }
+    th { background: #2c3e50; color: white; padding: 10px; }
+    td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; }
+    tr:hover { background: #f0f0f0; }
+    .positif { color: green; font-weight: bold; }
+    .negatif { color: red; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>📊 BRVM Analyzer</h1>
+  <p>Analyse des sociétés cotées à la BRVM</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Société</th>
+        <th>Ticker</th>
+        <th>Prix (FCFA)</th>
+        <th>Performance</th>
+        <th>Dividende</th>
+        <th>Score</th>
+      </tr>
+    </thead>
+    <tbody id="tableau">
+      <!-- Les données seront chargées ici -->
+    </tbody>
+  </table>
+
+  <script>
+    // Données exemple (tu pourras connecter une vraie API plus tard)
+    const societes = [
+      { nom: "SONATEL", ticker: "SNTS", prix: 15000, perf: "+5.2%", dividende: "4.5%", score: "A" },
+      { nom: "ECOBANK", ticker: "ETIT", prix: 1200, perf: "-1.3%", dividende: "3.2%", score: "B" },
+      { nom: "TOTALENERGIES", ticker: "TTLC", prix: 2100, perf: "+2.8%", dividende: "5.1%", score: "A" },
+      { nom: "ORANGE CI", ticker: "ORAC", prix: 11500, perf: "+0.5%", dividende: "6.0%", score: "A+" },
+      { nom: "BOA MALI", ticker: "BOAM", prix: 1800, perf: "-0.8%", dividende: "2.9%", score: "B+" },
+    ];
+
+    const tbody = document.getElementById("tableau");
+    societes.forEach(s => {
+      const estPositif = s.perf.startsWith("+");
+      tbody.innerHTML += `
+        <tr>
+          <td>${s.nom}</td>
+          <td><b>${s.ticker}</b></td>
+          <td>${s.prix.toLocaleString()}</td>
+          <td class="${estPositif ? 'positif' : 'negatif'}">${s.perf}</td>
+          <td>${s.dividende}</td>
+          <td><b>${s.score}</b></td>
+        </tr>
+      `;
+    });
+  </script>
+</body>
+</html>
