@@ -1,0 +1,487 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// BRVM App — Schéma de base de données (Prisma)
+// ═══════════════════════════════════════════════════════════════════════════
+// Étape 1 du plan de migration : ce schéma reprend TOUTES les entités visibles
+// dans `reference/BRVM_Dashboard.jsx` (COMPANIES_FULL : ticker, name, country,
+// sector, flag, per, mktcap, prices{année}, dividends{année}, color) et ajoute
+// les entités nécessaires à la V2 backend (users, portfolios, indices de
+// marché, actualités, sources/écarts/logs d'ingestion).
+//
+// Conventions :
+//   - Les modèles Prisma sont en PascalCase, les champs en camelCase.
+//   - `@@map` / `@map` forcent les noms de tables/colonnes en snake_case côté
+//     PostgreSQL (companies, price_history, dividends, ...) comme demandé
+//     dans le brief, tout en gardant un client Prisma idiomatique en TS.
+//   - Les métriques calculées (perf5, perf10, volatilité, score, signal
+//     ACHAT/VENTE...) ne sont PAS stockées ici : elles sont dérivées à la
+//     volée par les fonctions `calcMetrics` / `projectPrices` côté backend
+//     (étape 5 du plan), pour éviter toute duplication de logique métier et
+//     tout risque d'incohérence avec les données brutes.
+//   - Toute donnée financière (prix, dividende, ratio) porte un champ `source`
+//     pour la traçabilité complète exigée par le cahier des charges.
+// ═══════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // PostgreSQL managé (Supabase ou Neon) — cf. AGENTS.md § Stack technique.
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Origine d'une donnée financière, pour traçabilité et réconciliation.
+/// Ordre de priorité en cas de divergence : BRVM_OFFICIEL > SIKAFINANCE > RICHBOURSE.
+/// MANUEL = saisie humaine de secours (fallback admin) quand les 3 sources échouent.
+enum DataSource {
+  BRVM_OFFICIEL
+  SIKAFINANCE
+  RICHBOURSE
+  MANUEL
+
+  @@map("data_source")
+}
+
+/// Statut d'exécution d'un run d'ingestion (cron ou manuel).
+enum IngestionStatus {
+  SUCCESS // toutes les données attendues ont été récupérées et insérées
+  PARTIAL // succès partiel (ex. certains tickers en échec)
+  FAILED // échec complet du run (source injoignable, erreur bloquante...)
+  RUNNING // run en cours (permet de détecter les jobs bloqués/zombies)
+
+  @@map("ingestion_status")
+}
+
+/// Type de mouvement sur une position de portefeuille utilisateur.
+enum HoldingSide {
+  ACHAT
+  VENTE
+
+  @@map("holding_side")
+}
+
+/// Rôle applicatif d'un utilisateur (préparation d'une future interface admin
+/// pour le fallback manuel de correction de données — cf. brief § ingestion).
+enum UserRole {
+  USER
+  ADMIN
+
+  @@map("user_role")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RÉFÉRENTIEL GÉOGRAPHIQUE & SECTORIEL
+// ─────────────────────────────────────────────────────────────────────────
+// Normalisés en tables dédiées (plutôt qu'en simples chaînes de caractères
+// comme dans le JSX d'origine) pour permettre les filtres du Screener
+// (façon Ouestbourse : filtres rapides par secteur/pays), sans dupliquer les
+// libellés/emojis drapeaux à chaque société.
+
+/// Pays de la zone UEMOA où la société est domiciliée/cotée.
+/// Reprend le champ `country` + emoji `flag` du JSX (ex: "Côte d'Ivoire" / 🇨🇮).
+model Country {
+  id        String    @id @default(cuid())
+  /// Code ISO 3166-1 alpha-2 (ex: "CI", "SN", "BF", "BJ", "NE").
+  code      String    @unique
+  /// Nom affiché en français (ex: "Côte d'Ivoire").
+  name      String
+  /// Emoji drapeau utilisé tel quel dans l'UI existante (ex: "🇨🇮").
+  flagEmoji String    @map("flag_emoji")
+  companies Company[]
+
+  @@map("countries")
+}
+
+/// Secteur d'activité d'une société cotée (ex: "Banques", "Télécoms",
+/// "Conso. Base", "Énergie", "Industrie", "Services Publics", "Divertissement").
+/// Reprend le champ `sector` du JSX, utilisé pour le filtre sectoriel actuel
+/// et pour les filtres rapides du Screener (Rentabilité/Dividendes/Croissance/
+/// Valorisation restent des filtres calculés, pas des secteurs).
+model Sector {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  /// Slug pour les URLs/filtres (ex: "banques", "telecoms").
+  slug      String    @unique
+  companies Company[]
+
+  @@map("sectors")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// SOCIÉTÉS COTÉES
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Une société cotée à la BRVM. Reprend un-à-un les champs statiques de
+/// COMPANIES_FULL dans le JSX (ticker, name, country, sector, flag, color),
+/// à l'exception de `per`/`mktcap` (déplacés dans FinancialRatio, car ce sont
+/// des valeurs qui évoluent par année, pas des constantes) et de
+/// `prices`/`dividends` (déplacés dans PriceHistory/Dividend).
+model Company {
+  id          String    @id @default(cuid())
+  /// Symbole boursier BRVM, ex: "SNTS", "ORAC", "CBIBF". Clé métier stable.
+  ticker      String    @unique
+  name        String
+  /// Code ISIN officiel (absent du JSX actuel, à compléter via BRVM.org).
+  isin        String?   @unique
+  countryId   String    @map("country_id")
+  country     Country   @relation(fields: [countryId], references: [id])
+  sectorId    String    @map("sector_id")
+  sector      Sector    @relation(fields: [sectorId], references: [id])
+  /// URL du logo de la société (nouveau champ, pas dans le JSX — à défaut,
+  /// le front peut continuer à utiliser `flag`/`color` seuls).
+  logoUrl     String?   @map("logo_url")
+  /// Couleur hexadécimale utilisée pour les graphes/badges dans l'UI actuelle
+  /// (ex: "#D4A843"). Conservée telle quelle pour ne PAS altérer le rendu
+  /// visuel existant (cf. contrainte non négociable "palette de couleurs").
+  color       String
+  /// Courte description de l'activité (nouveau champ, optionnel, pour les
+  /// futures fiches sociétés façon Ouestbourse).
+  description String?
+  /// Date d'introduction en bourse, si connue.
+  listedSince DateTime? @map("listed_since")
+  /// Permet de désactiver une société (radiation, suspension) sans supprimer
+  /// son historique de données.
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  priceHistory      PriceHistory[]
+  dividends         Dividend[]
+  financialRatios   FinancialRatio[]
+  discrepancies     DataDiscrepancy[]
+  portfolioHoldings PortfolioHolding[]
+  newsArticles      NewsArticle[]
+
+  @@index([sectorId])
+  @@index([countryId])
+  @@map("companies")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// DONNÉES FINANCIÈRES HISTORIQUES (multi-source, traçables)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Historique des cours de clôture. Reprend `company.prices[year]` du JSX,
+/// mais avec une granularité `date` (et non plus seulement `year`) pour
+/// permettre à terme l'ingestion de cours quotidiens depuis brvm.org, tout en
+/// restant compatible avec les données annuelles actuelles (seed = une ligne
+/// au 31/12 de chaque année 2015-2026, cf. étape 2 du plan de migration).
+///
+/// Plusieurs lignes peuvent exister pour un même (ticker, date) si plusieurs
+/// sources rapportent une valeur différente : c'est volontaire, pour
+/// permettre la réconciliation. `isCanonical` marque la valeur retenue comme
+/// valeur de vérité après application de la règle de priorité des sources.
+model PriceHistory {
+  id          String     @id @default(cuid())
+  companyId   String     @map("company_id")
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  date        DateTime   @db.Date
+  /// Cours de clôture en FCFA.
+  closePrice  Decimal    @map("close_price") @db.Decimal(14, 2)
+  /// Volume échangé (absent du JSX actuel, ajouté pour les futurs indicateurs
+  /// de marché / top hausses-baisses).
+  volume      BigInt?
+  source      DataSource
+  /// `true` si cette ligne est la valeur retenue après réconciliation
+  /// multi-source (cf. logique de priorité dans AGENTS.md).
+  isCanonical Boolean    @default(false) @map("is_canonical")
+  /// Horodatage de la récupération de la donnée (peut différer de `date`,
+  /// qui est la date de cotation).
+  ingestedAt  DateTime   @default(now()) @map("ingested_at")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  @@unique([companyId, date, source], name: "uniq_price_company_date_source")
+  @@index([companyId, date])
+  @@index([date])
+  @@map("price_history")
+}
+
+/// Dividendes versés par année. Reprend `company.dividends[year]` du JSX.
+/// Comme pour PriceHistory, plusieurs lignes par (ticker, year) sont
+/// possibles le temps de la réconciliation multi-source.
+model Dividend {
+  id          String     @id @default(cuid())
+  companyId   String     @map("company_id")
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// Exercice concerné (ex: 2026), et non une date précise, comme dans le JSX.
+  year        Int
+  /// Montant du dividende par action, en FCFA.
+  amount      Decimal    @db.Decimal(14, 2)
+  /// Date de détachement du coupon (ex-dividend date), si connue.
+  exDate      DateTime?  @map("ex_date") @db.Date
+  /// Date de mise en paiement effective, si connue.
+  paymentDate DateTime?  @map("payment_date") @db.Date
+  source      DataSource
+  isCanonical Boolean    @default(false) @map("is_canonical")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  @@unique([companyId, year, source], name: "uniq_dividend_company_year_source")
+  @@index([companyId, year])
+  @@map("dividends")
+}
+
+/// Ratios/indicateurs financiers par année : PER, capitalisation boursière,
+/// et indicateurs additionnels utiles au Screener façon Ouestbourse (ROE,
+/// marge nette). Reprend `company.per` et `company.mktcap` du JSX, qui
+/// étaient à tort des constantes globales alors qu'ils évoluent chaque année.
+model FinancialRatio {
+  id          String     @id @default(cuid())
+  companyId   String     @map("company_id")
+  company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  year        Int
+  /// Price Earning Ratio.
+  per         Decimal?   @db.Decimal(8, 2)
+  /// Capitalisation boursière, en milliards de FCFA (comme affiché dans le
+  /// JSX : "Mds FCFA").
+  mktCap      Decimal?   @map("mkt_cap") @db.Decimal(14, 2)
+  /// Return on Equity (%), nouveau champ pour le Screener "Rentabilité".
+  roe         Decimal?   @db.Decimal(6, 2)
+  /// Marge nette (%), nouveau champ pour le Screener "Rentabilité".
+  netMargin   Decimal?   @map("net_margin") @db.Decimal(6, 2)
+  source      DataSource
+  isCanonical Boolean    @default(false) @map("is_canonical")
+  createdAt   DateTime   @default(now()) @map("created_at")
+
+  @@unique([companyId, year, source], name: "uniq_ratio_company_year_source")
+  @@index([companyId, year])
+  @@map("financial_ratios")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// RÉCONCILIATION & OBSERVABILITÉ DE L'INGESTION
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Écart significatif (> 2 %, seuil configurable côté code d'ingestion) entre
+/// au moins deux des trois sources pour un même ticker/date/champ. Sert de
+/// file d'audit manuel — n'est jamais résolu automatiquement au-delà de la
+/// règle de priorité BRVM > Sikafinance > Richbourse.
+model DataDiscrepancy {
+  id             String      @id @default(cuid())
+  companyId      String      @map("company_id")
+  company        Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  date           DateTime    @db.Date
+  /// Nom du champ concerné, ex: "close_price", "dividend_amount", "per".
+  field          String
+  brvmValue      Decimal?    @map("brvm_value") @db.Decimal(14, 4)
+  sikaValue      Decimal?    @map("sika_value") @db.Decimal(14, 4)
+  richValue      Decimal?    @map("rich_value") @db.Decimal(14, 4)
+  /// Écart relatif maximal observé entre les sources, en %.
+  deltaPercent   Decimal?    @map("delta_percent") @db.Decimal(6, 2)
+  /// `true` une fois qu'un humain (ou la règle de priorité automatique) a
+  /// tranché la valeur à retenir.
+  resolved       Boolean     @default(false)
+  resolvedValue  Decimal?    @map("resolved_value") @db.Decimal(14, 4)
+  resolvedSource DataSource? @map("resolved_source")
+  /// Email/identifiant de l'admin ayant résolu manuellement l'écart (fallback
+  /// manuel décrit dans le brief), null si résolution automatique.
+  resolvedBy     String?     @map("resolved_by")
+  resolvedAt     DateTime?   @map("resolved_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  @@index([companyId, date])
+  @@index([resolved])
+  @@map("data_discrepancies")
+}
+
+/// Journal de chaque exécution d'un connecteur d'ingestion (cron ou manuel),
+/// pour observabilité et alerting en cas d'échec (étape 6 du plan).
+model IngestionLog {
+  id               String          @id @default(cuid())
+  source           DataSource
+  runAt            DateTime        @default(now()) @map("run_at")
+  finishedAt       DateTime?       @map("finished_at")
+  status           IngestionStatus @default(RUNNING)
+  recordsProcessed Int             @default(0) @map("records_processed")
+  recordsInserted  Int             @default(0) @map("records_inserted")
+  recordsFailed    Int             @default(0) @map("records_failed")
+  /// Détail des erreurs rencontrées (stack traces, tickers en échec...),
+  /// stocké en JSON pour rester flexible selon le connecteur.
+  errors           Json?
+  durationMs       Int?            @map("duration_ms")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  @@index([source, runAt])
+  @@index([status])
+  @@map("ingestion_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// MARCHÉ — INDICES & ACTUALITÉS
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Un indice de marché BRVM (ex: "BRVM Composite", "BRVM 10"), pour l'endpoint
+/// `GET /api/market/summary`.
+model MarketIndex {
+  id     String             @id @default(cuid())
+  /// Code court unique, ex: "BRVM_COMPOSITE", "BRVM_10".
+  code   String             @unique
+  name   String
+  values MarketIndexValue[]
+
+  @@map("market_indices")
+}
+
+/// Valeur quotidienne d'un indice de marché, avec sa source (BRVM.org en
+/// priorité), pour le suivi historique et les "top hausses/baisses du jour".
+model MarketIndexValue {
+  id            String      @id @default(cuid())
+  marketIndexId String      @map("market_index_id")
+  marketIndex   MarketIndex @relation(fields: [marketIndexId], references: [id], onDelete: Cascade)
+  date          DateTime    @db.Date
+  value         Decimal     @db.Decimal(14, 4)
+  changePercent Decimal?    @map("change_percent") @db.Decimal(6, 2)
+  volume        BigInt?
+  source        DataSource
+  /// `true` si cette ligne est la valeur retenue après réconciliation
+  /// multi-source (même logique que PriceHistory/Dividend/FinancialRatio) —
+  /// nécessaire car un même (indice, date) peut être rapporté différemment
+  /// par BRVM.org, Sikafinance et Richbourse (cf. lib/ingestion/reconciliation.ts).
+  isCanonical   Boolean     @default(false) @map("is_canonical")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@unique([marketIndexId, date, source], name: "uniq_index_date_source")
+  @@index([marketIndexId, date])
+  @@map("market_index_values")
+}
+
+/// Actualité de marché agrégée (principalement Sikafinance), pour
+/// `GET /api/market/news` et l'onglet "Actualités" façon Ouestbourse.
+/// `companyId` est optionnel : une actualité peut concerner une société
+/// précise ou le marché en général.
+model NewsArticle {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  summary     String?
+  content     String?
+  /// URL de la source originale (obligatoire pour respecter l'attribution).
+  url         String
+  /// Nom de la source affiché en UI, ex: "Sikafinance", "BRVM.org".
+  sourceName  String   @map("source_name")
+  companyId   String?  @map("company_id")
+  company     Company? @relation(fields: [companyId], references: [id])
+  imageUrl    String?  @map("image_url")
+  publishedAt DateTime @map("published_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([publishedAt])
+  @@index([companyId])
+  @@map("news_articles")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AUTHENTIFICATION (NextAuth.js) & PORTEFEUILLE UTILISATEUR
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Utilisateur de l'application. Compatible avec l'adaptateur Prisma de
+/// NextAuth.js (email/password via `passwordHash`, ou OAuth via `Account`).
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  /// Null si l'utilisateur s'est inscrit uniquement via un provider OAuth
+  /// (ex: Google) — cf. NextAuth Credentials provider optionnel.
+  passwordHash  String?   @map("password_hash")
+  image         String?
+  role          UserRole  @default(USER)
+  emailVerified DateTime? @map("email_verified")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  accounts   Account[]
+  sessions   Session[]
+  portfolios Portfolio[]
+
+  @@map("users")
+}
+
+/// Table standard NextAuth.js pour les comptes OAuth liés (ex: Google).
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+/// Table standard NextAuth.js pour les sessions actives.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+
+  @@map("sessions")
+}
+
+/// Table standard NextAuth.js pour les jetons de vérification (magic link,
+/// vérification d'email, réinitialisation de mot de passe).
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+/// Portefeuille personnel d'un utilisateur (feature façon Ouestbourse).
+/// Un utilisateur peut avoir plusieurs portefeuilles (ex: "Principal",
+/// "Simulation").
+model Portfolio {
+  id        String             @id @default(cuid())
+  userId    String             @map("user_id")
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String             @default("Mon portefeuille")
+  createdAt DateTime           @default(now()) @map("created_at")
+  updatedAt DateTime           @updatedAt @map("updated_at")
+  holdings  PortfolioHolding[]
+
+  @@index([userId])
+  @@map("portfolios")
+}
+
+/// Position détenue dans un portefeuille pour une société donnée. Le calcul
+/// de valeur totale, répartition sectorielle et performance YTD (façon
+/// Ouestbourse) se fait à la volée côté backend en combinant `quantity` /
+/// `avgBuyPrice` avec les derniers `PriceHistory` canoniques — aucune valeur
+/// dérivée n'est stockée ici pour éviter la désynchronisation avec le marché.
+model PortfolioHolding {
+  id          String      @id @default(cuid())
+  portfolioId String      @map("portfolio_id")
+  portfolio   Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  companyId   String      @map("company_id")
+  company     Company     @relation(fields: [companyId], references: [id])
+  /// Nombre d'actions détenues (négatif interdit — une vente totale supprime
+  /// la ligne plutôt que de passer en dessous de 0).
+  quantity    Decimal     @db.Decimal(14, 4)
+  /// Prix moyen d'achat pondéré, en FCFA.
+  avgBuyPrice Decimal     @map("avg_buy_price") @db.Decimal(14, 2)
+  /// Dernier mouvement enregistré (ACHAT initial ou renforcement/allègement).
+  lastSide    HoldingSide @default(ACHAT) @map("last_side")
+  buyDate     DateTime?   @map("buy_date") @db.Date
+  notes       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@unique([portfolioId, companyId], name: "uniq_holding_portfolio_company")
+  @@index([portfolioId])
+  @@map("portfolio_holdings")
+}

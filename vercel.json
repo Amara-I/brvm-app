@@ -1,15 +1,10 @@
 {
-  "version": 2,
-  "builds": [
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "crons": [
     {
-      "src": "frontend/index.html",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "frontend/index.html"
+      "path": "/api/cron/ingest",
+      "schedule": "30 16 * * 1-5"
     }
   ]
 }
+

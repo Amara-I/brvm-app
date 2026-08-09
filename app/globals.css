@@ -1,0 +1,23 @@
+/* Styles globaux minimaux — étape 9 (checklist de conformité, volet a11y).
+   Ne touche à AUCUN style du dashboard lui-même (contrainte non-négociable) :
+   uniquement le lien d'évitement ("skip to content"), invisible tant qu'il
+   n'a pas le focus clavier, standard WCAG 2.4.1. */
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: #0d1117;
+  color: #d4a843;
+  padding: 10px 16px;
+  z-index: 1000;
+  font-family: "Trebuchet MS", Georgia, serif;
+  font-size: 0.85rem;
+  border: 1px solid #1c2333;
+  border-radius: 0 0 6px 0;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 0;
+}

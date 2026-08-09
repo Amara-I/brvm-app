@@ -1,0 +1,23 @@
+---
+description: Priorité des sources de données et bonnes pratiques d'ingestion BRVM
+globs: prisma/**,server/**,lib/**,scripts/**,connectors/**,app/api/**
+alwaysApply: false
+---
+
+# BRVM App — Priorité des sources & ingestion de données
+
+- Ordre de priorité en cas de divergence entre sources pour un même
+  ticker/date : **1. brvm.org (officiel) → 2. Sikafinance → 3. Richbourse**.
+- Tout écart de plus de **2 %** entre deux sources pour la même donnée doit
+  être journalisé dans `data_discrepancies` (jamais silencieusement écrasé).
+- Chaque enregistrement de prix/dividende/ratio doit porter un champ `source`
+  (`brvm_org | sikafinance | richbourse | manuel`) pour traçabilité.
+- Un connecteur par source, isolé (`brvm_connector.ts`, `sikafinance_connector.ts`,
+  `richbourse_connector.ts`), désactivable indépendamment sans casser les autres.
+- Respecter : rate limiting, User-Agent identifiable, `robots.txt`, cache local,
+  gestion explicite des erreurs 403/429/500 avec retry/backoff.
+- Privilégier une API officielle / flux structuré (RSS, CSV) au scraping HTML
+  brut quand disponible.
+- Toute fonction de calcul financier (`calcMetrics`, `projectPrices`,
+  `linearRegression`) doit vivre côté backend (`/lib` ou `/server`) en
+  TypeScript strict avec tests unitaires — jamais dupliquée entre front et back.

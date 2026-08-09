@@ -1,0 +1,31 @@
+---
+description: Contraintes non négociables du projet BRVM App (design, textes, structure)
+alwaysApply: true
+---
+
+# BRVM App — Contraintes non négociables
+
+Ce projet a une spécification visuelle et fonctionnelle figée dans
+`reference/BRVM_Dashboard.jsx`. Avant toute modification front-end :
+
+- **Ne jamais changer** la palette de couleurs (objet `C` : `bg`, `panel`,
+  `border`, `gold #D4A843`, `green`, `red`, `blue`, `silver`, `text`, `textDim`,
+  `teal`, `purple`), ni la police `'Trebuchet MS', Georgia, serif`.
+- **Ne jamais traduire ou reformuler** les textes existants (tout est en
+  français, y compris les labels de métriques, signaux "ACHAT FORT / ACHAT /
+  CONSERVER / ALLÉGER / VENDRE", et le disclaimer de pied de page).
+- **Ne jamais retirer** les emojis/icônes des onglets (📊 Vue d'ensemble,
+  📈 Courbe historique, 🔮 Projection future, ⚖️ Comparaison).
+- **Ne jamais changer** la disposition sidebar (liste sociétés à gauche) + tabs
+  (barre d'onglets en haut du contenu principal).
+- Le design cible reste celui de `brvm-app.vercel.app` — **jamais** un clone
+  visuel de `ouestbourse.com` (celui-ci n'est qu'une référence d'architecture
+  produit/UX, pas de design).
+- Toute donnée manquante s'affiche `"N/D"` (jamais `null`, `undefined`, `NaN`,
+  ou une chaîne vide brute côté UI).
+- Toute nouvelle fonctionnalité est ajoutée de façon incrémentale, sans casser
+  un onglet déjà fonctionnel (Vue d'ensemble / Courbe historique / Projection
+  future / Comparaison).
+
+Avant de proposer un changement visuel, comparer avec
+`reference/BRVM_Dashboard.jsx` et justifier explicitement toute divergence.
