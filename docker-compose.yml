@@ -1,0 +1,17 @@
+# PostgreSQL local pour tester l'app avec une vraie base (cf. README de test).
+# Usage : docker compose up -d   (nécessite Docker Desktop démarré)
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: brvm
+      POSTGRES_PASSWORD: brvm
+      POSTGRES_DB: brvm_app
+    ports:
+      - "5432:5432"
+    volumes:
+      - brvm_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  brvm_postgres_data:

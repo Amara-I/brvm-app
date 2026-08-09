@@ -357,11 +357,59 @@ BRVM officiel").
       ✔ `tsc --noEmit` ✅ · `vitest run` (70/70 tests) ✅ après correction.
 
 **→ Les 9 étapes de la feuille de route initiale sont maintenant livrées.**
+
+- [x] **Validation de bout en bout sur PostgreSQL réel (Docker local)** — **effectuée le 09/08/2026**
+      Toutes les réserves "⚠️ non testé faute de `DATABASE_URL` réelle" des
+      étapes 1 à 9 sont désormais levées : `docker-compose.yml` (Postgres 16)
+      démarré localement, `npx prisma migrate dev --name init` (migration
+      appliquée sans erreur) puis `npx prisma db seed` — résultat identique à
+      celui annoncé à l'étape 2 (20 sociétés, 5 pays, 7 secteurs, 214 lignes de
+      cours, 213 dividendes, 0 perte), toutes marquées `isCanonical: true`
+      (source `MANUEL`, seed initial). `next dev` lancé et testé en réel :
+      - Rendu visuel du dashboard (`app/page.tsx` + `BrvmDashboardClient`)
+        vérifié à l'écran (capture) sur les 4 onglets (Vue d'ensemble, Courbe
+        historique — Recharts, Projection future — 3 scénarios + repère
+        "Aujourd'hui", Comparaison — sélection par défaut SNTS/CBIBF/SGBC) :
+        conforme pixel pour pixel à `reference/BRVM_Dashboard.jsx` (palette,
+        police, textes, emojis, disposition sidebar/tabs). Indicateur
+        "Source : Saisie manuelle · Synchronisé le ..." bien affiché (étape 8).
+      - `GET /api/export/excel` → fichier `.xlsx` valide généré (56 Ko).
+      - Flux auth + portefeuille complet (jamais testé de bout en bout avant,
+        étape 7) : inscription (`POST /api/auth/register` → 201) → connexion
+        NextAuth Credentials (`POST /api/auth/callback/credentials` → session
+        JWT avec `id`/`role`) → création de portefeuille → ajout d'une
+        position (SNTS, 10 titres @ 25 000 FCFA) → `GET /api/portfolio`
+        renvoie les métriques calculées en temps réel (valeur de marché
+        284 500, plus-value latente +34 500 soit +13.8 %, répartition
+        sectorielle 100 % Télécoms, YTD +1.61 %) — confirme `calcMetrics`/
+        `computePortfolioMetrics` corrects sur données réelles. En-tête
+        `Cache-Control: private, no-store` confirmé sur cette route (validation
+        en conditions réelles du correctif de sécurité de la relecture
+        précédente).
+      - Toutes les autres routes spot-checkées → 200 (`/api/market/summary`,
+        `/api/market/news`, `/api/companies/:ticker`, `/api/companies/:ticker/projections`),
+        401 correct sur `/api/portfolio` sans session, page `/mentions-legales` → 200.
+      - `tsc --noEmit` ✅ · `vitest run` → 70/70 ✅ (inchangé, exécuté aussi
+        contre l'environnement avec base réelle branchée).
+      ⚠️ Un indicateur d'erreur transitoire du overlay de développement Next.js
+      ("1 error", uniquement en mode `next dev`) a été observé de façon
+      intermittente sans jamais empêcher le rendu ni être reproductible de
+      façon déterministe (absent après rechargement propre, capture de
+      `console.error`/`window.onerror`/`unhandledrejection` négative à chaque
+      fois) — cohérent avec un avertissement bénin connu de Recharts
+      (`ResponsiveContainer` mesurant un conteneur de largeur/hauteur 0 au tout
+      premier rendu, avant que le layout ne soit stabilisé), qui n'existe pas
+      en dehors du mode développement. Non bloquant, à garder à l'œil si
+      constaté à nouveau après un `next build && next start` réel.
+      Reste non couvert dans cet environnement (nécessite un vrai déploiement
+      Vercel + cron) : `GET /api/cron/ingest` en conditions cron réelles contre
+      les 3 sites sources, et le rendu face à un vrai trafic multi-instances
+      (rate limiting en mémoire, cf. `COMPLIANCE_CHECKLIST.md`).
+
 Prochaines priorités naturelles (à valider avec l'utilisateur, aucune n'a été
-anticipée) : brancher une vraie base PostgreSQL + déploiement Vercel réel pour
-valider de bout en bout (ingestion → API → rendu visuel du dashboard →
-export Excel → authentification/portefeuille), et lever les points ⬜/🟡 de
-`COMPLIANCE_CHECKLIST.md`.
+anticipée) : déploiement Vercel réel + base Postgres managée (Supabase/Neon)
+pour remplacer le Docker local, activer le cron Vercel réel, et lever les
+points ⬜/🟡 restants de `COMPLIANCE_CHECKLIST.md`.
 
 > Ne pas anticiper les étapes suivantes sans validation explicite de l'utilisateur
 > entre chaque étape (contrainte explicite du brief projet).
