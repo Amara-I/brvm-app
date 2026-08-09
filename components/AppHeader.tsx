@@ -20,6 +20,7 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { groupCompaniesBySector } from "@/lib/calc/market-summary-stats";
 import HeaderNav from "@/components/nav/HeaderNav";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 
 export default async function AppHeader() {
   const [user, dataset] = await Promise.all([getCurrentUser(), getCompaniesFullDataset()]);
@@ -61,6 +62,7 @@ export default async function AppHeader() {
         </div>
 
         <div style={{ display: "none", alignItems: "center", gap: 12 }} className="app-header-desktop-actions">
+          <ThemeToggle />
           {user ? (
             <>
               <span style={{ color: C.textDim, fontSize: "0.8rem" }}>

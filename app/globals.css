@@ -1,3 +1,67 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Variables de thème (mode clair/sombre) — étape 12 (bascule dark mode)
+   ═══════════════════════════════════════════════════════════════════════
+   Source de vérité des couleurs pour TOUT le site : `lib/theme/colors.ts`
+   (objet `C`) et `components/BrvmDashboardClient.tsx` (sa copie interne, cf.
+   commentaire sur place) référencent désormais `var(--c-*)` au lieu de
+   valeurs hexadécimales figées, afin qu'un changement de `[data-theme]` sur
+   `<html>` retheme INSTANTANÉMENT toutes les pages — y compris les Server
+   Components (Screener, Sociétés cotées, etc.) dont le HTML est généré une
+   fois côté serveur et ne peut pas réagir à un état React côté client.
+   `[data-theme="dark"]` reprend EXACTEMENT la palette sombre/or d'origine du
+   projet (`reference/BRVM_Dashboard.jsx`, non-négociable jusqu'à l'étape 11)
+   — rien n'est perdu, elle redevient un choix disponible plutôt que le seul
+   thème possible. `:root` (sans attribut = mode clair) est la palette
+   "ouestBourse" claire introduite à l'étape 11, qui reste la valeur par
+   défaut du site. Bascule pilotée par `components/theme/ThemeToggle.tsx`
+   (persistée en `localStorage`, appliquée avant hydratation dans
+   `app/layout.tsx` pour éviter tout flash de mauvais thème). */
+:root {
+  --c-bg: #ffffff;
+  --c-panel: #f6f7f3;
+  --c-border: #e2e5dd;
+  --c-gold: #d9a441;
+  --c-golddim: #a67c2e;
+  --c-green: #1e7a42;
+  --c-red: #dc2626;
+  --c-blue: #2563eb;
+  --c-silver: #94a3b8;
+  --c-text: #16241b;
+  --c-textdim: #5b6b60;
+  --c-teal: #0d9488;
+  --c-purple: #9333ea;
+  --c-border-thin: rgba(226, 229, 221, 0.125);
+  --c-green-soft: rgba(30, 122, 66, 0.19);
+  --c-red-soft: rgba(220, 38, 38, 0.19);
+  --c-selected-bg: rgba(30, 122, 66, 0.08);
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --c-bg: #080b12;
+  --c-panel: #0d1117;
+  --c-border: #1c2333;
+  --c-gold: #d4a843;
+  --c-golddim: #7a5e20;
+  --c-green: #22c55e;
+  --c-red: #ef4444;
+  --c-blue: #3b82f6;
+  --c-silver: #94a3b8;
+  --c-text: #e2d9c5;
+  --c-textdim: #6b7280;
+  --c-teal: #14b8a6;
+  --c-purple: #a855f7;
+  --c-border-thin: rgba(28, 35, 51, 0.125);
+  --c-green-soft: rgba(34, 197, 94, 0.19);
+  --c-red-soft: rgba(239, 68, 68, 0.19);
+  --c-selected-bg: rgba(34, 197, 94, 0.08);
+  color-scheme: dark;
+}
+
+body {
+  background: var(--c-bg);
+}
+
 /* Styles globaux minimaux — étape 9 (checklist de conformité, volet a11y).
    Ne touche à AUCUN style du dashboard lui-même (contrainte non-négociable) :
    uniquement le lien d'évitement ("skip to content"), invisible tant qu'il
@@ -7,13 +71,13 @@
   position: absolute;
   top: -40px;
   left: 0;
-  background: #0d1117;
-  color: #d4a843;
+  background: var(--c-panel);
+  color: var(--c-gold);
   padding: 10px 16px;
   z-index: 1000;
   font-family: "Trebuchet MS", Georgia, serif;
   font-size: 0.85rem;
-  border: 1px solid #1c2333;
+  border: 1px solid var(--c-border);
   border-radius: 0 0 6px 0;
   text-decoration: none;
 }

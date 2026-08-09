@@ -97,3 +97,18 @@ mais du nom réel de ce produit. Décisions validées explicitement :
    du méga-menu "Sociétés cotées" par secteur, bandeau de stats, etc.) sont
    repris **structurellement** avec les **vraies données ouestBourse**, pas
    les chiffres de la société tierce ouestbourse.com.
+
+## ⚠️ MISE À JOUR — Bascule mode clair/sombre, ajoutée le 09/08/2026 (soir)
+
+Le thème clair "ouestBourse" ci-dessus reste le **thème PAR DÉFAUT** de tout
+le site, mais un bouton de bascule (☀️/🌙, `components/theme/ThemeToggle.tsx`,
+dans le header partagé) permet à chaque visiteur de repasser vers un thème
+sombre — qui reprend **exactement** l'ancienne palette sombre/or d'origine du
+projet (`reference/BRVM_Dashboard.jsx`, non-négociable jusqu'à l'étape 11) :
+elle n'a jamais été supprimée, juste rendue optionnelle. Détail technique et
+justification complète : `AGENTS.md` § "Étape 12 — Bascule mode clair/sombre".
+Toutes les couleurs (`lib/theme/colors.ts` et la constante `C` interne de
+`BrvmDashboardClient.tsx`) passent désormais par des variables CSS
+(`app/globals.css`) plutôt que des hex figés, pour que la bascule s'applique
+INSTANTANÉMENT à toutes les pages (y compris les Server Components) — ceci
+NE change ni les textes, ni les emojis, ni la disposition, ni les calculs.

@@ -1,36 +1,48 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Palette partagée du site — mise à jour "rebranding ouestBourse" (étape 11)
+// Palette partagée du site — bascule mode clair/sombre (étape 12)
 // ═══════════════════════════════════════════════════════════════════════════
-// Historique : palette sombre/or d'origine (étape 10), remplacée le
-// 09/08/2026 (soir) par une palette CLAIRE inspirée de la charte réelle
-// ouestbourse.com (fond blanc, vert forêt, or/orange), à la demande explicite
-// de l'utilisateur — cf. .cursor/rules/brvm-non-negotiable.mdc
-// § "MISE À JOUR — Rebranding complet ouestBourse". Les NOMS des clés restent
-// identiques (aucun usage existant cassé), seules les valeurs changent.
+// Historique :
+//   - Étape 10 : palette sombre/or d'origine (valeurs figées en dur).
+//   - Étape 11 : remplacée par une palette CLAIRE "ouestBourse" (rebranding).
+//   - Étape 12 (celle-ci) : les DEUX palettes existent maintenant en même
+//     temps, comme variables CSS (`app/globals.css`, `:root` = claire,
+//     `:root[data-theme="dark"]` = sombre = EXACTEMENT la palette d'origine
+//     de `reference/BRVM_Dashboard.jsx`). `C` référence ces variables CSS
+//     plutôt que des hex figés, pour que la bascule de thème
+//     (`components/theme/ThemeToggle.tsx`) retheme INSTANTANÉMENT toute
+//     l'app SANS re-render React — y compris les pages Server Component
+//     (Screener, Sociétés cotées, etc.) dont le HTML est figé au moment du
+//     rendu serveur. Les NOMS des clés restent identiques (aucun usage
+//     existant cassé), seule la RÉSOLUTION de la valeur change (var() au
+//     lieu d'un hex littéral).
 //
 // Valeurs IDENTIQUES à l'objet `C` défini dans `components/BrvmDashboardClient.tsx`
 // (dupliqué là-bas volontairement, cf. commentaire sur place — on ne veut
-// STRICTEMENT RIEN changer à la STRUCTURE de ce composant déjà validé, sa
-// palette suit désormais la même mise à jour de valeurs). Cette palette est
-// partagée par toutes les pages (landing incluse depuis l'étape 11 — la
-// palette dédiée `components/landing/theme.ts` de l'étape 10 est conservée
-// pour compatibilité mais la landing utilise maintenant l'identité visuelle
-// unifiée ci-dessous).
+// STRICTEMENT RIEN changer à la STRUCTURE de ce composant déjà validé).
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const C = {
-  bg: "#FFFFFF",
-  panel: "#F6F7F3",
-  border: "#E2E5DD",
-  gold: "#D9A441",
-  green: "#1E7A42",
-  red: "#DC2626",
-  blue: "#2563EB",
-  silver: "#94A3B8",
-  text: "#16241B",
-  textDim: "#5B6B60",
-  teal: "#0D9488",
-  purple: "#9333EA",
+  bg: "var(--c-bg)",
+  panel: "var(--c-panel)",
+  border: "var(--c-border)",
+  gold: "var(--c-gold)",
+  goldDim: "var(--c-golddim)",
+  green: "var(--c-green)",
+  red: "var(--c-red)",
+  blue: "var(--c-blue)",
+  silver: "var(--c-silver)",
+  text: "var(--c-text)",
+  textDim: "var(--c-textdim)",
+  teal: "var(--c-teal)",
+  purple: "var(--c-purple)",
+  /// Variantes semi-transparentes prêtes à l'emploi — remplacent les anciens
+  /// motifs `${C.border}20` / `${C.green}30` / `${C.red}30` (concaténation
+  /// d'un suffixe alpha hexadécimal sur une valeur hex) devenus invalides
+  /// depuis que `C.xxx` est un `var(...)` et non plus un hex littéral.
+  borderThin: "var(--c-border-thin)",
+  greenSoft: "var(--c-green-soft)",
+  redSoft: "var(--c-red-soft)",
+  selectedBg: "var(--c-selected-bg)",
 } as const;
 
 export const FONT_FAMILY = "'Trebuchet MS', Georgia, serif";

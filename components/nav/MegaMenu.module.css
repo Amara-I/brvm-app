@@ -35,7 +35,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: min(880px, 92vw);
-  background: #ffffff;
+  background: var(--mm-bg);
   border: 1px solid var(--mm-border);
   border-radius: 12px;
   box-shadow: 0 24px 48px -16px rgba(20, 30, 25, 0.25);

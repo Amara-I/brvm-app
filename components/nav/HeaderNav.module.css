@@ -59,13 +59,18 @@
   padding: 10px 20px 16px;
   border-top: 1px solid var(--hn-border);
   border-bottom: 1px solid var(--hn-border);
-  background: #ffffff;
+  background: var(--hn-bg);
   box-shadow: 0 16px 32px -12px rgba(20, 30, 25, 0.2);
   z-index: 85;
 }
 
 .mobilePanel.open {
   display: flex;
+}
+
+.mobileThemeRow {
+  display: flex;
+  padding-top: 8px;
 }
 
 .mobilePanel .navLink {

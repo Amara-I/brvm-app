@@ -14,6 +14,7 @@ import { usePathname } from "next/navigation";
 import { C } from "@/lib/theme/colors";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
 import CompanyMegaMenu from "./CompanyMegaMenu";
+import ThemeToggle from "@/components/theme/ThemeToggle";
 import styles from "./HeaderNav.module.css";
 
 const NAV_ITEMS = [
@@ -34,8 +35,9 @@ const cssVars = {
   "--hn-text": C.text,
   "--hn-green": C.green,
   "--hn-panel": C.panel,
-  "--hn-panelAlt": "rgba(30, 122, 66, 0.08)",
+  "--hn-panelAlt": C.selectedBg,
   "--hn-border": C.border,
+  "--hn-bg": C.bg,
 } as React.CSSProperties;
 
 function NavLink({ href, label, active, onClick }: { href: string; label: string; active: boolean; onClick?: () => void }) {
@@ -102,6 +104,9 @@ export default function HeaderNav({
             </Link>
           </>
         )}
+        <div className={styles.mobileThemeRow}>
+          <ThemeToggle />
+        </div>
       </div>
     </div>
   );

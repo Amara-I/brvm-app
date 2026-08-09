@@ -51,26 +51,31 @@ import { projectPrices, type PriceProjection } from "@/lib/calc/project-prices";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 
 // ── PALETTE ─────────────────────────────────────────────────────────────────
-// Mise à jour "rebranding ouestBourse" (étape 11, 09/08/2026) : palette claire
-// inspirée de la charte réelle ouestbourse.com, à la demande explicite de
-// l'utilisateur (propriétaire confirmé de la marque) — cf.
-// .cursor/rules/brvm-non-negotiable.mdc § "MISE À JOUR — Rebranding complet
-// ouestBourse". Mêmes clés qu'avant (structure du composant intouchée),
-// valeurs synchronisées avec `lib/theme/colors.ts`.
+// Bascule mode clair/sombre (étape 12) : référence désormais les variables
+// CSS de `app/globals.css` (`:root` = clair "ouestBourse" par défaut,
+// `:root[data-theme="dark"]` = EXACTEMENT la palette sombre/or d'origine de
+// `reference/BRVM_Dashboard.jsx`) au lieu de hex figés, pour que
+// `components/theme/ThemeToggle.tsx` puisse retheme ce composant sans
+// modifier sa structure — cf. lib/theme/colors.ts pour le détail. Mêmes clés
+// qu'avant, synchronisées avec ce fichier.
 const C = {
-  bg: "#FFFFFF",
-  panel: "#F6F7F3",
-  border: "#E2E5DD",
-  gold: "#D9A441",
-  goldDim: "#A67C2E",
-  green: "#1E7A42",
-  red: "#DC2626",
-  blue: "#2563EB",
-  silver: "#94A3B8",
-  text: "#16241B",
-  textDim: "#5B6B60",
-  teal: "#0D9488",
-  purple: "#9333EA",
+  bg: "var(--c-bg)",
+  panel: "var(--c-panel)",
+  border: "var(--c-border)",
+  gold: "var(--c-gold)",
+  goldDim: "var(--c-golddim)",
+  green: "var(--c-green)",
+  red: "var(--c-red)",
+  blue: "var(--c-blue)",
+  silver: "var(--c-silver)",
+  text: "var(--c-text)",
+  textDim: "var(--c-textdim)",
+  teal: "var(--c-teal)",
+  purple: "var(--c-purple)",
+  borderThin: "var(--c-border-thin)",
+  greenSoft: "var(--c-green-soft)",
+  redSoft: "var(--c-red-soft)",
+  selectedBg: "var(--c-selected-bg)",
 };
 
 // ── Libellés lisibles pour l'indicateur discret "source des données" ───────
@@ -96,7 +101,7 @@ interface ChartTipProps {
 const ChartTip = ({ active, payload, label }: ChartTipProps) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "#FFFFFF", border: `1px solid ${C.border}`, borderRadius: 6, padding: "10px 14px", fontSize: 12, boxShadow: "0 6px 20px rgba(20,30,25,0.12)" }}>
+    <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "10px 14px", fontSize: 12, boxShadow: "0 6px 20px rgba(20,30,25,0.12)" }}>
       <div style={{ color: C.gold, fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {payload.map((p) => (
         <div key={p.name} style={{ color: p.color || C.text, marginBottom: 2 }}>
@@ -449,7 +454,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                     padding: "8px 12px",
                     cursor: "pointer",
                     borderBottom: `1px solid ${C.border}`,
-                    background: isSelected ? "rgba(30, 122, 66, 0.08)" : "transparent",
+                    background: isSelected ? C.selectedBg : "transparent",
                     borderLeft: isSelected ? `3px solid ${co.color}` : "3px solid transparent",
                     transition: "all 0.15s",
                   }}
@@ -619,7 +624,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                             const perf = prev ? (((company.prices[y] - prev) / prev) * 100).toFixed(1) : null;
                             const rend = company.prices[y] > 0 && company.dividends[y] > 0 ? ((company.dividends[y] / company.prices[y]) * 100).toFixed(2) : null;
                             return (
-                              <tr key={y} style={{ borderBottom: `1px solid ${C.border}20`, background: y % 2 === 0 ? C.panel : "transparent" }}>
+                              <tr key={y} style={{ borderBottom: `1px solid ${C.borderThin}`, background: y % 2 === 0 ? C.panel : "transparent" }}>
                                 <td style={{ padding: "6px 10px", textAlign: "right", color: C.gold, fontWeight: 700 }}>{y}</td>
                                 <td style={{ padding: "6px 10px", textAlign: "right", color: C.text, fontVariantNumeric: "tabular-nums" }}>
                                   {company.prices[y].toLocaleString("fr-FR")}
@@ -645,7 +650,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                                         display: "inline-block",
                                         height: 6,
                                         width: `${Math.min(80, Math.abs(parseFloat(perf)) * 3)}px`,
-                                        background: parseFloat(perf) >= 0 ? `${C.green}30` : `${C.red}30`,
+                                        background: parseFloat(perf) >= 0 ? C.greenSoft : C.redSoft,
                                         border: `1px solid ${parseFloat(perf) >= 0 ? C.green : C.red}`,
                                         borderRadius: 2,
                                       }}
@@ -846,7 +851,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                           const pot = (((p.projected - metrics.currentPrice) / metrics.currentPrice) * 100).toFixed(1);
                           const estDiv = metrics.currentDividend > 0 ? Math.round(metrics.currentDividend * (1 + 0.05 * (p.year - baseYear))) : "N/D";
                           return (
-                            <tr key={p.year} style={{ borderBottom: `1px solid ${C.border}20` }}>
+                            <tr key={p.year} style={{ borderBottom: `1px solid ${C.borderThin}` }}>
                               <td style={{ padding: "7px 10px", textAlign: "right", color: C.gold, fontWeight: 700 }}>{p.year}</td>
                               <td style={{ padding: "7px 10px", textAlign: "right", color: C.silver, fontVariantNumeric: "tabular-nums" }}>
                                 {p.projected.toLocaleString("fr-FR")}
@@ -970,7 +975,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                             { l: "Cap. boursière", fn: (_m: CalcMetricsResult, co: CompanyFullDataset) => `${co.mktcap} Mds`, c: C.gold as string | null },
                           ] as Array<{ l: string; fn: (m: CalcMetricsResult, co: CompanyFullDataset) => string | number; c: string | null }>
                         ).map((row, ri) => (
-                          <tr key={row.l} style={{ borderBottom: `1px solid ${C.border}20`, background: ri % 2 === 0 ? C.panel : "transparent" }}>
+                          <tr key={row.l} style={{ borderBottom: `1px solid ${C.borderThin}`, background: ri % 2 === 0 ? C.panel : "transparent" }}>
                             <td style={{ padding: "7px 12px", color: C.textDim, fontWeight: 600 }}>{row.l}</td>
                             {compSelected.map((t) => {
                               const co = companies.find((c) => c.ticker === t);

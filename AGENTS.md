@@ -587,6 +587,95 @@ modifié directement, `"N/D"` pour toute donnée manquante).
 
 ---
 
+## 8. Étape 12 — Bascule mode clair/sombre
+
+Demandée par l'utilisateur le 09/08/2026 (soir), juste après la livraison
+complète de l'étape 11 (rebranding "ouestBourse", thème clair partout).
+
+### Approche retenue
+
+Les pages internes (Screener, Sociétés cotées, Actualités, Portefeuille,
+Graphes, Outils, Connexion, Inscription, Mentions légales) sont des **Server
+Components** : leur HTML est figé au moment du rendu serveur et ne peut pas
+réagir à un état React côté client. Un simple Context/hook React n'aurait
+donc rethemé QUE le dashboard (`/marche`, Client Component) et laissé toutes
+les autres pages figées dans l'ancien thème après un clic sur la bascule.
+
+Solution retenue : **toutes les couleurs du site passent par des variables
+CSS** (`app/globals.css`, `:root` pour le clair, `:root[data-theme="dark"]`
+pour le sombre) plutôt que des valeurs hexadécimales figées. `lib/theme/colors.ts`
+(objet `C`, partagé par toutes les pages) et la constante `C` interne dupliquée
+dans `components/BrvmDashboardClient.tsx` référencent désormais `var(--c-*)`
+au lieu de hex littéraux. Changer l'attribut `data-theme` sur `<html>` retheme
+donc INSTANTANÉMENT toutes les pages, y compris celles déjà rendues côté
+serveur — sans re-render React, sans re-fetch, sans perte de scroll/état.
+
+**Heureux hasard documenté** : la palette sombre choisie pour
+`:root[data-theme="dark"]` reprend EXACTEMENT les valeurs de la palette
+sombre/or d'origine de `reference/BRVM_Dashboard.jsx` (non-négociable jusqu'à
+l'étape 11) — rien n'est perdu, elle redevient un choix disponible parmi
+deux plutôt que le seul thème possible. Le thème clair "ouestBourse"
+(étape 11) reste la valeur PAR DÉFAUT pour tout nouveau visiteur.
+
+### Fichiers livrés/modifiés
+
+- `app/globals.css` — variables CSS des deux palettes + variantes semi-
+  transparentes prêtes à l'emploi (`--c-border-thin`, `--c-green-soft`,
+  `--c-red-soft`, `--c-selected-bg`) qui remplacent les anciens motifs de
+  concaténation `${C.border}20` / `${C.green}30` (invalides dès que `C.xxx`
+  n'est plus un hex littéral mais un `var(...)`).
+- `lib/theme/colors.ts` et la constante `C` interne de
+  `components/BrvmDashboardClient.tsx` — valeurs remplacées par des
+  références `var(--c-*)`, mêmes noms de clés qu'avant (aucun usage cassé).
+  Quelques couleurs hardcodées incohérentes avec le thème (fond de tooltip
+  Recharts, fond de ligne sélectionnée, fond des tiroirs mobile/méga-menu)
+  corrigées au passage pour qu'elles suivent elles aussi la bascule.
+- `lib/theme/theme-storage-key.ts` (nouveau, sans directive `"use client"`) —
+  clé `localStorage` extraite dans un module neutre. **Bug réel rencontré et
+  corrigé en testant en conditions réelles** : importer une simple constante
+  chaîne depuis un fichier marqué `"use client"` (`ThemeToggle.tsx`) dans un
+  Server Component (`app/layout.tsx`) produisait une référence client opaque
+  côté serveur au lieu de la vraie valeur — le script anti-flash généré
+  contenait `localStorage.getItem({})` au lieu de
+  `localStorage.getItem("ouestbourse-theme")`, rendant la persistance
+  invisible au premier chargement. Confirmé dans le HTML servi réel avant/après
+  correction (`Invoke-WebRequest` + inspection du `<script>` injecté).
+- `components/theme/ThemeToggle.tsx` (nouveau, Client Component) — bouton
+  ☀️/🌙 : lit/écrit l'attribut `data-theme` sur `<html>` + persiste le choix
+  en `localStorage`. Ne connaît aucune couleur, pilote uniquement l'attribut.
+- `app/layout.tsx` — script bloquant (`next/script`, `strategy="beforeInteractive"`)
+  qui pose `data-theme="dark"` sur `<html>` AVANT hydratation si l'utilisateur
+  avait déjà choisi ce thème, pour éviter un flash clair→sombre au chargement.
+- `components/AppHeader.tsx` — bouton de bascule ajouté dans les actions
+  desktop (à côté de Connexion/Inscription ou du message "Bonjour").
+- `components/nav/HeaderNav.tsx` — bouton de bascule dupliqué dans le tiroir
+  mobile (accessible aussi sous 860px, où les actions desktop sont masquées).
+- `components/nav/HeaderNav.module.css` / `MegaMenu.module.css` — fonds
+  `#ffffff` figés remplacés par les variables de thème correspondantes
+  (tiroir mobile, panneau du méga-menu).
+
+### Ce qui reste volontairement INCHANGÉ
+
+- La section HERO de la landing page (`components/landing/theme.ts`, objet
+  `LC`) reste un vert forêt sombre FIXE, indépendant de la bascule — c'est un
+  choix d'identité de marque (fidèle à la capture ouestbourse.com fournie),
+  pas un "mode" du site. Elle reste lisible et cohérente dans les deux modes
+  puisqu'elle ne change jamais.
+- Aucun texte français, aucun emoji/icône d'onglet, aucune disposition
+  sidebar/tabs du dashboard n'a été modifié — uniquement des couleurs.
+- Pas de détection automatique de `prefers-color-scheme` pour les nouveaux
+  visiteurs : le thème clair reste le défaut explicite tant qu'aucun choix
+  n'a été mémorisé, cohérent avec la décision de l'étape 11 ("le thème clair
+  est désormais le thème par défaut du site").
+
+✔ `tsc --noEmit` ✅ · `vitest run` (81/81) ✅ · `next build` ✅ (15 pages).
+✔ **Testé en réel** via `next dev` + navigateur : bascule clair→sombre→clair
+sur `/marche` (dashboard, graphique Recharts inclus) et `/screener` (Server
+Component), persistance vérifiée après navigation complète (pas de simple
+transition client), méga-menu et tiroir mobile vérifiés dans les deux modes.
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

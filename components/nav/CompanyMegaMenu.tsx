@@ -27,6 +27,7 @@ const cssVars = {
   "--mm-green": C.green,
   "--mm-textDim": C.textDim,
   "--mm-text": C.text,
+  "--mm-bg": C.bg,
 } as React.CSSProperties;
 
 export default function CompanyMegaMenu({ groups, totalCount }: { groups: SectorGroup[]; totalCount: number }) {

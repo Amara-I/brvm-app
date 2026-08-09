@@ -6,16 +6,32 @@
 //     n'a pas le focus clavier (WCAG 2.4.1 Bypass Blocks) ;
 //   - `<main>` autour du contenu, cible de ce lien, pour fournir un repère de
 //     navigation (landmark) aux lecteurs d'écran.
+// Ajout étape 12 (bascule mode clair/sombre) : script bloquant exécuté AVANT
+// hydratation (`strategy="beforeInteractive"`) qui pose `data-theme="dark"`
+// sur `<html>` si l'utilisateur avait déjà choisi ce thème (`localStorage`) —
+// évite un flash de thème clair (par défaut, cf. `app/globals.css`) suivi
+// d'un re-bascule brutal en sombre après hydratation. Aucune action requise
+// si aucune préférence stockée (le thème clair, valeur par défaut de
+// `:root`, s'applique déjà correctement).
+import Script from "next/script";
 import "./globals.css";
+import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
 
 export const metadata = {
   title: "ouestBourse",
   description: "Analyse financière des sociétés cotées à la BRVM",
 };
 
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="fr">
+      <head>
+        <Script id="theme-init" strategy="beforeInteractive">
+          {THEME_INIT_SCRIPT}
+        </Script>
+      </head>
       <body>
         <a href="#main-content" className="skip-link">
           Aller au contenu principal
