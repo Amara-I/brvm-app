@@ -1,0 +1,407 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Styles de la landing page — étape 10 (exception scoped à `/`)
+   Couleurs injectées via variables CSS (cf. LandingPage.tsx) pour rester
+   pilotées depuis `components/landing/theme.ts`, seule source de vérité.
+   Responsive "mobile-first léger" : empilement vertical sous 900px, nav
+   desktop masquée sous 760px au profit d'un menu mobile (hamburger).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.page {
+  background: var(--lc-bg);
+  color: var(--lc-text);
+  min-height: 100vh;
+}
+
+/* ── Header ─────────────────────────────────────────────────────────── */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: rgba(14, 11, 8, 0.92);
+  backdrop-filter: blur(6px);
+  border-bottom: 1px solid var(--lc-border);
+}
+.headerInner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 14px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--lc-cream);
+  font-size: 1.15rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.logoAccent {
+  color: var(--lc-accent);
+}
+.desktopNav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.navLink {
+  color: var(--lc-textDim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  transition: color 0.15s ease;
+}
+.navLink:hover {
+  color: var(--lc-cream);
+}
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.loginLink {
+  color: var(--lc-textDim);
+  text-decoration: none;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.loginLink:hover {
+  color: var(--lc-cream);
+}
+.signupBtn {
+  background: var(--lc-cream);
+  color: #16110b;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: opacity 0.15s ease;
+}
+.signupBtn:hover {
+  opacity: 0.88;
+}
+.hamburger {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--lc-border);
+  border-radius: 8px;
+  color: var(--lc-cream);
+  padding: 7px 10px;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+.mobilePanel {
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 24px 18px;
+  border-bottom: 1px solid var(--lc-border);
+  background: var(--lc-bg);
+}
+.mobilePanel.open {
+  display: flex;
+}
+.mobilePanel .navLink,
+.mobilePanel .loginLink {
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--lc-border);
+}
+.mobilePanel .signupBtn {
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* ── Hero ───────────────────────────────────────────────────────────── */
+.hero {
+  padding: 64px 24px 0;
+  background: radial-gradient(ellipse 900px 500px at 85% 10%, rgba(208, 138, 62, 0.08), transparent);
+}
+.heroInner {
+  max-width: 1280px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 48px;
+  align-items: center;
+  padding-bottom: 56px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--lc-border);
+  background: var(--lc-panel);
+  color: var(--lc-textDim);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+.badgeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lc-accent);
+  display: inline-block;
+}
+.h1 {
+  font-size: 2.6rem;
+  line-height: 1.15;
+  color: var(--lc-cream);
+  margin: 0 0 10px;
+  font-weight: 700;
+}
+.tagline {
+  font-family: var(--lc-serif);
+  font-style: italic;
+  color: var(--lc-accent);
+  font-size: 1.5rem;
+  margin: 0 0 18px;
+}
+.paragraph {
+  color: var(--lc-textDim);
+  font-size: 0.98rem;
+  line-height: 1.7;
+  max-width: 540px;
+  margin: 0 0 28px;
+}
+.ctaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 40px;
+}
+.ctaPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--lc-accent);
+  color: #1a1006;
+  font-weight: 700;
+  font-size: 0.92rem;
+  padding: 13px 22px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: filter 0.15s ease;
+}
+.ctaPrimary:hover {
+  filter: brightness(1.08);
+}
+.ctaSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--lc-cream);
+  border: 1px solid var(--lc-border);
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 13px 22px;
+  border-radius: 10px;
+  text-decoration: none;
+  transition: border-color 0.15s ease;
+}
+.ctaSecondary:hover {
+  border-color: var(--lc-accent);
+}
+.featureRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+}
+.featureItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.featureIcon {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+.featureText {
+  color: var(--lc-textDim);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+.featureText strong {
+  display: block;
+  color: var(--lc-text);
+  font-size: 0.82rem;
+  margin-bottom: 2px;
+}
+
+/* ── Cartes flottantes (côté droit du hero) ────────────────────────── */
+.heroRight {
+  position: relative;
+  min-height: 380px;
+}
+.card {
+  background: var(--lc-panel);
+  border: 1px solid var(--lc-border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 20px 50px -20px rgba(0, 0, 0, 0.6);
+}
+.cardPortfolio {
+  position: relative;
+  z-index: 2;
+  max-width: 300px;
+  margin-bottom: -30px;
+}
+.cardStock {
+  position: relative;
+  z-index: 1;
+  max-width: 320px;
+  margin-left: 60px;
+}
+.cardLabel {
+  color: var(--lc-textDim);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 6px;
+}
+.cardValue {
+  color: var(--lc-cream);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+.cardChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  margin-right: 6px;
+}
+.chipGreen {
+  background: rgba(127, 191, 127, 0.14);
+  color: var(--lc-green);
+}
+.chipAccent {
+  background: rgba(208, 138, 62, 0.14);
+  color: var(--lc-accent);
+}
+.stockRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.8rem;
+  padding: 7px 0;
+  border-top: 1px solid var(--lc-border);
+}
+.stockRow:first-of-type {
+  border-top: none;
+}
+.stockTicker {
+  color: var(--lc-text);
+  font-weight: 600;
+}
+.stockChangeUp {
+  color: var(--lc-green);
+}
+.stockChangeDown {
+  color: #e08585;
+}
+
+/* ── Bandeau de stats ──────────────────────────────────────────────── */
+.statsBar {
+  border-top: 1px solid var(--lc-border);
+  background: var(--lc-bgAlt);
+}
+.statsInner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 26px 24px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr) auto;
+  gap: 20px;
+  align-items: center;
+}
+.statItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.statIcon {
+  font-size: 1.3rem;
+}
+.statValue {
+  color: var(--lc-cream);
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.statLabel {
+  color: var(--lc-textDim);
+  font-size: 0.72rem;
+}
+.statNote {
+  color: var(--lc-textDim);
+  font-size: 0.72rem;
+  white-space: nowrap;
+  justify-self: end;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .heroInner {
+    grid-template-columns: 1fr;
+    padding-bottom: 40px;
+  }
+  .heroRight {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .cardPortfolio,
+  .cardStock {
+    max-width: none;
+    margin: 0;
+  }
+  .featureRow {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .statsInner {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .statNote {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+@media (max-width: 760px) {
+  .desktopNav,
+  .headerActions {
+    display: none;
+  }
+  .hamburger {
+    display: inline-flex;
+  }
+  .h1 {
+    font-size: 2rem;
+  }
+  .tagline {
+    font-size: 1.2rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .featureRow {
+    grid-template-columns: 1fr;
+  }
+  .statsInner {
+    grid-template-columns: 1fr;
+  }
+}

@@ -74,6 +74,28 @@ enum UserRole {
   @@map("user_role")
 }
 
+/// Catégorie d'une trouvaille de l'agent de recherche IA (étape 10) —
+/// veille produit/UX, distincte de la veille financière (`DataSource`).
+enum ResearchCategory {
+  UX // expérience utilisateur, design, accessibilité, mobile
+  CONTENU // actualités BRVM, sujets à couvrir
+  FONCTIONNALITE // idées de fonctionnalités
+  CONCURRENCE // veille Ouestbourse / Sikafinance / Richbourse
+
+  @@map("research_category")
+}
+
+/// Statut de traitement d'une trouvaille par l'équipe produit (jamais
+/// appliqué automatiquement — l'agent ne fait que proposer, cf. AGENTS.md).
+enum ResearchStatus {
+  NOUVEAU
+  RETENU
+  REJETE
+  APPLIQUE
+
+  @@map("research_status")
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RÉFÉRENTIEL GÉOGRAPHIQUE & SECTORIEL
 // ─────────────────────────────────────────────────────────────────────────
@@ -484,4 +506,39 @@ model PortfolioHolding {
   @@unique([portfolioId, companyId], name: "uniq_holding_portfolio_company")
   @@index([portfolioId])
   @@map("portfolio_holdings")
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// AGENT DE RECHERCHE IA (veille produit/UX) — étape 10
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Une "trouvaille" remontée par l'agent de recherche web permanent
+/// (`lib/research/`, cf. AGENTS.md § Étape 10) : piste d'amélioration UX,
+/// idée de contenu/actualité, de fonctionnalité, ou veille concurrentielle.
+/// N'est JAMAIS appliquée automatiquement — sert de file de suggestions
+/// consultée manuellement (page `/outils`), sur le modèle de
+/// `DataDiscrepancy` (audit humain) plutôt que `PriceHistory` (donnée de
+/// vérité appliquée automatiquement).
+model ResearchFinding {
+  id           String           @id @default(cuid())
+  /// Requête de recherche à l'origine de cette trouvaille (cf. lib/research/queries.ts).
+  query        String
+  category     ResearchCategory
+  title        String
+  /// URL source — unique pour dédupliquer les runs successifs sur le même contenu.
+  url          String           @unique
+  summary      String?
+  /// Nom du fournisseur de recherche ayant produit cette trouvaille (ex:
+  /// "serpapi", "no-op") — traçabilité, même logique que `DataSource` pour
+  /// l'ingestion financière.
+  provider     String
+  status       ResearchStatus   @default(NOUVEAU)
+  discoveredAt DateTime         @default(now()) @map("discovered_at")
+  reviewedAt   DateTime?        @map("reviewed_at")
+  reviewedBy   String?          @map("reviewed_by")
+
+  @@index([category])
+  @@index([status])
+  @@index([discoveredAt])
+  @@map("research_findings")
 }

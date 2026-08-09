@@ -18,14 +18,34 @@ Ce projet a une spécification visuelle et fonctionnelle figée dans
   📈 Courbe historique, 🔮 Projection future, ⚖️ Comparaison).
 - **Ne jamais changer** la disposition sidebar (liste sociétés à gauche) + tabs
   (barre d'onglets en haut du contenu principal).
-- Le design cible reste celui de `brvm-app.vercel.app` — **jamais** un clone
-  visuel de `ouestbourse.com` (celui-ci n'est qu'une référence d'architecture
-  produit/UX, pas de design).
+- Le design du **dashboard applicatif** (page `/marche` et toutes les pages
+  internes hors landing) reste celui de `brvm-app.vercel.app` — **jamais** un
+  clone visuel de `ouestbourse.com` sur ces pages.
 - Toute donnée manquante s'affiche `"N/D"` (jamais `null`, `undefined`, `NaN`,
   ou une chaîne vide brute côté UI).
 - Toute nouvelle fonctionnalité est ajoutée de façon incrémentale, sans casser
   un onglet déjà fonctionnel (Vue d'ensemble / Courbe historique / Projection
   future / Comparaison).
 
+## Exception explicite — Landing page (`/`) — autorisée le 09/08/2026
+
+L'utilisateur a explicitement demandé et validé (09/08/2026) que la **landing
+page publique** (`/`, point d'entrée avant le dashboard) reproduise
+**visuellement** la page d'accueil de `ouestbourse.com` (structure hero, nav
+horizontale, cartes flottantes, bandeau de stats en pied de page) — palette
+et typographie propres à cette page, distinctes de celles du dashboard.
+
+Portée strictement limitée à `/` :
+- Le dashboard (`/marche`, ex-`/`) et toutes les autres pages internes
+  (Screener, Portefeuille, Graphes, Sociétés cotées, Actualités, Outils,
+  Connexion, Inscription, Mentions légales) **conservent** la palette `C`
+  sombre/or, la police `'Trebuchet MS', Georgia, serif` et les textes déjà en
+  place — aucune exception ici.
+- Le contenu de la landing page reste **100 % basé sur les vraies données**
+  BRVM App (nombre réel de sociétés, années couvertes, sources de données) —
+  jamais de chiffres inventés copiés de ouestbourse.com.
+- Le nom/logo affiché reste "BRVM App" (pas de copie de marque tierce).
+
 Avant de proposer un changement visuel, comparer avec
-`reference/BRVM_Dashboard.jsx` et justifier explicitement toute divergence.
+`reference/BRVM_Dashboard.jsx` et justifier explicitement toute divergence
+(hors landing page, qui suit sa propre spécification ci-dessus).

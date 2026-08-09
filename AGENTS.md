@@ -411,6 +411,109 @@ anticipée) : déploiement Vercel réel + base Postgres managée (Supabase/Neon)
 pour remplacer le Docker local, activer le cron Vercel réel, et lever les
 points ⬜/🟡 restants de `COMPLIANCE_CHECKLIST.md`.
 
+---
+
+## 7. Étape 10 — Landing page, navigation complète & agent de recherche IA
+
+Demandée par l'utilisateur le 09/08/2026, en dehors de la feuille de route
+initiale à 9 étapes (déjà entièrement livrée). Décisions validées
+explicitement par l'utilisateur avant de commencer (cf. § 2 pour la
+contrainte non-négociable modifiée en conséquence) :
+
+1. **Landing page (`/`)** : clone visuel de `ouestbourse.com`, exception
+   scoped à cette seule page (cf. `.cursor/rules/brvm-non-negotiable.mdc`) —
+   le dashboard (`/marche`) et toutes les pages internes gardent la palette
+   sombre/or existante.
+2. **Agent de recherche IA** : une VRAIE fonctionnalité permanente (pas une
+   recherche ponctuelle de l'agent de dev), un job planifié qui scanne le web
+   pour proposer des pistes d'amélioration (UX, contenu, fonctionnalités,
+   veille concurrentielle), sur le modèle des connecteurs d'ingestion
+   existants (isolé, traçable, désactivable).
+3. **Portée immédiate** : Landing page + toutes les pages du menu de
+   navigation (au moins en version fonctionnelle minimale/stub honnête).
+
+### 10.1 — Navigation & structure des pages
+
+- `app/page.tsx` → nouvelle **Landing page** (`components/LandingPage.tsx`),
+  seule page à déroger à la palette `C` du dashboard (cf. règle mise à jour).
+  Contenu 100 % basé sur les vraies données (`getCompaniesFullDataset()`) :
+  nombre réel de sociétés, années réellement couvertes, secteurs réels —
+  jamais de chiffres inventés copiés de ouestbourse.com.
+- L'ancien contenu de `app/page.tsx` (dashboard `BrvmDashboardClient`) déplacé
+  tel quel vers **`app/marche/page.tsx`** (aucune modification du composant
+  dashboard lui-même — contrainte non-négociable). Enveloppé par le nouveau
+  `components/AppHeader.tsx` (nav sombre/or, additif, ne touche à aucun
+  onglet/texte existant du dashboard).
+- `components/AppHeader.tsx` — Server Component (lit la session NextAuth
+  côté serveur via `getCurrentUser()`, pas de `SessionProvider` client requis)
+  affichant les liens de nav (Marché/Screener/Portefeuille/Graphes/Sociétés
+  cotées/Actualités/Outils) + Connexion/Inscription ou "Bonjour {nom} ·
+  Déconnexion" si authentifié. Utilisé sur toutes les pages internes
+  (`/marche`, `/screener`, `/societes-cotees`, `/actualites`, `/portefeuille`,
+  `/graphes`, `/outils`, `/mentions-legales`), jamais sur la landing.
+- Pages livrées avec de VRAIES données (pas de placeholder) car le backend
+  existait déjà :
+  - `app/societes-cotees/page.tsx` — liste complète des sociétés (ticker,
+    nom, pays, secteur, cours actuel), à partir de `getCompaniesFullDataset()`.
+  - `app/screener/page.tsx` — filtres rapides façon Ouestbourse (Rentabilité /
+    Dividendes / Croissance / Valorisation), calculés à la volée avec
+    `calcMetrics` (aucune duplication de logique, même fonction que `/marche`
+    et l'export Excel).
+  - `app/actualites/page.tsx` — branché sur la table `news_articles`
+    existante (état vide honnête "Aucune actualité pour l'instant" tant que
+    l'ingestion d'actualités n'a pas été implémentée — non promis dans la
+    roadmap initiale).
+  - `app/portefeuille/page.tsx` — si connecté : liste réelle des
+    portefeuilles + métriques (réutilise l'API étape 7) ; sinon, invite à se
+    connecter/créer un compte.
+  - `app/connexion/page.tsx` / `app/inscription/page.tsx` — formulaires réels
+    (`next-auth/react` `signIn("credentials")` / `POST /api/auth/register`
+    existants depuis l'étape 7), thème sombre/or.
+- Pages livrées en stub honnête (fonctionnalité pas encore développée,
+  annoncée comme telle, pas de fausses données) :
+  - `app/graphes/page.tsx` — "Bientôt disponible", renvoie vers les onglets
+    Courbe historique/Comparaison de `/marche` en attendant.
+  - `app/outils/page.tsx` — liste les outils déjà réels (Export Excel — lien
+    direct vers `GET /api/export/excel`) et les suggestions de l'agent de
+    recherche IA (§ 10.2) ; autres outils annoncés "Bientôt disponible".
+
+### 10.2 — Agent de recherche IA permanent
+
+Nouveau domaine `lib/research/`, conçu sur le même modèle que
+`lib/ingestion/` (connecteurs isolés, feature flags, logs, alerting) mais pour
+la VEILLE produit/UX plutôt que les données financières :
+
+- `prisma/schema.prisma` — nouveau modèle `ResearchFinding` (requête source,
+  titre, url, résumé, catégorie `UX | CONTENU | FONCTIONNALITE | CONCURRENCE`,
+  statut `NOUVEAU | RETENU | REJETE | APPLIQUE`, horodatage) + enum associés.
+- `lib/research/types.ts` — interface `SearchProvider` pluggable (comme
+  `MarketDataConnector` pour l'ingestion).
+- `lib/research/search-providers/no-op-provider.ts` — implémentation par
+  défaut, SANS clé API, qui ne fait aucun appel réseau et retourne une liste
+  vide (documentée en commentaire) : évite tout comportement surprenant tant
+  qu'aucune clé n'est configurée.
+- `lib/research/search-providers/serpapi-provider.ts` — implémentation réelle
+  prête à l'emploi dès qu'une clé `RESEARCH_SEARCH_API_KEY` est renseignée
+  (SerpAPI, Google Search). ⚠️ Non testée en conditions réelles dans cet
+  environnement (aucune clé API disponible ici) — même limitation transparente
+  que les connecteurs BRVM/Sikafinance/Richbourse au démarrage du projet.
+- `lib/research/queries.ts` — jeu de requêtes de veille par défaut (UX fintech
+  Afrique de l'Ouest, actualités BRVM, fonctionnalités des concurrents
+  Ouestbourse/Sikafinance/Richbourse, accessibilité mobile), modifiable sans
+  toucher à l'orchestrateur.
+- `lib/research/run-research-agent.ts` — orchestrateur : exécute chaque
+  requête via le provider configuré, déduplique par URL, persiste les
+  nouvelles trouvailles, isolé par try/catch comme `run-full-ingestion.ts`
+  (un échec du provider n'empêche jamais le reste de l'app de fonctionner).
+- `GET /api/cron/research` — point d'entrée protégé par `CRON_SECRET` (même
+  mécanisme que `/api/cron/ingest`), déclenchable manuellement ou via Vercel
+  Cron (`vercel.json` — hebdomadaire, lundi 6h UTC, feature séparée du cron
+  financier quotidien).
+- `GET /api/research/findings` — liste paginée des trouvailles, consommée par
+  `app/outils/page.tsx`.
+- Feature flag `RESEARCH_AGENT_ENABLED` (défaut `false` tant qu'aucune clé
+  API n'est configurée, pour ne jamais spammer un provider par erreur).
+
 > Ne pas anticiper les étapes suivantes sans validation explicite de l'utilisateur
 > entre chaque étape (contrainte explicite du brief projet).
 

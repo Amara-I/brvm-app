@@ -17,8 +17,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { apiSuccess, apiError, apiNotFound, apiValidationError, privateCacheHeaders } from "@/lib/api/response";
-import { getLatestCanonicalPrices, getYearStartCanonicalPrices } from "@/lib/api/latest-data";
-import { computePortfolioMetrics } from "@/lib/calc/portfolio-metrics";
+import { getUserPortfoliosWithMetrics } from "@/lib/api/portfolio-data";
 
 export const dynamic = "force-dynamic";
 
@@ -26,51 +25,7 @@ export async function GET() {
   const userId = await getCurrentUserId();
   if (!userId) return apiError("Authentification requise", 401);
 
-  const portfolios = await prisma.portfolio.findMany({
-    where: { userId },
-    include: { holdings: { include: { company: { include: { sector: true } } } } },
-    orderBy: { createdAt: "asc" },
-  });
-
-  const allCompanyIds = [...new Set(portfolios.flatMap((p) => p.holdings.map((h) => h.companyId)))];
-  const currentYear = new Date().getUTCFullYear();
-  const [prices, yearStartPrices] = await Promise.all([
-    getLatestCanonicalPrices(allCompanyIds),
-    getYearStartCanonicalPrices(allCompanyIds, currentYear),
-  ]);
-
-  const data = portfolios.map((p) => {
-    const metrics = computePortfolioMetrics(
-      p.holdings.map((h) => {
-        const price = prices.get(h.companyId);
-        const yearStartPrice = yearStartPrices.get(h.companyId);
-        return {
-          ticker: h.company.ticker,
-          sector: h.company.sector.name,
-          quantity: Number(h.quantity),
-          avgBuyPrice: Number(h.avgBuyPrice),
-          currentPrice: price ? Number(price.closePrice) : null,
-          yearStartPrice: yearStartPrice ? Number(yearStartPrice.closePrice) : null,
-        };
-      })
-    );
-    return {
-      id: p.id,
-      name: p.name,
-      createdAt: p.createdAt.toISOString(),
-      holdings: p.holdings.map((h) => ({
-        id: h.id,
-        ticker: h.company.ticker,
-        companyName: h.company.name,
-        sector: h.company.sector.name,
-        quantity: Number(h.quantity),
-        avgBuyPrice: Number(h.avgBuyPrice),
-        buyDate: h.buyDate?.toISOString().slice(0, 10) ?? null,
-        notes: h.notes,
-      })),
-      metrics,
-    };
-  });
+  const data = await getUserPortfoliosWithMetrics(userId);
 
   // ⚠️ Données personnalisées par utilisateur : `private` (jamais `public`),
   // cf. lib/api/response.ts — un cache partagé (CDN) ne doit jamais resservir

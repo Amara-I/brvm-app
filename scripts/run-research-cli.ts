@@ -1,0 +1,25 @@
+// ═══════════════════════════════════════════════════════════════════════════
+// CLI d'exécution manuelle de l'agent de recherche IA — étape 10
+// ═══════════════════════════════════════════════════════════════════════════
+// Appelle exactement la même fonction que la route cron
+// (`app/api/cron/research/route.ts`). Utile pour tester en local avant
+// d'activer `RESEARCH_AGENT_ENABLED` en production.
+//
+// Usage : npx ts-node scripts/run-research-cli.ts
+// ═══════════════════════════════════════════════════════════════════════════
+
+import { runResearchAgent } from "../lib/research/run-research-agent";
+
+async function main() {
+  console.log("🔎 AGENT DE RECHERCHE IA — BRVM App (étape 10)");
+  const summary = await runResearchAgent();
+  console.log(JSON.stringify(summary, null, 2));
+  if (!summary.enabled) {
+    console.log('\nℹ️  Agent désactivé (RESEARCH_AGENT_ENABLED != "true") — aucun appel réseau effectué.');
+  }
+}
+
+main().catch((err) => {
+  console.error("❌ Erreur fatale de l'agent de recherche :", err);
+  process.exit(1);
+});

@@ -17,6 +17,8 @@
 //   - Informations RGPD (données collectées, finalités, droits, contact).
 // ═══════════════════════════════════════════════════════════════════════════
 
+import AppHeader from "@/components/AppHeader";
+
 const C = {
   bg: "#080B12",
   panel: "#0D1117",
@@ -43,8 +45,9 @@ export const metadata = {
 
 export default function MentionsLegalesPage() {
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Trebuchet MS', Georgia, serif", padding: "32px 20px" }}>
-      <div style={{ maxWidth: 820, margin: "0 auto" }}>
+    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Trebuchet MS', Georgia, serif" }}>
+      <AppHeader />
+      <div style={{ maxWidth: 820, margin: "0 auto", padding: "32px 20px" }}>
         <h1 style={{ fontSize: "1.6rem", color: C.text, marginBottom: 4 }}>Mentions légales</h1>
         <p style={{ color: C.textDim, fontSize: "0.8rem", marginBottom: 24 }}>
           Dernière mise à jour : conformément au déploiement de l&apos;étape 9 de la feuille de route (cf. AGENTS.md).

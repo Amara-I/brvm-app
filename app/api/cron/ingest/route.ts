@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runFullIngestion } from "@/lib/ingestion/run-full-ingestion";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
+import { isCronAuthorized } from "@/lib/security/cron-auth";
 
 export const dynamic = "force-dynamic";
 // L'ingestion peut prendre plusieurs dizaines de secondes (rate limiting
@@ -23,22 +24,8 @@ export const dynamic = "force-dynamic";
 // le plan effectivement utilisé en production.
 export const maxDuration = 300;
 
-function isAuthorized(request: NextRequest): boolean {
-  const expected = process.env.CRON_SECRET;
-  if (!expected) {
-    // Aucun secret configuré = configuration incomplète, jamais un "ouvert à
-    // tous" par défaut — on refuse plutôt que de risquer un déclenchement
-    // non maîtrisé du scraping en production.
-    return false;
-  }
-  const authHeader = request.headers.get("authorization");
-  if (authHeader === `Bearer ${expected}`) return true;
-  const querySecret = request.nextUrl.searchParams.get("secret");
-  return querySecret === expected;
-}
-
 export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
+  if (!isCronAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Non autorisé" }, { status: 401 });
   }
 

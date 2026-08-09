@@ -16,6 +16,7 @@
     "ingest:prototype": "ts-node scripts/ingest-prototype.ts",
     "ingest:run": "ts-node scripts/run-ingestion-cli.ts",
     "ingest:correct": "ts-node scripts/manual-correction.ts",
+    "research:run": "ts-node scripts/run-research-cli.ts",
     "test": "vitest run"
   },
   "devDependencies": {

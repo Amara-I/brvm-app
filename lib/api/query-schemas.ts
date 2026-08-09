@@ -26,3 +26,10 @@ export const newsListQuerySchema = z.object({
   /// Filtre optionnel sur une société précise (ticker).
   ticker: z.string().trim().toUpperCase().optional(),
 });
+
+/// GET /api/research/findings — étape 10 (agent de recherche IA).
+export const researchFindingsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(50).default(20),
+  category: z.enum(["UX", "CONTENU", "FONCTIONNALITE", "CONCURRENCE"]).optional(),
+});

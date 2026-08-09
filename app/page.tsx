@@ -1,17 +1,24 @@
-// Page racine — étape 8 du plan de migration.
-// Server Component : récupère le jeu de données initial DIRECTEMENT via
-// `getCompaniesFullDataset()` (aucun aller-retour HTTP superflu sur le
-// premier rendu) puis le transmet au dashboard client, qui gère ensuite
-// lui-même les rafraîchissements via `GET /api/companies/full` et l'export
-// via `GET /api/export/excel`.
+// Page racine — étape 10 (navigation complète) : devient la LANDING PAGE
+// publique (exception scoped, cf. .cursor/rules/brvm-non-negotiable.mdc).
+// L'ancien contenu de ce fichier (dashboard `BrvmDashboardClient`) est
+// déplacé TEL QUEL vers `app/marche/page.tsx` — aucune modification du
+// composant dashboard lui-même (contrainte non-négociable).
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
-import BrvmDashboardClient from "@/components/BrvmDashboardClient";
+import { computeMarketSummaryStats, topScoredCompanies } from "@/lib/calc/market-summary-stats";
+import LandingPage from "@/components/landing/LandingPage";
 
-// Toujours resservir les données les plus fraîches disponibles en base (les
-// KPIs et classements dépendent directement de l'état courant de l'ingestion).
 export const dynamic = "force-dynamic";
 
-export default async function HomePage() {
+export const metadata = {
+  title: "BRVM App — Toute l'intelligence de marché de la BRVM",
+  description:
+    "Données tracées et sourcées, analyses avancées et suivi de portefeuille pour les sociétés cotées à la BRVM (Bourse Régionale des Valeurs Mobilières).",
+};
+
+export default async function LandingRoute() {
   const dataset = await getCompaniesFullDataset();
-  return <BrvmDashboardClient initialData={dataset} />;
+  const stats = computeMarketSummaryStats(dataset);
+  const topCompanies = topScoredCompanies(dataset, 4);
+
+  return <LandingPage stats={stats} topCompanies={topCompanies} />;
 }
