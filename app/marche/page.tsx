@@ -12,7 +12,7 @@ import AppHeader from "@/components/AppHeader";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Marché — BRVM App",
+  title: "Marché — ouestBourse",
   description: "Analyse financière des sociétés cotées à la BRVM : cours, dividendes, projections et signaux.",
 };
 

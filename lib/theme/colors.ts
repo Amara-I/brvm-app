@@ -1,35 +1,36 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Palette partagée du dashboard BRVM App — étape 10 (navigation complète)
+// Palette partagée du site — mise à jour "rebranding ouestBourse" (étape 11)
 // ═══════════════════════════════════════════════════════════════════════════
-// Valeurs IDENTIQUES à l'objet `C` défini dans `components/BrvmDashboardClient.tsx`
-// (lui-même verbatim de `reference/BRVM_Dashboard.jsx`, palette non-négociable
-// — cf. .cursor/rules/brvm-non-negotiable.mdc). Dupliqué ici volontairement
-// plutôt qu'importé DEPUIS BrvmDashboardClient.tsx : on ne veut STRICTEMENT
-// RIEN changer à ce composant déjà validé (contrainte "ne jamais casser un
-// onglet déjà fonctionnel"), et cette palette doit maintenant être partagée
-// par les nouvelles pages du menu (Screener, Portefeuille, Graphes, Sociétés
-// cotées, Actualités, Outils, Connexion, Inscription, le header commun) sans
-// dépendre d'un composant client existant.
+// Historique : palette sombre/or d'origine (étape 10), remplacée le
+// 09/08/2026 (soir) par une palette CLAIRE inspirée de la charte réelle
+// ouestbourse.com (fond blanc, vert forêt, or/orange), à la demande explicite
+// de l'utilisateur — cf. .cursor/rules/brvm-non-negotiable.mdc
+// § "MISE À JOUR — Rebranding complet ouestBourse". Les NOMS des clés restent
+// identiques (aucun usage existant cassé), seules les valeurs changent.
 //
-// ⚠️ La landing page (`app/page.tsx` / `components/LandingPage.tsx`) N'UTILISE
-// PAS cette palette : elle a sa propre palette dédiée (cf.
-// `components/landing/theme.ts`), par exception explicite validée le
-// 09/08/2026 (cf. règle non-négociable mise à jour).
+// Valeurs IDENTIQUES à l'objet `C` défini dans `components/BrvmDashboardClient.tsx`
+// (dupliqué là-bas volontairement, cf. commentaire sur place — on ne veut
+// STRICTEMENT RIEN changer à la STRUCTURE de ce composant déjà validé, sa
+// palette suit désormais la même mise à jour de valeurs). Cette palette est
+// partagée par toutes les pages (landing incluse depuis l'étape 11 — la
+// palette dédiée `components/landing/theme.ts` de l'étape 10 est conservée
+// pour compatibilité mais la landing utilise maintenant l'identité visuelle
+// unifiée ci-dessous).
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const C = {
-  bg: "#080B12",
-  panel: "#0D1117",
-  border: "#1C2333",
-  gold: "#D4A843",
-  green: "#22C55E",
-  red: "#EF4444",
-  blue: "#3B82F6",
+  bg: "#FFFFFF",
+  panel: "#F6F7F3",
+  border: "#E2E5DD",
+  gold: "#D9A441",
+  green: "#1E7A42",
+  red: "#DC2626",
+  blue: "#2563EB",
   silver: "#94A3B8",
-  text: "#E2D9C5",
-  textDim: "#6B7280",
-  teal: "#14B8A6",
-  purple: "#A855F7",
+  text: "#16241B",
+  textDim: "#5B6B60",
+  teal: "#0D9488",
+  purple: "#9333EA",
 } as const;
 
 export const FONT_FAMILY = "'Trebuchet MS', Georgia, serif";

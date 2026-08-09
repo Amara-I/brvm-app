@@ -6,8 +6,8 @@ import { C } from "@/lib/theme/colors";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Créer un compte — BRVM App",
-  description: "Créez votre compte BRVM App gratuitement pour suivre votre portefeuille sur la BRVM.",
+  title: "Créer un compte — ouestBourse",
+  description: "Créez votre compte ouestBourse gratuitement pour suivre votre portefeuille sur la BRVM.",
 };
 
 export default function InscriptionPage() {

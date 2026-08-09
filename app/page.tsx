@@ -6,11 +6,12 @@
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { computeMarketSummaryStats, topScoredCompanies } from "@/lib/calc/market-summary-stats";
 import LandingPage from "@/components/landing/LandingPage";
+import AppHeader from "@/components/AppHeader";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "BRVM App — Toute l'intelligence de marché de la BRVM",
+  title: "ouestBourse — Toute l'intelligence de marché de la BRVM",
   description:
     "Données tracées et sourcées, analyses avancées et suivi de portefeuille pour les sociétés cotées à la BRVM (Bourse Régionale des Valeurs Mobilières).",
 };
@@ -20,5 +21,10 @@ export default async function LandingRoute() {
   const stats = computeMarketSummaryStats(dataset);
   const topCompanies = topScoredCompanies(dataset, 4);
 
-  return <LandingPage stats={stats} topCompanies={topCompanies} />;
+  return (
+    <>
+      <AppHeader />
+      <LandingPage stats={stats} topCompanies={topCompanies} />
+    </>
+  );
 }

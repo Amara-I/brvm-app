@@ -1,22 +1,23 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Landing page — étape 10 (exception scoped, cf. règle non-négociable)
+// Landing page — étape 11 (rebranding complet "ouestBourse")
 // ═══════════════════════════════════════════════════════════════════════════
 // Reproduit visuellement la structure de la page d'accueil de
-// ouestbourse.com (hero, badge, cartes flottantes, bandeau de stats) avec la
-// palette dédiée `components/landing/theme.ts`. Server Component : tout le
-// contenu chiffré provient de vraies données (`MarketSummaryStats` +
-// `topScoredCompanies`, calculées via `lib/calc/*`, les MÊMES fonctions que
-// le dashboard et l'export Excel) — aucun chiffre inventé/copié de
-// ouestbourse.com.
+// ouestbourse.com (hero, badge, cartes flottantes, bandeau de stats), avec
+// le VRAI nom + logo "ouestBourse" (marque de l'utilisateur, confirmée le
+// 09/08/2026 — cf. règle non-négociable mise à jour) et le header partagé
+// `AppHeader` (rendu par `app/page.tsx`, plus de header dédié à la landing
+// depuis cette étape — cohérence de marque sur tout le site). Server
+// Component : tout le contenu chiffré provient de vraies données
+// (`MarketSummaryStats` + `topScoredCompanies`, calculées via `lib/calc/*`,
+// les MÊMES fonctions que le dashboard et l'export Excel) — aucun chiffre
+// inventé/copié de ouestbourse.com.
 //
 // Divergences assumées par rapport à la capture fournie par l'utilisateur
 // (documentées ici plutôt que "corrigées en silence", même philosophie que
 // le reste du projet) :
-//   - Pas de mockup "téléphone" (illustration/asset non disponible dans cet
-//     environnement) : remplacé par une 2e carte de données réelles
-//     (top performeurs du marché), qui occupe un rôle visuel équivalent.
-//   - Nom/logo : "BRVM App" (jamais le nom/logo de ouestbourse.com, marque
-//     tierce — cf. règle non-négociable mise à jour).
+//   - Pas de photo de fond réelle pour le hero (aucun asset disponible dans
+//     cet environnement) : remplacé par un dégradé sombre vert forêt uni,
+//     cohérent avec les couleurs du logo réel.
 //   - Icônes : emojis (cohérent avec le reste de l'app, pas de dépendance
 //     supplémentaire) plutôt que les icônes vectorielles du site de référence.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -26,7 +27,6 @@ import type { MarketSummaryStats } from "@/lib/calc/market-summary-stats";
 import type { CalcMetricsResult } from "@/lib/calc/calc-metrics";
 import type { CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import { LC, LANDING_SERIF } from "./theme";
-import LandingHeader from "./LandingHeader";
 import styles from "./Landing.module.css";
 
 export interface LandingPageProps {
@@ -55,8 +55,6 @@ export default function LandingPage({ stats, topCompanies }: LandingPageProps) {
 
   return (
     <div className={styles.page} style={cssVars}>
-      <LandingHeader />
-
       <section className={styles.hero}>
         <div className={styles.heroInner}>
           <div>

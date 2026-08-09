@@ -519,6 +519,74 @@ la VEILLE produit/UX plutôt que les données financières :
 
 ---
 
+## 7bis. Étape 11 — Rebranding complet "ouestBourse" (nom, logo, thème sur tout le site)
+
+Demandée par l'utilisateur le 09/08/2026 (même soirée que l'étape 10), avec
+une image du logo réel + une capture d'écran du site réel ouestbourse.com
+(nav + méga-menu "Sociétés cotées" + bandeau de stats). Avant d'exécuter,
+question bloquante posée explicitement à l'utilisateur car la demande
+initiale ("utilise ce nom et logo") entrait en conflit direct avec la règle
+non-négociable de l'étape 10 ("le nom/logo reste BRVM App, pas de copie de
+marque tierce" — ouestbourse.com étant référencé partout dans ce projet comme
+un concurrent réel et distinct). Réponses explicites de l'utilisateur :
+
+- **Propriété de la marque** : "ouestBourse" (nom + logo) est **sa propre
+  marque** — il en a les droits. Ce n'est donc pas une contrefaçon, c'est le
+  vrai nom du produit. (Réponse : `my_own_brand`.)
+- **Portée du thème clair "façon ouestbourse.com"** : étendu à **toutes les
+  pages**, y compris le dashboard `/marche` et toutes les pages internes
+  (plus seulement la landing page comme à l'étape 10). (Réponse : `all_pages`.)
+- **Portée du rebranding nom/logo** : **partout** dans l'application.
+  (Réponse : `everywhere`.)
+
+Cf. `.cursor/rules/brvm-non-negotiable.mdc` § "MISE À JOUR — Rebranding
+complet 'ouestBourse'" pour le détail de ce qui est désormais autorisé/changé
+et de ce qui reste strictement non-négociable (textes français, emojis
+d'onglets, disposition sidebar/tabs, `reference/BRVM_Dashboard.jsx` jamais
+modifié directement, `"N/D"` pour toute donnée manquante).
+
+### Travaux réalisés
+
+- **Logo** : fourni par l'utilisateur en JPEG à fond noir opaque (pas de
+  transparence). Converti en PNG à fond réellement transparent
+  (`public/logo.png`) via un script ponctuel (chroma key sur les pixels quasi
+  noirs, seuil RVB < 32, traitement par `LockBits`/`Marshal.Copy` en
+  PowerShell/.NET pour rester rapide sur une image 1024×682) — nécessaire
+  pour que le logo s'intègre proprement sur un header à fond clair.
+- `lib/theme/brand.ts` (nouveau) — source de vérité unique du nom ("ouestBourse"),
+  du slogan ("West Africa's Stock Market") et du chemin du logo
+  (`/logo.png`) : plus aucun texte "BRVM App" ni chemin de logo codé en dur
+  ailleurs dans le code.
+- `lib/theme/colors.ts` (objet `C`, palette partagée) — valeurs mises à jour
+  vers une charte claire inspirée de ouestbourse.com (fond blanc/gris très
+  clair, vert forêt, or/orange, texte sombre), **mêmes noms de clés**
+  qu'avant (pour ne rien casser côté usages), seules les valeurs hexadécimales
+  changent.
+- `components/BrvmDashboardClient.tsx` — la constante `C` interne (dupliquée
+  depuis `reference/BRVM_Dashboard.jsx`, jamais importée depuis
+  `lib/theme/colors.ts` par choix explicite de l'étape 10) mise à jour avec
+  les mêmes nouvelles valeurs, pour que le dashboard change de thème de façon
+  cohérente avec le reste du site — **sans toucher aux textes, emojis,
+  disposition ni logique de calcul** du composant.
+- Header unifié partagé par toutes les pages (landing incluse) : logo réel +
+  nom "ouestBourse", nav horizontale, méga-menu déroulant "Sociétés cotées"
+  regroupant les vraies sociétés par secteur (structure reprise de la
+  capture fournie, données 100 % réelles issues de `getCompaniesFullDataset()` —
+  variation quotidienne affichée `"N/D"` : la base ne stocke que des cours de
+  clôture annuels/périodiques, pas de variation intrajournalière réelle —
+  honnêteté des données plutôt que d'inventer un chiffre).
+- Landing page ajustée pour rester cohérente avec le header unifié et la
+  nouvelle charte claire, contenu toujours 100 % basé sur les vraies données.
+- Remplacement de toute occurrence textuelle "BRVM App" par "ouestBourse"
+  (titre de page/metadata, footer, mentions légales, etc.).
+
+> Comme pour les étapes précédentes : toute divergence par rapport à la
+> capture d'écran fournie (ex. icônes vectorielles vs. emojis, absence de
+> variation intrajournalière réelle) est documentée ici plutôt que "corrigée
+> en silence".
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

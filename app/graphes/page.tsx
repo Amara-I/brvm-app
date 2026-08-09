@@ -8,7 +8,7 @@ import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
 
 export const metadata = {
-  title: "Graphes — BRVM App",
+  title: "Graphes — ouestBourse",
   description: "Visualisations graphiques du marché BRVM.",
 };
 

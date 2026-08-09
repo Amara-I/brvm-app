@@ -8,8 +8,8 @@ import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Sociétés cotées — BRVM App",
-  description: "Liste des sociétés cotées à la BRVM suivies par BRVM App, par pays et secteur.",
+  title: "Sociétés cotées — ouestBourse",
+  description: "Liste des sociétés cotées à la BRVM suivies par ouestBourse, par pays et secteur.",
 };
 
 export default async function SocietesCoteesPage() {

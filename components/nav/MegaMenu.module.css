@@ -1,0 +1,159 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Méga-menu "Sociétés cotées" — étape 11 (rebranding ouestBourse)
+   Structure inspirée de la capture fournie par l'utilisateur (colonnes par
+   secteur, en-tête "LA COTE — N ÉMETTEURS"), données 100% réelles.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.wrapper {
+  position: relative;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+
+.chevron {
+  font-size: 0.6rem;
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.panel {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(880px, 92vw);
+  background: #ffffff;
+  border: 1px solid var(--mm-border);
+  border-radius: 12px;
+  box-shadow: 0 24px 48px -16px rgba(20, 30, 25, 0.25);
+  z-index: 80;
+  overflow: hidden;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--mm-border);
+  background: var(--mm-panelAlt);
+}
+
+.panelTitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mm-textDim);
+}
+
+.panelGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.sectorCol {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--mm-border);
+}
+
+.sectorHeading {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 0.66rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--mm-green);
+  margin-bottom: 8px;
+}
+
+.sectorCount {
+  color: var(--mm-textDim);
+  font-weight: 400;
+}
+
+.companyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  text-decoration: none;
+  color: inherit;
+}
+
+.companyName {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--mm-text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.companyTicker {
+  font-weight: 700;
+  color: var(--mm-green);
+}
+
+.companyPrice {
+  font-size: 0.7rem;
+  color: var(--mm-textDim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.panelFooter {
+  padding: 10px 18px;
+  border-top: 1px solid var(--mm-border);
+  background: var(--mm-panelAlt);
+}
+
+.footerLink {
+  color: var(--mm-green);
+  text-decoration: none;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+@media (max-width: 860px) {
+  .panelGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .panel {
+    position: fixed;
+    top: 60px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    transform: none;
+  }
+  .panelGrid {
+    grid-template-columns: 1fr;
+    max-height: 70vh;
+  }
+}

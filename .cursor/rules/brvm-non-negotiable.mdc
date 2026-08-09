@@ -49,3 +49,51 @@ Portée strictement limitée à `/` :
 Avant de proposer un changement visuel, comparer avec
 `reference/BRVM_Dashboard.jsx` et justifier explicitement toute divergence
 (hors landing page, qui suit sa propre spécification ci-dessus).
+
+## ⚠️ MISE À JOUR — Rebranding complet "ouestBourse", validé le 09/08/2026 (soir)
+
+**Cette section REMPLACE les deux points suivants ci-dessus**, désormais
+obsolètes :
+- ~~"Le design du dashboard applicatif... reste celui de brvm-app.vercel.app
+  — jamais un clone visuel de ouestbourse.com sur ces pages"~~
+- ~~"Le nom/logo affiché reste 'BRVM App' (pas de copie de marque tierce)"~~
+
+L'utilisateur a confirmé explicitement (09/08/2026) être le **propriétaire de
+la marque "ouestBourse"** (nom + logo fournis directement par l'utilisateur :
+`public/logo.png`) — il ne s'agit donc PAS d'une contrefaçon de marque tierce,
+mais du nom réel de ce produit. Décisions validées explicitement :
+
+1. **Nom + logo "ouestBourse" partout** dans l'application (landing ET toutes
+   les pages internes), en remplacement de "BRVM App". Source de vérité
+   unique : `lib/theme/brand.ts` — ne jamais coder en dur "BRVM App" ni un
+   autre chemin de logo ailleurs.
+2. **Le clone visuel de ouestbourse.com (structure, palette claire,
+   composants) s'étend désormais à TOUTES les pages**, y compris le dashboard
+   `/marche` et toutes les pages internes (Screener, Portefeuille, Graphes,
+   Sociétés cotées, Actualités, Outils, Connexion, Inscription, Mentions
+   légales) — plus seulement la landing page.
+3. **Nouvelle palette claire partagée** : `lib/theme/colors.ts` (objet `C`)
+   a été mise à jour avec des valeurs de couleurs inspirées de la charte
+   ouestbourse.com (fond clair, vert forêt, or/orange, texte sombre) — les
+   NOMS des clés (`bg`, `panel`, `border`, `gold`, `green`, `red`, `blue`,
+   `silver`, `text`, `textDim`, `teal`, `purple`) restent identiques pour ne
+   pas casser les usages existants, mais **leurs valeurs hexadécimales ont
+   changé** et peuvent continuer à évoluer pour coller à la charte réelle.
+   Le composant `BrvmDashboardClient.tsx` (const `C` interne, dupliquée
+   depuis `reference/BRVM_Dashboard.jsx`) suit la même mise à jour de valeurs.
+4. **Ce qui reste NON-négociable malgré ce changement** :
+   - Tous les **textes en français** existants (labels, signaux "ACHAT FORT /
+     ACHAT / CONSERVER / ALLÉGER / VENDRE", disclaimers) restent inchangés
+     mot pour mot.
+   - Les **emojis/icônes des onglets** du dashboard restent en place.
+   - La **disposition sidebar + tabs** du dashboard reste identique.
+   - `reference/BRVM_Dashboard.jsx` reste un fichier figé, jamais modifié
+     directement (on modifie uniquement sa copie portée `BrvmDashboardClient.tsx`).
+   - Donnée manquante → toujours `"N/D"`, jamais `null`/`undefined`/`NaN`.
+   - Le contenu chiffré (stats, listes de sociétés) reste **100 % basé sur
+     les vraies données** de la base — jamais un chiffre copié tel quel de
+     ouestbourse.com.
+5. Les contenus/sections copiés depuis https://ouestbourse.com/fr (structure
+   du méga-menu "Sociétés cotées" par secteur, bandeau de stats, etc.) sont
+   repris **structurellement** avec les **vraies données ouestBourse**, pas
+   les chiffres de la société tierce ouestbourse.com.

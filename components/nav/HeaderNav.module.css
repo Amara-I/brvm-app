@@ -1,0 +1,84 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   Nav horizontale du header partagé — étape 11 (rebranding ouestBourse)
+   Thème clair partagé (variables injectées depuis lib/theme/colors.ts),
+   nav desktop masquée sous 860px au profit d'un tiroir mobile (hamburger).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.desktopNav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.navLink {
+  color: var(--hn-text);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.navLink:hover,
+.trigger:hover {
+  background: var(--hn-panel);
+}
+
+.navLinkActive {
+  color: var(--hn-green);
+  background: var(--hn-panelAlt);
+}
+
+.hamburger {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--hn-border);
+  border-radius: 8px;
+  color: var(--hn-text);
+  padding: 7px 10px;
+  font-size: 1.05rem;
+  cursor: pointer;
+}
+
+/* `position: absolute` (ancré au <header> sticky, seul ancêtre positionné) :
+   évite que le tiroir, une fois ouvert, ne gonfle la hauteur de la ligne flex
+   du header (qui contient aussi le logo) — sans quoi `align-items: center`
+   centre verticalement le logo au milieu de cette ligne devenue très haute,
+   le faisant apparaître visuellement "sous" la liste de liens (bug constaté
+   à l'étape 11, corrigé ici). */
+.mobilePanel {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 20px 16px;
+  border-top: 1px solid var(--hn-border);
+  border-bottom: 1px solid var(--hn-border);
+  background: #ffffff;
+  box-shadow: 0 16px 32px -12px rgba(20, 30, 25, 0.2);
+  z-index: 85;
+}
+
+.mobilePanel.open {
+  display: flex;
+}
+
+.mobilePanel .navLink {
+  padding: 10px 6px;
+  border-bottom: 1px solid var(--hn-border);
+  border-radius: 0;
+}
+
+@media (max-width: 860px) {
+  .desktopNav {
+    display: none;
+  }
+  .hamburger {
+    display: inline-flex;
+  }
+}

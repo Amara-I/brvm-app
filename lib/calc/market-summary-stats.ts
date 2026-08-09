@@ -79,3 +79,42 @@ export function topScoredCompanies(dataset: CompaniesFullDataset, limit: number)
     .sort((a, b) => b.metrics.score - a.metrics.score)
     .slice(0, limit);
 }
+
+export interface SectorGroupEntry {
+  ticker: string;
+  name: string;
+  countryFlag: string;
+  /// Dernier cours de clôture canonique disponible, ou `null` si aucune
+  /// donnée (affiché "N/D" côté UI, jamais inventé).
+  lastPrice: number | null;
+}
+
+export interface SectorGroup {
+  sector: string;
+  companies: SectorGroupEntry[];
+}
+
+/// Regroupe les sociétés par secteur (méga-menu "Sociétés cotées", structure
+/// inspirée de ouestbourse.com — cf. AGENTS.md § Étape 11), triées par ordre
+/// alphabétique de secteur puis de société. Utilise le dernier cours de
+/// clôture CONNU (annuel) comme "dernier cours" affiché : le jeu de données
+/// ne contient pas de variation intrajournalière réelle, donc la variation
+/// n'est délibérément pas calculée ici (affichée "N/D" côté UI plutôt qu'un
+/// chiffre inventé).
+export function groupCompaniesBySector(dataset: CompaniesFullDataset): SectorGroup[] {
+  const { years, companies } = dataset;
+  const lastYear = years[years.length - 1];
+
+  const bySector = new Map<string, SectorGroupEntry[]>();
+  for (const co of companies) {
+    const lastPrice = lastYear !== undefined ? co.prices[lastYear] ?? null : null;
+    const entry: SectorGroupEntry = { ticker: co.ticker, name: co.name, countryFlag: co.countryFlag, lastPrice };
+    const bucket = bySector.get(co.sector) ?? [];
+    bucket.push(entry);
+    bySector.set(co.sector, bucket);
+  }
+
+  return [...bySector.entries()]
+    .map(([sector, list]) => ({ sector, companies: list.sort((a, b) => a.name.localeCompare(b.name, "fr")) }))
+    .sort((a, b) => a.sector.localeCompare(b.sector, "fr"));
+}

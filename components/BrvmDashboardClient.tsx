@@ -50,21 +50,27 @@ import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
 import { projectPrices, type PriceProjection } from "@/lib/calc/project-prices";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 
-// ── PALETTE (identique à reference/BRVM_Dashboard.jsx — NE PAS MODIFIER) ────
+// ── PALETTE ─────────────────────────────────────────────────────────────────
+// Mise à jour "rebranding ouestBourse" (étape 11, 09/08/2026) : palette claire
+// inspirée de la charte réelle ouestbourse.com, à la demande explicite de
+// l'utilisateur (propriétaire confirmé de la marque) — cf.
+// .cursor/rules/brvm-non-negotiable.mdc § "MISE À JOUR — Rebranding complet
+// ouestBourse". Mêmes clés qu'avant (structure du composant intouchée),
+// valeurs synchronisées avec `lib/theme/colors.ts`.
 const C = {
-  bg: "#080B12",
-  panel: "#0D1117",
-  border: "#1C2333",
-  gold: "#D4A843",
-  goldDim: "#7A5E20",
-  green: "#22C55E",
-  red: "#EF4444",
-  blue: "#3B82F6",
+  bg: "#FFFFFF",
+  panel: "#F6F7F3",
+  border: "#E2E5DD",
+  gold: "#D9A441",
+  goldDim: "#A67C2E",
+  green: "#1E7A42",
+  red: "#DC2626",
+  blue: "#2563EB",
   silver: "#94A3B8",
-  text: "#E2D9C5",
-  textDim: "#6B7280",
-  teal: "#14B8A6",
-  purple: "#A855F7",
+  text: "#16241B",
+  textDim: "#5B6B60",
+  teal: "#0D9488",
+  purple: "#9333EA",
 };
 
 // ── Libellés lisibles pour l'indicateur discret "source des données" ───────
@@ -90,7 +96,7 @@ interface ChartTipProps {
 const ChartTip = ({ active, payload, label }: ChartTipProps) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ background: "#0D1117", border: `1px solid ${C.border}`, borderRadius: 6, padding: "10px 14px", fontSize: 12 }}>
+    <div style={{ background: "#FFFFFF", border: `1px solid ${C.border}`, borderRadius: 6, padding: "10px 14px", fontSize: 12, boxShadow: "0 6px 20px rgba(20,30,25,0.12)" }}>
       <div style={{ color: C.gold, fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {payload.map((p) => (
         <div key={p.name} style={{ color: p.color || C.text, marginBottom: 2 }}>
@@ -443,7 +449,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                     padding: "8px 12px",
                     cursor: "pointer",
                     borderBottom: `1px solid ${C.border}`,
-                    background: isSelected ? "#1C2333" : "transparent",
+                    background: isSelected ? "rgba(30, 122, 66, 0.08)" : "transparent",
                     borderLeft: isSelected ? `3px solid ${co.color}` : "3px solid transparent",
                     transition: "all 0.15s",
                   }}
@@ -613,7 +619,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                             const perf = prev ? (((company.prices[y] - prev) / prev) * 100).toFixed(1) : null;
                             const rend = company.prices[y] > 0 && company.dividends[y] > 0 ? ((company.dividends[y] / company.prices[y]) * 100).toFixed(2) : null;
                             return (
-                              <tr key={y} style={{ borderBottom: `1px solid ${C.border}20`, background: y % 2 === 0 ? "#0F141E" : "transparent" }}>
+                              <tr key={y} style={{ borderBottom: `1px solid ${C.border}20`, background: y % 2 === 0 ? C.panel : "transparent" }}>
                                 <td style={{ padding: "6px 10px", textAlign: "right", color: C.gold, fontWeight: 700 }}>{y}</td>
                                 <td style={{ padding: "6px 10px", textAlign: "right", color: C.text, fontVariantNumeric: "tabular-nums" }}>
                                   {company.prices[y].toLocaleString("fr-FR")}
@@ -639,7 +645,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                                         display: "inline-block",
                                         height: 6,
                                         width: `${Math.min(80, Math.abs(parseFloat(perf)) * 3)}px`,
-                                        background: parseFloat(perf) >= 0 ? "#22C55E40" : "#EF444440",
+                                        background: parseFloat(perf) >= 0 ? `${C.green}30` : `${C.red}30`,
                                         border: `1px solid ${parseFloat(perf) >= 0 ? C.green : C.red}`,
                                         borderRadius: 2,
                                       }}
@@ -964,7 +970,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                             { l: "Cap. boursière", fn: (_m: CalcMetricsResult, co: CompanyFullDataset) => `${co.mktcap} Mds`, c: C.gold as string | null },
                           ] as Array<{ l: string; fn: (m: CalcMetricsResult, co: CompanyFullDataset) => string | number; c: string | null }>
                         ).map((row, ri) => (
-                          <tr key={row.l} style={{ borderBottom: `1px solid ${C.border}20`, background: ri % 2 === 0 ? "#0F141E" : "transparent" }}>
+                          <tr key={row.l} style={{ borderBottom: `1px solid ${C.border}20`, background: ri % 2 === 0 ? C.panel : "transparent" }}>
                             <td style={{ padding: "7px 12px", color: C.textDim, fontWeight: 600 }}>{row.l}</td>
                             {compSelected.map((t) => {
                               const co = companies.find((c) => c.ticker === t);

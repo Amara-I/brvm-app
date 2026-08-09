@@ -1,37 +1,39 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Header de navigation interne — étape 10 (navigation complète)
+// Header partagé — étape 11 (rebranding complet "ouestBourse")
 // ═══════════════════════════════════════════════════════════════════════════
-// Server Component, additif : enveloppe les pages internes (`/marche`,
-// `/screener`, `/portefeuille`, `/graphes`, `/societes-cotees`, `/actualites`,
-// `/outils`, `/mentions-legales`) SANS modifier leur contenu propre. Ne
-// touche à aucun texte/tab/sidebar du dashboard `BrvmDashboardClient`
-// (contrainte non-négociable) : c'est une barre ajoutée AU-DESSUS.
+// Remplace la version étape 10 (thème sombre/or, texte "BRVM App") : utilisé
+// désormais PARTOUT (landing page incluse, cf. AGENTS.md § Étape 11) avec le
+// vrai nom + logo "ouestBourse" (marque de l'utilisateur, cf. règle
+// non-négociable mise à jour) et le thème clair partagé (`lib/theme/colors.ts`).
 //
-// Session lue côté serveur (`getCurrentUser()` → NextAuth `getServerSession`)
-// pour éviter d'avoir à brancher un `<SessionProvider>` client global juste
-// pour afficher "Connexion" vs. "Bonjour {nom}".
-//
-// N'est PAS utilisé sur la landing page (`/`), qui a son propre header dans
-// sa propre palette (exception scoped, cf. règle non-négociable mise à jour).
+// Server Component : lit la session NextAuth côté serveur et charge les
+// données réelles pour le méga-menu "Sociétés cotées" (`groupCompaniesBySector`),
+// délègue l'interactivité (surbrillance du lien actif, tiroir mobile,
+// ouverture/fermeture du méga-menu) au Client Component `HeaderNav`.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import Image from "next/image";
 import Link from "next/link";
 import { C, FONT_FAMILY } from "@/lib/theme/colors";
+import { BRAND_NAME, BRAND_LOGO_SRC, BRAND_LOGO_WIDTH, BRAND_LOGO_HEIGHT } from "@/lib/theme/brand";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
-import NavLinks from "@/components/NavLinks";
+import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
+import { groupCompaniesBySector } from "@/lib/calc/market-summary-stats";
+import HeaderNav from "@/components/nav/HeaderNav";
 
 export default async function AppHeader() {
-  const user = await getCurrentUser();
+  const [user, dataset] = await Promise.all([getCurrentUser(), getCompaniesFullDataset()]);
+  const sectorGroups = groupCompaniesBySector(dataset);
 
   return (
     <header
       style={{
-        background: C.panel,
+        background: C.bg,
         borderBottom: `1px solid ${C.border}`,
         fontFamily: FONT_FAMILY,
         position: "sticky",
         top: 0,
-        zIndex: 50,
+        zIndex: 90,
       }}
     >
       <div
@@ -42,18 +44,23 @@ export default async function AppHeader() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          gap: 16,
+          gap: 20,
           flexWrap: "wrap",
         }}
       >
-        <Link href="/" style={{ display: "flex", alignItems: "center", gap: 8, textDecoration: "none" }}>
-          <span style={{ fontSize: "1.2rem" }}>📊</span>
-          <span style={{ color: C.gold, fontWeight: "bold", fontSize: "1.05rem" }}>BRVM App</span>
+        <Link href="/" style={{ display: "flex", alignItems: "center", textDecoration: "none", flexShrink: 0 }} aria-label={`${BRAND_NAME} — accueil`}>
+          <Image src={BRAND_LOGO_SRC} alt={BRAND_NAME} width={BRAND_LOGO_WIDTH} height={BRAND_LOGO_HEIGHT} style={{ height: 32, width: "auto" }} priority />
         </Link>
 
-        <NavLinks />
+        <div style={{ flex: 1, display: "flex", justifyContent: "center", minWidth: 0 }}>
+          <HeaderNav
+            sectorGroups={sectorGroups}
+            totalCompanies={dataset.companies.length}
+            user={user ? { name: user.name, email: user.email } : null}
+          />
+        </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "none", alignItems: "center", gap: 12 }} className="app-header-desktop-actions">
           {user ? (
             <>
               <span style={{ color: C.textDim, fontSize: "0.8rem" }}>
@@ -91,8 +98,8 @@ export default async function AppHeader() {
               <Link
                 href="/inscription"
                 style={{
-                  color: "#080B12",
-                  background: C.gold,
+                  color: "#FFFFFF",
+                  background: C.green,
                   fontSize: "0.8rem",
                   fontWeight: "bold",
                   borderRadius: 6,
@@ -106,6 +113,11 @@ export default async function AppHeader() {
           )}
         </div>
       </div>
+
+      {/* `display:none` inline + media query ci-dessous : évite de dupliquer les
+          actions desktop dans un Client Component uniquement pour un show/hide
+          CSS pur (le tiroir mobile de HeaderNav couvre déjà ces actions <860px). */}
+      <style>{`@media (min-width: 861px) { .app-header-desktop-actions { display: flex !important; } }`}</style>
     </header>
   );
 }

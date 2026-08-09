@@ -14,7 +14,7 @@ import AddHoldingForm from "@/components/portfolio/AddHoldingForm";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Portefeuille — BRVM App",
+  title: "Portefeuille — ouestBourse",
   description: "Suivez la valeur, la performance et la répartition sectorielle de votre portefeuille BRVM.",
 };
 

@@ -18,16 +18,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import AppHeader from "@/components/AppHeader";
-
-const C = {
-  bg: "#080B12",
-  panel: "#0D1117",
-  border: "#1C2333",
-  gold: "#D4A843",
-  text: "#E2D9C5",
-  textDim: "#6B7280",
-  teal: "#14B8A6",
-};
+import { C } from "@/lib/theme/colors";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -39,8 +30,8 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export const metadata = {
-  title: "Mentions légales — BRVM App",
-  description: "Mentions légales, origine des données, protection des données personnelles et disclaimer financier de BRVM App.",
+  title: "Mentions légales — ouestBourse",
+  description: "Mentions légales, origine des données, protection des données personnelles et disclaimer financier de ouestBourse.",
 };
 
 export default function MentionsLegalesPage() {
@@ -79,7 +70,7 @@ export default function MentionsLegalesPage() {
             société cotée.
           </p>
           <p style={{ color: C.textDim, fontSize: "0.78rem" }}>
-            BRVM App n&apos;est affilié à aucune des sources citées ; leurs noms sont mentionnés à titre d&apos;attribution des
+            ouestBourse n&apos;est affilié à aucune des sources citées ; leurs noms sont mentionnés à titre d&apos;attribution des
             données, conformément à un usage raisonnable et non commercial de contenus publiquement accessibles.
           </p>
         </Section>
@@ -87,7 +78,7 @@ export default function MentionsLegalesPage() {
         <Section title="Avertissement financier">
           <p>
             ⚠️ Les informations, indicateurs, scores, signaux (« ACHAT », « CONSERVER », « VENDRE », etc.) et projections de cours
-            présentés sur BRVM App sont fournis à titre <strong>purement informatif et pédagogique</strong>. Ils reposent sur des
+            présentés sur ouestBourse sont fournis à titre <strong>purement informatif et pédagogique</strong>. Ils reposent sur des
             modèles statistiques simples (régression linéaire sur données historiques) et ne prennent en compte ni l&apos;actualité
             de l&apos;émetteur, ni les conditions de marché futures, ni la situation personnelle de l&apos;investisseur.
           </p>

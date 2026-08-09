@@ -9,7 +9,7 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "BRVM App",
+  title: "ouestBourse",
   description: "Analyse financière des sociétés cotées à la BRVM",
 };
 

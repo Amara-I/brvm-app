@@ -36,7 +36,7 @@ function line(char = "─", length = 78): string {
 
 async function main() {
   console.log(line("═"));
-  console.log("🌍 PROTOTYPE D'INGESTION MULTI-SOURCE — BRVM App (étape 3)");
+  console.log("🌍 PROTOTYPE D'INGESTION MULTI-SOURCE — ouestBourse (étape 3)");
   console.log(`   Tickers test : ${TEST_TICKERS.join(", ")}`);
   console.log(line("═"));
 

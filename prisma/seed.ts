@@ -67,7 +67,7 @@ function slugify(input: string): string {
 
 async function main() {
   console.log(
-    `🌱 Seed BRVM App — ${COMPANIES_FULL.length} sociétés, années ${YEARS[0]}-${YEARS[YEARS.length - 1]}`
+    `🌱 Seed ouestBourse — ${COMPANIES_FULL.length} sociétés, années ${YEARS[0]}-${YEARS[YEARS.length - 1]}`
   );
 
   // ── 1) Référentiels Pays & Secteurs (upsert, dédupliqués) ─────────────────

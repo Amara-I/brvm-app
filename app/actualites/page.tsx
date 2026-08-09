@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Actualités — BRVM App",
+  title: "Actualités — ouestBourse",
   description: "Actualités du marché BRVM agrégées depuis les sources officielles et partenaires.",
 };
 

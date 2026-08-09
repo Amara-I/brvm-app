@@ -10,7 +10,7 @@ import ScreenerTable from "@/components/screener/ScreenerTable";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Screener — BRVM App",
+  title: "Screener — ouestBourse",
   description: "Filtrez les sociétés cotées à la BRVM par rentabilité, dividendes, croissance ou valorisation.",
 };
 

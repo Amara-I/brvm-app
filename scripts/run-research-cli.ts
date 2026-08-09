@@ -11,7 +11,7 @@
 import { runResearchAgent } from "../lib/research/run-research-agent";
 
 async function main() {
-  console.log("🔎 AGENT DE RECHERCHE IA — BRVM App (étape 10)");
+  console.log("🔎 AGENT DE RECHERCHE IA — ouestBourse (étape 10)");
   const summary = await runResearchAgent();
   console.log(JSON.stringify(summary, null, 2));
   if (!summary.enabled) {

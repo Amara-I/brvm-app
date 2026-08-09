@@ -10,8 +10,8 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Outils — BRVM App",
-  description: "Export de données, alertes et suggestions d'amélioration issues de la veille automatisée BRVM App.",
+  title: "Outils — ouestBourse",
+  description: "Export de données, alertes et suggestions d'amélioration issues de la veille automatisée ouestBourse.",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
