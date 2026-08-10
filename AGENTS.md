@@ -676,6 +676,60 @@ transition client), méga-menu et tiroir mobile vérifiés dans les deux modes.
 
 ---
 
+## 9. Étape 13 — Compléter les 47 actions BRVM + recherche sidebar
+
+Demandée par l'utilisateur le 10/08/2026 : « screener le net pour ajouter les
+actions manquantes et permettre un affichage encore meilleur ».
+
+### Constat
+
+Le jeu de données seed (`prisma/seed-data/companies-full.ts`) ne contenait
+que les **20 sociétés** de l'échantillon `reference/BRVM_Dashboard.jsx`.
+Or la BRVM compte officiellement **47 sociétés cotées** (Bulletin Officiel
+de la Cote, DC/BR, Richbourse « Liste des sociétés »). 27 tickers manquaient
+donc à l'affichage (méga-menu, screener, dashboard, export Excel).
+
+### Travaux réalisés
+
+1. **Criblage réel** des sources officielles le 10/08/2026 :
+   - https://www.brvm.org (DC/BR + Bulletin Officiel de la Cote n°119 du
+     26/06/2026) — cours du jour, PER individuels, derniers dividendes.
+   - https://www.richbourse.com/common/apprendre/liste-societes — secteur
+     et pays officiels des 47 titres.
+2. **27 sociétés ajoutées** à la suite des 20 d'origine (jamais modifiées)
+   dans `prisma/seed-data/companies-full.ts`, avec documentation transparente
+   des hypothèses (historique multi-année absent → seules 2026 renseignée ;
+   PER manquant → repli documenté sur le PER moyen sectoriel du BOC ;
+   mktcap inconnu → `0` = `"N/D"` à l'affichage).
+3. **Pays Mali / Togo** ajoutés dans `COUNTRY_CODES` (`prisma/seed.ts`) —
+   nécessaires pour BOAM, ETIT, ORGT.
+4. **Nouveau secteur additif** « Conso. Discrétionnaire » (classification
+   officielle BRVM absente du jeu d'origine ; le filtre secteur du dashboard
+   est déjà dynamique via `SECTORS`).
+5. **`LEGACY_COMPANY_TICKERS`** — constante figée des 20 tickers d'origine,
+   utilisée par les tests golden / le générateur de fixtures pour ne PAS
+   polluer la non-régression JSX avec les 27 nouvelles (qui n'ont pas de
+   référence dans `reference/BRVM_Dashboard.jsx`).
+6. **Amélioration d'affichage** (demandée explicitement) : barre de
+   recherche ticker/nom dans la sidebar du dashboard
+   (`components/BrvmDashboardClient.tsx`) — purement additive, devenue
+   utile avec 47 lignes au lieu de 20. Message vide honnête si aucun
+   résultat.
+
+> Comme pour les étapes précédentes : les écarts (historique N/D, PER
+> sectoriel de repli, mktcap partielle) sont documentés plutôt que
+> « corrigés en silence ». L'ingestion quotidienne (étape 6) reste la voie
+> pour enrichir progressivement l'historique des 27 nouvelles.
+
+✔ `tsc --noEmit` ✅ · `vitest run` (82/82) ✅ · `npx prisma db seed` ✅
+  (47 sociétés, 7 pays, 8 secteurs, 241 cours, 235 dividendes).
+✔ Spot-check API réelle : `GET /api/companies/full` → 47 sociétés, répartition
+  sectoriels alignés sur le Bulletin Officiel de la Cote (3 Télécoms /
+  16 Banques / 9 Conso. Base / 6+1 Conso. Discrétionnaire / 6 Industrie /
+  4 Énergie / 2 Services Publics).
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

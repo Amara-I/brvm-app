@@ -132,6 +132,12 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
   const [tab, setTab] = useState<"overview" | "chart" | "projection" | "comparison">("overview");
   const [sectorFilter, setSectorFilter] = useState("Tous");
   const [sortBy, setSortBy] = useState<"score" | "perf5" | "yield">("score");
+  // Recherche texte (ticker/nom), ajoutée le 10/08/2026 : purement additive,
+  // ne modifie aucun élément existant — devenue utile depuis le passage de
+  // 20 à 47 sociétés (cf. prisma/seed-data/companies-full.ts) pour retrouver
+  // rapidement une société dans la liste latérale sans dérouler le filtre
+  // secteur.
+  const [companySearch, setCompanySearch] = useState("");
   const [showProj, setShowProj] = useState(true);
   const [compSelected, setCompSelected] = useState<string[]>(
     DEFAULT_COMPARISON.length > 0 ? DEFAULT_COMPARISON : companies.slice(0, 3).map((c) => c.ticker)
@@ -172,8 +178,10 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
   }, [company, years, projYears, baseYear]);
 
   const filteredCompanies = useMemo(() => {
+    const query = companySearch.trim().toLowerCase();
     return companies
       .filter((c) => sectorFilter === "Tous" || c.sector === sectorFilter)
+      .filter((c) => query === "" || c.ticker.toLowerCase().includes(query) || c.name.toLowerCase().includes(query))
       .sort((a, b) => {
         const ma = metricsByTicker.get(a.ticker)!;
         const mb = metricsByTicker.get(b.ticker)!;
@@ -182,7 +190,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
         if (sortBy === "yield") return parseFloat(String(mb.dividendYieldPercent)) - parseFloat(String(ma.dividendYieldPercent));
         return 0;
       });
-  }, [companies, sectorFilter, sortBy, metricsByTicker]);
+  }, [companies, sectorFilter, sortBy, companySearch, metricsByTicker]);
 
   // Build chart data for selected company
   const chartData = useMemo(() => {
@@ -389,6 +397,24 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
         <div style={{ width: 220, background: C.panel, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
           {/* Filters */}
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
+            <input
+              type="search"
+              value={companySearch}
+              onChange={(e) => setCompanySearch(e.target.value)}
+              placeholder="Rechercher (ticker, nom)…"
+              aria-label="Rechercher une société par ticker ou par nom"
+              style={{
+                width: "100%",
+                background: C.bg,
+                color: C.text,
+                border: `1px solid ${C.border}`,
+                borderRadius: 4,
+                padding: "5px 8px",
+                fontSize: "0.72rem",
+                marginBottom: 6,
+                fontFamily: "'Trebuchet MS', Georgia, serif",
+              }}
+            />
             <select
               value={sectorFilter}
               onChange={(e) => setSectorFilter(e.target.value)}
@@ -432,6 +458,11 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
 
           {/* Company list */}
           <div style={{ overflowY: "auto", flex: 1 }} role="list" aria-label="Liste des sociétés cotées">
+            {filteredCompanies.length === 0 && (
+              <div style={{ padding: "16px 12px", fontSize: "0.7rem", color: C.textDim, textAlign: "center" }}>
+                Aucune société ne correspond à cette recherche.
+              </div>
+            )}
             {filteredCompanies.map((co) => {
               const m = metricsByTicker.get(co.ticker)!;
               const isSelected = co.ticker === selectedTicker;

@@ -9,12 +9,54 @@
 // servira plus qu'à documenter l'origine historique des données seed).
 //
 // Aucune donnée n'a été ajoutée, retirée ou arrondie par rapport au JSX :
-// les 20 sociétés, leurs 12 années de cours (2015-2026) et de dividendes
-// sont reprises à l'identique (les valeurs à 0 signifient "société non
-// cotée / donnée non disponible cette année-là", comme dans le composant
-// d'origine — elles ne sont volontairement PAS insérées en base, cf.
-// `prisma/seed.ts`, pour ne pas polluer `price_history`/`dividends` avec de
-// faux zéros).
+// les 20 premières sociétés, leurs 12 années de cours (2015-2026) et de
+// dividendes sont reprises à l'identique (les valeurs à 0 signifient
+// "société non cotée / donnée non disponible cette année-là", comme dans le
+// composant d'origine — elles ne sont volontairement PAS insérées en base,
+// cf. `prisma/seed.ts`, pour ne pas polluer `price_history`/`dividends` avec
+// de faux zéros).
+//
+// ⚠️ MISE À JOUR — 27 sociétés manquantes ajoutées le 10/08/2026, demande
+// explicite de l'utilisateur ("screener le net pour ajouter les actions
+// manquantes"). `reference/BRVM_Dashboard.jsx` ne couvrait que 20 des 47
+// sociétés réellement cotées à la BRVM (le JSX était un ÉCHANTILLON fourni
+// au démarrage du projet, pas la liste officielle complète — cf. AGENTS.md
+// § Étape 13). Les 27 sociétés ci-dessous, ajoutées À LA SUITE des 20
+// premières (jamais modifiées), proviennent d'un criblage réel de
+// https://www.brvm.org (Bulletin Officiel de la Cote, DC/BR du jour) et
+// https://www.richbourse.com/common/apprendre/liste-societes (secteur/pays
+// officiels) le 10/08/2026 :
+//   - `sector` reprend la classification SECTORIELLE OFFICIELLE de la BRVM
+//     (Services financiers → "Banques", Télécommunications → "Télécoms",
+//     Consommation de base → "Conso. Base", Services publics →
+//     "Services Publics", Industriels → "Industrie", Energie → "Énergie",
+//     tel qu'utilisé par les 20 sociétés d'origine) — SAUF "Consommation
+//     discrétionnaire", secteur officiel absent du jeu de données d'origine
+//     (seule LNBB s'en approchait, taguée "Divertissement", non touchée),
+//     mappé ici vers un nouveau libellé additif "Conso. Discrétionnaire"
+//     (le filtre par secteur du dashboard est déjà 100% dynamique — cf.
+//     `SECTORS` dans `BrvmDashboardClient.tsx` — donc purement additif).
+//   - `prices` : SEULE l'année 2026 (cours du jour réel, DC/BR du
+//     10/08/2026) est renseignée ; 2015-2025 = 0 ("N/D", cf. convention
+//     ci-dessus) car un historique multi-année fiable par scraping n'était
+//     pas disponible dans cet environnement — même limitation honnête que
+//     BICB dans le jeu d'origine (2 ans seulement). `calcMetrics`/
+//     `projectPrices` gèrent déjà ce cas (perf5/perf10 → "N/D").
+//   - `per` : PER individuel réel extrait du Bulletin Officiel de la Cote
+//     (BOC n°119, 26/06/2026, colonne "PER" par titre) quand disponible ;
+//     à défaut (SCRC, SICC, STAC, UNXC — BNPA non publié/non calculable ce
+//     jour-là), repli documenté sur le PER MOYEN du secteur officiel
+//     concerné (indices sectoriels BRVM, même BOC) plutôt qu'une valeur
+//     inventée.
+//   - `dividends` : dernier dividende net par action réellement payé et sa
+//     date (BOC), placé sur l'année civile de paiement ; omis (0 = N/D) si
+//     la date connue est trop ancienne (hors 2015-2026) ou introuvable.
+//   - `mktcap` : capitalisation réelle seulement quand une source publique
+//     fiable la donnait explicitement (SIBC, SMBC, SPHC, TTLC — cf.
+//     brvm.org "Liste des sociétés Prestige") ; 0 = "N/D" sinon (jamais
+//     estimée/inventée à partir d'un nombre de titres non confirmé — le
+//     dashboard affiche déjà "N/D" pour `mktcap = 0`, cf.
+//     `app/societes-cotees/page.tsx`).
 // ═══════════════════════════════════════════════════════════════════════════
 
 export interface CompanySeed {
@@ -38,6 +80,15 @@ export interface CompanySeed {
 }
 
 export const YEARS = [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026] as const;
+
+/// Tickers des 20 sociétés d'origine (reference/BRVM_Dashboard.jsx).
+/// Utilisé par les tests de non-régression et le générateur de golden
+/// fixtures : les 27 sociétés ajoutées le 10/08/2026 n'ont PAS de
+/// référence dans le JSX et ne doivent PAS polluer la fixture figée.
+export const LEGACY_COMPANY_TICKERS = [
+  "SNTS", "ORAC", "ONTBF", "CBIBF", "BOAB", "LNBB", "BICB", "SGBC", "NSBC", "ECOC",
+  "STBC", "SLBC", "BOABF", "SDCC", "SDSC", "PALC", "BOAN", "TTLS", "NTLC", "BOAS",
+] as const;
 
 export const COMPANIES_FULL: CompanySeed[] = [
   { ticker: "SNTS", name: "Sonatel", country: "Sénégal", sector: "Télécoms", flag: "🇸🇳",
@@ -140,4 +191,157 @@ export const COMPANIES_FULL: CompanySeed[] = [
     prices: { 2015: 2800, 2016: 3200, 2017: 3800, 2018: 4200, 2019: 4600, 2020: 5000, 2021: 5800, 2022: 6500, 2023: 7000, 2024: 7500, 2025: 7700, 2026: 7745 },
     dividends: { 2015: 70, 2016: 88, 2017: 108, 2018: 128, 2019: 140, 2020: 150, 2021: 200, 2022: 260, 2023: 310, 2024: 350, 2025: 350, 2026: 350 },
     color: "#34D399" },
+
+  // ── 27 sociétés manquantes ajoutées le 10/08/2026 (cf. commentaire d'en-tête) ──
+  { ticker: "ABJC", name: "Servair Abidjan", country: "Côte d'Ivoire", sector: "Conso. Discrétionnaire", flag: "🇨🇮",
+    per: 26.85, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 3280 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 206.2, 2025: 0, 2026: 0 },
+    color: "#DC2626" },
+  { ticker: "BICC", name: "BICI CI", country: "Côte d'Ivoire", sector: "Banques", flag: "🇨🇮",
+    per: 13.23, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 29000 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 830.72, 2026: 0 },
+    color: "#7C3AED" },
+  // ⚠️ PER=583.21 : valeur réelle extraite du BOC (source officielle), pas
+  // une erreur de saisie — plausible pour une petite capitalisation à
+  // bénéfice net très faible ; documentée plutôt que "corrigée en silence".
+  { ticker: "BNBC", name: "Bernabé CI", country: "Côte d'Ivoire", sector: "Conso. Discrétionnaire", flag: "🇨🇮",
+    per: 583.21, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 1985 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 150, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#059669" },
+  { ticker: "BOAC", name: "BOA Côte d'Ivoire", country: "Côte d'Ivoire", sector: "Banques", flag: "🇨🇮",
+    per: 10.24, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 9395 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 597.53 },
+    color: "#2563EB" },
+  { ticker: "BOAM", name: "BOA Mali", country: "Mali", sector: "Banques", flag: "🇲🇱",
+    per: 12.03, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 4980 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 305.04 },
+    color: "#D97706" },
+  { ticker: "CABC", name: "Sicable CI", country: "Côte d'Ivoire", sector: "Industrie", flag: "🇨🇮",
+    per: 16.04, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 4190 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 152.02 },
+    color: "#DB2777" },
+  { ticker: "CFAC", name: "CFAO Motors CI", country: "Côte d'Ivoire", sector: "Conso. Discrétionnaire", flag: "🇨🇮",
+    per: 68.59, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 1760 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 7.04, 2026: 0 },
+    color: "#0891B2" },
+  { ticker: "CIEC", name: "CIE CI", country: "Côte d'Ivoire", sector: "Services Publics", flag: "🇨🇮",
+    per: 22.18, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 5300 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 158.4, 2026: 0 },
+    color: "#4D7C0F" },
+  { ticker: "ETIT", name: "Ecobank Transnational TG", country: "Togo", sector: "Banques", flag: "🇹🇬",
+    per: 1.94, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 42 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#9333EA" },
+  // ⚠️ Dividende 2025 = 1726,56 (rendement ~88 % du cours) : chiffre réel du
+  // BOC, cohérent avec un dividende exceptionnel ponctuel — non lissé.
+  { ticker: "FTSC", name: "Filtisac CI", country: "Côte d'Ivoire", sector: "Industrie", flag: "🇨🇮",
+    per: 59.47, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 2000 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 1726.56, 2026: 0 },
+    color: "#EA580C" },
+  { ticker: "NEIC", name: "NEI-CEDA CI", country: "Côte d'Ivoire", sector: "Conso. Discrétionnaire", flag: "🇨🇮",
+    per: 15.04, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 2300 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 81.78, 2025: 0, 2026: 0 },
+    color: "#0D9488" },
+  { ticker: "ORGT", name: "Oragroup Togo", country: "Togo", sector: "Banques", flag: "🇹🇬",
+    per: 8.5, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 2740 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 59.52, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#B91C1C" },
+  { ticker: "PRSC", name: "Tractafric Motors CI", country: "Côte d'Ivoire", sector: "Conso. Discrétionnaire", flag: "🇨🇮",
+    per: 19.88, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 4595 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 182.16, 2026: 0 },
+    color: "#4338CA" },
+  { ticker: "SAFC", name: "Safca (Alios Finance) CI", country: "Côte d'Ivoire", sector: "Banques", flag: "🇨🇮",
+    per: 52.24, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 4600 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#CA8A04" },
+  // PER : dernier BNPA publié non disponible ce jour-là au BOC → repli
+  // documenté sur le PER moyen du secteur officiel "Consommation de base"
+  // (10,02, même BOC), non inventé au niveau société.
+  { ticker: "SCRC", name: "Sucrivoire CI", country: "Côte d'Ivoire", sector: "Conso. Base", flag: "🇨🇮",
+    per: 10.02, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 3385 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 40.5, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#16A34A" },
+  { ticker: "SEMC", name: "Eviosys Packaging (Crown Siem) CI", country: "Côte d'Ivoire", sector: "Industrie", flag: "🇨🇮",
+    per: 127.87, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 1535 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#C026D3" },
+  { ticker: "SHEC", name: "Vivo Energy CI", country: "Côte d'Ivoire", sector: "Énergie", flag: "🇨🇮",
+    per: 22.0, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 2165 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 75.29, 2026: 0 },
+    color: "#EA4C89" },
+  { ticker: "SIBC", name: "Société Ivoirienne de Banque", country: "Côte d'Ivoire", sector: "Banques", flag: "🇨🇮",
+    per: 15.99, mktcap: 930,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 9010 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 330, 2026: 0 },
+    color: "#1D4ED8" },
+  // PER : repli documenté sur le PER moyen du secteur "Consommation de
+  // base" (10,02), même motif que SCRC ci-dessus.
+  { ticker: "SICC", name: "Sicor CI", country: "Côte d'Ivoire", sector: "Conso. Base", flag: "🇨🇮",
+    per: 10.02, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 4700 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#B45309" },
+  { ticker: "SIVC", name: "Erium CI (ex Air Liquide)", country: "Côte d'Ivoire", sector: "Industrie", flag: "🇨🇮",
+    per: 6.59, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 2500 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 92, 2026: 0 },
+    color: "#0E7490" },
+  { ticker: "SMBC", name: "SMB CI", country: "Côte d'Ivoire", sector: "Énergie", flag: "🇨🇮",
+    per: 9.78, mktcap: 129,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 17735 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 616, 2026: 0 },
+    color: "#E11D48" },
+  { ticker: "SOGC", name: "SOGB CI", country: "Côte d'Ivoire", sector: "Conso. Base", flag: "🇨🇮",
+    per: 14.53, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 8395 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 528, 2026: 0 },
+    color: "#7E22CE" },
+  { ticker: "SPHC", name: "SAPH CI", country: "Côte d'Ivoire", sector: "Conso. Base", flag: "🇨🇮",
+    per: 7.85, mktcap: 194,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 7995 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 323.84, 2026: 0 },
+    color: "#15803D" },
+  // PER : repli documenté sur le PER moyen du secteur "Industriels" (24,55).
+  { ticker: "STAC", name: "Setao CI", country: "Côte d'Ivoire", sector: "Industrie", flag: "🇨🇮",
+    per: 24.55, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 3450 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 66.15, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#C2410C" },
+  { ticker: "TTLC", name: "TotalEnergies Marketing CI", country: "Côte d'Ivoire", sector: "Énergie", flag: "🇨🇮",
+    per: 19.78, mktcap: 177,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 2950 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 195.67, 2026: 0 },
+    color: "#6D28D9" },
+  // ⚠️ PER=817.47 : valeur réelle extraite du BOC (source officielle),
+  // même remarque que BNBC ci-dessus (thème récurrent des petites lignes
+  // BRVM à bénéfice net très faible / flottant très réduit).
+  { ticker: "UNLC", name: "Unilever CI", country: "Côte d'Ivoire", sector: "Conso. Base", flag: "🇨🇮",
+    per: 817.47, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 55600 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#A16207" },
+  // PER : repli documenté sur le PER moyen du secteur officiel
+  // "Consommation discrétionnaire" (58,58).
+  { ticker: "UNXC", name: "Uniwax CI", country: "Côte d'Ivoire", sector: "Conso. Discrétionnaire", flag: "🇨🇮",
+    per: 58.58, mktcap: 0,
+    prices: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 0, 2023: 0, 2024: 0, 2025: 0, 2026: 1690 },
+    dividends: { 2015: 0, 2016: 0, 2017: 0, 2018: 0, 2019: 0, 2020: 0, 2021: 0, 2022: 60.75, 2023: 0, 2024: 0, 2025: 0, 2026: 0 },
+    color: "#BE185D" },
 ];

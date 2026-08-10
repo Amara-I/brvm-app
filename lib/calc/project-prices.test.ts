@@ -4,17 +4,21 @@
 
 import { describe, expect, it } from "vitest";
 import { projectPrices } from "./project-prices";
-import { COMPANIES_FULL, YEARS } from "../../prisma/seed-data/companies-full";
+import { COMPANIES_FULL, YEARS, LEGACY_COMPANY_TICKERS } from "../../prisma/seed-data/companies-full";
 import golden from "./__fixtures__/golden-legacy-output.json";
 
 const YEARS_ARRAY = [...YEARS];
+const LEGACY_SET = new Set<string>(LEGACY_COMPANY_TICKERS);
 
 describe("projectPrices — parité avec le JSX d'origine", () => {
-  for (const company of COMPANIES_FULL) {
-    const expected = golden.find((g) => g.ticker === company.ticker);
+  // Même filtre que calc-metrics.test.ts : seules les 20 sociétés présentes
+  // dans la fixture golden (issues du JSX d'origine) sont confrontées.
+  const companiesWithGolden = COMPANIES_FULL.filter((c) => LEGACY_SET.has(c.ticker));
+
+  for (const company of companiesWithGolden) {
+    const expected = golden.find((g) => g.ticker === company.ticker)!;
 
     it(`produit les mêmes projections à 5 ans que le JSX pour ${company.ticker}`, () => {
-      expect(expected).toBeDefined();
       const historicalPrices = YEARS_ARRAY.map((year) => ({ year, price: company.prices[year] ?? 0 }));
 
       // Le JSX d'origine appelle `projectPrices(co, 5)` et numérote les
@@ -25,7 +29,7 @@ describe("projectPrices — parité avec le JSX d'origine", () => {
       // project-prices.ts sur `baseYear`).
       const result = projectPrices(historicalPrices, { futureYears: 5, baseYear: 2026 });
 
-      expect(result).toEqual(expected!.projections);
+      expect(result).toEqual(expected.projections);
     });
   }
 });

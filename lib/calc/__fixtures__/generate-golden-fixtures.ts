@@ -18,7 +18,7 @@
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { COMPANIES_FULL, YEARS } from "../../../prisma/seed-data/companies-full";
+import { COMPANIES_FULL, YEARS, LEGACY_COMPANY_TICKERS } from "../../../prisma/seed-data/companies-full";
 
 // ─── Copie verbatim de reference/BRVM_Dashboard.jsx (lignes ~122-178) ──────
 
@@ -91,7 +91,8 @@ function legacyCalcMetrics(co: (typeof COMPANIES_FULL)[number]) {
 
 // ─── Génération de la fixture ────────────────────────────────────────────
 
-const fixtures = COMPANIES_FULL.map((co) => ({
+const LEGACY_SET = new Set<string>(LEGACY_COMPANY_TICKERS);
+const fixtures = COMPANIES_FULL.filter((co) => LEGACY_SET.has(co.ticker)).map((co) => ({
   ticker: co.ticker,
   metrics: legacyCalcMetrics(co),
   projections: legacyProjectPrices(co, 5),
@@ -99,4 +100,4 @@ const fixtures = COMPANIES_FULL.map((co) => ({
 
 const outPath = join(__dirname, "golden-legacy-output.json");
 writeFileSync(outPath, JSON.stringify(fixtures, null, 2), "utf-8");
-console.log(`✔ Fixture générée : ${outPath} (${fixtures.length} sociétés)`);
+console.log(`✔ Fixture générée : ${outPath} (${fixtures.length} sociétés — limitées à LEGACY_COMPANY_TICKERS)`);

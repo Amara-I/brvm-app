@@ -8,11 +8,14 @@
 // tableau `COMPANIES_FULL` (voir prisma/seed-data/companies-full.ts, copie
 // fidèle de reference/BRVM_Dashboard.jsx) en lignes Prisma, SANS PERTE :
 //
-//   - 1 ligne `Country`  par pays distinct (5 : Sénégal, Côte d'Ivoire,
-//     Burkina Faso, Bénin, Niger)
-//   - 1 ligne `Sector`   par secteur distinct (7 : Télécoms, Banques,
-//     Divertissement, Conso. Base, Services Publics, Industrie, Énergie)
-//   - 1 ligne `Company`  par société (20)
+//   - 1 ligne `Country`  par pays distinct (7 depuis le 10/08/2026 : Sénégal,
+//     Côte d'Ivoire, Burkina Faso, Bénin, Niger, Mali, Togo)
+//   - 1 ligne `Sector`   par secteur distinct (8 depuis le 10/08/2026 :
+//     Télécoms, Banques, Divertissement, Conso. Base, Conso.
+//     Discrétionnaire, Services Publics, Industrie, Énergie)
+//   - 1 ligne `Company`  par société (47 depuis le 10/08/2026 — les 20
+//     d'origine + 27 sociétés BRVM manquantes ajoutées par criblage réel,
+//     cf. prisma/seed-data/companies-full.ts)
 //   - 1 ligne `PriceHistory` par (société, année) où le cours JSX est > 0
 //   - 1 ligne `Dividend`     par (société, année) où le dividende JSX est > 0
 //   - 1 ligne `FinancialRatio` par société (PER + capitalisation "actuels")
@@ -50,6 +53,10 @@ const COUNTRY_CODES: Record<string, string> = {
   "Burkina Faso": "BF",
   "Bénin": "BJ",
   "Niger": "NE",
+  // Mali/Togo ajoutés le 10/08/2026 avec les 27 sociétés manquantes (BOAM,
+  // ETIT, ORGT — cf. prisma/seed-data/companies-full.ts).
+  "Mali": "ML",
+  "Togo": "TG",
 };
 
 /// Dernière année du jeu de données JSX — sert d'année de référence pour le
