@@ -514,7 +514,12 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                     {co.name}
                   </div>
                   <div style={{ display: "flex", gap: 6, marginTop: 3 }}>
-                    <span style={{ fontSize: "0.6rem", color: perf5Value > 0 ? C.green : C.red }}>
+                    <span
+                      style={{
+                        fontSize: "0.6rem",
+                        color: m.perf5Percent === "N/D" ? C.textDim : perf5Value > 0 ? C.green : C.red,
+                      }}
+                    >
                       {m.perf5Percent !== "N/D" ? `${perf5Value > 0 ? "+" : ""}${m.perf5Percent}%` : "N/D"}
                     </span>
                     <span style={{ fontSize: "0.6rem", color: C.textDim }}>•</span>
@@ -598,18 +603,34 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                       { l: "Signal", v: metrics.signal.label, c: metrics.signal.color },
                       {
                         l: "Perf. 5 ans",
-                        v: `${parseFloat(String(metrics.perf5Percent)) > 0 ? "+" : ""}${metrics.perf5Percent}%`,
-                        c: parseFloat(String(metrics.perf5Percent)) > 0 ? C.green : C.red,
+                        v: metrics.perf5Percent === "N/D" ? "N/D" : `${parseFloat(metrics.perf5Percent) > 0 ? "+" : ""}${metrics.perf5Percent}%`,
+                        c: metrics.perf5Percent === "N/D" ? C.textDim : parseFloat(metrics.perf5Percent) > 0 ? C.green : C.red,
                       },
                       {
                         l: "Perf. 10 ans",
-                        v: `${parseFloat(String(metrics.perf10Percent)) > 0 ? "+" : ""}${metrics.perf10Percent}%`,
-                        c: parseFloat(String(metrics.perf10Percent)) > 0 ? C.green : C.red,
+                        v: metrics.perf10Percent === "N/D" ? "N/D" : `${parseFloat(metrics.perf10Percent) > 0 ? "+" : ""}${metrics.perf10Percent}%`,
+                        c: metrics.perf10Percent === "N/D" ? C.textDim : parseFloat(metrics.perf10Percent) > 0 ? C.green : C.red,
                       },
                       { l: "Rendement div.", v: `${metrics.dividendYieldPercent}%`, c: C.teal },
-                      { l: "PER", v: company.per, c: C.blue },
-                      { l: "Volatilité", v: `${metrics.volatilityPercent}%`, c: C.silver },
-                      { l: "Risque", v: metrics.riskLevel, c: metrics.riskLevel === "Faible" ? C.green : metrics.riskLevel === "Moyen" ? C.gold : C.red },
+                      { l: "PER", v: company.per > 0 ? company.per : "N/D", c: C.blue },
+                      {
+                        l: "Volatilité",
+                        v: metrics.volatilityPercent === "N/D" ? "N/D" : `${metrics.volatilityPercent}%`,
+                        c: C.silver,
+                      },
+                      {
+                        l: "Risque",
+                        v: metrics.riskLevel,
+                        c:
+                          metrics.riskLevel === "Faible"
+                            ? C.green
+                            : metrics.riskLevel === "Moyen"
+                              ? C.gold
+                              : metrics.riskLevel === "N/D"
+                                ? C.textDim
+                                : C.red,
+                      },
+                      { l: "Confiance", v: metrics.confidence, c: metrics.confidence === "Élevée" ? C.green : metrics.confidence === "Moyenne" ? C.gold : C.textDim },
                     ].map((k) => (
                       <div key={k.l} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, padding: "7px 12px", minWidth: 90 }}>
                         <div style={{ fontSize: "0.58rem", color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em" }}>{k.l}</div>
@@ -617,6 +638,55 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                       </div>
                     ))}
                   </div>
+                </div>
+
+                {/* Signal final + explication (étape 14) — bloc additif sous l'en-tête */}
+                <div
+                  style={{
+                    background: C.panel,
+                    border: `1px solid ${C.border}`,
+                    borderLeft: `4px solid ${metrics.signal.color}`,
+                    borderRadius: 8,
+                    padding: 14,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+                    <div style={{ fontSize: "0.7rem", fontWeight: 700, color: C.gold, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                      Signal final
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "0.95rem",
+                        fontWeight: 800,
+                        color: metrics.signal.color,
+                        background: `${metrics.signal.color}18`,
+                        padding: "2px 10px",
+                        borderRadius: 4,
+                      }}
+                    >
+                      {metrics.signal.label}
+                    </div>
+                    <div style={{ fontSize: "0.72rem", color: C.textDim }}>
+                      Score {metrics.score}/100 · Confiance {metrics.confidence}
+                    </div>
+                  </div>
+                  <p style={{ margin: "0 0 10px", fontSize: "0.8rem", color: C.text, lineHeight: 1.45 }}>{metrics.signalSummary}</p>
+                  <ul style={{ margin: 0, paddingLeft: 18, display: "grid", gap: 4 }}>
+                    {metrics.signalReasons.map((reason, idx) => (
+                      <li
+                        key={`${reason.kind}-${idx}`}
+                        style={{
+                          fontSize: "0.74rem",
+                          lineHeight: 1.4,
+                          color: reason.kind === "positif" ? C.green : reason.kind === "negatif" ? C.red : C.textDim,
+                        }}
+                      >
+                        {reason.kind === "positif" ? "▲ " : reason.kind === "negatif" ? "▼ " : "● "}
+                        {reason.text}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
 
                 {/* Historical data table */}

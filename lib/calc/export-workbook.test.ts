@@ -28,13 +28,14 @@ describe("buildBrvmWorkbook", () => {
     expect(wb.SheetNames).toEqual(["Données BRVM", "Projections", "Classements"]);
   });
 
-  it("feuille 'Données BRVM' : en-têtes et valeurs identiques au JSX d'origine", () => {
+  it("feuille 'Données BRVM' : métriques brutes + score/signal présents pour SNTS", () => {
     const sheet = XLSX.utils.sheet_to_json<Record<string, unknown>>(wb.Sheets["Données BRVM"]);
     const sonatel = sheet.find((r) => r["Ticker"] === "SNTS")!;
     const expected = golden.find((g) => g.ticker === "SNTS")!;
 
-    expect(sonatel["Score"]).toBe(expected.metrics.score);
-    expect(sonatel["Signal"]).toBe(expected.metrics.sig.label);
+    // Étape 14 : score/signal recalibrés — on ne fige plus leur égalité au JSX.
+    expect(Number(sonatel["Score"])).toBeGreaterThan(0);
+    expect(["ACHAT FORT", "ACHAT", "CONSERVER", "ALLÉGER", "VENDRE"]).toContain(sonatel["Signal"]);
     expect(String(sonatel["Perf.5ans(%)"])).toBe(String(expected.metrics.perf5));
     expect(String(sonatel["Rend.Div.(%)"])).toBe(String(expected.metrics.yield_));
     expect(sonatel["Cours 2026"]).toBe(expected.metrics.currentPrice);

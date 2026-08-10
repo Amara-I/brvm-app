@@ -730,6 +730,30 @@ donc à l'affichage (méga-menu, screener, dashboard, export Excel).
 
 ---
 
+## 10. Étape 14 — Analyse optimisée + signal final expliqué
+
+Demandée le 10/08/2026 : « optimiser l\'analyse des différentes actions et
+donner un signal final avec explication ».
+
+### Changements
+
+- lib/calc/calc-metrics.ts : score recalibré (volatilité N/D ≠ risque
+  Élevé ; régularité des dividendes relative à l\'historique réel ; PER
+  extrêmes pénalisés ; plafonnement des signaux extrêmes si confiance
+  Faible). Libellés ACHAT FORT / ACHAT / CONSERVER / ALLÉGER / VENDRE
+  inchangés.
+- Nouveaux champs : confidence, signalSummary, signalReasons[].
+- Dashboard Vue d\'ensemble : bloc « Signal final » avec résumé + facteurs
+  ▲/▼/●. Screener : colonne Confiance + tooltip d\'explication.
+- Export Excel : colonnes Confiance + Explication signal.
+- Tests golden : parité conservée sur les métriques brutes uniquement
+  (perf/yield/vol/cours) ; score/signal ont désormais leurs propres tests.
+
+✔ 	sc --noEmit ✅ · itest run (87/87) ✅ · vérifié navigateur sur /marche
+  (Sonatel → ACHAT 69/100, explication détaillée affichée).
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

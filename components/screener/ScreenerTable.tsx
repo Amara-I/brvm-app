@@ -84,6 +84,7 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
               <th scope="col" style={{ padding: "8px 6px" }}>Rend. dividende</th>
               <th scope="col" style={{ padding: "8px 6px" }}>PER</th>
               <th scope="col" style={{ padding: "8px 6px" }}>Signal</th>
+              <th scope="col" style={{ padding: "8px 6px" }}>Confiance</th>
             </tr>
           </thead>
           <tbody>
@@ -102,8 +103,14 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                 <td style={{ padding: "8px 6px", color: C.teal }}>{metrics.dividendYieldPercent}%</td>
                 <td style={{ padding: "8px 6px", color: C.text }}>{co.per > 0 ? co.per.toFixed(1) : "N/D"}</td>
                 <td style={{ padding: "8px 6px" }}>
-                  <span style={{ color: metrics.signal.color, fontWeight: 700, fontSize: "0.72rem" }}>{metrics.signal.label}</span>
+                  <span
+                    title={metrics.signalSummary}
+                    style={{ color: metrics.signal.color, fontWeight: 700, fontSize: "0.72rem", cursor: "help" }}
+                  >
+                    {metrics.signal.label}
+                  </span>
                 </td>
+                <td style={{ padding: "8px 6px", color: C.textDim, fontSize: "0.75rem" }}>{metrics.confidence}</td>
               </tr>
             ))}
           </tbody>
