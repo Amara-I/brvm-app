@@ -18,7 +18,7 @@ import {
 } from "@/lib/ingestion/connectors/ouestbourse_supabase";
 import { reconcileChartSeries } from "@/lib/charts/reconcile-chart-series";
 import { stripIsolatedPriceSpikes } from "@/lib/charts/strip-isolated-spikes";
-import { dedupeChartPointsByDay } from "@/lib/charts/indicators";
+import { dedupeChartPointsByDay, type ChartClosePoint } from "@/lib/charts/indicators";
 import { DISCREPANCY_THRESHOLD_PERCENT } from "@/lib/ingestion/reconciliation";
 import {
   chartDbFingerprint,
@@ -82,9 +82,11 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
   }
   const dbSeries = [...dbByDay.values()].sort((a, b) => a.time.localeCompare(b.time));
 
-  let series: Array<{ time: string; value: number; volume: number | null }> = dbSeries.map(
-    ({ time, value, volume }) => ({ time, value, volume })
-  );
+  let series: ChartClosePoint[] = dbSeries.map(({ time, value, volume }) => ({
+    time,
+    value,
+    volume,
+  }));
   let seriesSourceNote: "db" | "multi_source_merged" = "db";
   let discrepanciesCount = 0;
   let densifySources: string[] = [];
