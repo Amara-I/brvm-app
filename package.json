@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "20.x"
+    "node": "24.x"
   },
   "description": "Application d'analyse financière BRVM (Bourse Régionale des Valeurs Mobilières)",
   "scripts": {

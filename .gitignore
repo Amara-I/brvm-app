@@ -8,3 +8,8 @@ build/
 .DS_Store
 .cache/
 *.tsbuildinfo
+
+.vercel
+.env*
+!.env.example
+

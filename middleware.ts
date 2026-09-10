@@ -20,7 +20,7 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { checkRateLimit, type RateLimitResult } from "@/lib/security/rate-limit";
+import { checkRateLimit, type RateLimitResult } from "./lib/security/rate-limit";
 
 const DEFAULT_API_LIMIT = { limit: 60, windowMs: 60_000 };
 const AUTH_API_LIMIT = { limit: 10, windowMs: 60_000 };
