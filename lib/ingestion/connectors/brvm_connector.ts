@@ -6,16 +6,12 @@
 // autorise, Crawl-delay: 10s honoré par lib/ingestion/http-client.ts) :
 //
 //   - Indices du jour : https://www.brvm.org/fr/indices/0/{YYYY-MM-DD}
-//     → 3 blocs `<section id="block-tools-indices">`, chacun avec un
-//       `<h2 class="block-title">` ("" pour les indices principaux,
-//       "Indices sectoriels", "Indice Total Return") suivi d'un `<table>`
-//       de colonnes : Nom | Fermeture précédente | Fermeture | Variation (%)
-//       | Variation 31 décembre (%).
+//     → 3 blocs `<section id="block-tools-indices">` (repli : tout tableau
+//       Nom + Fermeture). Colonnes lues par en-tête, pas par index.
 //
 //   - Cours du jour : https://www.brvm.org/fr/cours-actions/0/0/{YYYY-MM-DD}
-//     → dernier `<table>` de la page, colonnes : Symbole | Nom | Volume |
-//       Cours veille (FCFA) | Cours Ouverture (FCFA) | Cours Clôture (FCFA)
-//       | Variation (%).
+//     → tableau dont l'en-tête contient Symbole + Cours Clôture (ignore
+//       Top 5 / Flop 5). Colonnes lues par en-tête.
 //
 // ⚠️ Si BRVM.org change son thème (le site est un Drupal 7 classique), ce
 // connecteur doit être mis à jour en isolation — c'est justement pour cela
@@ -24,6 +20,7 @@
 
 import * as cheerio from "cheerio";
 import { fetchHtml } from "../http-client";
+import { parseBrvmIndicesPage, parseBrvmQuotesPage } from "../brvm-market-parser";
 import { parseFrenchNumber, toIsoDate, lastBusinessDay } from "../parse-utils";
 import { mergeBrvmDividendRows, parseBrvmDividendPage } from "../brvm-dividend-parser";
 import type {
@@ -37,17 +34,6 @@ import type {
 
 const BASE_URL = "https://www.brvm.org";
 
-/// Normalise le libellé BRVM.org (ex: "BRVM - COMPOSITE", "BRVM-30") vers un
-/// code stable utilisé dans toute l'application (`MarketIndex.code`).
-function normalizeIndexCode(label: string): string {
-  return label
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toUpperCase()
-    .replace(/[^A-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-}
-
 export class BrvmConnector implements MarketDataConnector {
   readonly source = "BRVM_OFFICIEL" as const;
 
@@ -58,32 +44,22 @@ export class BrvmConnector implements MarketDataConnector {
 
     try {
       const html = await fetchHtml(url);
-      const $ = cheerio.load(html);
-      const results: RawIndexQuote[] = [];
-
-      $("section[id='block-tools-indices']").each((_, section) => {
-        $(section)
-          .find("table tbody tr")
-          .each((__, row) => {
-            const cells = $(row).find("td");
-            const label = $(cells[0]).text().trim();
-            const value = parseFrenchNumber($(cells[2]).text()); // "Fermeture"
-            const changePercent = parseFrenchNumber($(cells[3]).text());
-            if (!label || value === null) return;
-            results.push({
-              code: normalizeIndexCode(label),
-              label,
-              value,
-              changePercent,
-              source: this.source,
-              date: isoDate,
-              fetchedAt,
-            });
-          });
-      });
+      const parsed = parseBrvmIndicesPage(html, isoDate);
+      const results: RawIndexQuote[] = parsed.indices.map((idx) => ({
+        ...idx,
+        source: this.source,
+        fetchedAt,
+      }));
 
       if (results.length === 0) {
-        return { ok: false, source: this.source, error: "Aucun indice trouvé — structure HTML probablement modifiée", fetchedAt };
+        return {
+          ok: false,
+          source: this.source,
+          error: parsed.tableFound
+            ? "Tableau d'indices vide — séance absente ou structure HTML modifiée"
+            : "Aucun indice trouvé — structure HTML probablement modifiée",
+          fetchedAt,
+        };
       }
       return { ok: true, source: this.source, data: results, fetchedAt };
     } catch (err) {
@@ -99,38 +75,19 @@ export class BrvmConnector implements MarketDataConnector {
 
     try {
       const html = await fetchHtml(url);
-      const $ = cheerio.load(html);
+      const parsed = parseBrvmQuotesPage(html, isoDate);
+      if (!parsed.tableFound) {
+        return {
+          ok: false,
+          source: this.source,
+          error: "Tableau des cours introuvable — structure HTML probablement modifiée",
+          fetchedAt,
+        };
+      }
 
-      // La page contient plusieurs <table> (top 5, flop 5, activité du
-      // marché...) : on cible celle dont l'en-tête commence par "Symbole".
-      const quotesTable = $("table").filter((_, table) => {
-        const firstHeader = $(table).find("thead th").first().text().trim();
-        return firstHeader === "Symbole";
-      });
-
-      const results: RawPriceQuote[] = [];
-      quotesTable
-        .find("tbody tr")
-        .each((_, row) => {
-          const cells = $(row).find("td");
-          const ticker = $(cells[0]).text().trim().toUpperCase();
-          if (!wanted.has(ticker)) return;
-          const volume = parseFrenchNumber($(cells[2]).text());
-          const prevClose = parseFrenchNumber($(cells[3]).text()); // "Cours veille (FCFA)"
-          const closePrice = parseFrenchNumber($(cells[5]).text()); // "Cours Clôture (FCFA)"
-          const changePercent = parseFrenchNumber($(cells[6]).text()); // "Variation (%)"
-          if (closePrice === null) return;
-          results.push({
-            ticker,
-            closePrice,
-            volume,
-            prevClose,
-            changePercent,
-            source: this.source,
-            date: isoDate,
-            fetchedAt,
-          });
-        });
+      const results: RawPriceQuote[] = parsed.quotes
+        .filter((q) => wanted.has(q.ticker))
+        .map((q) => ({ ...q, source: this.source, fetchedAt }));
 
       return { ok: true, source: this.source, data: results, fetchedAt };
     } catch (err) {

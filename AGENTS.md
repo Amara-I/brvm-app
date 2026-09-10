@@ -897,6 +897,48 @@ vers les fiches sociétés, choix fiche/graphe au clic, bouton recherche header.
 
 ---
 
+## 18. Étape 22 — Ingestion multi-source BRVM + Sikafinance (fiabilisation)
+
+Demandée le 10/09/2026 : rendre l'ingestion quotidienne plus complète et
+fiable, en priorisant BRVM.org (canonique) et Sikafinance (source n°2).
+
+### Constat (vérifié en live le 10/09/2026)
+
+- `INGESTION_ENABLE_SIKAFINANCE_QUOTES` était `false` : l'ancien scrape
+  `/marches/cotation_{TICKER}` 404, et même `cotation_{TICKER.cc}` n'expose
+  plus `.mkprice` (la page HTML a changé). GetHistos (`SNTS.sn`, xperiod=0)
+  fonctionne, mais 47 POST à 3 s satureraient le cron 300 s.
+- La page A–Z `/marches/aaz` (`#tblShare`) publie déjà **Dernier + volume +
+  variation** pour toutes les valeurs, en **une** requête. `#tabQuotes2`
+  liste aussi les indices (BRVMC, BRVM30, SIKATR, sectoriels).
+- Le parseur BRVM (indices / cours) restait indexé par numéro de colonne.
+
+### Livré
+
+- Sikafinance `fetchQuotes` : parse `#tblShare` (colonne **Dernier**, pas
+  +Haut). Date de séance via un unique GetHistos (SNTS/SGBC) pour ne pas
+  dater un lundi matin à la séance pas encore ouverte. Repli GetHistos
+  dernier close uniquement si A–Z est vide.
+- Sikafinance `fetchIndices` : `#tabQuotes2` (codes alignés BRVM_COMPOSITE /
+  BRVM_30 pour la réconciliation), repli accueil `.mkcol`.
+- Flag `INGESTION_ENABLE_SIKAFINANCE_QUOTES` **activé par défaut**.
+- BRVM : parseurs extraits (`brvm-market-parser.ts`), colonnes par en-tête.
+- Rafraîchissement horaire : si BRVM renvoie 0 cours, repli Sika A–Z isolé.
+- Tests parseurs (fixtures inline, plus de dépendance à `.cache/`).
+
+### Vérifier
+
+```
+npm test
+INGESTION_ENABLE_SIKAFINANCE_QUOTES=true npm run ingest:prototype   # 3 tickers, sans DB
+npm run ingest:run                                                 # cron complet (DATABASE_URL)
+```
+
+Désactivation d'urgence : `INGESTION_ENABLE_SIKAFINANCE_QUOTES=false`.
+Historique long : inchangé (`npm run history:sikafinance`, `enrich:sikafinance`).
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

@@ -74,3 +74,22 @@ export function parseDdMmYyyy(raw: string): string | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
+
+/// Décale une date ISO `YYYY-MM-DD` de `deltaDays` jours (UTC).
+export function shiftIsoDate(iso: string, deltaDays: number): string | null {
+  const probe = new Date(`${iso}T00:00:00.000Z`);
+  if (Number.isNaN(probe.getTime())) return null;
+  probe.setUTCDate(probe.getUTCDate() + deltaDays);
+  return toIsoDate(probe);
+}
+
+/// Normalise un libellé d'indice (ex. "BRVM - COMPOSITE", "BRVM-30") vers un
+/// code stable partagé par tous les connecteurs (`MarketIndex.code`).
+export function normalizeIndexCode(label: string): string {
+  return label
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
