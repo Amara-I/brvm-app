@@ -2,12 +2,8 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "crons": [
     {
-      "path": "/api/cron/refresh-quotes",
-      "schedule": "0 17 * * 1-5"
-    },
-    {
       "path": "/api/cron/ingest",
-      "schedule": "30 16 * * 1-5"
+      "schedule": "0 17 * * *"
     },
     {
       "path": "/api/cron/research",
