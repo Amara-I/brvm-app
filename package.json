@@ -2,6 +2,9 @@
   "name": "brvm-app",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "description": "Application d'analyse financière BRVM (Bourse Régionale des Valeurs Mobilières)",
   "scripts": {
     "dev": "next dev",
