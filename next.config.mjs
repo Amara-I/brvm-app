@@ -40,6 +40,19 @@ const nextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
+  async redirects() {
+    // Termes déplacés vers « Indicateurs avancés (peu adaptés) »
+    const advanced = [
+      "ichimoku-kinko-hyo",
+      "retracement-de-fibonacci",
+      "theorie-des-vagues-d-elliott",
+    ];
+    return advanced.map((slug) => ({
+      source: `/education/technique/${slug}`,
+      destination: `/education/technique-avancee/${slug}`,
+      permanent: true,
+    }));
+  },
 };
 
 export default nextConfig;

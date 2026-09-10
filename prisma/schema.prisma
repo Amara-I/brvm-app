@@ -36,11 +36,13 @@ datasource db {
 // ─────────────────────────────────────────────────────────────────────────
 
 /// Origine d'une donnée financière, pour traçabilité et réconciliation.
-/// Ordre de priorité en cas de divergence : BRVM_OFFICIEL > SIKAFINANCE > RICHBOURSE.
-/// MANUEL = saisie humaine de secours (fallback admin) quand les 3 sources échouent.
+/// Ordre de priorité : BRVM_OFFICIEL > SIKAFINANCE > OUESTBOURSE > RICHBOURSE > MANUEL.
+/// OUESTBOURSE = historique public ouestbourse.com (Supabase `brvm_price_history`).
+/// MANUEL = saisie humaine de secours (fallback admin) quand les sources échouent.
 enum DataSource {
   BRVM_OFFICIEL
   SIKAFINANCE
+  OUESTBOURSE
   RICHBOURSE
   MANUEL
 
@@ -65,6 +67,15 @@ enum HoldingSide {
   @@map("holding_side")
 }
 
+/// Horizon d'investissement déclaré à l'achat d'une ligne de portefeuille.
+enum BuyHorizon {
+  COURT
+  MOYEN
+  LONG
+
+  @@map("buy_horizon")
+}
+
 /// Rôle applicatif d'un utilisateur (préparation d'une future interface admin
 /// pour le fallback manuel de correction de données — cf. brief § ingestion).
 enum UserRole {
@@ -81,6 +92,7 @@ enum ResearchCategory {
   CONTENU // actualités BRVM, sujets à couvrir
   FONCTIONNALITE // idées de fonctionnalités
   CONCURRENCE // veille Ouestbourse / Sikafinance / Richbourse
+  DESIGN // veille design premium (UI fintech, patterns dashboards 2026)
 
   @@map("research_category")
 }
@@ -94,6 +106,23 @@ enum ResearchStatus {
   APPLIQUE
 
   @@map("research_status")
+}
+
+/// Direction d'une alerte de cours (seuil).
+enum PriceAlertDirection {
+  ABOVE /// déclenchée si cours ≥ seuil
+  BELOW /// déclenchée si cours ≤ seuil
+
+  @@map("price_alert_direction")
+}
+
+/// Statut d'une alerte de cours utilisateur.
+enum PriceAlertStatus {
+  ACTIVE
+  TRIGGERED
+  DISABLED
+
+  @@map("price_alert_status")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -164,6 +193,9 @@ model Company {
   /// Courte description de l'activité (nouveau champ, optionnel, pour les
   /// futures fiches sociétés façon Ouestbourse).
   description String?
+  /// Profil étendu (Sikafinance SOCIETE) : téléphone, adresse, dirigeants,
+  /// flottant, actionnaires, etc. — JSON libre, affichage N/D si absent.
+  profileMeta Json? @map("profile_meta")
   /// Date d'introduction en bourse, si connue.
   listedSince DateTime? @map("listed_since")
   /// Permet de désactiver une société (radiation, suspension) sans supprimer
@@ -177,11 +209,57 @@ model Company {
   financialRatios   FinancialRatio[]
   discrepancies     DataDiscrepancy[]
   portfolioHoldings PortfolioHolding[]
+  portfolioTrades   PortfolioTrade[]
   newsArticles      NewsArticle[]
+  priceAlerts       PriceAlert[]
+  documents         CompanyDocument[]
+  events            CompanyEvent[]
 
   @@index([sectorId])
   @@index([countryId])
   @@map("companies")
+}
+
+/// Document officiel lié à une société (rapports d'activité, états financiers…).
+/// URLs pointent typiquement vers brvm.org ; catalogue via ouestbourse.com / Sika.
+model CompanyDocument {
+  id          String    @id @default(cuid())
+  companyId   String    @map("company_id")
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title       String?
+  filename    String?
+  url         String
+  docType     String?   @map("doc_type")
+  periodLabel String?   @map("period_label")
+  publishedAt DateTime? @map("published_at") @db.Date
+  sourceName  String    @map("source_name")
+  externalId  String?   @map("external_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@unique([companyId, url])
+  @@index([companyId, publishedAt])
+  @@map("company_documents")
+}
+
+/// Événement corporate (AG, résultat, détachement dividende…) — Sikafinance events.
+model CompanyEvent {
+  id         String    @id @default(cuid())
+  companyId  String    @map("company_id")
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  title      String
+  eventType  String?   @map("event_type")
+  eventDate  DateTime  @map("event_date") @db.Date
+  endDate    DateTime? @map("end_date") @db.Date
+  comment    String?
+  url        String?
+  sourceName String    @map("source_name")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  @@unique([companyId, eventDate, title])
+  @@index([companyId, eventDate])
+  @@map("company_events")
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -205,6 +283,9 @@ model PriceHistory {
   date        DateTime   @db.Date
   /// Cours de clôture en FCFA.
   closePrice  Decimal    @map("close_price") @db.Decimal(14, 2)
+  /// Variation journalière (%) publiée par la source (ex. colonne BRVM « Variation »).
+  /// Null si la source ne la fournit pas — l'UI peut alors recalculer vs séance précédente.
+  changePercent Decimal? @map("change_percent") @db.Decimal(8, 4)
   /// Volume échangé (absent du JSX actuel, ajouté pour les futurs indicateurs
   /// de marché / top hausses-baisses).
   volume      BigInt?
@@ -265,6 +346,20 @@ model FinancialRatio {
   roe         Decimal?   @db.Decimal(6, 2)
   /// Marge nette (%), nouveau champ pour le Screener "Rentabilité".
   netMargin   Decimal?   @map("net_margin") @db.Decimal(6, 2)
+  /// Ratio d'endettement (dette / capitaux propres, %), Guide indicateurs BRVM.
+  debtRatio   Decimal?   @map("debt_ratio") @db.Decimal(8, 2)
+  /// Price-to-Book (cours / actif net par action).
+  pbRatio     Decimal?   @map("pb_ratio") @db.Decimal(8, 2)
+  /// Croissance du chiffre d'affaires (% YoY).
+  revenueGrowth Decimal? @map("revenue_growth") @db.Decimal(8, 2)
+  /// Chiffre d'affaires, en milliards de FCFA.
+  revenue     Decimal?   @db.Decimal(14, 2)
+  /// Résultat net, en milliards de FCFA.
+  netIncome   Decimal?   @map("net_income") @db.Decimal(14, 2)
+  /// Résultat d'exploitation, en milliards de FCFA.
+  operatingIncome Decimal? @map("operating_income") @db.Decimal(14, 2)
+  /// Free Cash Flow, en milliards de FCFA.
+  fcf         Decimal?   @db.Decimal(14, 2)
   source      DataSource
   isCanonical Boolean    @default(false) @map("is_canonical")
   createdAt   DateTime   @default(now()) @map("created_at")
@@ -418,6 +513,8 @@ model User {
   accounts   Account[]
   sessions   Session[]
   portfolios Portfolio[]
+  chartAnalyses ChartAnalysis[]
+  priceAlerts   PriceAlert[]
 
   @@map("users")
 }
@@ -475,9 +572,36 @@ model Portfolio {
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
   holdings  PortfolioHolding[]
+  trades    PortfolioTrade[]
 
   @@index([userId])
   @@map("portfolios")
+}
+
+/// Journal des mouvements (achats / ventes) — conserve l'historique même
+/// après suppression d'une ligne active. Pour une VENTE, `costBasis` = PRU
+/// au moment de la vente et `realizedPnl` = (prix − PRU) × quantité.
+model PortfolioTrade {
+  id          String      @id @default(cuid())
+  portfolioId String      @map("portfolio_id")
+  portfolio   Portfolio   @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  companyId   String      @map("company_id")
+  company     Company     @relation(fields: [companyId], references: [id])
+  side        HoldingSide
+  quantity    Decimal     @db.Decimal(14, 4)
+  /// Prix unitaire de l'opération (achat ou vente), en FCFA.
+  price       Decimal     @db.Decimal(14, 2)
+  tradedAt    DateTime    @map("traded_at") @db.Date
+  /// PRU de la ligne au moment de la vente (null pour un ACHAT).
+  costBasis   Decimal?    @map("cost_basis") @db.Decimal(14, 2)
+  /// Plus/moins-value réalisée (null pour un ACHAT).
+  realizedPnl Decimal?    @map("realized_pnl") @db.Decimal(18, 2)
+  notes       String?
+  createdAt   DateTime    @default(now()) @map("created_at")
+
+  @@index([portfolioId, tradedAt])
+  @@index([portfolioId, side])
+  @@map("portfolio_trades")
 }
 
 /// Position détenue dans un portefeuille pour une société donnée. Le calcul
@@ -499,6 +623,8 @@ model PortfolioHolding {
   /// Dernier mouvement enregistré (ACHAT initial ou renforcement/allègement).
   lastSide    HoldingSide @default(ACHAT) @map("last_side")
   buyDate     DateTime?   @map("buy_date") @db.Date
+  /// Horizon d'achat (court / moyen / long) — oriente le conseil Renforcer/Conserver/Sortir.
+  buyHorizon  BuyHorizon  @default(MOYEN) @map("buy_horizon")
   notes       String?
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
@@ -506,6 +632,56 @@ model PortfolioHolding {
   @@unique([portfolioId, companyId], name: "uniq_holding_portfolio_company")
   @@index([portfolioId])
   @@map("portfolio_holdings")
+}
+
+/// Analyse graphique sauvegardée par un utilisateur connecté
+/// (tracés, indicateurs, plage, intervalle) — distinct du localStorage navigateur.
+model ChartAnalysis {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ticker         String
+  name           String
+  /// Tableau JSON de tracés (horiz / fib / trend).
+  drawings       Json     @default("[]")
+  /// Objet JSON ChartIndicatorsState (SMA, RSI, …).
+  indicators     Json
+  /// Plage affichée (1J, 1A, MAX, …).
+  range          String   @default("1A")
+  /// Intervalle de bougies (1H, 1D, 1W, 1M).
+  interval       String   @default("1D") @map("candle_interval")
+  /// Tickers de comparaison (JSON string[]).
+  compareTickers Json     @default("[]") @map("compare_tickers")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, ticker])
+  @@index([userId, updatedAt])
+  @@map("chart_analyses")
+}
+
+/// Alerte de seuil de cours (compte connecté) — surveillée après chaque
+/// rafraîchissement BRVM et à l'ouverture du panneau Alerte.
+model PriceAlert {
+  id           String              @id @default(cuid())
+  userId       String              @map("user_id")
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId    String              @map("company_id")
+  company      Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticker       String
+  direction    PriceAlertDirection
+  targetPrice  Decimal             @map("target_price") @db.Decimal(18, 4)
+  note         String?
+  status       PriceAlertStatus    @default(ACTIVE)
+  triggeredAt  DateTime?           @map("triggered_at")
+  triggerPrice Decimal?            @map("trigger_price") @db.Decimal(18, 4)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([ticker, status])
+  @@index([companyId, status])
+  @@map("price_alerts")
 }
 
 // ─────────────────────────────────────────────────────────────────────────

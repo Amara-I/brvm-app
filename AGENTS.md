@@ -519,7 +519,7 @@ la VEILLE produit/UX plutôt que les données financières :
 
 ---
 
-## 7bis. Étape 11 — Rebranding complet "ouestBourse" (nom, logo, thème sur tout le site)
+## 7bis. Étape 11 — Rebranding complet "OuestBourse" (nom, logo, thème sur tout le site)
 
 Demandée par l'utilisateur le 09/08/2026 (même soirée que l'étape 10), avec
 une image du logo réel + une capture d'écran du site réel ouestbourse.com
@@ -530,7 +530,7 @@ non-négociable de l'étape 10 ("le nom/logo reste BRVM App, pas de copie de
 marque tierce" — ouestbourse.com étant référencé partout dans ce projet comme
 un concurrent réel et distinct). Réponses explicites de l'utilisateur :
 
-- **Propriété de la marque** : "ouestBourse" (nom + logo) est **sa propre
+- **Propriété de la marque** : "OuestBourse" (nom + logo) est **sa propre
   marque** — il en a les droits. Ce n'est donc pas une contrefaçon, c'est le
   vrai nom du produit. (Réponse : `my_own_brand`.)
 - **Portée du thème clair "façon ouestbourse.com"** : étendu à **toutes les
@@ -540,7 +540,7 @@ un concurrent réel et distinct). Réponses explicites de l'utilisateur :
   (Réponse : `everywhere`.)
 
 Cf. `.cursor/rules/brvm-non-negotiable.mdc` § "MISE À JOUR — Rebranding
-complet 'ouestBourse'" pour le détail de ce qui est désormais autorisé/changé
+complet 'OuestBourse'" pour le détail de ce qui est désormais autorisé/changé
 et de ce qui reste strictement non-négociable (textes français, emojis
 d'onglets, disposition sidebar/tabs, `reference/BRVM_Dashboard.jsx` jamais
 modifié directement, `"N/D"` pour toute donnée manquante).
@@ -553,7 +553,7 @@ modifié directement, `"N/D"` pour toute donnée manquante).
   noirs, seuil RVB < 32, traitement par `LockBits`/`Marshal.Copy` en
   PowerShell/.NET pour rester rapide sur une image 1024×682) — nécessaire
   pour que le logo s'intègre proprement sur un header à fond clair.
-- `lib/theme/brand.ts` (nouveau) — source de vérité unique du nom ("ouestBourse"),
+- `lib/theme/brand.ts` (nouveau) — source de vérité unique du nom ("OuestBourse"),
   du slogan ("West Africa's Stock Market") et du chemin du logo
   (`/logo.png`) : plus aucun texte "BRVM App" ni chemin de logo codé en dur
   ailleurs dans le code.
@@ -569,7 +569,7 @@ modifié directement, `"N/D"` pour toute donnée manquante).
   cohérente avec le reste du site — **sans toucher aux textes, emojis,
   disposition ni logique de calcul** du composant.
 - Header unifié partagé par toutes les pages (landing incluse) : logo réel +
-  nom "ouestBourse", nav horizontale, méga-menu déroulant "Sociétés cotées"
+  nom "OuestBourse", nav horizontale, méga-menu déroulant "Sociétés cotées"
   regroupant les vraies sociétés par secteur (structure reprise de la
   capture fournie, données 100 % réelles issues de `getCompaniesFullDataset()` —
   variation quotidienne affichée `"N/D"` : la base ne stocke que des cours de
@@ -577,7 +577,7 @@ modifié directement, `"N/D"` pour toute donnée manquante).
   honnêteté des données plutôt que d'inventer un chiffre).
 - Landing page ajustée pour rester cohérente avec le header unifié et la
   nouvelle charte claire, contenu toujours 100 % basé sur les vraies données.
-- Remplacement de toute occurrence textuelle "BRVM App" par "ouestBourse"
+- Remplacement de toute occurrence textuelle "BRVM App" par "OuestBourse"
   (titre de page/metadata, footer, mentions légales, etc.).
 
 > Comme pour les étapes précédentes : toute divergence par rapport à la
@@ -590,7 +590,7 @@ modifié directement, `"N/D"` pour toute donnée manquante).
 ## 8. Étape 12 — Bascule mode clair/sombre
 
 Demandée par l'utilisateur le 09/08/2026 (soir), juste après la livraison
-complète de l'étape 11 (rebranding "ouestBourse", thème clair partout).
+complète de l'étape 11 (rebranding "OuestBourse", thème clair partout).
 
 ### Approche retenue
 
@@ -614,7 +614,7 @@ serveur — sans re-render React, sans re-fetch, sans perte de scroll/état.
 `:root[data-theme="dark"]` reprend EXACTEMENT les valeurs de la palette
 sombre/or d'origine de `reference/BRVM_Dashboard.jsx` (non-négociable jusqu'à
 l'étape 11) — rien n'est perdu, elle redevient un choix disponible parmi
-deux plutôt que le seul thème possible. Le thème clair "ouestBourse"
+deux plutôt que le seul thème possible. Le thème clair "OuestBourse"
 (étape 11) reste la valeur PAR DÉFAUT pour tout nouveau visiteur.
 
 ### Fichiers livrés/modifiés
@@ -749,8 +749,151 @@ donner un signal final avec explication ».
 - Tests golden : parité conservée sur les métriques brutes uniquement
   (perf/yield/vol/cours) ; score/signal ont désormais leurs propres tests.
 
-✔ 	sc --noEmit ✅ · itest run (87/87) ✅ · vérifié navigateur sur /marche
+✔ `tsc --noEmit` ✅ · `vitest run` (87/87) ✅ · vérifié navigateur sur /marche
   (Sonatel → ACHAT 69/100, explication détaillée affichée).
+
+---
+
+## 11. Étape 15 — Cours à jour (fraîcheur des données)
+
+Demandée le 10/08/2026 : « les informations sur les actions ne sont pas
+actuelles ».
+
+### Cause
+
+1. Affichage des cours seed (`source: MANUEL`, ex. SNTS 28 450) faute
+   d'ingestion récente contre BRVM.org.
+2. Bug d'agrégation : pour l'année en cours, le point seed daté
+   `2026-12-31` (futur) pouvait écraser un cours du jour réellement
+   ingéré (ex. 32 000 @ 2026-08-10).
+
+### Correctifs
+
+- `lib/api/companies-full-dataset.ts` : par année, préférer le cours
+  canonique non-futur le plus récent.
+- `prisma/seed.ts` : `priceDateForYear()` — années passées → 31/12 ;
+  année courante → date UTC du jour du seed.
+- Ingestion BRVM exécutée (`npm run ingest:run`, autres sources
+  temporairement désactivées) → 47/47 cotations, source
+  `BRVM_OFFICIEL`.
+- `scripts/sync-seed-prices-from-db.ts` : aligne les prix 2026 du seed
+  sur la base (ex. SNTS=32000, SGBC=39000).
+- `POST /api/market/refresh-quotes` + bouton « Actualiser » : tire les
+  cours BRVM du jour (cooldown 10 min/IP), puis renvoie le dataset.
+- `GET /api/cron/refresh-quotes` + cron Vercel `0 * * * *` : même agent
+  BRVM, sans fondamentaux, toutes les heures. En local :
+  `npm run quotes:hourly` (boucle immédiate puis toutes les 60 min).
+- Suite (ETIT et titres « minces ») : PER + capitalisation depuis les
+  fiches BRVM (`fetchFundamentals` / `enrich-fundamentals-from-brvm.ts`),
+  historique annuel Richbourse corrigé (série FCFA uniquement, pas les
+  volumes), dividende ETIT 2025 = 0,92 FCFA.
+
+---
+
+## 12. Étape 16 — Visuel premium + fiche société + agent DESIGN
+
+Demandée le 10/08/2026 à partir de `Recapitulatif_Visuel_OuestBourse.docx`
+(portée validée : polish existant + fiche `/actions/[ticker]` + extension
+de l'agent de recherche avec catégorie DESIGN).
+
+### Livré
+
+- Landing : sections Problème / Solution / Cycle de données / CTA + footer
+  multi-colonnes (vraies stats, pas de chiffres inventés).
+- Screener : shell sticky, filtres secteur/pays/recherche, vue Solidité,
+  liens vers fiches.
+- Portefeuille : démo guest labellisée « Chiffres illustratifs » + KPI grid
+  et barres d'allocation côté connecté.
+- Fiche société `app/actions/[ticker]` (onglets Vue d'ensemble / Historique /
+  Indicateurs / Dividendes / Signal) branchée sur `calcMetrics`.
+- Agent research : enum `ResearchCategory.DESIGN` + requêtes premium UI/UX
+  fintech ; page `/outils` filtrable par catégorie.
+
+Hors scope immédiat (annoncé « bientôt » sur Outils) : bibliothèque
+documents, alertes push, FAQ complète.
+
+---
+
+## 13. Étape 17 — Graphes premium (TradingView)
+
+Demandée le 12/08/2026 : page `/graphes` digne d'une plateforme
+d'analyse graphique, améliorée progressivement via l'agent de veille.
+Reprise le même jour sur capture utilisateur (chrome ABJC type TradingView).
+
+### Livré
+
+- Chrome sombre `#131722` : header prix/métriques, toolbar (Indicateurs /
+  Comparer / plages 1J…Tout / % / log / plein écran), rail d'outils dessin
+  (UI ; tracés réels = bientôt), chandeliers + SMA 20 + volume + légende OHLC.
+- `lightweight-charts` + `GET /api/charts/[ticker]` ; si &lt; 60 points en base,
+  densification via série Highcharts Richbourse (ex. ABJC ≈ 250 clôtures).
+- Sélecteur de ticker type menu (défaut ABJC) ; OHLC synthétique à partir des
+  clôtures (documenté en pied de graphique).
+- Requêtes agent DESIGN/FONCTIONNALITE orientées charting ; bandeau
+  « Pistes d'amélioration graphique » sur `/graphes`.
+
+---
+
+## 14. Étape 18 — Sélecteur multi-marchés africains (/marche)
+
+Demandée le 12/08/2026 : retirer le titre « BRVM Dashboard — Analyse 10 ans »,
+proposer le choix de marché (BRVM, BVMAC, NGX, NSE, JSE, GSE, TSE — JSE =
+Afrique du Sud), KPIs + indices, liste de positions, détail inchangé
+(Signal final / Projection / Comparaison), horizon = historique réel.
+
+### Livré
+
+- `lib/markets/african-exchanges.ts` — catalogue ; seule BRVM `live: true`.
+- Chrome premium (`MarketChrome.module.css`) : chips marché, KPIs, bandeau
+  indices (`getMarketSummarySnapshot`).
+- Sidebar « Positions » avec cours + score + perf/div ; onglets 📊📈🔮⚖️
+  conservés.
+- Horizon KPI = `années min → max` présentes en base (plus de +5 artificiel).
+- Requêtes agent DESIGN/UX multi-exchange ajoutées.
+
+---
+
+## 15. Étape 19 — Historique Sikafinance (GetHistos)
+
+Demandée le 12/08/2026 : récupérer les historiques via l'agent Sikafinance.
+
+### Livré
+
+- Endpoint public confirmé : `POST /api/general/GetHistos` (`xperiod=365`
+  annuel ; symboles `TICKER.cc` via `/marches/aaz`).
+- `sikafinance_connector.fetchAnnualHistory` + `fetchQuotes` corrigé
+  (`cotation_TICKER.cc`).
+- `npm run history:sikafinance` — backfill des années manquantes
+  (priorité : ne jamais écraser BRVM_OFFICIEL).
+
+---
+
+## 16. Étape 20 — Fiches sociétés premium (/actions/[ticker])
+
+Demandée le 12/08/2026 à partir de captures (BICB) : header prix, onglets,
+cours + OHLC, performances, données clés, interims/dividendes, sidebar santé
+financière, footer multi-colonnes. Chiffres absents → `"N/D"` / bientôt.
+
+### Livré
+
+- `getCompanySheetPayload` + `computeFinancialHealth` (4 piliers dérivés).
+- `CompanySheetClient` refondu + `SiteFooter`.
+- Densification graphique client via `/api/charts/[ticker]` si série sparse.
+
+---
+
+## 17. Étape 21 — Marché allégé + Projection/Comparaison sur fiches
+
+Demandée le 12/08/2026 : simplifier `/marche`, déplacer Projection/Comparaison
+vers les fiches sociétés, choix fiche/graphe au clic, bouton recherche header.
+
+### Livré
+
+- `MarketBoardClient` remplace `BrvmDashboardClient` sur `/marche` : liste
+  positions (données clés + signaux/analyses) + chrome multi-marchés.
+- Clic position → dialogue « Fiche société » ou « Graphe ».
+- Onglets `🔮 Projection future` et `⚖️ Comparaison` sur `/actions/[ticker]`.
+- `HeaderSearch` à gauche du `ThemeToggle` (desktop + mobile).
 
 ---
 

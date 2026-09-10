@@ -14,8 +14,13 @@ describe("computePortfolioMetrics", () => {
     expect(result.totalGainLossPercent).toBeCloseTo((result.totalGainLoss / result.totalCostBasis) * 100, 2);
 
     // Répartition sectorielle : SNTS pèse plus lourd que CBIBF ici.
-    expect(result.sectorBreakdown[0].sector).toBe("Télécoms");
+    expect(result.sectorBreakdown[0]!.sector).toBe("Télécoms");
     expect(result.sectorBreakdown.reduce((sum, s) => sum + s.weightPercent, 0)).toBeCloseTo(100, 0);
+
+    expect(result.tickerBreakdown).toHaveLength(2);
+    expect(result.tickerBreakdown[0]!.ticker).toBe("SNTS");
+    expect(result.tickerBreakdown[0]!.sector).toBe("Télécoms");
+    expect(result.tickerBreakdown.reduce((sum, t) => sum + t.weightPercent, 0)).toBeCloseTo(100, 0);
   });
 
   it("calcule la performance YTD à partir des cours de début d'année", () => {
@@ -54,6 +59,33 @@ describe("computePortfolioMetrics", () => {
     expect(result.totalCostBasis).toBe(0);
     expect(result.totalGainLossPercent).toBe("N/D");
     expect(result.ytdChangePercent).toBe("N/D");
+    expect(result.marketPricesAsOfLabel).toBe("N/D");
     expect(result.sectorBreakdown).toEqual([]);
+    expect(result.tickerBreakdown).toEqual([]);
+  });
+
+  it("expose la date des cours utilisés pour la valeur de marché", () => {
+    const result = computePortfolioMetrics([
+      {
+        ticker: "SNTS",
+        sector: "Télécoms",
+        quantity: 10,
+        avgBuyPrice: 20000,
+        currentPrice: 28450,
+        currentPriceDate: "2026-08-21",
+        yearStartPrice: 28000,
+      },
+      {
+        ticker: "CBIBF",
+        sector: "Banques",
+        quantity: 5,
+        avgBuyPrice: 15000,
+        currentPrice: 21465,
+        currentPriceDate: "2026-08-21",
+        yearStartPrice: 21000,
+      },
+    ]);
+    expect(result.marketPricesAsOfLabel).toBe("Cours au 21/08/2026");
+    expect(result.holdings[0]!.currentPriceDate).toBe("2026-08-21");
   });
 });

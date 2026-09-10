@@ -31,3 +31,46 @@ export function lastBusinessDay(from: Date = new Date()): Date {
   else if (day === 6) d.setUTCDate(d.getUTCDate() - 1);
   return d;
 }
+
+const FRENCH_MONTHS: Record<string, number> = {
+  janvier: 1,
+  fevrier: 2,
+  mars: 3,
+  avril: 4,
+  mai: 5,
+  juin: 6,
+  juillet: 7,
+  aout: 8,
+  septembre: 9,
+  octobre: 10,
+  novembre: 11,
+  decembre: 12,
+};
+
+/** Parse « 10 septembre 2026 » → YYYY-MM-DD (UTC). */
+export function parseFrenchDate(raw: string): string | null {
+  const normalized = raw
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  const m = normalized.match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})$/);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = FRENCH_MONTHS[m[2]!];
+  const year = Number(m[3]);
+  if (!month || !Number.isFinite(day) || day < 1 || day > 31 || !Number.isFinite(year)) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/** Parse « 27/08/2026 » → YYYY-MM-DD (UTC). */
+export function parseDdMmYyyy(raw: string): string | null {
+  const m = raw.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!m) return null;
+  const day = Number(m[1]);
+  const month = Number(m[2]);
+  const year = Number(m[3]);
+  if (!Number.isFinite(day) || !Number.isFinite(month) || !Number.isFinite(year)) return null;
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}

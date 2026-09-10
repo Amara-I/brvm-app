@@ -1,8 +1,4 @@
-/* ═══════════════════════════════════════════════════════════════════════
-   Méga-menu "Sociétés cotées" — étape 11 (rebranding ouestBourse)
-   Structure inspirée de la capture fournie par l'utilisateur (colonnes par
-   secteur, en-tête "LA COTE — N ÉMETTEURS"), données 100% réelles.
-   ═══════════════════════════════════════════════════════════════════════ */
+/* Méga-menu Sociétés cotées — survol = aperçu par secteur ; clic = page complète */
 
 .wrapper {
   position: relative;
@@ -16,13 +12,25 @@
   border: none;
   cursor: pointer;
   font: inherit;
-  padding: 6px 10px;
-  border-radius: 6px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  padding: 8px 12px;
+  border-radius: 8px;
+  color: var(--mm-text);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.trigger:hover,
+.trigger:focus-visible {
+  background: var(--mm-panelAlt);
+  outline: none;
 }
 
 .chevron {
   font-size: 0.6rem;
   transition: transform 0.15s ease;
+  color: var(--mm-textDim);
 }
 
 .chevronOpen {
@@ -31,14 +39,14 @@
 
 .panel {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 6px);
   left: 50%;
   transform: translateX(-50%);
-  width: min(880px, 92vw);
+  width: min(980px, 94vw);
   background: var(--mm-bg);
   border: 1px solid var(--mm-border);
   border-radius: 12px;
-  box-shadow: 0 24px 48px -16px rgba(20, 30, 25, 0.25);
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.35);
   z-index: 80;
   overflow: hidden;
 }
@@ -47,6 +55,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
   padding: 12px 18px;
   border-bottom: 1px solid var(--mm-border);
   background: var(--mm-panelAlt);
@@ -55,31 +64,44 @@
 .panelTitle {
   font-size: 0.72rem;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--mm-textDim);
 }
 
+.headerAll {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--mm-green);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.headerAll:hover {
+  text-decoration: underline;
+}
+
 .panelGrid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0;
-  max-height: 60vh;
+  column-count: 3;
+  column-gap: 0;
+  max-height: min(62vh, 520px);
   overflow-y: auto;
+  overflow-x: hidden;
+  padding: 4px 0 8px;
 }
 
 .sectorCol {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--mm-border);
+  break-inside: avoid;
+  padding: 12px 16px 10px;
 }
 
 .sectorHeading {
   display: flex;
   align-items: baseline;
   gap: 6px;
-  font-size: 0.66rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--mm-green);
   margin-bottom: 8px;
@@ -87,47 +109,101 @@
 
 .sectorCount {
   color: var(--mm-textDim);
-  font-weight: 400;
+  font-weight: 500;
 }
 
 .companyRow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  padding: 4px 0;
+  padding: 5px 2px;
   text-decoration: none;
   color: inherit;
+  border-radius: 6px;
+}
+
+.companyRow:hover {
+  background: color-mix(in srgb, var(--mm-panelAlt) 80%, transparent);
+}
+
+.logoMark {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, var(--mm-green) 45%, var(--mm-border));
+  background: color-mix(in srgb, var(--mm-green) 14%, transparent);
+  color: var(--mm-green);
+  font-size: 0.55rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.companyMain {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.companyTicker {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: var(--mm-green);
+  flex-shrink: 0;
 }
 
 .companyName {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 0.72rem;
   color: var(--mm-text);
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.companyTicker {
-  font-weight: 700;
-  color: var(--mm-green);
-}
-
 .companyPrice {
   font-size: 0.7rem;
-  color: var(--mm-textDim);
+  color: var(--mm-text);
   white-space: nowrap;
   flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
 }
 
 .panelFooter {
   padding: 10px 18px;
   border-top: 1px solid var(--mm-border);
   background: var(--mm-panelAlt);
+}
+
+.wrapperSidebar {
+  width: 100%;
+  position: relative;
+}
+
+.triggerSidebar {
+  width: 100%;
+  justify-content: space-between;
+  font-size: 0.86rem;
+  padding: 9px 12px;
+  border-radius: 8px;
+  color: var(--mm-text);
+}
+
+.panelSidebar {
+  top: 0;
+  left: calc(100% + 8px);
+  transform: none;
+  width: min(440px, calc(100vw - 248px));
+  max-height: min(72vh, 520px);
+}
+
+.panelSidebar .panelGrid {
+  max-height: min(58vh, 440px);
 }
 
 .footerLink {
@@ -137,9 +213,22 @@
   font-weight: 600;
 }
 
+.footerLink:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 860px) {
+  .panelSidebar {
+    position: fixed;
+    top: 72px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-height: 70vh;
+  }
+
   .panelGrid {
-    grid-template-columns: repeat(2, 1fr);
+    column-count: 2;
   }
 }
 
@@ -152,8 +241,9 @@
     width: auto;
     transform: none;
   }
+
   .panelGrid {
-    grid-template-columns: 1fr;
+    column-count: 1;
     max-height: 70vh;
   }
 }

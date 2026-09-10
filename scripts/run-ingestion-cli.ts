@@ -18,7 +18,7 @@ function line(char = "─", length = 78): string {
 
 async function main() {
   console.log(line("═"));
-  console.log("🚀 INGESTION COMPLÈTE MULTI-SOURCE — ouestBourse (étape 6)");
+  console.log("🚀 INGESTION COMPLÈTE MULTI-SOURCE — OuestBourse (étape 6)");
   console.log(line("═"));
 
   const summary = await runFullIngestion();

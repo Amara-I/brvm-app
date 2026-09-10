@@ -3,29 +3,33 @@
 // avant cette étape) : Rentabilité / Dividendes / Croissance / Valorisation.
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
+import { PAGE_LEAD, PAGE_TITLE } from "@/lib/theme/typography";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
+import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
 import { allCompaniesWithMetrics } from "@/lib/calc/market-summary-stats";
 import ScreenerTable from "@/components/screener/ScreenerTable";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Screener — ouestBourse",
+  title: "Screener — OuestBourse",
   description: "Filtrez les sociétés cotées à la BRVM par rentabilité, dividendes, croissance ou valorisation.",
 };
 
 export default async function ScreenerPage() {
-  const dataset = await getCompaniesFullDataset();
-  const companies = allCompaniesWithMetrics(dataset);
+  const [dataset, sparkSeries] = await Promise.all([
+    getCompaniesFullDataset(),
+    getMarketSparkSeriesByTicker().catch(() => ({})),
+  ]);
+  const companies = allCompaniesWithMetrics(dataset, sparkSeries);
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-      <AppHeader />
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 20px" }}>
-        <h1 style={{ color: C.text, fontSize: "1.4rem", marginBottom: 4 }}>🔍 Screener</h1>
-        <p style={{ color: C.textDim, fontSize: "0.85rem", marginBottom: 24 }}>
-          Filtrez rapidement les {companies.length} sociétés cotées par angle d&apos;analyse. Les métriques utilisent le même moteur
-          de calcul que l&apos;onglet « Vue d&apos;ensemble » et l&apos;export Excel.
+    <AppHeader>
+      <div>
+        <h1 style={PAGE_TITLE}>Screener</h1>
+        <p style={PAGE_LEAD}>
+          Filtrez les {companies.length} sociétés cotées par rentabilité, dividendes, croissance, valorisation ou solidité —
+          puis affinez par secteur et pays. Cliquez un ticker pour ouvrir sa fiche détaillée.
         </p>
         {companies.length > 0 ? (
           <ScreenerTable companies={companies} />
@@ -33,6 +37,6 @@ export default async function ScreenerPage() {
           <p style={{ color: C.textDim }}>Aucune société disponible pour l&apos;instant.</p>
         )}
       </div>
-    </div>
+    </AppHeader>
   );
 }

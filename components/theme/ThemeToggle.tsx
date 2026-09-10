@@ -13,13 +13,14 @@
 // `mounted` évite un hydration mismatch : le serveur ne peut pas savoir quel
 // thème l'utilisateur avait choisi (localStorage n'existe pas côté serveur),
 // donc le premier rendu (serveur ET client, avant l'effet) affiche toujours
-// la même icône neutre ; l'icône réelle (☀️/🌙) n'apparaît qu'après montage,
+// la même icône neutre ; l'icône réelle (soleil / lune) n'apparaît qu'après montage,
 // une fois l'attribut réel de `<html>` lu.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useEffect, useState } from "react";
 import { C } from "@/lib/theme/colors";
 import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
+import { IconMoon, IconSun } from "@/components/icons/HeaderIcons";
 
 type Theme = "light" | "dark";
 
@@ -64,12 +65,13 @@ export default function ThemeToggle() {
         background: "transparent",
         color: C.text,
         cursor: "pointer",
-        fontSize: "1rem",
         lineHeight: 1,
         flexShrink: 0,
       }}
     >
-      <span aria-hidden="true">{mounted ? (theme === "dark" ? "☀️" : "🌙") : "🌓"}</span>
+      {mounted ? (theme === "dark" ? <IconSun size={15} /> : <IconMoon size={15} />) : (
+        <IconMoon size={15} />
+      )}
     </button>
   );
 }

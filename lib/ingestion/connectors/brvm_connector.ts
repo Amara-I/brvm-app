@@ -25,7 +25,15 @@
 import * as cheerio from "cheerio";
 import { fetchHtml } from "../http-client";
 import { parseFrenchNumber, toIsoDate, lastBusinessDay } from "../parse-utils";
-import type { ConnectorResult, MarketDataConnector, RawIndexQuote, RawPriceQuote } from "../types";
+import { mergeBrvmDividendRows, parseBrvmDividendPage } from "../brvm-dividend-parser";
+import type {
+  ConnectorResult,
+  MarketDataConnector,
+  RawCompanyFundamentals,
+  RawDividendRow,
+  RawIndexQuote,
+  RawPriceQuote,
+} from "../types";
 
 const BASE_URL = "https://www.brvm.org";
 
@@ -108,12 +116,16 @@ export class BrvmConnector implements MarketDataConnector {
           const ticker = $(cells[0]).text().trim().toUpperCase();
           if (!wanted.has(ticker)) return;
           const volume = parseFrenchNumber($(cells[2]).text());
+          const prevClose = parseFrenchNumber($(cells[3]).text()); // "Cours veille (FCFA)"
           const closePrice = parseFrenchNumber($(cells[5]).text()); // "Cours Clôture (FCFA)"
+          const changePercent = parseFrenchNumber($(cells[6]).text()); // "Variation (%)"
           if (closePrice === null) return;
           results.push({
             ticker,
             closePrice,
             volume,
+            prevClose,
+            changePercent,
             source: this.source,
             date: isoDate,
             fetchedAt,
@@ -123,6 +135,112 @@ export class BrvmConnector implements MarketDataConnector {
       return { ok: true, source: this.source, data: results, fetchedAt };
     } catch (err) {
       return { ok: false, source: this.source, error: err instanceof Error ? err.message : String(err), fetchedAt };
+    }
+  }
+
+  /// Fiche société publique `https://www.brvm.org/fr/{ticker}` : PER et
+  /// capitalisation globale (absents de la page « cours-actions »). Un ticker
+  /// introuvable est simplement omis — jamais d'échec global.
+  async fetchFundamentals(tickers: string[], year?: number): Promise<ConnectorResult<RawCompanyFundamentals[]>> {
+    const fetchedAt = new Date().toISOString();
+    const targetYear = year ?? new Date().getUTCFullYear();
+    const results: RawCompanyFundamentals[] = [];
+
+    for (const rawTicker of tickers) {
+      const ticker = rawTicker.toUpperCase();
+      const url = `${BASE_URL}/fr/${ticker.toLowerCase()}`;
+      try {
+        const html = await fetchHtml(url);
+        const $ = cheerio.load(html);
+        // Fiches Drupal BRVM : paires `.field-label` / `.field-item` (vérifié
+        // le 10/08/2026 sur /fr/etit). Attention : deux libellés proches
+        // coexistent — « Pourcentage capitalisation globale » (ex. 6.41) et
+        // « Capitalisation globale » (ex. 1 211 635 150 374) — on exige le
+        // libellé exact pour la cap. absolue.
+        const fields = new Map<string, string>();
+        $(".field-label").each((_, el) => {
+          const label = $(el)
+            .text()
+            .replace(/\u00a0/g, " ")
+            .replace(/\s+/g, " ")
+            .replace(/:\s*$/, "")
+            .trim()
+            .toLowerCase();
+          // Drupal : label puis sibling `.field-items > .field-item`.
+          const resolved = $(el)
+            .nextAll(".field-items")
+            .first()
+            .find(".field-item")
+            .first()
+            .text()
+            .replace(/\s+/g, " ")
+            .trim();
+          if (label && resolved) fields.set(label, resolved);
+        });
+
+        const perRaw = parseFrenchNumber(fields.get("per") ?? "");
+        const per = perRaw != null && perRaw > 0 ? perRaw : null;
+        const closePrice = parseFrenchNumber(fields.get("cours clôture") ?? fields.get("cours cloture") ?? "");
+        const mktCapFcfa = parseFrenchNumber(fields.get("capitalisation globale") ?? "");
+        // Cap. < 1 Md FCFA = probablement le % mal lu → on ignore.
+        const mktCapMds =
+          mktCapFcfa !== null && mktCapFcfa >= 1_000_000_000 ? Math.round(mktCapFcfa / 1_000_000_000) : null;
+
+        if (per === null && mktCapMds === null && closePrice === null) continue;
+        results.push({
+          ticker,
+          year: targetYear,
+          per,
+          mktCapMds,
+          closePrice,
+          source: this.source,
+          fetchedAt,
+        });
+      } catch {
+        // Fiche absente / erreur réseau pour CE ticker → on continue.
+      }
+    }
+
+    return { ok: true, source: this.source, data: results, fetchedAt };
+  }
+
+  /// Calendrier officiel des dividendes — toutes les pages paginées.
+  /// https://www.brvm.org/fr/esv/paiement-de-dividendes
+  async fetchDividendCalendar(
+    resolveTicker: (issuerLabel: string) => string | null
+  ): Promise<ConnectorResult<RawDividendRow[]>> {
+    const fetchedAt = new Date().toISOString();
+    const collected: RawDividendRow[] = [];
+
+    try {
+      for (let page = 0; page < 50; page++) {
+        const url =
+          page === 0
+            ? `${BASE_URL}/fr/esv/paiement-de-dividendes`
+            : `${BASE_URL}/fr/esv/paiement-de-dividendes?page=${page}`;
+        const html = await fetchHtml(url);
+        const pageRows = parseBrvmDividendPage(html, fetchedAt, resolveTicker);
+        if (pageRows.length === 0) break;
+        collected.push(...pageRows);
+      }
+
+      const data = mergeBrvmDividendRows(collected);
+      if (data.length === 0) {
+        return {
+          ok: false,
+          source: this.source,
+          error: "Aucun dividende trouvé — structure HTML probablement modifiée",
+          fetchedAt,
+        };
+      }
+      return { ok: true, source: this.source, data, fetchedAt };
+    } catch (err) {
+      return {
+        ok: false,
+        source: this.source,
+        error: err instanceof Error ? err.message : String(err),
+        fetchedAt,
+      };
     }
   }
 }

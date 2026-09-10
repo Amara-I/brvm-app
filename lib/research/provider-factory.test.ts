@@ -35,10 +35,11 @@ describe("getSearchProvider", () => {
     expect(getSearchProvider()).toBeInstanceOf(NoOpSearchProvider);
   });
 
-  it("retombe sur NoOpSearchProvider si l'agent est activé mais sans clé", () => {
+  it("utilise GoogleNewsRssSearchProvider si l'agent est activé mais sans clé", async () => {
+    const { GoogleNewsRssSearchProvider } = await import("./search-providers/google-news-rss-provider");
     process.env.RESEARCH_AGENT_ENABLED = "true";
     delete process.env.RESEARCH_SEARCH_API_KEY;
-    expect(getSearchProvider()).toBeInstanceOf(NoOpSearchProvider);
+    expect(getSearchProvider()).toBeInstanceOf(GoogleNewsRssSearchProvider);
   });
 
   it("retourne SerpApiSearchProvider si l'agent est activé ET une clé est présente", () => {

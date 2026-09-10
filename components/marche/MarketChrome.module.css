@@ -1,0 +1,184 @@
+/* Chrome marché premium — sélecteur multi-bourses /marche */
+
+.shell {
+  --m-radius: 10px;
+  --m-glow: 0 0 0 1px var(--c-border), 0 12px 40px rgba(0, 0, 0, 0.18);
+}
+
+.topBar {
+  background: linear-gradient(180deg, var(--c-panel) 0%, color-mix(in srgb, var(--c-panel) 92%, var(--c-bg)) 100%);
+  border-bottom: 1px solid var(--c-border);
+  padding: 14px 20px 12px;
+}
+
+.topRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.label {
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--c-textdim);
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-width: 760px;
+}
+
+.chip,
+.chipActive,
+.chipSoon {
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-textdim);
+  transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.15s;
+}
+
+.chip:hover {
+  border-color: var(--c-gold);
+  color: var(--c-text);
+}
+
+.chipActive {
+  background: color-mix(in srgb, var(--c-gold) 18%, transparent);
+  border-color: var(--c-gold);
+  color: var(--c-gold);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c-gold) 35%, transparent);
+}
+
+.chipSoon {
+  opacity: 0.72;
+  cursor: pointer;
+}
+
+.chipSoon:hover {
+  opacity: 1;
+  color: var(--c-text);
+}
+
+.marketMeta {
+  margin-top: 8px;
+  font-size: 0.74rem;
+  color: var(--c-textdim);
+  max-width: 720px;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.kpiStrip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-bg);
+}
+
+.kpiCard {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: var(--m-radius);
+  padding: 10px 14px;
+  box-shadow: var(--m-glow);
+  min-height: 64px;
+}
+
+.kpiLabel {
+  font-size: 0.68rem;
+  color: var(--c-textdim);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+
+.kpiValue {
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.indicesStrip {
+  display: flex;
+  gap: 8px;
+  padding: 0 20px 12px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-bg);
+}
+
+.indexPill {
+  flex: 0 0 auto;
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 140px;
+}
+
+.indexName {
+  font-size: 0.68rem;
+  color: var(--c-textdim);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  font-weight: 600;
+}
+
+.indexValue {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--c-text);
+  margin-top: 2px;
+}
+
+.indexChg {
+  font-size: 0.68rem;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.comingSoon {
+  margin: 40px auto;
+  max-width: 520px;
+  text-align: center;
+  padding: 28px 24px;
+  border-radius: 14px;
+  border: 1px solid var(--c-border);
+  background: linear-gradient(160deg, var(--c-panel), color-mix(in srgb, var(--c-panel) 80%, var(--c-bg)));
+  box-shadow: var(--m-glow);
+}
+
+.comingTitle {
+  color: var(--c-gold);
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.comingBody {
+  color: var(--c-textdim);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}

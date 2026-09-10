@@ -1,0 +1,71 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(8, 11, 18, 0.45);
+}
+
+.dialog {
+  width: min(400px, 100%);
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 20px 20px 16px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  font-family: "Trebuchet MS", Georgia, serif;
+}
+
+.title {
+  margin: 0 0 10px;
+  font-size: 1.05rem;
+  color: var(--c-gold);
+  font-weight: 700;
+}
+
+.body {
+  margin: 0 0 18px;
+  color: var(--c-text);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.btnSecondary,
+.btnPrimary {
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.btnSecondary:disabled,
+.btnPrimary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.btnSecondary {
+  background: var(--c-bg);
+  color: var(--c-text);
+  border: 1px solid var(--c-border);
+}
+
+.btnPrimary {
+  background: var(--c-green);
+  color: #fff;
+  border: 1px solid transparent;
+  font-weight: 700;
+}

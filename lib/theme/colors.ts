@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Historique :
 //   - Étape 10 : palette sombre/or d'origine (valeurs figées en dur).
-//   - Étape 11 : remplacée par une palette CLAIRE "ouestBourse" (rebranding).
+//   - Étape 11 : remplacée par une palette CLAIRE "OuestBourse" (rebranding).
 //   - Étape 12 (celle-ci) : les DEUX palettes existent maintenant en même
 //     temps, comme variables CSS (`app/globals.css`, `:root` = claire,
 //     `:root[data-theme="dark"]` = sombre = EXACTEMENT la palette d'origine
@@ -33,6 +33,8 @@ export const C = {
   silver: "var(--c-silver)",
   text: "var(--c-text)",
   textDim: "var(--c-textdim)",
+  /** Libellés Source / Synchronisé — contraste > textDim (AD-2026-08-22-001). */
+  textMeta: "var(--c-text-meta)",
   teal: "var(--c-teal)",
   purple: "var(--c-purple)",
   /// Variantes semi-transparentes prêtes à l'emploi — remplacent les anciens
@@ -45,4 +47,6 @@ export const C = {
   selectedBg: "var(--c-selected-bg)",
 } as const;
 
-export const FONT_FAMILY = "'Trebuchet MS', Georgia, serif";
+import { FONT_SANS_STACK } from "@/lib/theme/fonts";
+
+export const FONT_FAMILY = FONT_SANS_STACK;

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { describe, expect, it } from "vitest";
-import { calcMetrics } from "./calc-metrics";
+import { calcMetrics, signalFromComposite } from "./calc-metrics";
 import { COMPANIES_FULL, YEARS, LEGACY_COMPANY_TICKERS } from "../../prisma/seed-data/companies-full";
 import golden from "./__fixtures__/golden-legacy-output.json";
 
@@ -110,5 +110,34 @@ describe("calcMetrics — analyse optimisée (signal + explication)", () => {
     });
     expect(result.perf5Percent).toBe("N/D");
     expect(result.signalReasons.some((r) => /PER extrême/i.test(r.text))).toBe(true);
+  });
+
+  it("expose horizons, scores technique/fondamental et analyse de risque", () => {
+    const snts = COMPANIES_FULL.find((c) => c.ticker === "SNTS")!;
+    const result = calcMetrics({
+      years: YEARS_ARRAY,
+      prices: snts.prices,
+      dividends: snts.dividends,
+      per: snts.per,
+      mktcap: snts.mktcap,
+      sector: snts.sector,
+    });
+    expect(result.horizonScores.court).toBeGreaterThanOrEqual(0);
+    expect(result.horizonScores.moyen).toBeGreaterThanOrEqual(0);
+    expect(result.horizonScores.long).toBeGreaterThanOrEqual(0);
+    expect(result.technicalScore).toBeGreaterThanOrEqual(0);
+    expect(result.fundamentalScore).toBeGreaterThanOrEqual(0);
+    expect(result.compositeScore).toBe(result.score);
+    expect(result.riskAnalysis.pillars).toHaveLength(4);
+    expect(result.riskAnalysis.riskScore).toBeGreaterThanOrEqual(0);
+  });
+
+  it("bloque ACHAT FORT si le score de risque est trop élevé", () => {
+    expect(signalFromComposite(90, 65).label).toBe("ACHAT"); // risk ≥ 60 → pas ACHAT FORT
+    expect(signalFromComposite(90, 75).label).toBe("CONSERVER"); // risk ≥ 70 → pas ACHAT non plus
+    expect(signalFromComposite(90, 50).label).toBe("ACHAT FORT");
+    expect(signalFromComposite(20, 80).label).toBe("VENDRE");
+    expect(signalFromComposite(35, 40).label).toBe("ALLÉGER");
+    expect(signalFromComposite(55, 40).label).toBe("CONSERVER");
   });
 });

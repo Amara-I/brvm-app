@@ -1,0 +1,324 @@
+/* Page Sociétés cotées — layout premium, généreux */
+
+.page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0 0 2.5rem;
+}
+
+.hero {
+  position: relative;
+  margin-bottom: 2.25rem;
+  padding: 2.25rem 2rem 2rem;
+  border-radius: 20px;
+  background:
+    radial-gradient(1200px 280px at 8% -20%, color-mix(in srgb, var(--c-green) 18%, transparent), transparent 60%),
+    radial-gradient(900px 240px at 92% 0%, color-mix(in srgb, var(--c-gold) 16%, transparent), transparent 55%),
+    linear-gradient(180deg, var(--c-panel) 0%, color-mix(in srgb, var(--c-panel) 88%, var(--c-bg)) 100%);
+  border: 1px solid var(--c-border);
+  overflow: hidden;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 0 0 0.65rem;
+  font-size: var(--fs-body-sm);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: none;
+  color: var(--c-textdim);
+}
+
+.title {
+  margin: 0 0 0.75rem;
+  font-size: var(--fs-page-title);
+  line-height: 1.12;
+  color: var(--c-text);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.lead {
+  margin: 0 auto 1.35rem;
+  max-width: none;
+  font-size: var(--fs-page-lead);
+  line-height: 1.65;
+  color: var(--c-text-dim);
+}
+
+.metaStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+}
+
+.metaChip {
+  font-size: var(--fs-body-sm);
+  font-weight: 700;
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--c-border) 50%, transparent);
+}
+
+.toc {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin: 0 auto 2.5rem;
+  padding: 1.15rem 1.25rem 1.25rem;
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 16px;
+  justify-content: center;
+  text-align: center;
+}
+
+.tocLabel {
+  width: 100%;
+  font-size: var(--fs-body-sm);
+  text-transform: none;
+  letter-spacing: 0.01em;
+  color: var(--c-text-dim);
+  margin-bottom: 0.25rem;
+  font-weight: 700;
+}
+
+.tocLink {
+  font-size: var(--fs-body-sm);
+  font-weight: 700;
+  color: var(--c-green);
+  text-decoration: none;
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  padding: 0.5rem 0.95rem;
+  background: var(--c-bg);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.tocLink:hover {
+  border-color: var(--c-green);
+  background: color-mix(in srgb, var(--c-green) 10%, var(--c-bg));
+}
+
+.section {
+  margin-bottom: 3rem;
+  scroll-margin-top: 5.5rem;
+}
+
+.sectionHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 2px solid color-mix(in srgb, var(--c-green) 35%, var(--c-border));
+}
+
+.sectionTitle {
+  margin: 0;
+  font-size: clamp(1.35rem, 2.2vw, 1.7rem);
+  color: var(--c-green);
+  letter-spacing: 0.01em;
+  font-weight: 800;
+}
+
+.sectionCount {
+  font-weight: 600;
+  color: var(--c-text-dim);
+  font-size: 1rem;
+}
+
+.sectionStats {
+  font-size: 0.9rem;
+  color: var(--c-text-dim);
+  font-weight: 600;
+}
+
+.sectionBlurb {
+  margin: 0 0 1.35rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--c-text-dim);
+  max-width: 54rem;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 1.25rem 1.3rem;
+  min-height: 11.5rem;
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  color: inherit;
+  box-shadow: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--c-green) 40%, var(--c-border));
+  background: var(--c-panel);
+  transform: none;
+  box-shadow: none;
+}
+
+.cardMain {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  text-decoration: none;
+  color: inherit;
+}
+
+.cardMain:hover .ticker,
+.cardMain:hover .more {
+  text-decoration: underline;
+}
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.9rem;
+}
+
+.logo {
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--c-green) 45%, var(--c-border));
+  background: color-mix(in srgb, var(--c-green) 14%, transparent);
+  color: var(--c-green);
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cardIdentity {
+  min-width: 0;
+  flex: 1;
+}
+
+.ticker {
+  display: block;
+  font-size: 1rem;
+  font-weight: 800;
+  color: var(--c-green);
+  letter-spacing: 0.02em;
+}
+
+.name {
+  display: block;
+  margin-top: 0.15rem;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--c-text);
+  line-height: 1.3;
+}
+
+.country {
+  display: block;
+  margin-top: 0.3rem;
+  font-size: 0.88rem;
+  color: var(--c-text-dim);
+}
+
+.cardMetrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.65rem 0.85rem;
+  margin-top: 0.1rem;
+}
+
+.metric {
+  min-width: 0;
+  padding: 0.55rem 0.65rem;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--c-bg) 70%, transparent);
+  border: 1px solid var(--c-border-thin);
+}
+
+.metricLabel {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--c-text-dim);
+  margin-bottom: 0.15rem;
+  font-weight: 700;
+}
+
+.metricValue {
+  display: block;
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.cardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-top: auto;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--c-border-thin);
+}
+
+.pill {
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+}
+
+.more {
+  margin-left: auto;
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--c-gold);
+}
+
+.note {
+  margin-top: 2rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 14px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  font-size: var(--fs-body-sm);
+  line-height: 1.6;
+  color: var(--c-text-dim);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: 0 0 2rem;
+  }
+
+  .hero {
+    padding: 1.25rem 1rem 1.1rem;
+    border-radius: 14px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,12 +1,11 @@
 "use client";
 
-// Formulaire d'ajout de position — étape 10. Appelle
-// POST /api/portfolio/:portfolioId/holdings (déjà existant depuis l'étape 7,
-// validé de bout en bout contre une vraie base le 09/08/2026 — cf. AGENTS.md).
+// Formulaire d'ajout de position — étape 10 + horizon d'achat.
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { C } from "@/lib/theme/colors";
+import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
+import EducationTermLink from "@/components/education/EducationTermLink";
 
 interface AddHoldingFormProps {
   portfolioId: string;
@@ -24,10 +23,10 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormProps) {
-  const router = useRouter();
   const [ticker, setTicker] = useState(tickers[0] ?? "");
   const [quantity, setQuantity] = useState("");
   const [avgBuyPrice, setAvgBuyPrice] = useState("");
+  const [buyHorizon, setBuyHorizon] = useState<"COURT" | "MOYEN" | "LONG">("MOYEN");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -35,10 +34,17 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
     e.preventDefault();
     setError(null);
     setLoading(true);
+    const today = new Date().toISOString().slice(0, 10);
     const res = await fetch(`/api/portfolio/${portfolioId}/holdings`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ticker, quantity: Number(quantity), avgBuyPrice: Number(avgBuyPrice) }),
+      body: JSON.stringify({
+        ticker,
+        quantity: Number(quantity),
+        avgBuyPrice: Number(avgBuyPrice),
+        buyDate: today,
+        buyHorizon,
+      }),
     });
     setLoading(false);
     if (!res.ok) {
@@ -48,13 +54,19 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
     }
     setQuantity("");
     setAvgBuyPrice("");
-    router.refresh();
+    setBuyHorizon("MOYEN");
+    notifyPortfolioChanged(portfolioId);
   }
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginTop: 12 }}
+    >
       <div>
-        <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>Société</label>
+        <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
+          Société
+        </label>
         <select value={ticker} onChange={(e) => setTicker(e.target.value)} style={inputStyle}>
           {tickers.map((t) => (
             <option key={t} value={t}>
@@ -64,7 +76,9 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
         </select>
       </div>
       <div>
-        <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>Quantité</label>
+        <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
+          Quantité
+        </label>
         <input
           type="number"
           min={1}
@@ -76,7 +90,9 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
         />
       </div>
       <div>
-        <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>Prix d&apos;achat (FCFA)</label>
+        <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
+          <EducationTermLink slug="pru">Prix d&apos;achat / PRU (FCFA)</EducationTermLink>
+        </label>
         <input
           type="number"
           min={1}
@@ -86,6 +102,21 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
           onChange={(e) => setAvgBuyPrice(e.target.value)}
           style={{ ...inputStyle, width: 120 }}
         />
+      </div>
+      <div>
+        <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
+          <EducationTermLink slug="horizon-d-achat">Horizon d&apos;achat</EducationTermLink>
+        </label>
+        <select
+          value={buyHorizon}
+          onChange={(e) => setBuyHorizon(e.target.value as "COURT" | "MOYEN" | "LONG")}
+          style={inputStyle}
+          aria-label="Horizon d'achat"
+        >
+          <option value="COURT">Court terme</option>
+          <option value="MOYEN">Moyen terme</option>
+          <option value="LONG">Long terme</option>
+        </select>
       </div>
       <button
         type="submit"
@@ -102,7 +133,7 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
           opacity: loading ? 0.7 : 1,
         }}
       >
-        {loading ? "Ajout…" : "+ Ajouter"}
+        {loading ? "Ajout…" : "+ Ajouter / renforcer"}
       </button>
       {error && (
         <div role="alert" style={{ color: C.red, fontSize: "0.78rem", width: "100%" }}>

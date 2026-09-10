@@ -14,11 +14,22 @@
 // si aucune préférence stockée (le thème clair, valeur par défaut de
 // `:root`, s'applique déjà correctement).
 import Script from "next/script";
+import { Suspense } from "react";
+import { Inter } from "next/font/google";
 import "./globals.css";
 import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
+import ScrollRestoration from "@/components/navigation/ScrollRestoration";
+
+import { BRAND_NAME } from "@/lib/theme/brand";
+
+const inter = Inter({
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata = {
-  title: "ouestBourse",
+  title: BRAND_NAME,
   description: "Analyse financière des sociétés cotées à la BRVM",
 };
 
@@ -26,17 +37,22 @@ const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.str
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr">
+    <html lang="fr" className={inter.variable}>
       <head>
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}
         </Script>
       </head>
-      <body>
+      <body className={inter.className}>
         <a href="#main-content" className="skip-link">
           Aller au contenu principal
         </a>
-        <main id="main-content">{children}</main>
+        <main id="main-content">
+          <Suspense fallback={null}>
+            <ScrollRestoration />
+          </Suspense>
+          {children}
+        </main>
       </body>
     </html>
   );

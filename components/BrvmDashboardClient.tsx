@@ -49,10 +49,19 @@ import {
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
 import { projectPrices, type PriceProjection } from "@/lib/calc/project-prices";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
+import type { MarketSummarySnapshot } from "@/lib/api/market-summary-snapshot";
+import {
+  AFRICAN_EXCHANGES,
+  DEFAULT_EXCHANGE_CODE,
+  getExchange,
+  type AfricanExchangeCode,
+} from "@/lib/markets/african-exchanges";
+import marketStyles from "@/components/marche/MarketChrome.module.css";
+import { FONT_FAMILY } from "@/lib/theme/colors";
 
 // ── PALETTE ─────────────────────────────────────────────────────────────────
 // Bascule mode clair/sombre (étape 12) : référence désormais les variables
-// CSS de `app/globals.css` (`:root` = clair "ouestBourse" par défaut,
+// CSS de `app/globals.css` (`:root` = clair "OuestBourse" par défaut,
 // `:root[data-theme="dark"]` = EXACTEMENT la palette sombre/or d'origine de
 // `reference/BRVM_Dashboard.jsx`) au lieu de hex figés, pour que
 // `components/theme/ThemeToggle.tsx` puisse retheme ce composant sans
@@ -70,6 +79,7 @@ const C = {
   silver: "var(--c-silver)",
   text: "var(--c-text)",
   textDim: "var(--c-textdim)",
+  textMeta: "var(--c-text-meta)",
   teal: "var(--c-teal)",
   purple: "var(--c-purple)",
   borderThin: "var(--c-border-thin)",
@@ -82,6 +92,7 @@ const C = {
 const DATA_SOURCE_LABELS: Record<string, string> = {
   BRVM_OFFICIEL: "BRVM officiel",
   SIKAFINANCE: "Sikafinance",
+  OUESTBOURSE: "OuestBourse.com",
   RICHBOURSE: "Richbourse",
   MANUEL: "Saisie manuelle",
 };
@@ -102,7 +113,7 @@ const ChartTip = ({ active, payload, label }: ChartTipProps) => {
   if (!active || !payload?.length) return null;
   return (
     <div style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "10px 14px", fontSize: 12, boxShadow: "0 6px 20px rgba(20,30,25,0.12)" }}>
-      <div style={{ color: C.gold, fontWeight: 700, marginBottom: 6 }}>{label}</div>
+      <div style={{ color: C.text, fontWeight: 700, marginBottom: 6 }}>{label}</div>
       {payload.map((p) => (
         <div key={p.name} style={{ color: p.color || C.text, marginBottom: 2 }}>
           {p.name}: {typeof p.value === "number" ? p.value.toLocaleString("fr-FR") : p.value}
@@ -114,10 +125,17 @@ const ChartTip = ({ active, payload, label }: ChartTipProps) => {
 
 export interface BrvmDashboardClientProps {
   initialData: CompaniesFullDataset;
+  initialMarketSummary?: MarketSummarySnapshot | null;
 }
 
-export default function BrvmDashboardClient({ initialData }: BrvmDashboardClientProps) {
+export default function BrvmDashboardClient({
+  initialData,
+  initialMarketSummary = null,
+}: BrvmDashboardClientProps) {
   const [dataset, setDataset] = useState<CompaniesFullDataset>(initialData);
+  const [marketSummary, setMarketSummary] = useState<MarketSummarySnapshot | null>(initialMarketSummary);
+  const [marketCode, setMarketCode] = useState<AfricanExchangeCode>(DEFAULT_EXCHANGE_CODE);
+  const exchange = getExchange(marketCode);
   const companies = dataset.companies;
   const years = dataset.years;
 
@@ -162,7 +180,17 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
   const metricsByTicker = useMemo(() => {
     const map = new Map<string, CalcMetricsResult>();
     for (const co of companies) {
-      map.set(co.ticker, calcMetrics({ years, prices: co.prices, dividends: co.dividends, per: co.per }));
+      map.set(
+        co.ticker,
+        calcMetrics({
+          years,
+          prices: co.prices,
+          dividends: co.dividends,
+          per: co.per,
+          mktcap: co.mktcap,
+          sector: co.sector,
+        })
+      );
     }
     return map;
   }, [companies, years]);
@@ -228,11 +256,33 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      const res = await fetch("/api/companies/full", { cache: "no-store" });
+      // Tire d'abord les cours du jour depuis BRVM.org (source de vérité),
+      // puis recharge le jeu de données. En cooldown / échec réseau, l'API
+      // renvoie quand même les données en base — repli sur /api/companies/full.
+      const res = await fetch("/api/market/refresh-quotes", {
+        method: "POST",
+        cache: "no-store",
+      });
       const json = await res.json();
-      if (json.ok) {
-        setDataset(json.data as CompaniesFullDataset);
-        setLastUpdate(new Date(json.data.generatedAt).toLocaleDateString("fr-FR"));
+      if (json.ok && json.data?.dataset) {
+        setDataset(json.data.dataset as CompaniesFullDataset);
+        setLastUpdate(new Date(json.data.dataset.generatedAt).toLocaleDateString("fr-FR"));
+      } else {
+        const fallback = await fetch("/api/companies/full", { cache: "no-store" });
+        const fallbackJson = await fallback.json();
+        if (fallbackJson.ok) {
+          setDataset(fallbackJson.data as CompaniesFullDataset);
+          setLastUpdate(new Date(fallbackJson.data.generatedAt).toLocaleDateString("fr-FR"));
+        }
+      }
+      const sumRes = await fetch("/api/market/summary", { cache: "no-store" });
+      const sumJson = await sumRes.json();
+      if (sumJson.ok) {
+        setMarketSummary({
+          headlineIndices: sumJson.data.headlineIndices ?? [],
+          otherIndices: (sumJson.data.otherIndices ?? []).slice(0, 8),
+          asOf: sumJson.data.asOf ?? new Date().toISOString(),
+        });
       }
     } catch {
       // Échec réseau/serveur : on conserve silencieusement les données déjà
@@ -269,25 +319,226 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
     setCompSelected((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev.slice(-2), t]));
   };
 
-  // ── ÉTAT VIDE (base non encore seedée/synchronisée) — cas nouveau qui
-  // n'existait pas avec le tableau statique d'origine, géré sans perturber
-  // le reste de la mise en page. ──────────────────────────────────────────
+  const totalMktCap = useMemo(() => companies.reduce((a, b) => a + (b.mktcap || 0), 0), [companies]);
+  const companyHistoryYears = useMemo(() => {
+    if (!company) return [] as number[];
+    return years.filter((y) => (company.prices[y] ?? 0) > 0);
+  }, [company, years]);
+
+  const companyHistoryLabel = useMemo(() => {
+    if (companyHistoryYears.length === 0) return "N/D";
+    const from = companyHistoryYears[0]!;
+    const to = companyHistoryYears[companyHistoryYears.length - 1]!;
+    const span = to - from + 1;
+    return `${span} an${span > 1 ? "s" : ""} · ${from}–${to}`;
+  }, [companyHistoryYears]);
+  const indexPills = useMemo(() => {
+    if (!marketSummary) return [];
+    return [...marketSummary.headlineIndices, ...marketSummary.otherIndices].slice(0, 6);
+  }, [marketSummary]);
+
+  const renderMarketChrome = () => (
+    <div className={marketStyles.shell}>
+      <div className={marketStyles.topBar}>
+        <div className={marketStyles.topRow}>
+          <div>
+            <div className={marketStyles.label}>Choisir un marché boursier</div>
+            <div className={marketStyles.chips} role="listbox" aria-label="Marchés boursiers africains">
+              {AFRICAN_EXCHANGES.map((m) => {
+                const active = m.code === marketCode;
+                return (
+                  <button
+                    key={m.code}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    title={m.live ? m.name : `${m.name} — bientôt disponible`}
+                    className={active ? marketStyles.chipActive : m.live ? marketStyles.chip : marketStyles.chipSoon}
+                    onClick={() => setMarketCode(m.code)}
+                  >
+                    {m.shortLabel}
+                    {!m.live ? " · bientôt" : ""}
+                  </button>
+                );
+              })}
+            </div>
+            <div className={marketStyles.marketMeta}>
+              <strong style={{ color: C.text }}>{exchange.name}</strong>
+              {" · "}
+              {exchange.region} · Devise {exchange.currency}
+              {!exchange.live ? " · Couverture en cours de déploiement" : ""}
+            </div>
+          </div>
+          <div className={marketStyles.actions}>
+            <div style={{ fontSize: "0.72rem", color: C.textDim }}>
+              Dernière MAJ : <span style={{ color: C.gold }}>{lastUpdate}</span>
+            </div>
+            {exchange.live && (
+              <>
+                <button
+                  onClick={handleRefresh}
+                  disabled={refreshing}
+                  aria-busy={refreshing}
+                  style={{
+                    background: refreshing ? C.border : C.gold,
+                    color: refreshing ? C.textDim : "#000",
+                    border: "none",
+                    borderRadius: 6,
+                    padding: "7px 16px",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    cursor: refreshing ? "not-allowed" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                  }}
+                >
+                  {refreshing ? "⟳ Actualisation..." : "⟳ Actualiser les données"}
+                </button>
+                <button
+                  onClick={handleExport}
+                  disabled={exporting}
+                  style={{
+                    background: "transparent",
+                    color: C.green,
+                    border: `1px solid ${C.green}`,
+                    borderRadius: 6,
+                    padding: "7px 16px",
+                    fontWeight: 700,
+                    fontSize: "0.78rem",
+                    cursor: exporting ? "not-allowed" : "pointer",
+                  }}
+                >
+                  ↓ Exporter Excel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {exchange.live && companies.length > 0 && (
+        <>
+          <div className={marketStyles.kpiStrip}>
+            {[
+              { l: "Sociétés cotées", v: `${companies.length}`, c: C.blue },
+              {
+                l: "Capitalisation totale",
+                v: totalMktCap > 0 ? `${totalMktCap.toLocaleString("fr-FR")} Mds ${exchange.currency}` : "N/D",
+                c: C.gold,
+              },
+              {
+                l: "Rend. moyen marché",
+                v: `${(
+                  companies.map((c) => parseFloat(String(metricsByTicker.get(c.ticker)!.dividendYieldPercent))).reduce((a, b) => a + b, 0) /
+                  companies.length
+                ).toFixed(2)}%`,
+                c: C.green,
+              },
+              {
+                l: "Perf. moy. 5 ans",
+                v: (() => {
+                  const vals = companies
+                    .map((c) => parseFloat(String(metricsByTicker.get(c.ticker)!.perf5Percent)))
+                    .filter((v) => Number.isFinite(v) && v !== 0);
+                  const n = companies.filter((c) => metricsByTicker.get(c.ticker)!.perf5Percent !== "N/D").length;
+                  if (!n) return "N/D";
+                  const avg =
+                    companies
+                      .map((c) => parseFloat(String(metricsByTicker.get(c.ticker)!.perf5Percent)))
+                      .filter((v) => Number.isFinite(v))
+                      .reduce((a, b) => a + b, 0) / n;
+                  return `${avg >= 0 ? "+" : ""}${avg.toFixed(1)}%`;
+                })(),
+                c: C.teal,
+              },
+              {
+                l: "Signaux ACHAT",
+                v: `${companies.filter((c) => metricsByTicker.get(c.ticker)!.score >= 65).length}`,
+                c: C.green,
+              },
+            ].map((k) => (
+              <div key={k.l} className={marketStyles.kpiCard}>
+                <div className={marketStyles.kpiLabel}>{k.l}</div>
+                <div className={marketStyles.kpiValue} style={{ color: k.c }}>
+                  {k.v}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className={marketStyles.indicesStrip} aria-label="Indices du marché">
+            {indexPills.length === 0 ? (
+              <div className={marketStyles.indexPill}>
+                <div className={marketStyles.indexName}>Indices</div>
+                <div className={marketStyles.indexValue} style={{ color: C.textDim }}>
+                  N/D
+                </div>
+              </div>
+            ) : (
+              indexPills.map((idx) => {
+                const up = (idx.changePercent ?? 0) >= 0;
+                return (
+                  <div key={idx.code} className={marketStyles.indexPill}>
+                    <div className={marketStyles.indexName}>{idx.name}</div>
+                    <div className={marketStyles.indexValue}>{idx.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}</div>
+                    <div className={marketStyles.indexChg} style={{ color: idx.changePercent == null ? C.textDim : up ? C.green : C.red }}>
+                      {idx.changePercent == null
+                        ? "N/D"
+                        : `${up ? "+" : ""}${idx.changePercent.toFixed(2)}%`}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // Marché non encore couvert — chrome + message honnête (pas de données inventées).
+  if (!exchange.live) {
+    return (
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: FONT_FAMILY }}>
+        {renderMarketChrome()}
+        <div className={marketStyles.comingSoon}>
+          <div className={marketStyles.comingTitle}>{exchange.shortLabel} — bientôt sur OuestBourse</div>
+          <div className={marketStyles.comingBody}>
+            Les positions, indices et historiques de {exchange.name} seront branchés dès que les connecteurs
+            d&apos;ingestion seront disponibles. En attendant, explorez le marché <strong>BRVM</strong> (données
+            live).
+          </div>
+          <button
+            type="button"
+            onClick={() => setMarketCode("BRVM")}
+            style={{
+              marginTop: 16,
+              background: C.gold,
+              color: "#000",
+              border: "none",
+              borderRadius: 6,
+              padding: "8px 16px",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+          >
+            Afficher la BRVM
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── ÉTAT VIDE (base non encore seedée/synchronisée)
   if (companies.length === 0) {
     return (
-      <div
-        style={{
-          background: C.bg,
-          minHeight: "100vh",
-          color: C.text,
-          fontFamily: "'Trebuchet MS', Georgia, serif",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: "1.1rem", fontWeight: 700, color: C.gold, marginBottom: 8 }}>BRVM Dashboard</div>
-          <div style={{ color: C.textDim, fontSize: "0.85rem" }}>Aucune donnée disponible pour le moment.</div>
+      <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: FONT_FAMILY }}>
+        {renderMarketChrome()}
+        <div className={marketStyles.comingSoon}>
+          <div className={marketStyles.comingTitle}>Aucune position disponible</div>
+          <div className={marketStyles.comingBody}>Aucune donnée disponible pour le moment.</div>
         </div>
       </div>
     );
@@ -295,108 +546,24 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
 
   // ── RENDER ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-      {/* ── TOP BAR ── */}
-      <div
-        style={{
-          background: C.panel,
-          borderBottom: `1px solid ${C.border}`,
-          padding: "12px 20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          flexWrap: "wrap",
-          gap: 10,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: "0.6rem", letterSpacing: "0.35em", color: C.gold, textTransform: "uppercase" }}>
-            Bourse Régionale des Valeurs Mobilières
-          </div>
-          <div style={{ fontSize: "1.4rem", fontWeight: 700, color: C.text, letterSpacing: "-0.02em" }}>BRVM Dashboard — Analyse 10 ans</div>
-        </div>
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontSize: "0.72rem", color: C.textDim }}>
-            Dernière MAJ : <span style={{ color: C.gold }}>{lastUpdate}</span>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={refreshing}
-            aria-busy={refreshing}
-            style={{
-              background: refreshing ? C.border : C.gold,
-              color: refreshing ? C.textDim : "#000",
-              border: "none",
-              borderRadius: 4,
-              padding: "7px 16px",
-              fontWeight: 700,
-              fontSize: "0.78rem",
-              cursor: refreshing ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: 6,
-              transition: "all 0.2s",
-            }}
-          >
-            {refreshing ? "⟳ Actualisation..." : "⟳ Actualiser les données"}
-          </button>
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            style={{
-              background: "transparent",
-              color: C.green,
-              border: `1px solid ${C.green}`,
-              borderRadius: 4,
-              padding: "7px 16px",
-              fontWeight: 700,
-              fontSize: "0.78rem",
-              cursor: exporting ? "not-allowed" : "pointer",
-            }}
-          >
-            ↓ Exporter Excel
-          </button>
-        </div>
-      </div>
+    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: FONT_FAMILY }}>
+      {renderMarketChrome()}
 
-      {/* ── MARKET KPIs ── */}
-      <div style={{ display: "flex", gap: 10, padding: "12px 20px", flexWrap: "wrap", borderBottom: `1px solid ${C.border}` }}>
-        {[
-          { l: "Sociétés cotées", v: `${companies.length}`, c: C.blue },
-          { l: "Capitalisation totale", v: `${companies.reduce((a, b) => a + b.mktcap, 0).toLocaleString()} Mds FCFA`, c: C.gold },
-          {
-            l: "Rend. moyen marché",
-            v: `${(
-              companies.map((c) => parseFloat(String(metricsByTicker.get(c.ticker)!.dividendYieldPercent))).reduce((a, b) => a + b, 0) /
-              companies.length
-            ).toFixed(2)}%`,
-            c: C.green,
-          },
-          {
-            l: "Perf. moy. 5 ans",
-            v: `+${(
-              companies
-                .map((c) => parseFloat(String(metricsByTicker.get(c.ticker)!.perf5Percent)))
-                .filter((v) => v > 0)
-                .reduce((a, b) => a + b, 0) / companies.filter((c) => metricsByTicker.get(c.ticker)!.perf5Percent !== "N/D").length
-            ).toFixed(1)}%`,
-            c: C.teal,
-          },
-          { l: "Signaux ACHAT", v: `${companies.filter((c) => metricsByTicker.get(c.ticker)!.score >= 65).length}`, c: C.green },
-          { l: "Horizon données", v: `${years[0] ?? "?"} → ${(years[years.length - 1] ?? 0) + 5}`, c: C.purple },
-        ].map((k) => (
-          <div key={k.l} style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 6, padding: "8px 14px", flex: "1 1 140px" }}>
-            <div style={{ fontSize: "0.6rem", color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 3 }}>{k.l}</div>
-            <div style={{ fontSize: "1.05rem", fontWeight: 700, color: k.c }}>{k.v}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: "flex", gap: 0, height: "calc(100vh - 160px)", minHeight: 600 }}>
-        {/* ── LEFT SIDEBAR — COMPANY LIST ── */}
-        <div style={{ width: 220, background: C.panel, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
+      <div style={{ display: "flex", gap: 0, height: "calc(100vh - 220px)", minHeight: 600 }}>
+        {/* ── LEFT SIDEBAR — POSITIONS ── */}
+        <div style={{ width: 240, background: C.panel, borderRight: `1px solid ${C.border}`, display: "flex", flexDirection: "column", flexShrink: 0 }}>
           {/* Filters */}
           <div style={{ padding: "10px 12px", borderBottom: `1px solid ${C.border}` }}>
+            <div
+              style={{
+                fontSize: "0.78rem",
+                color: C.text,
+                fontWeight: 700,
+                marginBottom: 8,
+              }}
+            >
+              Positions · {filteredCompanies.length}
+            </div>
             <input
               type="search"
               value={companySearch}
@@ -412,7 +579,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                 padding: "5px 8px",
                 fontSize: "0.72rem",
                 marginBottom: 6,
-                fontFamily: "'Trebuchet MS', Georgia, serif",
+                fontFamily: FONT_FAMILY,
               }}
             />
             <select
@@ -457,7 +624,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
           </div>
 
           {/* Company list */}
-          <div style={{ overflowY: "auto", flex: 1 }} role="list" aria-label="Liste des sociétés cotées">
+          <div style={{ overflowY: "auto", flex: 1 }} role="list" aria-label="Liste des positions">
             {filteredCompanies.length === 0 && (
               <div style={{ padding: "16px 12px", fontSize: "0.7rem", color: C.textDim, textAlign: "center" }}>
                 Aucune société ne correspond à cette recherche.
@@ -513,7 +680,11 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                   <div style={{ fontSize: "0.68rem", color: C.silver, marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                     {co.name}
                   </div>
-                  <div style={{ display: "flex", gap: 6, marginTop: 3 }}>
+                  <div style={{ display: "flex", gap: 6, marginTop: 3, flexWrap: "wrap", alignItems: "center" }}>
+                    <span style={{ fontSize: "0.62rem", fontWeight: 700, color: C.gold }}>
+                      {m.currentPrice > 0 ? `${m.currentPrice.toLocaleString("fr-FR")} ${exchange.currency}` : "N/D"}
+                    </span>
+                    <span style={{ fontSize: "0.6rem", color: C.textDim }}>·</span>
                     <span
                       style={{
                         fontSize: "0.6rem",
@@ -522,7 +693,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                     >
                       {m.perf5Percent !== "N/D" ? `${perf5Value > 0 ? "+" : ""}${m.perf5Percent}%` : "N/D"}
                     </span>
-                    <span style={{ fontSize: "0.6rem", color: C.textDim }}>•</span>
+                    <span style={{ fontSize: "0.6rem", color: C.textDim }}>·</span>
                     <span style={{ fontSize: "0.6rem", color: C.teal }}>{m.dividendYieldPercent}%div</span>
                   </div>
                 </div>
@@ -592,9 +763,12 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                       {metrics.currentPrice.toLocaleString("fr-FR")} FCFA
                     </div>
                     {/* Indicateur discret "source des données" / "dernière synchronisation" — étape 8 */}
-                    <div style={{ fontSize: "0.58rem", color: C.textDim, marginTop: 3 }}>
+                    <div style={{ fontSize: "0.72rem", color: C.textMeta, marginTop: 3, fontWeight: 600 }}>
                       Source : {company.dataSource ? (DATA_SOURCE_LABELS[company.dataSource] ?? company.dataSource) : "N/D"} · Synchronisé le{" "}
                       {formatSyncTimestamp(company.lastSyncedAt)}
+                    </div>
+                    <div style={{ fontSize: "0.58rem", color: C.purple, marginTop: 2, fontWeight: 700 }}>
+                      Historique disponible : {companyHistoryLabel}
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 10, flexWrap: "wrap", flex: 1 }}>
@@ -633,7 +807,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                       { l: "Confiance", v: metrics.confidence, c: metrics.confidence === "Élevée" ? C.green : metrics.confidence === "Moyenne" ? C.gold : C.textDim },
                     ].map((k) => (
                       <div key={k.l} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 5, padding: "7px 12px", minWidth: 90 }}>
-                        <div style={{ fontSize: "0.58rem", color: C.textDim, textTransform: "uppercase", letterSpacing: "0.08em" }}>{k.l}</div>
+                        <div style={{ fontSize: "0.68rem", color: C.textDim, fontWeight: 600 }}>{k.l}</div>
                         <div style={{ fontSize: "0.88rem", fontWeight: 700, color: k.c }}>{k.v}</div>
                       </div>
                     ))}
@@ -652,7 +826,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
                   }}
                 >
                   <div style={{ display: "flex", flexWrap: "wrap", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
-                    <div style={{ fontSize: "0.7rem", fontWeight: 700, color: C.gold, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+                    <div style={{ fontSize: "0.78rem", fontWeight: 700, color: C.text }}>
                       Signal final
                     </div>
                     <div
@@ -691,8 +865,11 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
 
                 {/* Historical data table */}
                 <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14, marginBottom: 16 }}>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: C.gold, marginBottom: 10, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-                    Historique 10 ans ({years[0]} → {years[years.length - 1]})
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text, marginBottom: 10 }}>
+                    Historique complet
+                    {companyHistoryYears.length > 0
+                      ? ` (${companyHistoryYears[0]} → ${companyHistoryYears[companyHistoryYears.length - 1]})`
+                      : " (N/D)"}
                   </div>
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.73rem" }}>
@@ -768,7 +945,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
 
                 {/* Mini chart */}
                 <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14 }}>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: C.gold, marginBottom: 10 }}>Aperçu cours &amp; dividendes</div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text, marginBottom: 10 }}>Aperçu cours &amp; dividendes</div>
                   <ResponsiveContainer width="100%" height={160}>
                     <AreaChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
@@ -797,7 +974,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
             {/* ── CHART TAB ── */}
             {tab === "chart" && company && (
               <div>
-                <div style={{ fontSize: "0.75rem", fontWeight: 700, color: C.gold, marginBottom: 12 }}>
+                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text, marginBottom: 12 }}>
                   Historique complet {company.name} ({company.ticker}) — {years[0]} à {years[years.length - 1]}
                 </div>
                 <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginBottom: 16 }}>
@@ -877,7 +1054,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
             {tab === "projection" && company && metrics && (
               <div>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 12, flexWrap: "wrap" }}>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: C.gold }}>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text }}>
                     Projection {company.name} — Régression linéaire sur données historiques
                   </div>
                   <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
@@ -931,7 +1108,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
 
                 {/* Projection table */}
                 <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14 }}>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: C.gold, marginBottom: 10 }}>Tableau de projection</div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text, marginBottom: 10 }}>Tableau de projection</div>
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.73rem" }}>
                       <thead>
@@ -980,7 +1157,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
             {/* ── COMPARISON TAB ── */}
             {tab === "comparison" && (
               <div>
-                <div style={{ fontSize: "0.75rem", fontWeight: 700, color: C.gold, marginBottom: 8 }}>Sélectionner jusqu&apos;à 3 actions à comparer</div>
+                <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text, marginBottom: 8 }}>Sélectionner jusqu&apos;à 3 actions à comparer</div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
                   {companies.map((co) => {
                     const sel = compSelected.includes(co.ticker);
@@ -1030,7 +1207,7 @@ export default function BrvmDashboardClient({ initialData }: BrvmDashboardClient
 
                 {/* Comparison metrics table */}
                 <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 14 }}>
-                  <div style={{ fontSize: "0.75rem", fontWeight: 700, color: C.gold, marginBottom: 10 }}>Métriques comparées</div>
+                  <div style={{ fontSize: "0.85rem", fontWeight: 700, color: C.text, marginBottom: 10 }}>Métriques comparées</div>
                   <div style={{ overflowX: "auto" }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.73rem" }}>
                       <thead>

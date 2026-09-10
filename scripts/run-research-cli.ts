@@ -11,11 +11,14 @@
 import { runResearchAgent } from "../lib/research/run-research-agent";
 
 async function main() {
-  console.log("🔎 AGENT DE RECHERCHE IA — ouestBourse (étape 10)");
+  console.log("🔎 AGENT DE RECHERCHE IA — OuestBourse (veille + propositions journalières)");
   const summary = await runResearchAgent();
   console.log(JSON.stringify(summary, null, 2));
   if (!summary.enabled) {
     console.log('\nℹ️  Agent désactivé (RESEARCH_AGENT_ENABLED != "true") — aucun appel réseau effectué.');
+  } else if (summary.proposalsWritten > 0) {
+    console.log(`\n✦ ${summary.proposalsWritten} proposition(s) → docs/design-agent/proposals/`);
+    console.log("→ Revue : /apercu-design");
   }
 }
 

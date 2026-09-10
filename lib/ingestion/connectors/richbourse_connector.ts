@@ -31,7 +31,11 @@
 import * as cheerio from "cheerio";
 import { fetchHtml } from "../http-client";
 import { parseFrenchNumber, toIsoDate, lastBusinessDay } from "../parse-utils";
-import type { ConnectorResult, MarketDataConnector, RawIndexQuote, RawPriceQuote } from "../types";
+import type { ConnectorResult, MarketDataConnector, RawDividendRow, RawIndexQuote, RawPriceQuote } from "../types";
+import {
+  parseRichbourseDividendCalendar,
+  richbourseToRawRows,
+} from "../richbourse-dividend-parser";
 
 const BASE_URL = "https://www.richbourse.com";
 
@@ -49,19 +53,70 @@ function normalizeIndexCode(hrefOrLabel: string): string {
 /// (4 valeurs par point) ne matchent volontairement pas ce pattern, ce qui
 /// évite de les confondre avec la série "cours simple".
 function extractLatestClosePriceFromHighcharts(html: string): number | null {
+  const points = extractCloseSeriesFromHighcharts(html);
+  if (points.length === 0) return null;
+  return points[points.length - 1]!.value;
+}
+
+/// Tous les points `[timestamp, cours]` de la série de COURS (libellé
+/// « (FCFA) »), triés chronologiquement. On évite volontairement un balayage
+/// global du HTML : la même page embarque aussi volumes / flags dividende
+/// (`[ts, volume]` → millions), qui fausseraient l'historique (ex. ETIT
+/// « clôture 2025 = 102 648 » au lieu de ~21).
+export function extractCloseSeriesFromHighcharts(html: string): Array<{ ts: number; value: number }> {
+  const seriesChunk = extractFcfaSeriesDataChunk(html);
   const pointPattern = /\[(\d{10,13}),\s*([\d.]+)\]/g;
-  let latestTimestamp = -Infinity;
-  let latestValue: number | null = null;
+  const byTs = new Map<number, number>();
   let match: RegExpExecArray | null;
-  while ((match = pointPattern.exec(html)) !== null) {
+  while ((match = pointPattern.exec(seriesChunk)) !== null) {
     const ts = Number(match[1]);
     const value = Number(match[2]);
-    if (ts > latestTimestamp) {
-      latestTimestamp = ts;
-      latestValue = value;
+    if (!Number.isFinite(ts) || !Number.isFinite(value)) continue;
+    // Garde-fou : aucun titre BRVM ne cote au-delà de ce plafond raisonnable.
+    // Au-delà, ce sont presque toujours des volumes / artefacts Highcharts.
+    if (value <= 0 || value > 200_000) continue;
+    byTs.set(ts, value);
+  }
+  return [...byTs.entries()]
+    .map(([ts, value]) => ({ ts, value }))
+    .sort((a, b) => a.ts - b.ts);
+}
+
+/// Extrait le blob `data: [[ts,v],…]` de la série dont le nom contient
+/// `(FCFA)`. Gère le ternaire Richbourse
+/// `data: (ajustement === '…') ? [[…]] : [[…]]` en prenant la branche ELSE
+/// (cours non ajustés fractionnement — plus proches du bulletin officiel).
+function extractFcfaSeriesDataChunk(html: string): string {
+  const nameIdx = html.search(/\(FCFA\)"\s*,/);
+  if (nameIdx < 0) {
+    // Repli historique (prototype étape 3) : dernier point global — moins sûr.
+    return html;
+  }
+  const afterName = html.slice(nameIdx);
+  const ternary = afterName.match(/data:\s*\([^)]*\)\s*\?([\s\S]*?):\s*(\[\[[\s\S]*?\]\])\s*,/);
+  if (ternary?.[2]) return ternary[2];
+  const plain = afterName.match(/data:\s*(\[\[[\s\S]*?\]\])\s*,/);
+  return plain?.[1] ?? html;
+}
+
+/// Dernière clôture observée par année civile (UTC) dans la série Highcharts.
+export function yearEndClosesFromHighcharts(html: string): Map<number, { date: string; closePrice: number }> {
+  const byYear = new Map<number, { date: string; closePrice: number; ts: number }>();
+  for (const { ts, value } of extractCloseSeriesFromHighcharts(html)) {
+    const d = new Date(ts);
+    const year = d.getUTCFullYear();
+    const prev = byYear.get(year);
+    if (!prev || ts > prev.ts) {
+      byYear.set(year, {
+        ts,
+        closePrice: value,
+        date: d.toISOString().slice(0, 10),
+      });
     }
   }
-  return latestValue;
+  const out = new Map<number, { date: string; closePrice: number }>();
+  for (const [year, row] of byYear) out.set(year, { date: row.date, closePrice: row.closePrice });
+  return out;
 }
 
 export class RichbourseConnector implements MarketDataConnector {
@@ -127,6 +182,35 @@ export class RichbourseConnector implements MarketDataConnector {
     }
 
     return { ok: true, source: this.source, data: results, fetchedAt };
+  }
+
+  /// Calendrier dividendes « année civile » — /common/dividende/index
+  async fetchDividendCalendar(
+    calendarYear = new Date().getUTCFullYear()
+  ): Promise<ConnectorResult<RawDividendRow[]>> {
+    const fetchedAt = new Date().toISOString();
+    const url = `${BASE_URL}/common/dividende/index`;
+    try {
+      const html = await fetchHtml(url);
+      const parsed = parseRichbourseDividendCalendar(html);
+      const data = richbourseToRawRows(parsed, calendarYear, fetchedAt);
+      if (data.length === 0) {
+        return {
+          ok: false,
+          source: this.source,
+          error: "Aucun dividende Richbourse — structure HTML probablement modifiée",
+          fetchedAt,
+        };
+      }
+      return { ok: true, source: this.source, data, fetchedAt };
+    } catch (err) {
+      return {
+        ok: false,
+        source: this.source,
+        error: err instanceof Error ? err.message : String(err),
+        fetchedAt,
+      };
+    }
   }
 }
 

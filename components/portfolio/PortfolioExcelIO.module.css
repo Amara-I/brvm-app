@@ -1,0 +1,58 @@
+.wrap {
+  margin: 0 0 12px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.btn,
+.btnSecondary {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 1px solid var(--c-border);
+}
+
+.btn {
+  background: var(--c-gold);
+  color: #1a1a1a;
+  border-color: var(--c-gold);
+}
+
+.btnSecondary {
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.btn:disabled,
+.btnSecondary:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.fileInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.hint {
+  margin: 6px 0 0;
+  font-size: 0.68rem;
+}
+
+.msg {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}

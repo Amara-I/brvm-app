@@ -5,12 +5,13 @@
 // donc honnête, pas un placeholder trompeur.
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
+import { PAGE_LEAD, PAGE_TITLE } from "@/lib/theme/typography";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Actualités — ouestBourse",
+  title: "Actualités — OuestBourse",
   description: "Actualités du marché BRVM agrégées depuis les sources officielles et partenaires.",
 };
 
@@ -22,42 +23,41 @@ export default async function ActualitesPage() {
   });
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-      <AppHeader />
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px" }}>
-        <h1 style={{ color: C.text, fontSize: "1.4rem", marginBottom: 4 }}>📰 Actualités</h1>
-        <p style={{ color: C.textDim, fontSize: "0.85rem", marginBottom: 24 }}>
+    <AppHeader>
+      <div>
+        <h1 style={PAGE_TITLE}>📰 Actualités</h1>
+        <p style={PAGE_LEAD}>
           L&apos;essentiel du marché BRVM, agrégé depuis BRVM officiel, Sikafinance et Richbourse.
         </p>
 
         {articles.length === 0 ? (
           <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 24, textAlign: "center" }}>
-            <p style={{ color: C.textDim, fontSize: "0.88rem", margin: 0 }}>
+            <p style={{ color: C.textDim, fontSize: "var(--fs-body-sm)", margin: 0 }}>
               Aucune actualité pour l&apos;instant — l&apos;ingestion automatique des actualités n&apos;est pas encore activée
               (cf. feuille de route, AGENTS.md).
             </p>
           </div>
         ) : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }} data-align-left>
             {articles.map((a) => (
               <a
                 key={a.id}
                 href={a.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "block", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, textDecoration: "none" }}
+                style={{ display: "block", background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, textDecoration: "none", textAlign: "left" }}
               >
-                <div style={{ color: C.textDim, fontSize: "0.7rem", marginBottom: 6 }}>
+                <div style={{ color: C.textDim, fontSize: "var(--fs-body-xs)", marginBottom: 6 }}>
                   {a.sourceName} · {new Date(a.publishedAt).toLocaleDateString("fr-FR")}
                   {a.company ? ` · ${a.company.ticker}` : ""}
                 </div>
-                <div style={{ color: C.text, fontSize: "0.95rem", fontWeight: 700, marginBottom: 4 }}>{a.title}</div>
-                {a.summary && <div style={{ color: C.textDim, fontSize: "0.82rem" }}>{a.summary}</div>}
+                <div style={{ color: C.text, fontSize: "var(--fs-body-sm)", fontWeight: 700, marginBottom: 4 }}>{a.title}</div>
+                {a.summary && <div style={{ color: C.textDim, fontSize: "var(--fs-body-sm)" }}>{a.summary}</div>}
               </a>
             ))}
           </div>
         )}
       </div>
-    </div>
+    </AppHeader>
   );
 }

@@ -1,20 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Métriques financières par société — étape 5, optimisé étape 14 (10/08/2026)
+// Métriques financières par société — étape 5, optimisé étape 14 + LeyInvest
 // ═══════════════════════════════════════════════════════════════════════════
-// Port TypeScript de `calcMetrics()` (reference/BRVM_Dashboard.jsx), enrichi
-// sur demande utilisateur (« optimiser l'analyse… signal final avec
-// explication ») :
-//   - Les métriques BRUTES (perf 5/10 ans, rendement, volatilité, cours/
-//     dividende courants) restent calculées comme avant.
-//   - Le SCORE / SIGNAL sont RECALIBRÉS pour ne plus pénaliser artificiellement
-//     les sociétés à historique court (volatilité "N/D" ≠ risque "Élevé"),
-//     pour mieux traiter les PER extrêmes, et pour produire une EXPLICATION
-//     française du signal final (résumé + facteurs pour/contre).
-//   - Les libellés de signal restent NON NÉGOCIABLES : ACHAT FORT / ACHAT /
-//     CONSERVER / ALLÉGER / VENDRE.
-//
-// Les tests golden (étape 5) vérifient désormais la parité des métriques
-// brutes uniquement ; le score/signal/explication ont leurs propres tests.
+// Port TypeScript de `calcMetrics()` (reference/BRVM_Dashboard.jsx), enrichi :
+//   - Métriques BRUTES inchangées (perf, yield, volatilité, cours).
+//   - Score composite multi-horizons + garde-fou risque (cahier LeyInvest).
+//   - Libellés de signal NON NÉGOCIABLES : ACHAT FORT / ACHAT / CONSERVER /
+//     ALLÉGER / VENDRE.
+//   - riskLevel (Faible/Moyen/Élevé/N/D) reste la volatilité simple ;
+//     riskAnalysis porte la gestion du risque détaillée.
+
+import {
+  computeRiskAnalysis,
+  type RiskAnalysis,
+  type RiskClosePoint,
+} from "./risk-analysis";
+import { computeTechnicalSnapshot, type TechnicalSnapshot } from "../charts/technical-indicators";
 
 export interface CalcMetricsInput {
   /// Années disponibles, en ordre chronologique croissant (ex: 2015..2026).
@@ -25,6 +25,12 @@ export interface CalcMetricsInput {
   dividends: Record<number, number>;
   /// PER "actuel" de la société (cf. FinancialRatio.per).
   per: number;
+  /// Capitalisation (Md FCFA) — optionnel, pour le risque de liquidité.
+  mktcap?: number;
+  /// Secteur — optionnel, pour le risque opérationnel.
+  sector?: string;
+  /// Série de clôtures densifiée — optionnel (horizons courts, VaR, drawdown).
+  closes?: RiskClosePoint[];
 }
 
 export interface TradeSignal {
@@ -37,6 +43,12 @@ export type SignalReasonKind = "positif" | "negatif" | "neutre";
 export interface SignalReason {
   kind: SignalReasonKind;
   text: string;
+}
+
+export interface HorizonScores {
+  court: number;
+  moyen: number;
+  long: number;
 }
 
 export interface CalcMetricsResult {
@@ -61,7 +73,7 @@ export interface CalcMetricsResult {
   /// "N/D" si la volatilité n'est pas calculable (historique trop court) —
   /// plus de repli artificiel sur "Élevé" (artefact JSX corrigé à l'étape 14).
   riskLevel: "Faible" | "Moyen" | "Élevé" | "N/D";
-  /// Score composite 0-100 (formule optimisée étape 14).
+  /// Score composite 0-100 (technique + fondamental + risque inversé).
   score: number;
   signal: TradeSignal;
   currentPrice: number;
@@ -74,6 +86,18 @@ export interface CalcMetricsResult {
   signalSummary: string;
   /// Facteurs explicatifs (pour / contre / neutre) du score et du signal.
   signalReasons: SignalReason[];
+  /// Scores multi-horizons 0–100.
+  horizonScores: HorizonScores;
+  technicalScore: number;
+  fundamentalScore: number;
+  /// Alias explicite du score composite (= `score`).
+  compositeScore: number;
+  /// Analyse de risque multi-piliers.
+  riskAnalysis: RiskAnalysis;
+  /// Indicateurs techniques (N/D si série insuffisante).
+  technical: TechnicalSnapshot;
+  /// Score sectoriel 0–100 (proxy cyclicity inverse + profondeur).
+  sectorScore: number;
 }
 
 export interface CalcMetricsOptions {
@@ -91,12 +115,16 @@ export interface CalcMetricsOptions {
   dividendRegularityWindow?: number;
 }
 
-function signalFromScore(score: number): TradeSignal {
-  if (score >= 80) return { label: "ACHAT FORT", color: "#22C55E" };
-  if (score >= 65) return { label: "ACHAT", color: "#84CC16" };
-  if (score >= 50) return { label: "CONSERVER", color: "#D4A843" };
-  if (score >= 35) return { label: "ALLÉGER", color: "#F97316" };
-  return { label: "VENDRE", color: "#EF4444" };
+const SIGNAL_COLORS: Record<TradeSignal["label"], string> = {
+  "ACHAT FORT": "#22C55E",
+  ACHAT: "#84CC16",
+  CONSERVER: "#D4A843",
+  ALLÉGER: "#F97316",
+  VENDRE: "#EF4444",
+};
+
+function signalOf(label: TradeSignal["label"]): TradeSignal {
+  return { label, color: SIGNAL_COLORS[label] };
 }
 
 function formatFrNumber(n: number, digits = 1): string {
@@ -104,6 +132,57 @@ function formatFrNumber(n: number, digits = 1): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
+}
+
+function clamp100(n: number): number {
+  return Math.min(100, Math.max(0, Math.round(n)));
+}
+
+/** Mappe une performance % vers un score 0–100. */
+function perfToScore(perf: number | null, softCap = 80): number {
+  if (perf == null || !Number.isFinite(perf)) return 45;
+  // -40 % → ~10 ; 0 % → 50 ; +softCap % → ~90
+  const t = 50 + (perf / softCap) * 40;
+  return clamp100(t);
+}
+
+function seriesPerfPercent(closes: RiskClosePoint[], lookbackDays: number): number | null {
+  if (!closes || closes.length < 2) return null;
+  const last = closes[closes.length - 1]!;
+  const target = new Date(last.time);
+  target.setUTCDate(target.getUTCDate() - lookbackDays);
+  const iso = target.toISOString().slice(0, 10);
+  let from = closes[0]!;
+  for (const p of closes) {
+    if (p.time <= iso) from = p;
+    else break;
+  }
+  if (!(from.value > 0) || !(last.value > 0)) return null;
+  // Exige un vrai écart temporel (évite de traiter 2 points annuels comme 1 an)
+  if (from.time === last.time) return null;
+  return ((last.value - from.value) / from.value) * 100;
+}
+
+function annualYoyPerf(years: number[], prices: Record<number, number>): number | null {
+  const withPrice = years.filter((y) => (prices[y] ?? 0) > 0);
+  if (withPrice.length < 2) return null;
+  const y1 = withPrice[withPrice.length - 1]!;
+  const y0 = withPrice[withPrice.length - 2]!;
+  const p0 = prices[y0]!;
+  const p1 = prices[y1]!;
+  if (!(p0 > 0)) return null;
+  return ((p1 - p0) / p0) * 100;
+}
+
+/**
+ * Matrice de décision LeyInvest → libellés FR non négociables.
+ */
+export function signalFromComposite(composite: number, riskScore: number): TradeSignal {
+  if (composite > 75 && riskScore < 60) return signalOf("ACHAT FORT");
+  if (composite > 60 && riskScore < 70) return signalOf("ACHAT");
+  if (composite < 25 && riskScore > 60) return signalOf("VENDRE");
+  if (composite < 40) return signalOf("ALLÉGER");
+  return signalOf("CONSERVER");
 }
 
 export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions = {}): CalcMetricsResult {
@@ -121,23 +200,21 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
   const perf5Percent =
     validPrices.length >= shortWindow
       ? (
-          ((validPrices[validPrices.length - 1] - validPrices[validPrices.length - shortWindow]) /
-            validPrices[validPrices.length - shortWindow]) *
+          ((validPrices[validPrices.length - 1]! - validPrices[validPrices.length - shortWindow]!) /
+            validPrices[validPrices.length - shortWindow]!) *
           100
         ).toFixed(1)
       : "N/D";
 
   const perf10Percent =
     validPrices.length >= perfLongMinPoints
-      ? (((validPrices[validPrices.length - 1] - validPrices[0]) / validPrices[0]) * 100).toFixed(1)
+      ? (((validPrices[validPrices.length - 1]! - validPrices[0]!) / validPrices[0]!) * 100).toFixed(1)
       : "N/D";
 
-  // Performance sur l'historique disponible (si < fenêtre 5 ans) — utilisée
-  // uniquement pour le score/explication, jamais affichée à la place de perf5.
   let availableSpanPerf: number | null = null;
   if (validPrices.length >= 2 && validPrices.length < shortWindow) {
     availableSpanPerf =
-      ((validPrices[validPrices.length - 1] - validPrices[0]) / validPrices[0]) * 100;
+      ((validPrices[validPrices.length - 1]! - validPrices[0]!) / validPrices[0]!) * 100;
   }
 
   const avgDividend: string | number = validDivs.length
@@ -146,8 +223,8 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
 
   const lastYear = years[years.length - 1];
   const secondLastYear = years[years.length - 2];
-  const currentPrice = prices[lastYear] || prices[secondLastYear] || 0;
-  const currentDividend = dividends[lastYear] || dividends[secondLastYear] || 0;
+  const currentPrice = prices[lastYear!] || prices[secondLastYear!] || 0;
+  const currentDividend = dividends[lastYear!] || dividends[secondLastYear!] || 0;
 
   const dividendYieldPercent: string | number =
     currentPrice > 0 ? ((currentDividend / currentPrice) * 100).toFixed(2) : 0;
@@ -155,16 +232,14 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
 
   const yearOverYearAbsChanges: number[] = [];
   for (let i = 1; i < years.length; i++) {
-    const p = prices[years[i - 1]];
-    const q = prices[years[i]];
-    if (p > 0 && q > 0) yearOverYearAbsChanges.push(Math.abs(((q - p) / p) * 100));
+    const p = prices[years[i - 1]!];
+    const q = prices[years[i]!];
+    if (p && q && p > 0 && q > 0) yearOverYearAbsChanges.push(Math.abs(((q - p) / p) * 100));
   }
   const volatilityPercent = yearOverYearAbsChanges.length
     ? (yearOverYearAbsChanges.reduce((a, b) => a + b, 0) / yearOverYearAbsChanges.length).toFixed(1)
     : "N/D";
 
-  // Étape 14 : si volatilité absente → risque "N/D" (honnêteté des données),
-  // plus le repli JSX sur "Élevé" qui faussait le score des titres récents.
   const volatilityValue = parseFloat(volatilityPercent);
   const riskLevel: CalcMetricsResult["riskLevel"] = Number.isNaN(volatilityValue)
     ? "N/D"
@@ -177,45 +252,104 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
   const confidence: CalcMetricsResult["confidence"] =
     historyDepth >= 8 ? "Élevée" : historyDepth >= 3 ? "Moyenne" : "Faible";
 
-  // Fenêtre de régularité des dividendes = min(12, années depuis 1re cotation).
-  // Évite de sanctionner une société cotée depuis 2 ans parce qu'elle n'a
-  // pas 12 années de dividendes dans le jeu.
   const listingSpan = Math.max(historyDepth, 1);
   const regularityWindow = Math.max(1, Math.min(dividendRegularityWindow, listingSpan));
+  const regularityRatio = Math.min(1, validDivs.length / regularityWindow);
 
   const reasons: SignalReason[] = [];
-  let score = 0;
 
-  // ── 1) Performance (max 30) ──────────────────────────────────────────────
+  // ── Analyse de risque détaillée ──────────────────────────────────────────
+  const riskAnalysis = computeRiskAnalysis({
+    years,
+    prices,
+    dividends,
+    per,
+    mktcap: input.mktcap,
+    sector: input.sector,
+    closes: input.closes,
+    volatilityPercent,
+    historyDepth,
+  });
+
+  // ── Horizons ─────────────────────────────────────────────────────────────
+  const closes = input.closes;
+  const technical = computeTechnicalSnapshot(closes ?? []);
+
+  let courtPerf = closes?.length ? seriesPerfPercent(closes, 365) : null;
+  if (courtPerf == null) courtPerf = annualYoyPerf(years, prices);
+  let court = perfToScore(courtPerf, 40);
+  // Cahier v2 : si indicateurs dispo, le court terme s'appuie sur RSI/MACD/SMA.
+  if (technical.shortTermScore != null) {
+    court = clamp100(0.45 * court + 0.55 * technical.shortTermScore);
+    for (const n of technical.notes.slice(0, 2)) {
+      reasons.push({ kind: "neutre", text: `Technique court terme : ${n}` });
+    }
+  }
+
+  const p5 = perf5Percent !== "N/D" ? parseFloat(perf5Percent) : availableSpanPerf;
+  const moyen = perfToScore(p5, 80);
+
+  const p10 = perf10Percent !== "N/D" ? parseFloat(perf10Percent) : null;
+  let long = perfToScore(p10 ?? availableSpanPerf, 120);
+  let perBoost = 50;
+  if (per > 0 && per <= 80) {
+    perBoost = per < 8 ? 80 : per < 12 ? 70 : per < 18 ? 55 : per <= 40 ? 35 : 20;
+  } else if (!(per > 0)) {
+    perBoost = 40;
+  } else {
+    perBoost = 15;
+  }
+  long = clamp100(long * 0.55 + perBoost * 0.25 + regularityRatio * 100 * 0.2);
+
+  const horizonScores: HorizonScores = { court, moyen, long };
+  // Poids technique final cahier : 0.40 court + 0.35 moyen + 0.25 long
+  const technicalScore = clamp100(0.4 * court + 0.35 * moyen + 0.25 * long);
+
+  // ── Fondamental (yield + régularité + PER) → 0–100 ───────────────────────
+  const yieldCap = confidence === "Faible" ? 12 : 25;
+  const yieldForScore = Math.min(yieldValue, 12);
+  const yieldPts = Math.min(yieldCap, yieldForScore * 3);
+  const regPts = regularityRatio * 20;
+  let perPts = 0;
+  if (!(per > 0) || per > 80) perPts = 0;
+  else if (per < 8) perPts = 15;
+  else if (per < 12) perPts = 10;
+  else if (per < 18) perPts = 6;
+  else if (per <= 40) perPts = 3;
+  else perPts = 1;
+  const fundamentalRaw = yieldPts + regPts + perPts;
+  const fundamentalScore = clamp100((fundamentalRaw / 60) * 100);
+
+  // Score sectoriel (cahier 5 %) — inverse du risque opérationnel sectoriel
+  const sectorOp = riskAnalysis.pillars.find((p) => p.key === "operationnel")?.score;
+  const sectorScore =
+    sectorOp != null ? clamp100(100 - sectorOp) : clamp100(50 + (historyDepth >= 8 ? 10 : 0));
+
+  // Composite v2 : 0.30 tech + 0.30 fond + 0.20 (100-risk) + 0.05 secteur
+  // + 0.15 sentiment non disponible → redistribué (moitié tech, moitié fond)
+  // → effectif : 0.375 tech + 0.375 fond + 0.20 riskAdj + 0.05 sector
+  const riskAdj = 100 - riskAnalysis.riskScore;
+  const compositeScore = clamp100(
+    0.375 * technicalScore + 0.375 * fundamentalScore + 0.2 * riskAdj + 0.05 * sectorScore
+  );
+  const score = compositeScore;
+
+  // Raisons — performance
   if (perf5Percent !== "N/D") {
-    const p5 = parseFloat(perf5Percent);
-    const contrib = Math.min(30, Math.max(0, p5 / 3));
-    score += contrib;
-    if (p5 >= 40) {
+    const v = parseFloat(perf5Percent);
+    if (v >= 40) {
       reasons.push({
         kind: "positif",
-        text: `Forte performance sur 5 ans (+${formatFrNumber(p5)} %), moteur principal du score.`,
+        text: `Forte performance sur 5 ans (+${formatFrNumber(v)} %), moteur principal du score.`,
       });
-    } else if (p5 >= 10) {
-      reasons.push({
-        kind: "positif",
-        text: `Performance 5 ans positive (+${formatFrNumber(p5)} %).`,
-      });
-    } else if (p5 >= 0) {
-      reasons.push({
-        kind: "neutre",
-        text: `Performance 5 ans faible (+${formatFrNumber(p5)} %).`,
-      });
+    } else if (v >= 10) {
+      reasons.push({ kind: "positif", text: `Performance 5 ans positive (+${formatFrNumber(v)} %).` });
+    } else if (v >= 0) {
+      reasons.push({ kind: "neutre", text: `Performance 5 ans faible (+${formatFrNumber(v)} %).` });
     } else {
-      reasons.push({
-        kind: "negatif",
-        text: `Performance 5 ans négative (${formatFrNumber(p5)} %).`,
-      });
+      reasons.push({ kind: "negatif", text: `Performance 5 ans négative (${formatFrNumber(v)} %).` });
     }
   } else if (availableSpanPerf !== null) {
-    // Historique court : contribution plafonnée à 12 pts (pas 30).
-    const contrib = Math.min(12, Math.max(0, availableSpanPerf / 5));
-    score += contrib;
     reasons.push({
       kind: availableSpanPerf >= 0 ? "neutre" : "negatif",
       text: `Historique court (${historyDepth} ans) : perf. disponible ${availableSpanPerf >= 0 ? "+" : ""}${formatFrNumber(availableSpanPerf)} % (poids réduit).`,
@@ -227,13 +361,6 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
     });
   }
 
-  // ── 2) Rendement du dividende (max 25, plafonné si historique faible) ────
-  const yieldCap = confidence === "Faible" ? 12 : 25;
-  // Un rendement > 20 % sur BRVM est souvent exceptionnel / one-off : on
-  // plafonne la contribution économique à l'équivalent de 12 % de yield.
-  const yieldForScore = Math.min(yieldValue, 12);
-  const yieldContrib = Math.min(yieldCap, yieldForScore * 3);
-  score += yieldContrib;
   if (yieldValue >= 5) {
     reasons.push({
       kind: "positif",
@@ -245,15 +372,9 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
       text: `Rendement du dividende modéré (${formatFrNumber(yieldValue, 2)} %).`,
     });
   } else {
-    reasons.push({
-      kind: "negatif",
-      text: "Aucun dividende courant détecté (rendement 0 %).",
-    });
+    reasons.push({ kind: "negatif", text: "Aucun dividende courant détecté (rendement 0 %)." });
   }
 
-  // ── 3) Régularité des dividendes (max 20) ────────────────────────────────
-  const regularityRatio = Math.min(1, validDivs.length / regularityWindow);
-  score += regularityRatio * 20;
   if (validDivs.length === 0) {
     reasons.push({ kind: "negatif", text: "Aucune année de dividende connue sur la période." });
   } else if (regularityRatio >= 0.7) {
@@ -268,10 +389,7 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
     });
   }
 
-  // ── 4) Valorisation PER (max 15) ─────────────────────────────────────────
-  let perContrib = 0;
   if (!(per > 0) || per > 80) {
-    perContrib = 0;
     reasons.push({
       kind: "negatif",
       text:
@@ -280,64 +398,63 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
           : `PER extrême (${formatFrNumber(per, 2)}) : valorisation peu lisible / potentiellement déformée.`,
     });
   } else if (per < 8) {
-    perContrib = 15;
     reasons.push({ kind: "positif", text: `PER bas (${formatFrNumber(per, 2)}) : valorisation attractive.` });
   } else if (per < 12) {
-    perContrib = 10;
     reasons.push({ kind: "positif", text: `PER raisonnable (${formatFrNumber(per, 2)}).` });
   } else if (per < 18) {
-    perContrib = 6;
     reasons.push({ kind: "neutre", text: `PER dans la moyenne (${formatFrNumber(per, 2)}).` });
   } else if (per <= 40) {
-    perContrib = 3;
-    reasons.push({ kind: "negatif", text: `PER élevé (${formatFrNumber(per, 2)}) : titre cher par rapport aux bénéfices.` });
+    reasons.push({
+      kind: "negatif",
+      text: `PER élevé (${formatFrNumber(per, 2)}) : titre cher par rapport aux bénéfices.`,
+    });
   } else {
-    perContrib = 1;
     reasons.push({ kind: "negatif", text: `PER très élevé (${formatFrNumber(per, 2)}).` });
   }
-  score += perContrib;
 
-  // ── 5) Risque / volatilité (max 10) ──────────────────────────────────────
   if (riskLevel === "Faible") {
-    score += 10;
     reasons.push({
       kind: "positif",
       text: `Volatilité maîtrisée (${volatilityPercent} %) → risque faible.`,
     });
   } else if (riskLevel === "Moyen") {
-    score += 6;
     reasons.push({
       kind: "neutre",
       text: `Volatilité modérée (${volatilityPercent} %) → risque moyen.`,
     });
   } else if (riskLevel === "Élevé") {
-    score += 2;
     reasons.push({
       kind: "negatif",
       text: `Volatilité élevée (${volatilityPercent} %) → risque élevé.`,
     });
   } else {
-    // N/D : 0 pt (ni bonus ni malus)
     reasons.push({
       kind: "neutre",
       text: "Risque non évaluable (historique trop court pour mesurer la volatilité).",
     });
   }
 
-  score = Math.min(100, Math.round(score));
+  reasons.push({
+    kind:
+      riskAnalysis.riskScore < 40 ? "positif" : riskAnalysis.riskScore > 65 ? "negatif" : "neutre",
+    text: `Gestion du risque : ${riskAnalysis.riskTier} (${riskAnalysis.riskScore}/100).`,
+  });
+  reasons.push({
+    kind: "neutre",
+    text: `Horizons — court ${court}/100 · moyen ${moyen}/100 · long ${long}/100 (tech. ${technicalScore}, fond. ${fundamentalScore}).`,
+  });
 
-  // Avec peu de données, on évite les signaux extrêmes (ACHAT FORT / VENDRE
-  // trop affirmés) : on recentre d'un cran vers CONSERVER.
-  let signal = signalFromScore(score);
+  let signal = signalFromComposite(compositeScore, riskAnalysis.riskScore);
+
   if (confidence === "Faible") {
-    if (signal.label === "ACHAT FORT") signal = signalFromScore(79); // → ACHAT
-    else if (signal.label === "VENDRE") signal = signalFromScore(35); // → ALLÉGER
+    if (signal.label === "ACHAT FORT") signal = signalOf("ACHAT");
+    else if (signal.label === "VENDRE") signal = signalOf("ALLÉGER");
     reasons.push({
       kind: "neutre",
       text: `Confiance ${confidence} (${historyDepth} année${historyDepth > 1 ? "s" : ""} de cours) : signal extrême modéré.`,
     });
   } else if (confidence === "Moyenne" && signal.label === "ACHAT FORT") {
-    signal = signalFromScore(79);
+    signal = signalOf("ACHAT");
     reasons.push({
       kind: "neutre",
       text: `Confiance ${confidence} : le signal est plafonné à ACHAT (historique encore partiel).`,
@@ -366,6 +483,13 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
     confidence,
     signalSummary,
     signalReasons: reasons,
+    horizonScores,
+    technicalScore,
+    fundamentalScore,
+    compositeScore,
+    riskAnalysis,
+    technical,
+    sectorScore,
   };
 }
 
@@ -377,9 +501,7 @@ function buildSignalSummary(
 ): string {
   const topPositive = reasons.find((r) => r.kind === "positif");
   const topNegative = reasons.find((r) => r.kind === "negatif");
-  const parts = [
-    `Signal final : ${label} (score ${score}/100, confiance ${confidence}).`,
-  ];
+  const parts = [`Signal final : ${label} (score ${score}/100, confiance ${confidence}).`];
   if (topPositive) parts.push(topPositive.text);
   if (topNegative) parts.push(topNegative.text);
   if (!topPositive && !topNegative) {

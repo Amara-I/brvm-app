@@ -57,7 +57,7 @@ export default function RegisterForm() {
       router.push("/connexion");
       return;
     }
-    router.push("/marche");
+    router.push("/portefeuille");
     router.refresh();
   }
 

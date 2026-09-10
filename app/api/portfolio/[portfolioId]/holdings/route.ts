@@ -1,12 +1,5 @@
-// ═══════════════════════════════════════════════════════════════════════════
-// POST /api/portfolio/:portfolioId/holdings — Ajout d'une position, étape 7
-// ═══════════════════════════════════════════════════════════════════════════
-// Si une position existe déjà pour ce (portefeuille, société), elle est
-// RENFORCÉE : quantité additionnée, prix moyen d'achat recalculé au prorata
-// (moyenne pondérée), comme le ferait un carnet d'ordres réel. Sinon, une
-// nouvelle position est créée. Le retrait/allègement se fait via
-// `/api/portfolio/:portfolioId/holdings/:holdingId` (PATCH/DELETE).
-// ═══════════════════════════════════════════════════════════════════════════
+// POST /api/portfolio/:portfolioId/holdings — Ajout / renforcement d'une position.
+// Chaque achat est aussi journalisé dans portfolio_trades (historique).
 
 import { NextRequest } from "next/server";
 import { z } from "zod";
@@ -14,6 +7,7 @@ import { HoldingSide } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { apiSuccess, apiError, apiNotFound, apiValidationError } from "@/lib/api/response";
+import { recordPortfolioTrade } from "@/lib/api/portfolio-trades";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +23,7 @@ const addHoldingSchema = z.object({
     .string()
     .refine((s) => !Number.isNaN(Date.parse(s)), "Date d'achat invalide")
     .optional(),
+  buyHorizon: z.enum(["COURT", "MOYEN", "LONG"]).optional(),
   notes: z.string().trim().max(500).optional(),
 });
 
@@ -46,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
   const body = await request.json().catch(() => null);
   const parsed = addHoldingSchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);
-  const { ticker, quantity, avgBuyPrice, buyDate, notes } = parsed.data;
+  const { ticker, quantity, avgBuyPrice, buyDate, buyHorizon, notes } = parsed.data;
 
   const company = await prisma.company.findUnique({ where: { ticker } });
   if (!company) return apiNotFound(`Société "${ticker}"`);
@@ -55,34 +50,62 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
     where: { uniq_holding_portfolio_company: { portfolioId: portfolio.id, companyId: company.id } },
   });
 
+  const resolvedBuyDate = buyDate ? new Date(buyDate) : new Date();
+  const resolvedHorizon = buyHorizon ?? "MOYEN";
+
   if (existing) {
     const existingQty = Number(existing.quantity);
     const existingAvg = Number(existing.avgBuyPrice);
     const newQty = existingQty + quantity;
-    // Prix moyen d'achat pondéré — méthode standard de suivi de position.
     const newAvg = (existingQty * existingAvg + quantity * avgBuyPrice) / newQty;
-    const updated = await prisma.portfolioHolding.update({
-      where: { id: existing.id },
-      data: {
-        quantity: newQty,
-        avgBuyPrice: newAvg,
-        lastSide: HoldingSide.ACHAT,
-        notes: notes ?? existing.notes,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.portfolioHolding.update({
+        where: { id: existing.id },
+        data: {
+          quantity: newQty,
+          avgBuyPrice: newAvg,
+          lastSide: HoldingSide.ACHAT,
+          buyHorizon: resolvedHorizon,
+          notes: notes ?? existing.notes,
+        },
+      });
+      await recordPortfolioTrade(tx, {
+        portfolioId: portfolio.id,
+        companyId: company.id,
+        side: HoldingSide.ACHAT,
+        quantity,
+        price: avgBuyPrice,
+        tradedAt: resolvedBuyDate,
+        notes,
+      });
+      return row;
     });
     return apiSuccess({ holding: serializeHolding(updated, ticker) });
   }
 
-  const created = await prisma.portfolioHolding.create({
-    data: {
+  const created = await prisma.$transaction(async (tx) => {
+    const row = await tx.portfolioHolding.create({
+      data: {
+        portfolioId: portfolio.id,
+        companyId: company.id,
+        quantity,
+        avgBuyPrice,
+        lastSide: HoldingSide.ACHAT,
+        buyDate: resolvedBuyDate,
+        buyHorizon: resolvedHorizon,
+        notes,
+      },
+    });
+    await recordPortfolioTrade(tx, {
       portfolioId: portfolio.id,
       companyId: company.id,
+      side: HoldingSide.ACHAT,
       quantity,
-      avgBuyPrice,
-      lastSide: HoldingSide.ACHAT,
-      buyDate: buyDate ? new Date(buyDate) : null,
+      price: avgBuyPrice,
+      tradedAt: resolvedBuyDate,
       notes,
-    },
+    });
+    return row;
   });
   return apiSuccess({ holding: serializeHolding(created, ticker) }, { status: 201 });
 }

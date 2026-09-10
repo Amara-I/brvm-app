@@ -12,7 +12,13 @@
 import type { DataSourceCode, RawIndexQuote, RawPriceQuote } from "./types";
 
 /// Ordre de priorité — index le plus bas = priorité la plus haute.
-export const SOURCE_PRIORITY: DataSourceCode[] = ["BRVM_OFFICIEL", "SIKAFINANCE", "RICHBOURSE", "MANUEL"];
+export const SOURCE_PRIORITY: DataSourceCode[] = [
+  "BRVM_OFFICIEL",
+  "SIKAFINANCE",
+  "OUESTBOURSE",
+  "RICHBOURSE",
+  "MANUEL",
+];
 
 /// Seuil d'écart relatif (%) au-delà duquel une divergence entre deux
 /// sources doit être journalisée pour audit manuel (cf. brief).

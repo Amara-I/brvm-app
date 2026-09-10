@@ -63,6 +63,19 @@ const COUNTRY_CODES: Record<string, string> = {
 /// PER/la capitalisation "actuels" (cf. choix de migration n°2 ci-dessus).
 const CURRENT_REF_YEAR = YEARS[YEARS.length - 1];
 
+/// Date de cotation associée à une année du seed :
+/// - années passées → 31 décembre (proxy "clôture annuelle" historique) ;
+/// - année civile en cours → date UTC du jour (évite un 31/12 encore dans
+///   le futur qui écraserait un vrai cours du jour après ingestion).
+function priceDateForYear(year: number): Date {
+  const now = new Date();
+  const currentYear = now.getUTCFullYear();
+  if (year === currentYear) {
+    return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  }
+  return new Date(Date.UTC(year, 11, 31));
+}
+
 function slugify(input: string): string {
   return input
     .normalize("NFD")
@@ -74,7 +87,7 @@ function slugify(input: string): string {
 
 async function main() {
   console.log(
-    `🌱 Seed ouestBourse — ${COMPANIES_FULL.length} sociétés, années ${YEARS[0]}-${YEARS[YEARS.length - 1]}`
+    `🌱 Seed OuestBourse — ${COMPANIES_FULL.length} sociétés, années ${YEARS[0]}-${YEARS[YEARS.length - 1]}`
   );
 
   // ── 1) Référentiels Pays & Secteurs (upsert, dédupliqués) ─────────────────
@@ -136,14 +149,14 @@ async function main() {
         where: {
           uniq_price_company_date_source: {
             companyId: company.id,
-            date: new Date(Date.UTC(year, 11, 31)),
+            date: priceDateForYear(year),
             source: DataSource.MANUEL,
           },
         },
         update: { closePrice: price, isCanonical: true },
         create: {
           companyId: company.id,
-          date: new Date(Date.UTC(year, 11, 31)),
+          date: priceDateForYear(year),
           closePrice: price,
           source: DataSource.MANUEL,
           isCanonical: true,

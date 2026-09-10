@@ -24,6 +24,8 @@ export interface ResearchAgentSummary {
   queriesRun: number;
   resultsFound: number;
   findingsCreated: number;
+  proposalsWritten: number;
+  proposalIds: string[];
   errors: Array<{ query: string; message: string }>;
 }
 
@@ -37,6 +39,8 @@ export async function runResearchAgent(): Promise<ResearchAgentSummary> {
     queriesRun: 0,
     resultsFound: 0,
     findingsCreated: 0,
+    proposalsWritten: 0,
+    proposalIds: [],
     errors: [],
   };
 
@@ -75,6 +79,23 @@ export async function runResearchAgent(): Promise<ResearchAgentSummary> {
       console.error(`[research-agent] Échec pour la requête "${query}":`, message);
       summary.errors.push({ query, message });
     }
+    // Pause courte entre requêtes (respectueux du provider).
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
+  // Propositions journalières (brouillons Markdown — aucune appli auto).
+  try {
+    const { generateDesignProposalsFromFindings } = await import("../design-agent/generate-proposals");
+    const proposals = await generateDesignProposalsFromFindings({ limit: 10 });
+    summary.proposalsWritten = proposals.written;
+    summary.proposalIds = proposals.proposalIds;
+    console.log(
+      `[research-agent] Propositions design : ${proposals.written} écrite(s), ${proposals.skipped} ignorée(s) (déjà proposées).`
+    );
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[research-agent] Échec génération propositions :", message);
+    summary.errors.push({ query: "__design_proposals__", message });
   }
 
   return summary;

@@ -19,28 +19,31 @@
 
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
+import { PAGE_LEAD, PAGE_TITLE, SECTION_TITLE, PANEL_TEXT } from "@/lib/theme/typography";
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 20, marginBottom: 16 }}>
-      <h2 style={{ fontSize: "1.1rem", color: C.gold, marginTop: 0, marginBottom: 12 }}>{title}</h2>
-      <div style={{ color: C.text, fontSize: "0.88rem", lineHeight: 1.7 }}>{children}</div>
+    <section
+      style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 20, marginBottom: 16, textAlign: "left" }}
+      data-align-left
+    >
+      <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 12 }}>{title}</h2>
+      <div style={{ ...PANEL_TEXT, color: C.text, fontSize: "var(--fs-body-sm)" }}>{children}</div>
     </section>
   );
 }
 
 export const metadata = {
-  title: "Mentions légales — ouestBourse",
-  description: "Mentions légales, origine des données, protection des données personnelles et disclaimer financier de ouestBourse.",
+  title: "Mentions légales — OuestBourse",
+  description: "Mentions légales, origine des données, protection des données personnelles et disclaimer financier de OuestBourse.",
 };
 
 export default function MentionsLegalesPage() {
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", color: C.text, fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-      <AppHeader />
-      <div style={{ maxWidth: 820, margin: "0 auto", padding: "32px 20px" }}>
-        <h1 style={{ fontSize: "1.6rem", color: C.text, marginBottom: 4 }}>Mentions légales</h1>
-        <p style={{ color: C.textDim, fontSize: "0.8rem", marginBottom: 24 }}>
+    <AppHeader>
+      <div style={{ width: "100%", color: C.text, paddingTop: 0 }}>
+        <h1 style={PAGE_TITLE}>Mentions légales</h1>
+        <p style={{ ...PAGE_LEAD, marginBottom: 24 }}>
           Dernière mise à jour : conformément au déploiement de l&apos;étape 9 de la feuille de route (cf. AGENTS.md).
         </p>
 
@@ -69,8 +72,8 @@ export default function MentionsLegalesPage() {
             l&apos;horodatage de synchronisation de la donnée retenue sont affichés de façon transparente dans la fiche de chaque
             société cotée.
           </p>
-          <p style={{ color: C.textDim, fontSize: "0.78rem" }}>
-            ouestBourse n&apos;est affilié à aucune des sources citées ; leurs noms sont mentionnés à titre d&apos;attribution des
+          <p style={{ color: C.textDim, fontSize: "var(--fs-body-xs)" }}>
+            OuestBourse n&apos;est affilié à aucune des sources citées ; leurs noms sont mentionnés à titre d&apos;attribution des
             données, conformément à un usage raisonnable et non commercial de contenus publiquement accessibles.
           </p>
         </Section>
@@ -78,7 +81,7 @@ export default function MentionsLegalesPage() {
         <Section title="Avertissement financier">
           <p>
             ⚠️ Les informations, indicateurs, scores, signaux (« ACHAT », « CONSERVER », « VENDRE », etc.) et projections de cours
-            présentés sur ouestBourse sont fournis à titre <strong>purement informatif et pédagogique</strong>. Ils reposent sur des
+            présentés sur OuestBourse sont fournis à titre <strong>purement informatif et pédagogique</strong>. Ils reposent sur des
             modèles statistiques simples (régression linéaire sur données historiques) et ne prennent en compte ni l&apos;actualité
             de l&apos;émetteur, ni les conditions de marché futures, ni la situation personnelle de l&apos;investisseur.
           </p>
@@ -123,6 +126,6 @@ export default function MentionsLegalesPage() {
           </p>
         </Section>
       </div>
-    </div>
+    </AppHeader>
   );
 }

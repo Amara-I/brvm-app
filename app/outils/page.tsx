@@ -1,70 +1,225 @@
-// Page "Outils" — étape 10 (navigation complète).
-// Regroupe les outils déjà réels (Export Excel) et les suggestions de
-// l'agent de recherche IA permanent (§ 10.2, AGENTS.md). État honnête : la
-// liste des trouvailles est vide tant que `RESEARCH_AGENT_ENABLED` et une
-// clé de recherche ne sont pas configurés (cf. lib/research/provider-factory.ts).
+// Page "Outils" — étape 10 + agent DESIGN premium (étape 16).
+import Link from "next/link";
+import { ResearchCategory } from "@prisma/client";
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
+import { PAGE_LEAD, PAGE_TITLE, SECTION_TITLE, PANEL_TEXT } from "@/lib/theme/typography";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Outils — ouestBourse",
-  description: "Export de données, alertes et suggestions d'amélioration issues de la veille automatisée ouestBourse.",
+  title: "Outils — OuestBourse",
+  description: "Export de données, alertes et suggestions d'amélioration issues de la veille automatisée OuestBourse.",
 };
 
 const CATEGORY_LABELS: Record<string, string> = {
-  UX: "🎨 Expérience utilisateur",
-  CONTENU: "📰 Contenu & actualités",
-  FONCTIONNALITE: "🧩 Fonctionnalité",
-  CONCURRENCE: "🔎 Veille concurrentielle",
+  DESIGN: "✦ Design premium",
+  UX: "Expérience utilisateur",
+  CONTENU: "Contenu & actualités",
+  FONCTIONNALITE: "Fonctionnalité",
+  CONCURRENCE: "Veille concurrentielle",
 };
 
 function panel(): React.CSSProperties {
-  return { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 20, marginBottom: 16 };
+  return { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 16 };
 }
 
-export default async function OutilsPage() {
+export default async function OutilsPage({
+  searchParams,
+}: {
+  searchParams?: { cat?: string };
+}) {
+  const catRaw = searchParams?.cat?.toUpperCase();
+  const catFilter =
+    catRaw && catRaw !== "TOUS" && (Object.values(ResearchCategory) as string[]).includes(catRaw)
+      ? (catRaw as ResearchCategory)
+      : undefined;
   const findings = await prisma.researchFinding.findMany({
+    where: catFilter ? { category: catFilter } : undefined,
     orderBy: { discoveredAt: "desc" },
-    take: 20,
+    take: 40,
   });
+  const designCount = await prisma.researchFinding.count({ where: { category: ResearchCategory.DESIGN } });
+
+  const filters = ["TOUS", "DESIGN", "UX", "FONCTIONNALITE", "CONCURRENCE", "CONTENU"] as const;
 
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-      <AppHeader />
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px" }}>
-        <h1 style={{ color: C.text, fontSize: "1.4rem", marginBottom: 4 }}>🧰 Outils</h1>
-        <p style={{ color: C.textDim, fontSize: "0.85rem", marginBottom: 24 }}>
-          Export de données et suggestions d&apos;amélioration issues de la veille automatisée.
+    <AppHeader>
+      <div>
+        <h1 style={PAGE_TITLE}>Outils</h1>
+        <p style={PAGE_LEAD}>
+          Export de données et veille automatisée pour perfectionner la plateforme (design premium inclus).
         </p>
 
-        <div style={panel()}>
-          <h2 style={{ color: C.gold, fontSize: "1rem", marginTop: 0, marginBottom: 10 }}>📤 Export Excel</h2>
-          <p style={{ color: C.textDim, fontSize: "0.85rem", marginBottom: 12 }}>
+        <div style={panel()} data-align-left>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Capacités OuestBourse</h2>
+          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
+            Synthèse honnête de ce qui est disponible aujourd&apos;hui — rien d&apos;inventé.
+          </p>
+          <ul
+            style={{
+              listStyle: "none",
+              margin: 0,
+              padding: 0,
+              display: "grid",
+              gap: 6,
+            }}
+          >
+            {(
+              [
+                { label: "Cours BRVM", state: "Disponible" as const, href: "/marche" },
+                { label: "Graphes", state: "Disponible" as const, href: "/graphes" },
+                { label: "Signal expliqué", state: "Disponible" as const, href: "/societes-cotees" },
+                { label: "Calendrier dividendes", state: "Disponible" as const, href: "/calendrier-dividendes" },
+                { label: "Export Excel", state: "Disponible" as const, href: "/api/export/excel" },
+                { label: "Alertes de seuil", state: "Disponible" as const, href: "/graphes" },
+                { label: "Simulation rendements", state: "Disponible" as const, href: "/simulation" },
+              ] as const
+            ).map((cap) => (
+              <li
+                key={cap.label}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "center",
+                  padding: "8px 10px",
+                  borderRadius: 8,
+                  border: `1px solid ${C.border}`,
+                  background: C.bg,
+                  fontSize: "var(--fs-body-sm)",
+                }}
+              >
+                {cap.href && cap.state === "Disponible" ? (
+                  <a href={cap.href} style={{ color: C.text, textDecoration: "none", fontWeight: 600 }}>
+                    {cap.label}
+                  </a>
+                ) : (
+                  <span style={{ color: C.text, fontWeight: 600 }}>{cap.label}</span>
+                )}
+                <span
+                  style={{
+                    color: cap.state === "Disponible" ? C.green : C.textDim,
+                    fontWeight: 700,
+                    fontSize: "var(--fs-body-xs)",
+                  }}
+                >
+                  {cap.state}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div style={panel()} data-align-left>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Aperçu propositions design</h2>
+          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
+            Avant / après des brouillons App Designer — rien n’est appliqué tant que vous n’approuvez pas.
+          </p>
+          <a
+            href="/apercu-design"
+            style={{
+              display: "inline-block",
+              background: C.blue,
+              color: "#fff",
+              fontWeight: 700,
+              borderRadius: 8,
+              padding: "8px 16px",
+              textDecoration: "none",
+              fontSize: "var(--fs-body-sm)",
+            }}
+          >
+            Voir les aperçus
+          </a>
+        </div>
+
+        <div style={panel()} data-align-left>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Calendrier des dividendes</h2>
+          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
+            Dates de détachement, mise en paiement et montants par exercice pour les sociétés cotées.
+          </p>
+          <a
+            href="/calendrier-dividendes"
+            style={{
+              display: "inline-block",
+              background: C.blue,
+              color: "#fff",
+              fontWeight: 700,
+              borderRadius: 8,
+              padding: "8px 16px",
+              textDecoration: "none",
+              fontSize: "var(--fs-body-sm)",
+            }}
+          >
+            Ouvrir le calendrier
+          </a>
+        </div>
+
+        <div style={panel()} data-align-left>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Export Excel</h2>
+          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
             Exportez les données BRVM, projections et classements au format Excel (3 feuilles).
           </p>
           <a
             href="/api/export/excel"
-            style={{ display: "inline-block", background: C.green, color: "#080B12", fontWeight: 700, borderRadius: 6, padding: "8px 16px", textDecoration: "none", fontSize: "0.82rem" }}
+            style={{
+              display: "inline-block",
+              background: C.green,
+              color: "#080B12",
+              fontWeight: 700,
+              borderRadius: 8,
+              padding: "8px 16px",
+              textDecoration: "none",
+              fontSize: "var(--fs-body-sm)",
+            }}
           >
-            ↓ Télécharger le fichier Excel
+            Télécharger le fichier Excel
           </a>
         </div>
 
-        <div style={panel()}>
-          <h2 style={{ color: C.gold, fontSize: "1rem", marginTop: 0, marginBottom: 4 }}>🕵️ Suggestions de l&apos;agent de recherche IA</h2>
-          <p style={{ color: C.textDim, fontSize: "0.8rem", marginBottom: 14 }}>
-            Un agent permanent scanne le web (UX, actualités BRVM, fonctionnalités, veille concurrentielle) pour proposer des pistes
-            d&apos;amélioration — jamais appliquées automatiquement, toujours revues manuellement.
+        <div style={panel()} data-align-left>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 4 }}>Agent design premium</h2>
+          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
+            Veille quotidienne (cron 06:00 UTC ou <code style={{ color: C.silver }}>npm run research:run</code>).
+            Les propositions DESIGN/UX à trancher sont sur{" "}
+            <Link href="/apercu-design" style={{ color: C.gold }}>
+              /apercu-design
+            </Link>
+            . Rien n&apos;est appliqué automatiquement.
+            {designCount > 0 ? ` ${designCount} suggestion(s) DESIGN en base.` : ""}
           </p>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+            {filters.map((f) => {
+              const active = (catRaw ?? "TOUS") === f;
+              return (
+                <a
+                  key={f}
+                  href={f === "TOUS" ? "/outils" : `/outils?cat=${f}`}
+                  style={{
+                    textDecoration: "none",
+                    borderRadius: 999,
+                    padding: "6px 12px",
+                    fontSize: "var(--fs-body-xs)",
+                    fontWeight: active ? 700 : 400,
+                    background: active ? C.gold : C.bg,
+                    color: active ? "#080B12" : C.text,
+                    border: `1px solid ${active ? C.gold : C.border}`,
+                  }}
+                >
+                  {f === "TOUS" ? "Toutes" : CATEGORY_LABELS[f] ?? f}
+                </a>
+              );
+            })}
+          </div>
 
           {findings.length === 0 ? (
-            <p style={{ color: C.textDim, fontSize: "0.82rem", fontStyle: "italic" }}>
-              Aucune suggestion pour l&apos;instant — l&apos;agent est désactivé par défaut (
-              <code style={{ color: C.silver }}>RESEARCH_AGENT_ENABLED=false</code>) tant qu&apos;une clé de recherche
-              (<code style={{ color: C.silver }}>RESEARCH_SEARCH_API_KEY</code>) n&apos;est pas configurée.
+            <p style={{ ...PANEL_TEXT, fontStyle: "italic", margin: 0 }}>
+              Aucune suggestion pour l&apos;instant — activez{" "}
+              <code style={{ color: C.silver }}>RESEARCH_AGENT_ENABLED=true</code>, puis lancez{" "}
+              <code style={{ color: C.silver }}>npm run research:run</code>
+              . Avec <code style={{ color: C.silver }}>RESEARCH_SEARCH_API_KEY</code> (SerpAPI) ou sans clé
+              (fallback Google News RSS).
             </p>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -74,27 +229,37 @@ export default async function OutilsPage() {
                   href={f.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ display: "block", background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: 12, textDecoration: "none" }}
+                  style={{
+                    display: "block",
+                    background: C.bg,
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 10,
+                    padding: 12,
+                    textDecoration: "none",
+                  }}
                 >
-                  <div style={{ color: C.textDim, fontSize: "0.68rem", marginBottom: 4 }}>
-                    {CATEGORY_LABELS[f.category] ?? f.category} · {new Date(f.discoveredAt).toLocaleDateString("fr-FR")}
+                  <div style={{ color: C.textDim, fontSize: "var(--fs-body-xs)", marginBottom: 4 }}>
+                    {CATEGORY_LABELS[f.category] ?? f.category} · {f.status} ·{" "}
+                    {new Date(f.discoveredAt).toLocaleDateString("fr-FR")}
                   </div>
-                  <div style={{ color: C.text, fontSize: "0.86rem", fontWeight: 700 }}>{f.title}</div>
-                  {f.summary && <div style={{ color: C.textDim, fontSize: "0.78rem", marginTop: 2 }}>{f.summary}</div>}
+                  <div style={{ color: C.text, fontSize: "var(--fs-body-sm)", fontWeight: 700 }}>{f.title}</div>
+                  {f.summary && (
+                    <div style={{ color: C.textDim, fontSize: "var(--fs-body-xs)", marginTop: 2 }}>{f.summary}</div>
+                  )}
                 </a>
               ))}
             </div>
           )}
         </div>
 
-        <div style={panel()}>
-          <h2 style={{ color: C.gold, fontSize: "1rem", marginTop: 0, marginBottom: 10 }}>🔜 Bientôt disponible</h2>
-          <ul style={{ color: C.textDim, fontSize: "0.85rem", lineHeight: 1.8, margin: 0, paddingLeft: 20 }}>
-            <li>Calculatrice de rendement (simulation d&apos;investissement)</li>
-            <li>Alertes de prix par email/notification</li>
-          </ul>
+        <div style={panel()} data-align-left>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 8 }}>Bientôt disponible</h2>
+          <p style={{ ...PANEL_TEXT, margin: 0 }}>
+            Alertes de seuil, digest quotidien et bibliothèque de documents par société — annoncés honnêtement comme
+            « bientôt », pas encore branchés.
+          </p>
         </div>
       </div>
-    </div>
+    </AppHeader>
   );
 }

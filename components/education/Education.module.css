@@ -1,0 +1,294 @@
+/* Pages Éducation — hub, thèmes, fiches */
+
+.page {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 4px 0 40px;
+  color: var(--c-text);
+}
+
+.crumb {
+  font-size: 0.78rem;
+  color: var(--c-textdim);
+  margin-bottom: 14px;
+}
+
+.crumb a {
+  color: var(--c-textdim);
+  text-decoration: none;
+}
+
+.crumb a:hover {
+  color: var(--c-green);
+}
+
+.h1 {
+  margin: 0 0 8px;
+  font-size: clamp(1.45rem, 3.5vw, 1.75rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--c-text);
+}
+
+.lead {
+  margin: 0 0 18px;
+  max-width: 46rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--c-textdim);
+}
+
+.disclaimer {
+  margin: 0 0 22px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--c-textdim);
+}
+
+.search {
+  width: 100%;
+  max-width: 420px;
+  margin-bottom: 22px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: inherit;
+  font-size: 0.9rem;
+}
+
+.themeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 28px;
+}
+
+.themeCard {
+  display: block;
+  padding: 14px 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease;
+}
+
+.themeCard:hover {
+  border-color: var(--c-green);
+}
+
+.themeTitle {
+  margin: 0 0 6px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.themeMeta {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  color: var(--c-textdim);
+}
+
+.themeBlurb {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--c-textdim);
+}
+
+.levelRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 18px;
+}
+
+.levelChip,
+.levelChipOn {
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.78rem;
+  font-family: inherit;
+  cursor: pointer;
+  border: 1px solid var(--c-border);
+}
+
+.levelChip {
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.levelChipOn {
+  background: var(--c-green);
+  color: #fff;
+  border-color: var(--c-green);
+  font-weight: 700;
+}
+
+.termList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.termRow {
+  display: block;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  text-decoration: none;
+  color: inherit;
+}
+
+.termRow:hover {
+  border-color: var(--c-blue);
+}
+
+.termTitle {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.termDef {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  color: var(--c-textdim);
+}
+
+.badge {
+  display: inline-block;
+  margin-right: 6px;
+  margin-bottom: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--c-border);
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--c-textdim);
+  background: var(--c-bg);
+}
+
+.fiche {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 18px 18px 22px;
+}
+
+.sectionLabel {
+  margin: 16px 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--c-textdim);
+}
+
+.sectionBody {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--c-text);
+}
+
+.exampleBox {
+  margin-top: 6px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--c-border);
+  background: var(--c-bg);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--c-text);
+}
+
+.tip {
+  margin-top: 6px;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--c-textdim);
+}
+
+.sourceList {
+  margin: 6px 0 0;
+  padding-left: 1.15rem;
+  list-style: disc;
+}
+
+.sourceList li {
+  margin: 0 0 8px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  color: var(--c-textdim);
+}
+
+.extLink {
+  color: var(--c-blue);
+  font-size: 0.86rem;
+}
+
+.empty {
+  color: var(--c-textdim);
+  font-size: 0.88rem;
+}
+
+.categorySection {
+  margin-bottom: 32px;
+  scroll-margin-top: 24px;
+}
+
+.categoryHead {
+  margin: 0 0 6px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--c-text);
+}
+
+.categoryBlurb {
+  margin: 0 0 14px;
+  max-width: 40rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--c-textdim);
+}
+
+.categoryMeta {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  color: var(--c-textdim);
+}
+
+.illustration {
+  margin: 8px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+}
+
+.illustrationSvg {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+}
+
+.illustrationCap {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--c-textdim);
+}

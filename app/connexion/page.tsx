@@ -5,22 +5,22 @@ import { Suspense } from "react";
 import AppHeader from "@/components/AppHeader";
 import LoginForm from "@/components/auth/LoginForm";
 import { C } from "@/lib/theme/colors";
+import { PAGE_LEAD, PAGE_TITLE } from "@/lib/theme/typography";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Connexion — ouestBourse",
-  description: "Connectez-vous à votre compte ouestBourse pour accéder à votre portefeuille.",
+  title: "Connexion — OuestBourse",
+  description: "Connectez-vous à votre compte OuestBourse pour accéder à votre portefeuille.",
 };
 
 export default function ConnexionPage() {
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-      <AppHeader />
-      <div style={{ maxWidth: 420, margin: "0 auto", padding: "56px 20px" }}>
-        <h1 style={{ color: C.text, fontSize: "1.4rem", marginBottom: 4, textAlign: "center" }}>Connexion</h1>
-        <p style={{ color: C.textDim, fontSize: "0.85rem", textAlign: "center", marginBottom: 28 }}>
-          Accédez à votre portefeuille et vos préférences ouestBourse.
+    <AppHeader>
+      <div style={{ maxWidth: 460, margin: "0 auto", paddingTop: 24 }} data-align-left>
+        <h1 style={PAGE_TITLE}>Connexion</h1>
+        <p style={{ ...PAGE_LEAD, marginBottom: 28 }}>
+          Accédez à votre portefeuille et vos préférences OuestBourse.
         </p>
         <div style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 10, padding: 28 }}>
           <Suspense fallback={null}>
@@ -28,6 +28,6 @@ export default function ConnexionPage() {
           </Suspense>
         </div>
       </div>
-    </div>
+    </AppHeader>
   );
 }

@@ -1,27 +1,38 @@
-// Page "Marché" — étape 10 (navigation complète).
-// Contenu IDENTIQUE à l'ancien `app/page.tsx` (étape 8) : le dashboard
-// `BrvmDashboardClient` n'est PAS modifié (contrainte non-négociable), il est
-// simplement servi depuis `/marche` désormais, enveloppé par le nouveau
-// `AppHeader` (nav sombre/or additive, cf. AGENTS.md § Étape 10).
+// Page "Marché" — liste positions + analyses ; Projection/Comparaison → fiches sociétés.
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
-import BrvmDashboardClient from "@/components/BrvmDashboardClient";
+import { getMarketSummarySnapshot } from "@/lib/api/market-summary-snapshot";
+import {
+  getMarketSparkSeriesByTicker,
+  getMarketDayChangeByTicker,
+} from "@/lib/api/market-spark-series";
 import AppHeader from "@/components/AppHeader";
+import SiteFooter from "@/components/layout/SiteFooter";
+import MarketBoardClient from "@/components/marche/MarketBoardClient";
 
-// Toujours resservir les données les plus fraîches disponibles en base (les
-// KPIs et classements dépendent directement de l'état courant de l'ingestion).
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Marché — ouestBourse",
-  description: "Analyse financière des sociétés cotées à la BRVM : cours, dividendes, projections et signaux.",
+  title: "Marché — OuestBourse",
+  description:
+    "Analyse multi-marchés africains : BRVM, BVMAC, NGX, NSE, JSE, GSE, TSE — cours, indices et signaux.",
 };
 
 export default async function MarchePage() {
-  const dataset = await getCompaniesFullDataset();
+  const [dataset, marketSummary, sparkSeries, dayChanges] = await Promise.all([
+    getCompaniesFullDataset(),
+    getMarketSummarySnapshot().catch(() => null),
+    getMarketSparkSeriesByTicker().catch(() => ({})),
+    getMarketDayChangeByTicker().catch(() => ({})),
+  ]);
   return (
-    <>
-      <AppHeader />
-      <BrvmDashboardClient initialData={dataset} />
-    </>
+    <AppHeader>
+      <MarketBoardClient
+        initialData={dataset}
+        initialMarketSummary={marketSummary}
+        initialSparkSeries={sparkSeries}
+        initialDayChanges={dayChanges}
+      />
+      <SiteFooter />
+    </AppHeader>
   );
 }

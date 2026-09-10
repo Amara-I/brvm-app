@@ -1,0 +1,500 @@
+[
+  {
+    "slug": "action",
+    "title": "Action",
+    "definition": "Titre représentant une fraction du capital d’une société et donnant potentiellement droit à un dividende et à un vote.",
+    "hasDetails": false
+  },
+  {
+    "slug": "dividende",
+    "title": "Dividende",
+    "definition": "Part du bénéfice distribuée aux actionnaires, selon la décision de l’assemblée générale.",
+    "hasDetails": false
+  },
+  {
+    "slug": "bourse",
+    "title": "Bourse",
+    "definition": "Marché organisé où s’échangent des instruments financiers selon des règles communes.",
+    "hasDetails": false
+  },
+  {
+    "slug": "marche-primaire",
+    "title": "Marché primaire",
+    "definition": "Marché où des titres sont émis pour la première fois afin de financer l’émetteur.",
+    "hasDetails": false
+  },
+  {
+    "slug": "marche-secondaire",
+    "title": "Marché secondaire",
+    "definition": "Marché où des investisseurs s’échangent des titres déjà émis.",
+    "hasDetails": false
+  },
+  {
+    "slug": "indice-boursier",
+    "title": "Indice boursier",
+    "definition": "Indicateur statistique mesurant l’évolution d’un panier de valeurs selon une méthode donnée.",
+    "hasDetails": false
+  },
+  {
+    "slug": "cours",
+    "title": "Cours",
+    "definition": "Prix auquel un titre s’échange à un instant ou à une séance donnée.",
+    "hasDetails": false
+  },
+  {
+    "slug": "liquidite",
+    "title": "Liquidité",
+    "definition": "Facilité avec laquelle un titre peut être acheté ou vendu sans modifier fortement son prix.",
+    "hasDetails": false
+  },
+  {
+    "slug": "volatilite",
+    "title": "Volatilité",
+    "definition": "Amplitude et fréquence des variations du prix d’un titre ou d’un indice.",
+    "hasDetails": false
+  },
+  {
+    "slug": "marche-haussier-bull-market",
+    "title": "Marché haussier (bull market)",
+    "definition": "Période caractérisée par une tendance générale et durable à la hausse des cours.",
+    "hasDetails": false
+  },
+  {
+    "slug": "marche-baissier-bear-market",
+    "title": "Marché baissier (bear market)",
+    "definition": "Période caractérisée par une tendance générale à la baisse et un pessimisme dominant.",
+    "hasDetails": false
+  },
+  {
+    "slug": "ordre-de-bourse",
+    "title": "Ordre de bourse",
+    "definition": "Instruction donnée à un intermédiaire pour acheter ou vendre un titre selon des conditions précises.",
+    "hasDetails": false
+  },
+  {
+    "slug": "portefeuille",
+    "title": "Portefeuille",
+    "definition": "Ensemble des placements détenus par un investisseur.",
+    "hasDetails": false
+  },
+  {
+    "slug": "risque",
+    "title": "Risque",
+    "definition": "Possibilité qu’un résultat réel diffère du résultat attendu, y compris une perte.",
+    "hasDetails": false
+  },
+  {
+    "slug": "chiffre-d-affaires",
+    "title": "Chiffre d’affaires",
+    "definition": "Montant des ventes réalisées par une entreprise sur une période.",
+    "hasDetails": false
+  },
+  {
+    "slug": "benefice-net",
+    "title": "Bénéfice net",
+    "definition": "Résultat restant après déduction des charges, impôts et éléments financiers selon les comptes publiés.",
+    "hasDetails": false
+  },
+  {
+    "slug": "marge-beneficiaire",
+    "title": "Marge bénéficiaire",
+    "definition": "Bénéfice rapporté au chiffre d’affaires, généralement en pourcentage.",
+    "hasDetails": false
+  },
+  {
+    "slug": "per-price-earnings-ratio",
+    "title": "PER (Price/Earnings Ratio)",
+    "definition": "Cours de l’action divisé par le bénéfice par action.",
+    "hasDetails": false
+  },
+  {
+    "slug": "bpa-eps",
+    "title": "BPA / EPS",
+    "definition": "Bénéfice attribuable à chaque action en circulation.",
+    "hasDetails": false
+  },
+  {
+    "slug": "roe",
+    "title": "ROE",
+    "definition": "Rentabilité des capitaux propres : bénéfice net rapporté aux capitaux propres moyens.",
+    "hasDetails": false
+  },
+  {
+    "slug": "dette-equite",
+    "title": "Dette / Équité",
+    "definition": "Ratio comparant les dettes financières aux capitaux propres.",
+    "hasDetails": false
+  },
+  {
+    "slug": "capex-opex",
+    "title": "CAPEX / OPEX",
+    "definition": "CAPEX : dépenses d’investissement ; OPEX : dépenses courantes d’exploitation.",
+    "hasDetails": false
+  },
+  {
+    "slug": "rendement-du-dividende",
+    "title": "Rendement du dividende",
+    "definition": "Dividende annuel par action divisé par le cours de l’action.",
+    "hasDetails": false
+  },
+  {
+    "slug": "date-ex-dividende",
+    "title": "Date ex-dividende",
+    "definition": "Date à partir de laquelle l’acheteur du titre n’a plus droit au dividende annoncé.",
+    "hasDetails": false
+  },
+  {
+    "slug": "moyenne-mobile",
+    "title": "Moyenne mobile",
+    "definition": "Moyenne des cours sur un nombre donné de périodes, recalculée au fil du temps.",
+    "hasDetails": false
+  },
+  {
+    "slug": "rsi",
+    "title": "RSI",
+    "definition": "Oscillateur de momentum (0–100) qui compare l’ampleur moyenne des hausses et des baisses de cours sur une fenêtre donnée",
+    "hasDetails": true
+  },
+  {
+    "slug": "macd",
+    "title": "MACD",
+    "definition": "Indicateur de momentum fondé sur l’écart entre deux moyennes mobiles exponentielles.",
+    "hasDetails": false
+  },
+  {
+    "slug": "support-et-resistance",
+    "title": "Support et résistance",
+    "definition": "Zones où la demande ou l’offre ont historiquement freiné un mouvement de prix.",
+    "hasDetails": false
+  },
+  {
+    "slug": "capitalisation-boursiere",
+    "title": "Capitalisation boursière",
+    "definition": "Valeur de marché d’une société : cours multiplié par le nombre d’actions.",
+    "hasDetails": false
+  },
+  {
+    "slug": "roic",
+    "title": "ROIC",
+    "definition": "Rentabilité des capitaux investis : résultat opérationnel après impôt rapporté au capital investi.",
+    "hasDetails": false
+  },
+  {
+    "slug": "wacc",
+    "title": "WACC",
+    "definition": "Coût moyen pondéré du capital, combinant coût des fonds propres et coût de la dette après impôt.",
+    "hasDetails": false
+  },
+  {
+    "slug": "fcfe",
+    "title": "FCFE",
+    "definition": "Flux de trésorerie disponible pour les actionnaires après investissements et variation de dette.",
+    "hasDetails": false
+  },
+  {
+    "slug": "ev-ebitda",
+    "title": "EV/EBITDA",
+    "definition": "Multiple de la valeur d’entreprise rapportée à l’EBITDA.",
+    "hasDetails": false
+  },
+  {
+    "slug": "piotroski-f-score",
+    "title": "Piotroski F-Score",
+    "definition": "Score de neuf critères binaires évaluant rentabilité, levier/liquidité et efficacité opérationnelle.",
+    "hasDetails": false
+  },
+  {
+    "slug": "ichimoku-kinko-hyo",
+    "title": "Ichimoku Kinko Hyo",
+    "definition": "Système graphique combinant lignes de tendance, nuage et repères temporels pour apprécier tendance et momentum.",
+    "hasDetails": false
+  },
+  {
+    "slug": "retracement-de-fibonacci",
+    "title": "Retracement de Fibonacci",
+    "definition": "Repères proportionnels utilisés pour identifier des zones possibles de correction d’un mouvement.",
+    "hasDetails": false
+  },
+  {
+    "slug": "theorie-des-vagues-d-elliott",
+    "title": "Théorie des vagues d’Elliott",
+    "definition": "Cadre d’analyse proposant que les prix évoluent selon des vagues liées au comportement collectif.",
+    "hasDetails": false
+  },
+  {
+    "slug": "effet-de-levier",
+    "title": "Effet de levier",
+    "definition": "Utilisation de dette ou d’un instrument financé pour amplifier l’exposition et les résultats.",
+    "hasDetails": false
+  },
+  {
+    "slug": "vente-a-decouvert",
+    "title": "Vente à découvert",
+    "definition": "Vente d’un titre emprunté avec l’intention de le racheter plus tard à un prix inférieur.",
+    "hasDetails": false
+  },
+  {
+    "slug": "hedging-couverture",
+    "title": "Hedging / couverture",
+    "definition": "Technique visant à réduire une exposition défavorable au moyen d’une position compensatrice.",
+    "hasDetails": false
+  },
+  {
+    "slug": "beta",
+    "title": "Bêta",
+    "definition": "Mesure de la sensibilité d’un titre aux variations d’un marché de référence.",
+    "hasDetails": false
+  },
+  {
+    "slug": "prime-de-risque",
+    "title": "Prime de risque",
+    "definition": "Rendement supplémentaire exigé pour investir dans un actif risqué plutôt que dans une référence sans risque.",
+    "hasDetails": false
+  },
+  {
+    "slug": "valeur-intrinseque",
+    "title": "Valeur intrinsèque",
+    "definition": "Estimation de la valeur économique d’un titre à partir de ses flux, actifs, bénéfices et risques.",
+    "hasDetails": false
+  },
+  {
+    "slug": "signal-ouestbourse",
+    "title": "Signal d'investissement (OuestBourse)",
+    "definition": "Recommandation synthétique affichée sur la plateforme, dérivée d'un score composite (technique, fondamental, risque). Le",
+    "hasDetails": false
+  },
+  {
+    "slug": "score-composite",
+    "title": "Score composite",
+    "definition": "Note 0–100 combinant score technique, score fondamental, ajustement au risque et score sectoriel. Plus le score est élev",
+    "hasDetails": false
+  },
+  {
+    "slug": "confiance-du-signal",
+    "title": "Confiance du signal",
+    "definition": "Indicateur (Élevée, Moyenne, Faible) lié à la profondeur d'historique de cours. Une confiance faible plafonne les signau",
+    "hasDetails": false
+  },
+  {
+    "slug": "horizons-c-m-l",
+    "title": "Horizons court / moyen / long",
+    "definition": "Trois sous-scores 0–100 : court terme (performance récente + indicateurs techniques), moyen terme (ex. perf. 5 ans), lon",
+    "hasDetails": false
+  },
+  {
+    "slug": "score-technique",
+    "title": "Score technique",
+    "definition": "Synthèse 0–100 de la lecture graphique et des performances de prix (RSI, MACD, SMA, horizons). Distinct du score fondame",
+    "hasDetails": false
+  },
+  {
+    "slug": "score-fondamental",
+    "title": "Score fondamental",
+    "definition": "Synthèse 0–100 basée surtout sur le rendement du dividende, la régularité des distributions et le PER — à partir des don",
+    "hasDetails": false
+  },
+  {
+    "slug": "drawdown-maximal",
+    "title": "Drawdown maximal",
+    "definition": "Plus forte baisse cumulative observée entre un sommet et un creux sur la période analysée, exprimée en %. Mesure la doul",
+    "hasDetails": false
+  },
+  {
+    "slug": "var-value-at-risk",
+    "title": "VaR (Value at Risk)",
+    "definition": "Estimation empirique de la perte (en %) qui n'est dépassée qu'avec une faible probabilité (ex. 5 % pour une VaR 95 %) su",
+    "hasDetails": false
+  },
+  {
+    "slug": "cvar-expected-shortfall",
+    "title": "CVaR (Expected Shortfall)",
+    "definition": "Moyenne des pertes au-delà de la VaR (ex. au-delà des 5 % pires jours). Mesure la sévérité de la queue de distribution.",
+    "hasDetails": false
+  },
+  {
+    "slug": "sante-financiere",
+    "title": "Santé financière",
+    "definition": "Note sur 10 dérivée de piliers calibrés sur les métriques BRVM disponibles dans OuestBourse — pas un audit comptable com",
+    "hasDetails": false
+  },
+  {
+    "slug": "donnee-n-d",
+    "title": "Donnée N/D",
+    "definition": "Mention « N/D » (non disponible) affichée dès qu'une information manque, est invalide ou non encore ingérée. Jamais remp",
+    "hasDetails": false
+  },
+  {
+    "slug": "source-canonique",
+    "title": "Source canonique",
+    "definition": "Valeur retenue après réconciliation multi-sources. Priorité : BRVM officiel > Sikafinance > Richbourse > saisie manuelle",
+    "hasDetails": false
+  },
+  {
+    "slug": "brvm",
+    "title": "BRVM",
+    "definition": "Bourse Régionale des Valeurs Mobilières : marché organisé des titres de l'espace UEMOA (Afrique de l'Ouest), avec cotati",
+    "hasDetails": false
+  },
+  {
+    "slug": "uemoa",
+    "title": "UEMOA",
+    "definition": "Union Économique et Monétaire Ouest-Africaine : zone à monnaie commune (FCFA) dont plusieurs pays ont des émetteurs coté",
+    "hasDetails": false
+  },
+  {
+    "slug": "sgi",
+    "title": "SGI",
+    "definition": "Société de Gestion et d'Intermédiation : intermédiaire habilité à recevoir et transmettre les ordres des investisseurs s",
+    "hasDetails": false
+  },
+  {
+    "slug": "bandes-de-bollinger",
+    "title": "Bandes de Bollinger",
+    "definition": "Enveloppe autour d'une moyenne mobile (souvent 20 périodes) à ± k écarts-types. Visualise la volatilité et les zones de ",
+    "hasDetails": false
+  },
+  {
+    "slug": "ema",
+    "title": "EMA (moyenne mobile exponentielle)",
+    "definition": "Moyenne mobile qui donne plus de poids aux cours récents que la SMA. Réagit plus vite aux retournements.",
+    "hasDetails": false
+  },
+  {
+    "slug": "obv",
+    "title": "OBV (On-Balance Volume)",
+    "definition": "Indicateur de flux qui cumule le volume selon que le cours clôture en hausse ou en baisse, pour estimer la pression ache",
+    "hasDetails": false
+  },
+  {
+    "slug": "chandeliers-ohlc",
+    "title": "Chandeliers (OHLC)",
+    "definition": "Représentation graphique d'une séance : Ouverture, Plus Haut, Plus Bas, Clôture (Open/High/Low/Close). La couleur indiqu",
+    "hasDetails": false
+  },
+  {
+    "slug": "screener",
+    "title": "Screener",
+    "definition": "Outil de filtrage et de classement des valeurs selon des critères (rendement, croissance, valorisation, solidité, etc.) ",
+    "hasDetails": false
+  },
+  {
+    "slug": "projection-future",
+    "title": "Projection future",
+    "definition": "Scénarios de cours futurs (central, optimiste, pessimiste) issus d'une régression sur l'historique — illustration pédago",
+    "hasDetails": false
+  },
+  {
+    "slug": "golden-cross-death-cross",
+    "title": "Golden cross / Death cross",
+    "definition": "Golden cross : une moyenne mobile courte croise au-dessus d'une longue (signal haussier classique). Death cross : croise",
+    "hasDetails": false
+  },
+  {
+    "slug": "pourquoi-analyser-une-action",
+    "title": "Pourquoi analyser une action",
+    "definition": "Analyser une action, c’est structurer l’information disponible (cours, comptes, liquidité, contexte) pour mieux comprend",
+    "hasDetails": false
+  },
+  {
+    "slug": "limites-de-l-analyse",
+    "title": "Limites de l’analyse",
+    "definition": "Toute analyse repose sur des données partielles, parfois en retard, et sur des hypothèses. Sur la BRVM, la liquidité fai",
+    "hasDetails": false
+  },
+  {
+    "slug": "parcours-d-analyse",
+    "title": "Parcours d’analyse (étapes)",
+    "definition": "Enchaînement recommandé : (1) contexte marché et liquidité, (2) fondamentaux et dividendes, (3) valorisation, (4) lectur",
+    "hasDetails": false
+  },
+  {
+    "slug": "type-analyse-fondamentale",
+    "title": "Type : analyse fondamentale",
+    "definition": "Étudie les comptes, la rentabilité, l’endettement et la capacité à générer des résultats / dividendes — indépendamment d",
+    "hasDetails": false
+  },
+  {
+    "slug": "type-analyse-valorisation",
+    "title": "Type : valorisation",
+    "definition": "Compare le prix de marché à une mesure de résultat ou d’actif (PER, capitalisation, multiples) pour situer cher / bon ma",
+    "hasDetails": false
+  },
+  {
+    "slug": "type-analyse-technique",
+    "title": "Type : analyse technique",
+    "definition": "Lit le comportement du prix et du volume (moyennes, RSI, MACD, supports) pour décrire momentum et niveaux — sans remplac",
+    "hasDetails": false
+  },
+  {
+    "slug": "adx",
+    "title": "ADX (+DI / −DI)",
+    "definition": "L’ADX mesure la force d’une tendance (pas sa direction) ; +DI et −DI indiquent la dominance haussière ou baissière. Souv",
+    "hasDetails": false
+  },
+  {
+    "slug": "stochastique",
+    "title": "Stochastique (%K / %D)",
+    "definition": "Oscillateur comparant le cours de clôture à la fourchette haut-bas récente. %K est la ligne rapide ; %D un lissage de %K",
+    "hasDetails": false
+  },
+  {
+    "slug": "williams-r",
+    "title": "Williams %R",
+    "definition": "Oscillateur proche du stochastique, généralement entre −100 et 0, mesurant la position du cours dans la fourchette récen",
+    "hasDetails": false
+  },
+  {
+    "slug": "cci",
+    "title": "CCI (Commodity Channel Index)",
+    "definition": "Mesure l’écart du prix typique (H+L+C)/3 par rapport à sa moyenne, souvent sur 20 périodes. Valeurs extrêmes (±100) sign",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-accueil",
+    "title": "Menu : Accueil (landing)",
+    "definition": "Page d’entrée publique présentant OuestBourse, les modules et un accès rapide vers Marché, Screener, Graphes et le reste",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-marche",
+    "title": "Menu : Marché",
+    "definition": "Vue d’ensemble des positions BRVM (et sélecteur multi-marchés) : liste des titres, scores, perf/dividendes, accès fiche ",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-screener",
+    "title": "Menu : Screener",
+    "definition": "Filtre et compare les sociétés selon rentabilité, dividendes, croissance, valorisation, secteur ou pays — branché sur ca",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-graphes",
+    "title": "Menu : Graphes",
+    "definition": "Workbench d’analyse graphique : chandeliers, plages, indicateurs (SMA, RSI, MACD, ADX…), tracés et alertes de seuil (com",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-fiche-societe",
+    "title": "Menu : Fiche société",
+    "definition": "Page /actions/[ticker] : cours, performances, données clés, dividendes, santé financière, signal, projection et comparai",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-portefeuille",
+    "title": "Menu : Portefeuille",
+    "definition": "Suivi des positions personnelles (valeur de marché, plus/moins-value vs prix moyen d’achat, allocation sectorielle, YTD)",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-alertes",
+    "title": "Menu : Alertes de prix",
+    "definition": "Seuils au-dessus / en-dessous d’un cours, créés depuis /graphes (compte connecté) et évalués après rafraîchissement des ",
+    "hasDetails": false
+  },
+  {
+    "slug": "menu-calendrier-dividendes",
+    "title": "Menu : Calendrier des dividendes",
+    "definition": "Vue des dates et montants de dividendes connus en base — utile pour planifier un suivi de rendement, pas une promesse de",
+    "hasDetails": false
+  }
+]

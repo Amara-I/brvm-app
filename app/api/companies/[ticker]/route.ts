@@ -39,7 +39,18 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
     prisma.financialRatio.findMany({
       where: { companyId: company.id, isCanonical: true },
       orderBy: { year: "asc" },
-      select: { year: true, per: true, mktCap: true, roe: true, netMargin: true, source: true },
+      select: {
+        year: true,
+        per: true,
+        mktCap: true,
+        roe: true,
+        netMargin: true,
+        debtRatio: true,
+        pbRatio: true,
+        revenueGrowth: true,
+        fcf: true,
+        source: true,
+      },
     }),
   ]);
 
@@ -83,6 +94,10 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
         mktCap: r.mktCap !== null ? Number(r.mktCap) : "N/D",
         roe: r.roe !== null ? Number(r.roe) : "N/D",
         netMargin: r.netMargin !== null ? Number(r.netMargin) : "N/D",
+        debtRatio: r.debtRatio !== null ? Number(r.debtRatio) : "N/D",
+        pbRatio: r.pbRatio !== null ? Number(r.pbRatio) : "N/D",
+        revenueGrowth: r.revenueGrowth !== null ? Number(r.revenueGrowth) : "N/D",
+        fcf: r.fcf !== null ? Number(r.fcf) : "N/D",
         source: r.source,
       })),
       lastSyncedAt,

@@ -50,7 +50,7 @@ Avant de proposer un changement visuel, comparer avec
 `reference/BRVM_Dashboard.jsx` et justifier explicitement toute divergence
 (hors landing page, qui suit sa propre spécification ci-dessus).
 
-## ⚠️ MISE À JOUR — Rebranding complet "ouestBourse", validé le 09/08/2026 (soir)
+## ⚠️ MISE À JOUR — Rebranding complet "OuestBourse", validé le 09/08/2026 (soir)
 
 **Cette section REMPLACE les deux points suivants ci-dessus**, désormais
 obsolètes :
@@ -59,11 +59,11 @@ obsolètes :
 - ~~"Le nom/logo affiché reste 'BRVM App' (pas de copie de marque tierce)"~~
 
 L'utilisateur a confirmé explicitement (09/08/2026) être le **propriétaire de
-la marque "ouestBourse"** (nom + logo fournis directement par l'utilisateur :
+la marque "OuestBourse"** (nom + logo fournis directement par l'utilisateur :
 `public/logo.png`) — il ne s'agit donc PAS d'une contrefaçon de marque tierce,
 mais du nom réel de ce produit. Décisions validées explicitement :
 
-1. **Nom + logo "ouestBourse" partout** dans l'application (landing ET toutes
+1. **Nom + logo "OuestBourse" partout** dans l'application (landing ET toutes
    les pages internes), en remplacement de "BRVM App". Source de vérité
    unique : `lib/theme/brand.ts` — ne jamais coder en dur "BRVM App" ni un
    autre chemin de logo ailleurs.
@@ -95,12 +95,12 @@ mais du nom réel de ce produit. Décisions validées explicitement :
      ouestbourse.com.
 5. Les contenus/sections copiés depuis https://ouestbourse.com/fr (structure
    du méga-menu "Sociétés cotées" par secteur, bandeau de stats, etc.) sont
-   repris **structurellement** avec les **vraies données ouestBourse**, pas
+   repris **structurellement** avec les **vraies données OuestBourse**, pas
    les chiffres de la société tierce ouestbourse.com.
 
 ## ⚠️ MISE À JOUR — Bascule mode clair/sombre, ajoutée le 09/08/2026 (soir)
 
-Le thème clair "ouestBourse" ci-dessus reste le **thème PAR DÉFAUT** de tout
+Le thème clair "OuestBourse" ci-dessus reste le **thème PAR DÉFAUT** de tout
 le site, mais un bouton de bascule (☀️/🌙, `components/theme/ThemeToggle.tsx`,
 dans le header partagé) permet à chaque visiteur de repasser vers un thème
 sombre — qui reprend **exactement** l'ancienne palette sombre/or d'origine du

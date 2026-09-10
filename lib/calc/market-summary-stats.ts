@@ -15,7 +15,9 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { calcMetrics } from "@/lib/calc/calc-metrics";
+import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import type { CompaniesFullDataset } from "@/lib/api/companies-full-dataset";
+import type { ChartClosePoint } from "@/lib/charts/indicators";
 
 export interface MarketSummaryStats {
   companiesCount: number;
@@ -27,10 +29,29 @@ export interface MarketSummaryStats {
   lastYear: number | null;
 }
 
-export function computeMarketSummaryStats(dataset: CompaniesFullDataset): MarketSummaryStats {
+export function computeMarketSummaryStats(
+  dataset: CompaniesFullDataset,
+  closesByTicker?: Record<string, ChartClosePoint[]>
+): MarketSummaryStats {
   const { years, companies } = dataset;
 
-  const metricsByTicker = new Map(companies.map((co) => [co.ticker, calcMetrics({ years, prices: co.prices, dividends: co.dividends, per: co.per })]));
+  const metricsByTicker = new Map(
+    companies.map((co) => {
+      const closes = closesByTicker?.[co.ticker];
+      return [
+        co.ticker,
+        calcMetrics({
+          years,
+          prices: pricesSyncedToLatestClose(co.prices, closes),
+          dividends: co.dividends,
+          per: co.per,
+          mktcap: co.mktcap,
+          sector: co.sector,
+          closes: closes && closes.length > 0 ? closes : undefined,
+        }),
+      ] as const;
+    })
+  );
 
   const totalMarketCapBnFcfa = companies.reduce((a, b) => a + b.mktcap, 0);
 
@@ -65,17 +86,38 @@ export interface CompanyWithMetrics {
 /// utilisé par le Screener (`app/screener/page.tsx`) pour permettre un tri
 ////filtrage instantané côté client SANS recalculer les métriques (déjà
 /// calculées côté serveur, même fonction que le dashboard et l'export Excel).
-export function allCompaniesWithMetrics(dataset: CompaniesFullDataset): CompanyWithMetrics[] {
+export function allCompaniesWithMetrics(
+  dataset: CompaniesFullDataset,
+  closesByTicker?: Record<string, ChartClosePoint[]>
+): CompanyWithMetrics[] {
   const { years, companies } = dataset;
-  return companies.map((co) => ({ co, metrics: calcMetrics({ years, prices: co.prices, dividends: co.dividends, per: co.per }) }));
+  return companies.map((co) => {
+    const closes = closesByTicker?.[co.ticker];
+    return {
+      co,
+      metrics: calcMetrics({
+        years,
+        prices: pricesSyncedToLatestClose(co.prices, closes),
+        dividends: co.dividends,
+        per: co.per,
+        mktcap: co.mktcap,
+        sector: co.sector,
+        closes: closes && closes.length > 0 ? closes : undefined,
+      }),
+    };
+  });
 }
 
 /// Sociétés les mieux notées (score `calcMetrics` décroissant), pour les
 /// aperçus/cartes de la landing page — n'affiche jamais de donnée inventée :
 /// si `limit` dépasse le nombre de sociétés disponibles, retourne simplement
 /// tout ce qui existe.
-export function topScoredCompanies(dataset: CompaniesFullDataset, limit: number): CompanyWithMetrics[] {
-  return allCompaniesWithMetrics(dataset)
+export function topScoredCompanies(
+  dataset: CompaniesFullDataset,
+  limit: number,
+  closesByTicker?: Record<string, ChartClosePoint[]>
+): CompanyWithMetrics[] {
+  return allCompaniesWithMetrics(dataset, closesByTicker)
     .sort((a, b) => b.metrics.score - a.metrics.score)
     .slice(0, limit);
 }
@@ -103,11 +145,18 @@ export interface SectorGroup {
 /// chiffre inventé).
 export function groupCompaniesBySector(dataset: CompaniesFullDataset): SectorGroup[] {
   const { years, companies } = dataset;
-  const lastYear = years[years.length - 1];
 
   const bySector = new Map<string, SectorGroupEntry[]>();
   for (const co of companies) {
-    const lastPrice = lastYear !== undefined ? co.prices[lastYear] ?? null : null;
+    let lastPrice: number | null = null;
+    for (let i = years.length - 1; i >= 0; i--) {
+      const y = years[i]!;
+      const p = co.prices[y];
+      if (p != null && p > 0) {
+        lastPrice = p;
+        break;
+      }
+    }
     const entry: SectorGroupEntry = { ticker: co.ticker, name: co.name, countryFlag: co.countryFlag, lastPrice };
     const bucket = bySector.get(co.sector) ?? [];
     bucket.push(entry);

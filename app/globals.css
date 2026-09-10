@@ -12,7 +12,7 @@
    projet (`reference/BRVM_Dashboard.jsx`, non-négociable jusqu'à l'étape 11)
    — rien n'est perdu, elle redevient un choix disponible plutôt que le seul
    thème possible. `:root` (sans attribut = mode clair) est la palette
-   "ouestBourse" claire introduite à l'étape 11, qui reste la valeur par
+   "OuestBourse" claire introduite à l'étape 11, qui reste la valeur par
    défaut du site. Bascule pilotée par `components/theme/ThemeToggle.tsx`
    (persistée en `localStorage`, appliquée avant hydratation dans
    `app/layout.tsx` pour éviter tout flash de mauvais thème). */
@@ -28,12 +28,26 @@
   --c-silver: #94a3b8;
   --c-text: #16241b;
   --c-textdim: #5b6b60;
+  /* Méta Source / Synchronisé — contraste renforcé (AD-2026-08-22-001) */
+  --c-text-meta: #3a4a40;
   --c-teal: #0d9488;
   --c-purple: #9333ea;
   --c-border-thin: rgba(226, 229, 221, 0.125);
   --c-green-soft: rgba(30, 122, 66, 0.19);
   --c-red-soft: rgba(220, 38, 38, 0.19);
   --c-selected-bg: rgba(30, 122, 66, 0.08);
+  /* Échelle typographique — Inter, lisibilité renforcée */
+  --fs-body: 1.25rem;
+  --fs-body-sm: 1.125rem;
+  --fs-body-xs: 1rem;
+  --fs-nav: 1.125rem;
+  --fs-page-title: clamp(2.35rem, 5vw, 3.35rem);
+  --fs-page-lead: 1.25rem;
+  --fs-hero-title: clamp(2.75rem, 6.5vw, 3.85rem);
+  --fs-section: 1.5rem;
+  --logo-height-sidebar: 3.5rem;
+  --logo-height-topbar: 2.875rem;
+  --app-header-height: calc(var(--logo-height-sidebar) + 1.75rem);
   color-scheme: light;
 }
 
@@ -49,6 +63,7 @@
   --c-silver: #94a3b8;
   --c-text: #e2d9c5;
   --c-textdim: #6b7280;
+  --c-text-meta: #b8c0cc;
   --c-teal: #14b8a6;
   --c-purple: #a855f7;
   --c-border-thin: rgba(28, 35, 51, 0.125);
@@ -60,6 +75,39 @@
 
 body {
   background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: var(--fs-body);
+  line-height: 1.6;
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  line-height: 1.25;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Select natifs : lisibilité des listes déroulantes (Windows / dark mode). */
+select {
+  color-scheme: inherit;
+}
+
+select option {
+  background-color: var(--c-bg);
+  color: var(--c-text);
 }
 
 /* Styles globaux minimaux — étape 9 (checklist de conformité, volet a11y).
@@ -69,19 +117,47 @@ body {
 
 .skip-link {
   position: absolute;
-  top: -40px;
+  top: -48px;
   left: 0;
-  background: var(--c-panel);
-  color: var(--c-gold);
+  background: var(--c-blue);
+  color: #fff;
   padding: 10px 16px;
   z-index: 1000;
-  font-family: "Trebuchet MS", Georgia, serif;
+  font-family: inherit;
   font-size: 0.85rem;
-  border: 1px solid var(--c-border);
-  border-radius: 0 0 6px 0;
+  font-weight: 700;
+  border: 2px solid var(--c-blue);
+  border-radius: 0 0 8px 0;
   text-decoration: none;
 }
 
 .skip-link:focus {
   top: 0;
+  outline: 3px solid var(--c-text);
+  outline-offset: 2px;
+}
+
+/* Focus clavier visible (AD-2026-08-18-001) — n'altère pas le style souris. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 3px solid var(--c-blue);
+  outline-offset: 2px;
+}
+
+@media (max-width: 860px) {
+  :root {
+    --fs-page-title: clamp(2rem, 6vw, 2.5rem);
+    --fs-hero-title: clamp(2.2rem, 6.5vw, 2.85rem);
+    --fs-page-lead: 1.125rem;
+    --logo-height-sidebar: 3.125rem;
+    --logo-height-topbar: 2.625rem;
+  }
+
+  body {
+    font-size: 1.125rem;
+    line-height: 1.55;
+  }
 }

@@ -1,0 +1,128 @@
+.wrap {
+  margin-top: 4px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.form,
+.results {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 18px 18px 16px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 0.78rem;
+  color: var(--c-text-dim, var(--c-textDim));
+  font-weight: 600;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 9px 11px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.hint {
+  margin: 8px 0 0;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.kpi {
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 12px 12px 10px;
+}
+
+.kpiLabel {
+  display: block;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--c-text-dim, var(--c-textDim));
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.kpiValue {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart {
+  width: 100%;
+  min-height: 320px;
+}
+
+.chartLegendBox {
+  margin-top: 16px;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-bg);
+}
+
+.chartLegendTitle {
+  margin: 0 0 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.chartLegendLine {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 6px;
+  font-size: 0.68rem;
+  line-height: 1.35;
+  color: var(--c-text-dim, var(--c-textDim));
+}
+
+.chartLegendLine:last-child {
+  margin-bottom: 0;
+}
+
+.chartLegendLine strong {
+  color: var(--c-text);
+  font-weight: 700;
+}
+
+.legendSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+@media (max-width: 860px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

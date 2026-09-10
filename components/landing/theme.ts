@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Palette du HERO de la landing page — étape 11 (rebranding ouestBourse)
+// Palette du HERO de la landing page — étape 11 (rebranding OuestBourse)
 // ═══════════════════════════════════════════════════════════════════════════
 // Historique : à l'étape 10, toute la landing page utilisait une palette
 // sombre dédiée (brun/orangé, approximative — aucune capture réelle
@@ -25,5 +25,6 @@ export const LC = {
   green: "#4ADE80",
 } as const;
 
-export const LANDING_SANS = "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
-export const LANDING_SERIF = "Georgia, 'Times New Roman', serif";
+export const LANDING_SANS =
+  'var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+export const LANDING_SERIF = LANDING_SANS;

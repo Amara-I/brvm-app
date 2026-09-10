@@ -1,25 +1,30 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Sélection du fournisseur de recherche — étape 10
+// Sélection du fournisseur de recherche — étape 10 (+ fallback DDG étape 16)
 // ═══════════════════════════════════════════════════════════════════════════
-// Feature-flaggé comme les connecteurs d'ingestion (`lib/ingestion/connector-config.ts`) :
-// `RESEARCH_AGENT_ENABLED` doit être explicitement `"true"` ET une clé
-// `RESEARCH_SEARCH_API_KEY` doit être configurée pour qu'un vrai appel réseau
-// soit effectué. Par défaut, retombe sur `NoOpSearchProvider` (aucun appel
-// réseau, comportement sûr par défaut).
+// RESEARCH_AGENT_ENABLED doit être explicitement "true" pour tout appel
+// réseau. Priorité :
+//   1. SerpAPI si RESEARCH_SEARCH_API_KEY est renseignée
+//   2. DuckDuckGo HTML (sans clé) sinon — veille best-effort
+//   3. NoOp si l'agent est désactivé
 // ═══════════════════════════════════════════════════════════════════════════
 
 import type { SearchProvider } from "./types";
 import { NoOpSearchProvider } from "./search-providers/no-op-provider";
 import { SerpApiSearchProvider } from "./search-providers/serpapi-provider";
+import { GoogleNewsRssSearchProvider } from "./search-providers/google-news-rss-provider";
 
 export function isResearchAgentEnabled(): boolean {
   return process.env.RESEARCH_AGENT_ENABLED === "true";
 }
 
 export function getSearchProvider(): SearchProvider {
-  const apiKey = process.env.RESEARCH_SEARCH_API_KEY;
-  if (isResearchAgentEnabled() && apiKey) {
+  if (!isResearchAgentEnabled()) {
+    return new NoOpSearchProvider();
+  }
+  const apiKey = process.env.RESEARCH_SEARCH_API_KEY?.trim();
+  if (apiKey) {
     return new SerpApiSearchProvider(apiKey);
   }
-  return new NoOpSearchProvider();
+  // Sans clé SerpAPI : Google News RSS (DDG HTML est bloqué par challenge anti-bot).
+  return new GoogleNewsRssSearchProvider();
 }

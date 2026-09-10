@@ -5,7 +5,12 @@
 /// Mêmes valeurs que l'enum Prisma `DataSource` (prisma/schema.prisma) — dupliqué
 /// ici en littéral TS pour que ce module reste utilisable indépendamment du
 /// client Prisma généré (ex: dans un script CLI léger ou un test unitaire).
-export type DataSourceCode = "BRVM_OFFICIEL" | "SIKAFINANCE" | "RICHBOURSE" | "MANUEL";
+export type DataSourceCode =
+  | "BRVM_OFFICIEL"
+  | "SIKAFINANCE"
+  | "OUESTBOURSE"
+  | "RICHBOURSE"
+  | "MANUEL";
 
 /// Cotation d'un indice de marché récupérée depuis une source.
 export interface RawIndexQuote {
@@ -30,6 +35,117 @@ export interface RawPriceQuote {
   volume: number | null;
   source: DataSourceCode;
   date: string; // "YYYY-MM-DD"
+  fetchedAt: string;
+  /// Variation journalière officielle (%) si la source la publie (ex. BRVM.org).
+  changePercent?: number | null;
+  /// Cours de la veille (FCFA) si publié à côté de la clôture.
+  prevClose?: number | null;
+}
+
+/// Fondamentaux publiés sur la fiche société (PER + capitalisation).
+/// La capitalisation est convertie en milliards de FCFA (unité affichée dans
+/// le dashboard, cf. schema FinancialRatio.mktCap).
+/// Champs optionnels : enrichissement multi-source (ex. Sikafinance SOCIETE).
+export interface RawCompanyFundamentals {
+  ticker: string;
+  year: number;
+  per: number | null;
+  /// Capitalisation globale en milliards de FCFA (arrondie).
+  mktCapMds: number | null;
+  closePrice: number | null;
+  source: DataSourceCode;
+  fetchedAt: string;
+  roe?: number | null;
+  netMargin?: number | null;
+  revenueGrowth?: number | null;
+  /// Chiffre d'affaires en milliards de FCFA.
+  revenue?: number | null;
+  /// Résultat net en milliards de FCFA.
+  netIncome?: number | null;
+  /// Résultat d'exploitation en milliards de FCFA.
+  operatingIncome?: number | null;
+  debtRatio?: number | null;
+  pbRatio?: number | null;
+  fcf?: number | null;
+}
+
+/// Dividende annuel brut récupéré depuis une source (ex. tableau SOCIETE Sika).
+export interface RawDividendRow {
+  ticker: string;
+  year: number;
+  amount: number;
+  source: DataSourceCode;
+  fetchedAt: string;
+  /** YYYY-MM-DD — date ex-dividende si publiée (ex. calendrier BRVM). */
+  exDate?: string | null;
+  /** YYYY-MM-DD — date de paiement si publiée. */
+  paymentDate?: string | null;
+}
+
+/// Profil texte / identité société (Sikafinance SOCIETE / OB brvm_company_profiles).
+export interface RawCompanyProfile {
+  ticker: string;
+  isin: string | null;
+  description: string | null;
+  /// Nombre de titres en circulation (si publié).
+  sharesOutstanding: number | null;
+  /// Flottant en % (si publié).
+  floatPercent: number | null;
+  phone: string | null;
+  fax: string | null;
+  address: string | null;
+  directors: string | null;
+  /// Valorisation brute telle que publiée (ex. "3 698 000 MFCFA").
+  valuationLabel: string | null;
+  shareholders: Array<{ name: string; percent: number | null }>;
+  /// Date de référence de l'actionnariat (ISO date), si connue.
+  shareholdersAsOf?: string | null;
+  /** Direction générale (CEO), source BRVM/OB. */
+  ceo?: string | null;
+  /** Présidence du conseil. */
+  chairman?: string | null;
+  /** Industrie BRVM (ex. TELECOMMUNICATION). */
+  industry?: string | null;
+  website?: string | null;
+  /** Introduction en bourse (YYYY-MM-DD). */
+  listingDate?: string | null;
+  source: DataSourceCode;
+  fetchedAt: string;
+}
+
+/// Actualité liée à une valeur (page news_valeur Sikafinance).
+export interface RawCompanyNewsItem {
+  ticker: string;
+  title: string;
+  url: string;
+  summary: string | null;
+  publishedAt: string | null; // ISO datetime ou date
+  sourceName: string;
+  fetchedAt: string;
+}
+
+/// Événement corporate (page events Sikafinance).
+export interface RawCompanyEventItem {
+  ticker: string;
+  title: string;
+  eventDate: string; // ISO date
+  endDate: string | null;
+  comment: string | null;
+  sourceName: string;
+  fetchedAt: string;
+}
+
+/// Document déposé (catalogue OB / BRVM.org — pas de scrape /docs Sika).
+export interface RawCompanyDocument {
+  ticker: string;
+  title: string | null;
+  filename: string | null;
+  url: string;
+  docType: string | null;
+  periodLabel: string | null;
+  publishedAt: string | null; // ISO date
+  sourceName: string;
+  externalId: string | null;
   fetchedAt: string;
 }
 

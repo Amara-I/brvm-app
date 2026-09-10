@@ -2,50 +2,50 @@
   {
     "ticker": "SNTS",
     "metrics": {
-      "perf5": "18.5",
-      "perf10": "103.2",
+      "perf5": "33.3",
+      "perf10": "128.6",
       "avgDiv": "1339",
-      "yield_": "5.82",
-      "volat": "6.8",
+      "yield_": "5.17",
+      "volat": "7.9",
       "risk": "Faible",
-      "score": 69,
+      "score": 72,
       "sig": {
         "label": "ACHAT",
         "color": "#84CC16"
       },
-      "currentPrice": 28450,
+      "currentPrice": 32000,
       "currentDiv": 1655
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 31332,
-        "optimistic": 36032,
-        "pessimistic": 26632
+        "projected": 32515,
+        "optimistic": 37392,
+        "pessimistic": 27638
       },
       {
         "year": 2028,
-        "projected": 32685,
-        "optimistic": 37588,
-        "pessimistic": 27782
+        "projected": 34005,
+        "optimistic": 39105,
+        "pessimistic": 28904
       },
       {
         "year": 2029,
-        "projected": 34038,
-        "optimistic": 39143,
-        "pessimistic": 28932
+        "projected": 35494,
+        "optimistic": 40818,
+        "pessimistic": 30170
       },
       {
         "year": 2030,
-        "projected": 35391,
-        "optimistic": 40699,
-        "pessimistic": 30082
+        "projected": 36984,
+        "optimistic": 42531,
+        "pessimistic": 31436
       },
       {
         "year": 2031,
-        "projected": 36744,
-        "optimistic": 42255,
-        "pessimistic": 31232
+        "projected": 38473,
+        "optimistic": 44244,
+        "pessimistic": 32702
       }
     ]
   },
@@ -55,197 +55,197 @@
       "perf5": "N/D",
       "perf10": "N/D",
       "avgDiv": "703",
-      "yield_": "4.20",
-      "volat": "7.2",
+      "yield_": "3.88",
+      "volat": "9.3",
       "risk": "Faible",
-      "score": 37,
+      "score": 36,
       "sig": {
         "label": "ALLÉGER",
         "color": "#F97316"
       },
-      "currentPrice": 15700,
+      "currentPrice": 17000,
       "currentDiv": 660
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 17100,
-        "optimistic": 19665,
-        "pessimistic": 14535
+        "projected": 18140,
+        "optimistic": 20861,
+        "pessimistic": 15419
       },
       {
         "year": 2028,
-        "projected": 17940,
-        "optimistic": 20631,
-        "pessimistic": 15249
+        "projected": 19240,
+        "optimistic": 22126,
+        "pessimistic": 16354
       },
       {
         "year": 2029,
-        "projected": 18780,
-        "optimistic": 21597,
-        "pessimistic": 15963
+        "projected": 20340,
+        "optimistic": 23391,
+        "pessimistic": 17289
       },
       {
         "year": 2030,
-        "projected": 19620,
-        "optimistic": 22563,
-        "pessimistic": 16677
+        "projected": 21440,
+        "optimistic": 24656,
+        "pessimistic": 18224
       },
       {
         "year": 2031,
-        "projected": 20460,
-        "optimistic": 23529,
-        "pessimistic": 17391
+        "projected": 22540,
+        "optimistic": 25921,
+        "pessimistic": 19159
       }
     ]
   },
   {
     "ticker": "ONTBF",
     "metrics": {
-      "perf5": "9.8",
-      "perf10": "58.6",
+      "perf5": "11.9",
+      "perf10": "61.7",
       "avgDiv": "149",
-      "yield_": "6.65",
-      "volat": "4.3",
+      "yield_": "6.53",
+      "volat": "4.5",
       "risk": "Faible",
-      "score": 63,
+      "score": 64,
       "sig": {
         "label": "CONSERVER",
         "color": "#D4A843"
       },
-      "currentPrice": 2855,
+      "currentPrice": 2910,
       "currentDiv": 190
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 3110,
-        "optimistic": 3576,
-        "pessimistic": 2643
+        "projected": 3128,
+        "optimistic": 3597,
+        "pessimistic": 2659
       },
       {
         "year": 2028,
-        "projected": 3215,
-        "optimistic": 3697,
-        "pessimistic": 2733
+        "projected": 3235,
+        "optimistic": 3720,
+        "pessimistic": 2750
       },
       {
         "year": 2029,
-        "projected": 3320,
-        "optimistic": 3818,
-        "pessimistic": 2822
+        "projected": 3342,
+        "optimistic": 3844,
+        "pessimistic": 2841
       },
       {
         "year": 2030,
-        "projected": 3425,
-        "optimistic": 3938,
-        "pessimistic": 2911
+        "projected": 3449,
+        "optimistic": 3967,
+        "pessimistic": 2932
       },
       {
         "year": 2031,
-        "projected": 3530,
-        "optimistic": 4059,
-        "pessimistic": 3000
+        "projected": 3557,
+        "optimistic": 4090,
+        "pessimistic": 3023
       }
     ]
   },
   {
     "ticker": "CBIBF",
     "metrics": {
-      "perf5": "78.9",
-      "perf10": "436.6",
+      "perf5": "137.1",
+      "perf10": "611.3",
       "avgDiv": "298",
-      "yield_": "2.59",
-      "volat": "16.7",
+      "yield_": "1.95",
+      "volat": "19.8",
       "risk": "Moyen",
-      "score": 70,
+      "score": 72,
       "sig": {
         "label": "ACHAT",
         "color": "#84CC16"
       },
-      "currentPrice": 21465,
+      "currentPrice": 28450,
       "currentDiv": 555
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 23526,
-        "optimistic": 27055,
-        "pessimistic": 19997
+        "projected": 25855,
+        "optimistic": 29733,
+        "pessimistic": 21976
       },
       {
         "year": 2028,
-        "projected": 25249,
-        "optimistic": 29036,
-        "pessimistic": 21461
+        "projected": 27846,
+        "optimistic": 32022,
+        "pessimistic": 23669
       },
       {
         "year": 2029,
-        "projected": 26971,
-        "optimistic": 31017,
-        "pessimistic": 22925
+        "projected": 29837,
+        "optimistic": 34312,
+        "pessimistic": 25361
       },
       {
         "year": 2030,
-        "projected": 28694,
-        "optimistic": 32998,
-        "pessimistic": 24389
+        "projected": 31828,
+        "optimistic": 36602,
+        "pessimistic": 27054
       },
       {
         "year": 2031,
-        "projected": 30416,
-        "optimistic": 34978,
-        "pessimistic": 25854
+        "projected": 33819,
+        "optimistic": 38892,
+        "pessimistic": 28746
       }
     ]
   },
   {
     "ticker": "BOAB",
     "metrics": {
-      "perf5": "74.5",
-      "perf10": "345.0",
+      "perf5": "69.6",
+      "perf10": "332.5",
       "avgDiv": "266",
-      "yield_": "5.26",
+      "yield_": "5.41",
       "volat": "14.8",
       "risk": "Moyen",
-      "score": 77,
+      "score": 75,
       "sig": {
         "label": "ACHAT",
         "color": "#84CC16"
       },
-      "currentPrice": 8900,
+      "currentPrice": 8650,
       "currentDiv": 468
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 9771,
-        "optimistic": 11237,
-        "pessimistic": 8306
+        "projected": 9688,
+        "optimistic": 11141,
+        "pessimistic": 8235
       },
       {
         "year": 2028,
-        "projected": 10460,
-        "optimistic": 12029,
-        "pessimistic": 8891
+        "projected": 10367,
+        "optimistic": 11923,
+        "pessimistic": 8812
       },
       {
         "year": 2029,
-        "projected": 11150,
-        "optimistic": 12822,
-        "pessimistic": 9477
+        "projected": 11047,
+        "optimistic": 12704,
+        "pessimistic": 9390
       },
       {
         "year": 2030,
-        "projected": 11839,
-        "optimistic": 13614,
-        "pessimistic": 10063
+        "projected": 11727,
+        "optimistic": 13485,
+        "pessimistic": 9968
       },
       {
         "year": 2031,
-        "projected": 12528,
-        "optimistic": 14407,
-        "pessimistic": 10649
+        "projected": 12406,
+        "optimistic": 14267,
+        "pessimistic": 10545
       }
     ]
   },
@@ -255,47 +255,47 @@
       "perf5": "N/D",
       "perf10": "N/D",
       "avgDiv": "261",
-      "yield_": "6.89",
-      "volat": "3.8",
+      "yield_": "6.40",
+      "volat": "7.8",
       "risk": "Faible",
-      "score": 47,
+      "score": 46,
       "sig": {
         "label": "ALLÉGER",
         "color": "#F97316"
       },
-      "currentPrice": 3990,
+      "currentPrice": 4295,
       "currentDiv": 275
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 4137,
-        "optimistic": 4757,
-        "pessimistic": 3516
+        "projected": 4543,
+        "optimistic": 5225,
+        "pessimistic": 3862
       },
       {
         "year": 2028,
-        "projected": 4282,
-        "optimistic": 4924,
-        "pessimistic": 3639
+        "projected": 4841,
+        "optimistic": 5567,
+        "pessimistic": 4115
       },
       {
         "year": 2029,
-        "projected": 4427,
-        "optimistic": 5091,
-        "pessimistic": 3763
+        "projected": 5138,
+        "optimistic": 5909,
+        "pessimistic": 4368
       },
       {
         "year": 2030,
-        "projected": 4572,
-        "optimistic": 5257,
-        "pessimistic": 3886
+        "projected": 5436,
+        "optimistic": 6251,
+        "pessimistic": 4620
       },
       {
         "year": 2031,
-        "projected": 4717,
-        "optimistic": 5424,
-        "pessimistic": 4009
+        "projected": 5733,
+        "optimistic": 6593,
+        "pessimistic": 4873
       }
     ]
   },
@@ -306,106 +306,156 @@
       "perf10": "N/D",
       "avgDiv": 0,
       "yield_": "0.00",
-      "volat": "1.1",
-      "risk": "Faible",
-      "score": 16,
+      "volat": "46.1",
+      "risk": "Élevé",
+      "score": 8,
       "sig": {
         "label": "VENDRE",
         "color": "#EF4444"
       },
-      "currentPrice": 5190,
+      "currentPrice": 7670,
       "currentDiv": 0
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 5130,
-        "optimistic": 5899,
-        "pessimistic": 4361
+        "projected": 10090,
+        "optimistic": 11604,
+        "pessimistic": 8577
       },
       {
         "year": 2028,
-        "projected": 5070,
-        "optimistic": 5831,
-        "pessimistic": 4310
+        "projected": 12510,
+        "optimistic": 14386,
+        "pessimistic": 10634
       },
       {
         "year": 2029,
-        "projected": 5010,
-        "optimistic": 5762,
-        "pessimistic": 4259
+        "projected": 14930,
+        "optimistic": 17170,
+        "pessimistic": 12691
       },
       {
         "year": 2030,
-        "projected": 4950,
-        "optimistic": 5693,
-        "pessimistic": 4208
+        "projected": 17350,
+        "optimistic": 19953,
+        "pessimistic": 14748
       },
       {
         "year": 2031,
-        "projected": 4890,
-        "optimistic": 5624,
-        "pessimistic": 4157
+        "projected": 19770,
+        "optimistic": 22736,
+        "pessimistic": 16805
       }
     ]
   },
   {
     "ticker": "SGBC",
     "metrics": {
-      "perf5": "14.4",
-      "perf10": "144.0",
+      "perf5": "21.9",
+      "perf10": "160.0",
       "avgDiv": "1262",
-      "yield_": "6.27",
-      "volat": "8.9",
+      "yield_": "5.88",
+      "volat": "9.5",
       "risk": "Faible",
-      "score": 64,
+      "score": 65,
       "sig": {
-        "label": "CONSERVER",
-        "color": "#D4A843"
+        "label": "ACHAT",
+        "color": "#84CC16"
       },
-      "currentPrice": 36600,
+      "currentPrice": 39000,
       "currentDiv": 2293
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 41942,
-        "optimistic": 48234,
-        "pessimistic": 35651
+        "projected": 42742,
+        "optimistic": 49154,
+        "pessimistic": 36331
       },
       {
         "year": 2028,
-        "projected": 44009,
-        "optimistic": 50611,
-        "pessimistic": 37408
+        "projected": 44902,
+        "optimistic": 51637,
+        "pessimistic": 38166
       },
       {
         "year": 2029,
-        "projected": 46076,
-        "optimistic": 52987,
-        "pessimistic": 39165
+        "projected": 47061,
+        "optimistic": 54120,
+        "pessimistic": 40002
       },
       {
         "year": 2030,
-        "projected": 48143,
-        "optimistic": 55364,
-        "pessimistic": 40921
+        "projected": 49220,
+        "optimistic": 56603,
+        "pessimistic": 41837
       },
       {
         "year": 2031,
-        "projected": 50210,
-        "optimistic": 57741,
-        "pessimistic": 42678
+        "projected": 51379,
+        "optimistic": 59086,
+        "pessimistic": 43672
       }
     ]
   },
   {
     "ticker": "NSBC",
     "metrics": {
-      "perf5": "28.6",
-      "perf10": "200.0",
+      "perf5": "68.9",
+      "perf10": "294.2",
       "avgDiv": "390",
-      "yield_": "3.71",
+      "yield_": "2.82",
+      "volat": "13.6",
+      "risk": "Moyen",
+      "score": 63,
+      "sig": {
+        "label": "CONSERVER",
+        "color": "#D4A843"
+      },
+      "currentPrice": 23650,
+      "currentDiv": 668
+    },
+    "projections": [
+      {
+        "year": 2027,
+        "projected": 22603,
+        "optimistic": 25993,
+        "pessimistic": 19213
+      },
+      {
+        "year": 2028,
+        "projected": 23995,
+        "optimistic": 27594,
+        "pessimistic": 20396
+      },
+      {
+        "year": 2029,
+        "projected": 25387,
+        "optimistic": 29195,
+        "pessimistic": 21579
+      },
+      {
+        "year": 2030,
+        "projected": 26779,
+        "optimistic": 30796,
+        "pessimistic": 22763
+      },
+      {
+        "year": 2031,
+        "projected": 28172,
+        "optimistic": 32397,
+        "pessimistic": 23946
+      }
+    ]
+  },
+  {
+    "ticker": "ECOC",
+    "metrics": {
+      "perf5": "24.6",
+      "perf10": "194.5",
+      "avgDiv": "452",
+      "yield_": "4.37",
       "volat": "10.8",
       "risk": "Moyen",
       "score": 53,
@@ -413,547 +463,497 @@
         "label": "CONSERVER",
         "color": "#D4A843"
       },
-      "currentPrice": 18000,
-      "currentDiv": 668
-    },
-    "projections": [
-      {
-        "year": 2027,
-        "projected": 20720,
-        "optimistic": 23828,
-        "pessimistic": 17612
-      },
-      {
-        "year": 2028,
-        "projected": 21895,
-        "optimistic": 25179,
-        "pessimistic": 18610
-      },
-      {
-        "year": 2029,
-        "projected": 23069,
-        "optimistic": 26530,
-        "pessimistic": 19609
-      },
-      {
-        "year": 2030,
-        "projected": 24244,
-        "optimistic": 27881,
-        "pessimistic": 20608
-      },
-      {
-        "year": 2031,
-        "projected": 25419,
-        "optimistic": 29232,
-        "pessimistic": 21606
-      }
-    ]
-  },
-  {
-    "ticker": "ECOC",
-    "metrics": {
-      "perf5": "25.4",
-      "perf10": "196.4",
-      "avgDiv": "452",
-      "yield_": "4.34",
-      "volat": "10.7",
-      "risk": "Moyen",
-      "score": 53,
-      "sig": {
-        "label": "CONSERVER",
-        "color": "#D4A843"
-      },
-      "currentPrice": 16300,
+      "currentPrice": 16200,
       "currentDiv": 708
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 18795,
-        "optimistic": 21615,
-        "pessimistic": 15976
+        "projected": 18762,
+        "optimistic": 21576,
+        "pessimistic": 15948
       },
       {
         "year": 2028,
-        "projected": 19837,
-        "optimistic": 22813,
-        "pessimistic": 16862
+        "projected": 19800,
+        "optimistic": 22770,
+        "pessimistic": 16830
       },
       {
         "year": 2029,
-        "projected": 20879,
-        "optimistic": 24010,
-        "pessimistic": 17747
+        "projected": 20838,
+        "optimistic": 23963,
+        "pessimistic": 17712
       },
       {
         "year": 2030,
-        "projected": 21920,
-        "optimistic": 25208,
-        "pessimistic": 18632
+        "projected": 21875,
+        "optimistic": 25157,
+        "pessimistic": 18594
       },
       {
         "year": 2031,
-        "projected": 22962,
-        "optimistic": 26406,
-        "pessimistic": 19518
+        "projected": 22913,
+        "optimistic": 26350,
+        "pessimistic": 19476
       }
     ]
   },
   {
     "ticker": "STBC",
     "metrics": {
-      "perf5": "41.9",
-      "perf10": "254.8",
+      "perf5": "66.7",
+      "perf10": "316.7",
       "avgDiv": "1071",
-      "yield_": "9.84",
-      "volat": "12.4",
+      "yield_": "8.38",
+      "volat": "14.0",
       "risk": "Moyen",
-      "score": 75,
+      "score": 83,
       "sig": {
-        "label": "ACHAT",
-        "color": "#84CC16"
+        "label": "ACHAT FORT",
+        "color": "#22C55E"
       },
-      "currentPrice": 21290,
+      "currentPrice": 25000,
       "currentDiv": 2096
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 24157,
-        "optimistic": 27781,
-        "pessimistic": 20534
+        "projected": 25394,
+        "optimistic": 29203,
+        "pessimistic": 21585
       },
       {
         "year": 2028,
-        "projected": 25723,
-        "optimistic": 29581,
-        "pessimistic": 21864
+        "projected": 27102,
+        "optimistic": 31167,
+        "pessimistic": 23037
       },
       {
         "year": 2029,
-        "projected": 27288,
-        "optimistic": 31381,
-        "pessimistic": 23195
+        "projected": 28810,
+        "optimistic": 33132,
+        "pessimistic": 24489
       },
       {
         "year": 2030,
-        "projected": 28853,
-        "optimistic": 33181,
-        "pessimistic": 24525
+        "projected": 30518,
+        "optimistic": 35096,
+        "pessimistic": 25940
       },
       {
         "year": 2031,
-        "projected": 30419,
-        "optimistic": 34981,
-        "pessimistic": 25856
+        "projected": 32226,
+        "optimistic": 37060,
+        "pessimistic": 27392
       }
     ]
   },
   {
     "ticker": "SLBC",
     "metrics": {
-      "perf5": "11.8",
-      "perf10": "111.2",
+      "perf5": "8.8",
+      "perf10": "105.6",
       "avgDiv": "774",
-      "yield_": "2.83",
-      "volat": "7.1",
+      "yield_": "2.90",
+      "volat": "7.4",
       "risk": "Faible",
       "score": 45,
       "sig": {
         "label": "ALLÉGER",
         "color": "#F97316"
       },
-      "currentPrice": 38010,
+      "currentPrice": 37005,
       "currentDiv": 1074
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 43473,
-        "optimistic": 49994,
-        "pessimistic": 36952
+        "projected": 43138,
+        "optimistic": 49609,
+        "pessimistic": 36667
       },
       {
         "year": 2028,
-        "projected": 45494,
-        "optimistic": 52319,
-        "pessimistic": 38670
+        "projected": 45121,
+        "optimistic": 51889,
+        "pessimistic": 38353
       },
       {
         "year": 2029,
-        "projected": 47516,
-        "optimistic": 54643,
-        "pessimistic": 40388
+        "projected": 47103,
+        "optimistic": 54169,
+        "pessimistic": 40038
       },
       {
         "year": 2030,
-        "projected": 49537,
-        "optimistic": 56968,
-        "pessimistic": 42107
+        "projected": 49086,
+        "optimistic": 56449,
+        "pessimistic": 41723
       },
       {
         "year": 2031,
-        "projected": 51558,
-        "optimistic": 59292,
-        "pessimistic": 43825
+        "projected": 51069,
+        "optimistic": 58729,
+        "pessimistic": 43409
       }
     ]
   },
   {
     "ticker": "BOABF",
     "metrics": {
-      "perf5": "44.7",
-      "perf10": "266.7",
+      "perf5": "92.8",
+      "perf10": "388.3",
       "avgDiv": "260",
-      "yield_": "7.78",
-      "volat": "12.7",
+      "yield_": "5.84",
+      "volat": "15.8",
       "risk": "Moyen",
-      "score": 74,
+      "score": 84,
       "sig": {
-        "label": "ACHAT",
-        "color": "#84CC16"
+        "label": "ACHAT FORT",
+        "color": "#22C55E"
       },
-      "currentPrice": 5500,
+      "currentPrice": 7325,
       "currentDiv": 428
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 6280,
-        "optimistic": 7222,
-        "pessimistic": 5338
+        "projected": 6889,
+        "optimistic": 7922,
+        "pessimistic": 5855
       },
       {
         "year": 2028,
-        "projected": 6686,
-        "optimistic": 7689,
-        "pessimistic": 5683
+        "projected": 7365,
+        "optimistic": 8469,
+        "pessimistic": 6260
       },
       {
         "year": 2029,
-        "projected": 7092,
-        "optimistic": 8156,
-        "pessimistic": 6028
+        "projected": 7841,
+        "optimistic": 9017,
+        "pessimistic": 6665
       },
       {
         "year": 2030,
-        "projected": 7498,
-        "optimistic": 8623,
-        "pessimistic": 6373
+        "projected": 8317,
+        "optimistic": 9565,
+        "pessimistic": 7069
       },
       {
         "year": 2031,
-        "projected": 7904,
-        "optimistic": 9090,
-        "pessimistic": 6718
+        "projected": 8793,
+        "optimistic": 10112,
+        "pessimistic": 7474
       }
     ]
   },
   {
     "ticker": "SDCC",
     "metrics": {
-      "perf5": "48.1",
-      "perf10": "270.2",
+      "perf5": "58.5",
+      "perf10": "296.3",
       "avgDiv": "266",
-      "yield_": "4.16",
-      "volat": "12.8",
+      "yield_": "3.89",
+      "volat": "13.4",
       "risk": "Moyen",
-      "score": 70,
+      "score": 72,
       "sig": {
         "label": "ACHAT",
         "color": "#84CC16"
       },
-      "currentPrice": 11105,
+      "currentPrice": 11890,
       "currentDiv": 462
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 12456,
-        "optimistic": 14325,
-        "pessimistic": 10588
+        "projected": 12718,
+        "optimistic": 14626,
+        "pessimistic": 10810
       },
       {
         "year": 2028,
-        "projected": 13269,
-        "optimistic": 15259,
-        "pessimistic": 11278
+        "projected": 13561,
+        "optimistic": 15595,
+        "pessimistic": 11526
       },
       {
         "year": 2029,
-        "projected": 14081,
-        "optimistic": 16193,
-        "pessimistic": 11969
+        "projected": 14403,
+        "optimistic": 16564,
+        "pessimistic": 12243
       },
       {
         "year": 2030,
-        "projected": 14894,
-        "optimistic": 17128,
-        "pessimistic": 12659
+        "projected": 15246,
+        "optimistic": 17533,
+        "pessimistic": 12959
       },
       {
         "year": 2031,
-        "projected": 15706,
-        "optimistic": 18062,
-        "pessimistic": 13350
+        "projected": 16088,
+        "optimistic": 18502,
+        "pessimistic": 13675
       }
     ]
   },
   {
     "ticker": "SDSC",
     "metrics": {
-      "perf5": "69.0",
-      "perf10": "181.7",
+      "perf5": "158.5",
+      "perf10": "330.8",
       "avgDiv": "37",
-      "yield_": "3.55",
-      "volat": "10.0",
+      "yield_": "2.32",
+      "volat": "14.8",
       "risk": "Moyen",
-      "score": 75,
+      "score": 78,
       "sig": {
         "label": "ACHAT",
         "color": "#84CC16"
       },
-      "currentPrice": 1690,
+      "currentPrice": 2585,
       "currentDiv": 60
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 1799,
-        "optimistic": 2069,
-        "pessimistic": 1529
+        "projected": 2097,
+        "optimistic": 2412,
+        "pessimistic": 1783
       },
       {
         "year": 2028,
-        "projected": 1910,
-        "optimistic": 2196,
-        "pessimistic": 1623
+        "projected": 2242,
+        "optimistic": 2579,
+        "pessimistic": 1906
       },
       {
         "year": 2029,
-        "projected": 2020,
-        "optimistic": 2324,
-        "pessimistic": 1717
+        "projected": 2388,
+        "optimistic": 2746,
+        "pessimistic": 2029
       },
       {
         "year": 2030,
-        "projected": 2131,
-        "optimistic": 2451,
-        "pessimistic": 1812
+        "projected": 2533,
+        "optimistic": 2913,
+        "pessimistic": 2153
       },
       {
         "year": 2031,
-        "projected": 2242,
-        "optimistic": 2578,
-        "pessimistic": 1906
+        "projected": 2678,
+        "optimistic": 3080,
+        "pessimistic": 2276
       }
     ]
   },
   {
     "ticker": "PALC",
     "metrics": {
-      "perf5": "41.8",
-      "perf10": "254.5",
+      "perf5": "65.5",
+      "perf10": "313.6",
       "avgDiv": "266",
-      "yield_": "5.67",
-      "volat": "12.4",
+      "yield_": "4.86",
+      "volat": "14.0",
       "risk": "Moyen",
-      "score": 67,
+      "score": 72,
       "sig": {
         "label": "ACHAT",
         "color": "#84CC16"
       },
-      "currentPrice": 7800,
+      "currentPrice": 9100,
       "currentDiv": 442
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 8908,
-        "optimistic": 10244,
-        "pessimistic": 7571
+        "projected": 9341,
+        "optimistic": 10742,
+        "pessimistic": 7940
       },
       {
         "year": 2028,
-        "projected": 9475,
-        "optimistic": 10897,
-        "pessimistic": 8054
+        "projected": 9959,
+        "optimistic": 11453,
+        "pessimistic": 8465
       },
       {
         "year": 2029,
-        "projected": 10043,
-        "optimistic": 11550,
-        "pessimistic": 8537
+        "projected": 10577,
+        "optimistic": 12163,
+        "pessimistic": 8990
       },
       {
         "year": 2030,
-        "projected": 10611,
-        "optimistic": 12203,
-        "pessimistic": 9019
+        "projected": 11194,
+        "optimistic": 12874,
+        "pessimistic": 9515
       },
       {
         "year": 2031,
-        "projected": 11179,
-        "optimistic": 12856,
-        "pessimistic": 9502
+        "projected": 11812,
+        "optimistic": 13584,
+        "pessimistic": 10040
       }
     ]
   },
   {
     "ticker": "BOAN",
     "metrics": {
-      "perf5": "33.6",
-      "perf10": "211.7",
+      "perf5": "85.7",
+      "perf10": "333.3",
       "avgDiv": "131",
-      "yield_": "5.59",
-      "volat": "11.1",
+      "yield_": "4.02",
+      "volat": "14.7",
       "risk": "Moyen",
-      "score": 69,
+      "score": 82,
       "sig": {
-        "label": "ACHAT",
-        "color": "#84CC16"
+        "label": "ACHAT FORT",
+        "color": "#22C55E"
       },
-      "currentPrice": 3740,
+      "currentPrice": 5200,
       "currentDiv": 209
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 4282,
-        "optimistic": 4924,
-        "pessimistic": 3639
+        "projected": 4768,
+        "optimistic": 5483,
+        "pessimistic": 4053
       },
       {
         "year": 2028,
-        "projected": 4536,
-        "optimistic": 5216,
-        "pessimistic": 3855
+        "projected": 5079,
+        "optimistic": 5840,
+        "pessimistic": 4317
       },
       {
         "year": 2029,
-        "projected": 4790,
-        "optimistic": 5509,
-        "pessimistic": 4072
+        "projected": 5389,
+        "optimistic": 6198,
+        "pessimistic": 4581
       },
       {
         "year": 2030,
-        "projected": 5045,
-        "optimistic": 5801,
-        "pessimistic": 4288
+        "projected": 5700,
+        "optimistic": 6555,
+        "pessimistic": 4845
       },
       {
         "year": 2031,
-        "projected": 5299,
-        "optimistic": 6094,
-        "pessimistic": 4504
+        "projected": 6010,
+        "optimistic": 6912,
+        "pessimistic": 5109
       }
     ]
   },
   {
     "ticker": "TTLS",
     "metrics": {
-      "perf5": "28.0",
-      "perf10": "128.6",
+      "perf5": "44.0",
+      "perf10": "157.1",
       "avgDiv": "158",
-      "yield_": "6.94",
-      "volat": "7.9",
+      "yield_": "6.17",
+      "volat": "9.0",
       "risk": "Faible",
-      "score": 70,
+      "score": 73,
       "sig": {
         "label": "ACHAT",
         "color": "#84CC16"
       },
-      "currentPrice": 3200,
+      "currentPrice": 3600,
       "currentDiv": 222
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 3561,
-        "optimistic": 4095,
-        "pessimistic": 3027
+        "projected": 3694,
+        "optimistic": 4248,
+        "pessimistic": 3140
       },
       {
         "year": 2028,
-        "projected": 3738,
-        "optimistic": 4299,
-        "pessimistic": 3177
+        "projected": 3887,
+        "optimistic": 4470,
+        "pessimistic": 3304
       },
       {
         "year": 2029,
-        "projected": 3915,
-        "optimistic": 4502,
-        "pessimistic": 3328
+        "projected": 4079,
+        "optimistic": 4691,
+        "pessimistic": 3467
       },
       {
         "year": 2030,
-        "projected": 4092,
-        "optimistic": 4706,
-        "pessimistic": 3479
+        "projected": 4272,
+        "optimistic": 4913,
+        "pessimistic": 3631
       },
       {
         "year": 2031,
-        "projected": 4270,
-        "optimistic": 4910,
-        "pessimistic": 3629
+        "projected": 4465,
+        "optimistic": 5134,
+        "pessimistic": 3795
       }
     ]
   },
   {
     "ticker": "NTLC",
     "metrics": {
-      "perf5": "30.0",
-      "perf10": "160.1",
+      "perf5": "66.1",
+      "perf10": "232.3",
       "avgDiv": "485",
-      "yield_": "5.55",
-      "volat": "9.3",
-      "risk": "Faible",
-      "score": 63,
+      "yield_": "4.35",
+      "volat": "11.8",
+      "risk": "Moyen",
+      "score": 67,
       "sig": {
-        "label": "CONSERVER",
-        "color": "#D4A843"
+        "label": "ACHAT",
+        "color": "#84CC16"
       },
-      "currentPrice": 13005,
+      "currentPrice": 16615,
       "currentDiv": 722
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 14665,
-        "optimistic": 16865,
-        "pessimistic": 12466
+        "projected": 15869,
+        "optimistic": 18249,
+        "pessimistic": 13488
       },
       {
         "year": 2028,
-        "projected": 15437,
-        "optimistic": 17752,
-        "pessimistic": 13121
+        "projected": 16779,
+        "optimistic": 19296,
+        "pessimistic": 14262
       },
       {
         "year": 2029,
-        "projected": 16208,
-        "optimistic": 18640,
-        "pessimistic": 13777
+        "projected": 17689,
+        "optimistic": 20343,
+        "pessimistic": 15036
       },
       {
         "year": 2030,
-        "projected": 16980,
-        "optimistic": 19527,
-        "pessimistic": 14433
+        "projected": 18600,
+        "optimistic": 21390,
+        "pessimistic": 15810
       },
       {
         "year": 2031,
-        "projected": 17751,
-        "optimistic": 20414,
-        "pessimistic": 15089
+        "projected": 19510,
+        "optimistic": 22437,
+        "pessimistic": 16584
       }
     ]
   },
   {
     "ticker": "BOAS",
     "metrics": {
-      "perf5": "33.5",
-      "perf10": "176.6",
+      "perf5": "33.6",
+      "perf10": "176.8",
       "avgDiv": "209",
       "yield_": "4.52",
       "volat": "9.8",
@@ -963,39 +963,39 @@
         "label": "CONSERVER",
         "color": "#D4A843"
       },
-      "currentPrice": 7745,
+      "currentPrice": 7750,
       "currentDiv": 350
     },
     "projections": [
       {
         "year": 2027,
-        "projected": 8698,
-        "optimistic": 10003,
-        "pessimistic": 7394
+        "projected": 8700,
+        "optimistic": 10005,
+        "pessimistic": 7395
       },
       {
         "year": 2028,
-        "projected": 9192,
-        "optimistic": 10571,
-        "pessimistic": 7814
+        "projected": 9194,
+        "optimistic": 10573,
+        "pessimistic": 7815
       },
       {
         "year": 2029,
-        "projected": 9686,
-        "optimistic": 11139,
-        "pessimistic": 8233
+        "projected": 9688,
+        "optimistic": 11142,
+        "pessimistic": 8235
       },
       {
         "year": 2030,
-        "projected": 10180,
-        "optimistic": 11708,
-        "pessimistic": 8653
+        "projected": 10183,
+        "optimistic": 11710,
+        "pessimistic": 8655
       },
       {
         "year": 2031,
-        "projected": 10674,
-        "optimistic": 12276,
-        "pessimistic": 9073
+        "projected": 10677,
+        "optimistic": 12278,
+        "pessimistic": 9075
       }
     ]
   }

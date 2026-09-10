@@ -1,53 +1,114 @@
-// Page "Portefeuille" — étape 10 (navigation complète).
-// Réutilise l'authentification + les métriques de portefeuille de l'étape 7
-// (`getUserPortfoliosWithMetrics`, la MÊME fonction que `GET /api/portfolio`,
-// validée de bout en bout contre une vraie base le 09/08/2026).
+// Page "Portefeuille" — étape 16 (démo premium + KPI connectés).
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
+import { HERO_TITLE, PAGE_LEAD } from "@/lib/theme/typography";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { getUserPortfoliosWithMetrics } from "@/lib/api/portfolio-data";
 import { prisma } from "@/lib/prisma";
-import CreatePortfolioButton from "@/components/portfolio/CreatePortfolioButton";
-import AddHoldingForm from "@/components/portfolio/AddHoldingForm";
+import PortfolioPageClient from "@/components/portfolio/PortfolioPageClient";
+import PortfolioAllocationChart from "@/components/portfolio/PortfolioAllocationChart";
+import { AllocationBars, Kpi, panelStyle, allocationLayoutRow, allocationSectorsCol, allocationTickersCol } from "@/components/portfolio/PortfolioPageParts";
+import { listPortfolioTrades, summarizeRealizedPnl, ensureOpeningTrades } from "@/lib/api/portfolio-trades";
 
 export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
 
 export const metadata = {
-  title: "Portefeuille — ouestBourse",
+  title: "Portefeuille — OuestBourse",
   description: "Suivez la valeur, la performance et la répartition sectorielle de votre portefeuille BRVM.",
 };
 
-const panelStyle: React.CSSProperties = { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8, padding: 20, marginBottom: 16 };
+function GuestDemo() {
+  const demoKpis = [
+    { l: "Total du portefeuille", v: "12 450 000 FCFA", edu: "valeur-de-marche" as const },
+    { l: "Plus-value latente", v: "+8,4 %", edu: "plus-moins-value-latente" as const },
+    { l: "PRU moyen", v: "18 200 FCFA", edu: "pru" as const },
+    { l: "Dividendes YTD", v: "245 000 FCFA", edu: "performance-ytd" as const },
+  ];
+  const demoAlloc = [
+    { sector: "Télécoms", weightPercent: 42 },
+    { sector: "Banques", weightPercent: 33 },
+    { sector: "Industrie", weightPercent: 25 },
+  ];
 
-function fmtFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
+  return (
+    <AppHeader>
+      <div>
+        <h1 style={HERO_TITLE}>Portefeuille</h1>
+        <p style={PAGE_LEAD}>
+          Suivez la valorisation, la performance latente et l&apos;allocation de vos positions BRVM. Connectez-vous pour
+          enregistrer un portefeuille réel.
+        </p>
 
-export default async function PortefeuillePage() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return (
-      <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-        <AppHeader />
-        <div style={{ maxWidth: 560, margin: "0 auto", padding: "64px 20px", textAlign: "center" }}>
-          <h1 style={{ color: C.text, fontSize: "1.4rem" }}>💼 Portefeuille</h1>
-          <p style={{ color: C.textDim, fontSize: "0.9rem", marginBottom: 24 }}>
-            Connectez-vous pour suivre la valeur, la plus-value et la répartition sectorielle de votre portefeuille BRVM.
+        <div style={{ ...panelStyle, marginBottom: 18, textAlign: "center" }}>
+          <strong style={{ color: C.text, fontSize: "var(--fs-body-sm)" }}>Chiffres illustratifs</strong>
+          <p style={{ color: C.textDim, fontSize: "var(--fs-body-sm)", margin: "6px 0 0" }}>
+            L&apos;aperçu ci-dessous est une démonstration visuelle — ce ne sont pas vos positions ni des cours live.
           </p>
-          <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-            <Link href="/connexion" style={{ color: C.text, border: `1px solid ${C.border}`, borderRadius: 6, padding: "9px 18px", textDecoration: "none", fontSize: "0.85rem" }}>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16, justifyContent: "center" }}>
+          {demoKpis.map((k) => (
+            <Kpi key={k.l} label={k.l} value={k.v} educationSlug={k.edu} />
+          ))}
+        </div>
+
+        <div style={panelStyle} data-align-left>
+          <div style={allocationLayoutRow}>
+            <div style={allocationSectorsCol}>
+              <AllocationBars items={demoAlloc} />
+            </div>
+            <div style={allocationTickersCol}>
+              <PortfolioAllocationChart
+                items={[
+                  { ticker: "SNTS", sector: "Télécoms", value: 5229000, weightPercent: 42 },
+                  { ticker: "SGBC", sector: "Banques", value: 4108500, weightPercent: 33 },
+                  { ticker: "SDSC", sector: "Industrie", value: 3112500, weightPercent: 25 },
+                ]}
+              />
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22, justifyContent: "center" }}>
+            <Link
+              href="/connexion"
+              style={{
+                color: C.text,
+                border: `1px solid ${C.border}`,
+                borderRadius: 10,
+                padding: "10px 18px",
+                textDecoration: "none",
+                fontSize: "var(--fs-body-sm)",
+                fontWeight: 600,
+              }}
+            >
               Connexion
             </Link>
-            <Link href="/inscription" style={{ color: "#080B12", background: C.gold, fontWeight: 700, borderRadius: 6, padding: "9px 18px", textDecoration: "none", fontSize: "0.85rem" }}>
+            <Link
+              href="/inscription"
+              style={{
+                color: "#080B12",
+                background: C.gold,
+                fontWeight: 700,
+                borderRadius: 10,
+                padding: "10px 18px",
+                textDecoration: "none",
+                fontSize: "var(--fs-body-sm)",
+              }}
+            >
               Créer un compte
             </Link>
           </div>
         </div>
       </div>
-    );
-  }
+    </AppHeader>
+  );
+}
+
+export default async function PortefeuillePage() {
+  const user = await getCurrentUser();
+
+  if (!user) return <GuestDemo />;
 
   const [portfolios, companies] = await Promise.all([
     getUserPortfoliosWithMetrics(user.id),
@@ -55,82 +116,34 @@ export default async function PortefeuillePage() {
   ]);
   const tickers = companies.map((c) => c.ticker);
 
+  const tradesByPortfolio: Record<
+    string,
+    { trades: Awaited<ReturnType<typeof listPortfolioTrades>>; summary: ReturnType<typeof summarizeRealizedPnl> }
+  > = {};
+
+  await Promise.all(
+    portfolios.map(async (p) => {
+      try {
+        await ensureOpeningTrades(prisma, p.id);
+        const trades = await listPortfolioTrades(prisma, p.id, { take: 200 });
+        tradesByPortfolio[p.id] = { trades, summary: summarizeRealizedPnl(trades) };
+      } catch (err) {
+        console.error(`[portefeuille] historique trades ${p.id}`, err);
+        tradesByPortfolio[p.id] = {
+          trades: [],
+          summary: { totalRealizedPnl: 0, salesCount: 0, lossCount: 0, gainCount: 0 },
+        };
+      }
+    })
+  );
+
   return (
-    <div style={{ background: C.bg, minHeight: "100vh", fontFamily: "'Trebuchet MS', Georgia, serif" }}>
-      <AppHeader />
-      <div style={{ maxWidth: 900, margin: "0 auto", padding: "32px 20px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-          <h1 style={{ color: C.text, fontSize: "1.4rem", margin: 0 }}>💼 Mon portefeuille</h1>
-          <CreatePortfolioButton />
-        </div>
-
-        {portfolios.length === 0 && (
-          <div style={panelStyle}>
-            <p style={{ color: C.textDim, fontSize: "0.88rem", margin: 0 }}>
-              Vous n&apos;avez pas encore de portefeuille. Cliquez sur « + Nouveau portefeuille » pour commencer à suivre vos
-              positions BRVM.
-            </p>
-          </div>
-        )}
-
-        {portfolios.map((p) => (
-          <div key={p.id} style={panelStyle}>
-            <h2 style={{ color: C.gold, fontSize: "1.05rem", marginTop: 0, marginBottom: 14 }}>{p.name}</h2>
-
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
-              <div style={{ flex: "1 1 160px" }}>
-                <div style={{ color: C.textDim, fontSize: "0.68rem", textTransform: "uppercase" }}>Valeur de marché</div>
-                <div style={{ color: C.text, fontSize: "1.15rem", fontWeight: 700 }}>{fmtFcfa(p.metrics.totalMarketValue)}</div>
-              </div>
-              <div style={{ flex: "1 1 160px" }}>
-                <div style={{ color: C.textDim, fontSize: "0.68rem", textTransform: "uppercase" }}>Plus/moins-value</div>
-                <div style={{ color: p.metrics.totalGainLoss >= 0 ? C.green : C.red, fontSize: "1.15rem", fontWeight: 700 }}>
-                  {p.metrics.totalGainLoss >= 0 ? "+" : ""}
-                  {fmtFcfa(p.metrics.totalGainLoss)}{" "}
-                  {p.metrics.totalGainLossPercent !== "N/D" ? `(${p.metrics.totalGainLossPercent}%)` : ""}
-                </div>
-              </div>
-              <div style={{ flex: "1 1 160px" }}>
-                <div style={{ color: C.textDim, fontSize: "0.68rem", textTransform: "uppercase" }}>Performance YTD</div>
-                <div style={{ color: C.teal, fontSize: "1.15rem", fontWeight: 700 }}>
-                  {p.metrics.ytdChangePercent !== "N/D" ? `${p.metrics.ytdChangePercent}%` : "N/D"}
-                </div>
-              </div>
-            </div>
-
-            {p.holdings.length > 0 ? (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.8rem" }}>
-                <thead>
-                  <tr style={{ color: C.textDim, textAlign: "left", borderBottom: `1px solid ${C.border}` }}>
-                    <th scope="col" style={{ padding: "6px 4px" }}>Société</th>
-                    <th scope="col" style={{ padding: "6px 4px" }}>Qté</th>
-                    <th scope="col" style={{ padding: "6px 4px" }}>PRU</th>
-                    <th scope="col" style={{ padding: "6px 4px" }}>Valeur</th>
-                    <th scope="col" style={{ padding: "6px 4px" }}>+/-value</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {p.metrics.holdings.map((h) => (
-                    <tr key={h.ticker} style={{ borderBottom: `1px solid ${C.border}` }}>
-                      <td style={{ padding: "6px 4px", color: C.text }}>{h.ticker}</td>
-                      <td style={{ padding: "6px 4px", color: C.text }}>{h.quantity}</td>
-                      <td style={{ padding: "6px 4px", color: C.text }}>{fmtFcfa(h.avgBuyPrice)}</td>
-                      <td style={{ padding: "6px 4px", color: C.text }}>{typeof h.marketValue === "number" ? fmtFcfa(h.marketValue) : "N/D"}</td>
-                      <td style={{ padding: "6px 4px", color: typeof h.gainLoss === "number" && h.gainLoss >= 0 ? C.green : C.red }}>
-                        {typeof h.gainLossPercent === "number" ? `${h.gainLossPercent >= 0 ? "+" : ""}${h.gainLossPercent}%` : "N/D"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p style={{ color: C.textDim, fontSize: "0.82rem" }}>Aucune position pour l&apos;instant — ajoutez-en une ci-dessous.</p>
-            )}
-
-            <AddHoldingForm portfolioId={p.id} tickers={tickers} />
-          </div>
-        ))}
-      </div>
-    </div>
+    <AppHeader>
+      <PortfolioPageClient
+        initialPortfolios={portfolios}
+        tickers={tickers}
+        tradesByPortfolio={tradesByPortfolio}
+      />
+    </AppHeader>
   );
 }

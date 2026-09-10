@@ -58,7 +58,17 @@ export function buildBrvmWorkbook(companies: ExportCompanyRow[], years: number[]
   const wb = XLSX.utils.book_new();
 
   const metricsByTicker = new Map(
-    companies.map((co) => [co.ticker, calcMetrics({ years, prices: co.prices, dividends: co.dividends, per: co.per })])
+    companies.map((co) => [
+      co.ticker,
+      calcMetrics({
+        years,
+        prices: co.prices,
+        dividends: co.dividends,
+        per: co.per,
+        mktcap: co.mktcap,
+        sector: co.sector,
+      }),
+    ])
   );
 
   // ── Feuille 1 : Données complètes ─────────────────────────────────────
@@ -79,6 +89,13 @@ export function buildBrvmWorkbook(companies: ExportCompanyRow[], years: number[]
     "Risque",
     "Confiance",
     "Explication signal",
+    "Score risque",
+    "Niveau risque détaillé",
+    "Score technique",
+    "Score fondamental",
+    "Horizon court",
+    "Horizon moyen",
+    "Horizon long",
   ];
   const rows1 = companies.map((co) => {
     const m = metricsByTicker.get(co.ticker)!;
@@ -99,6 +116,13 @@ export function buildBrvmWorkbook(companies: ExportCompanyRow[], years: number[]
       m.riskLevel,
       m.confidence,
       m.signalSummary,
+      m.riskAnalysis.riskScore,
+      m.riskAnalysis.riskTier,
+      m.technicalScore,
+      m.fundamentalScore,
+      m.horizonScores.court,
+      m.horizonScores.moyen,
+      m.horizonScores.long,
     ];
   });
   const ws1 = XLSX.utils.aoa_to_sheet([headers1, ...rows1]);
@@ -142,10 +166,38 @@ export function buildBrvmWorkbook(companies: ExportCompanyRow[], years: number[]
 
   // ── Feuille 3 : Classements (triés par score décroissant) ─────────────
   const sorted = [...companies].sort((a, b) => metricsByTicker.get(b.ticker)!.score - metricsByTicker.get(a.ticker)!.score);
-  const headers3 = ["Rang", "Ticker", "Société", "Secteur", "Score", "Signal", "Confiance", "Perf.5ans", "Rend.Div.", "Risque", "Explication signal"];
+  const headers3 = [
+    "Rang",
+    "Ticker",
+    "Société",
+    "Secteur",
+    "Score",
+    "Signal",
+    "Confiance",
+    "Perf.5ans",
+    "Rend.Div.",
+    "Risque",
+    "Score risque",
+    "Niveau risque détaillé",
+    "Explication signal",
+  ];
   const rows3 = sorted.map((co, i) => {
     const m = metricsByTicker.get(co.ticker)!;
-    return [i + 1, co.ticker, co.name, co.sector, m.score, m.signal.label, m.confidence, m.perf5Percent, m.dividendYieldPercent, m.riskLevel, m.signalSummary];
+    return [
+      i + 1,
+      co.ticker,
+      co.name,
+      co.sector,
+      m.score,
+      m.signal.label,
+      m.confidence,
+      m.perf5Percent,
+      m.dividendYieldPercent,
+      m.riskLevel,
+      m.riskAnalysis.riskScore,
+      m.riskAnalysis.riskTier,
+      m.signalSummary,
+    ];
   });
   const ws3 = XLSX.utils.aoa_to_sheet([headers3, ...rows3]);
   XLSX.utils.book_append_sheet(wb, ws3, "Classements");

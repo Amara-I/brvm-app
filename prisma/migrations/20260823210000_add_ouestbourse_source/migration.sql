@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "data_source" ADD VALUE IF NOT EXISTS 'OUESTBOURSE';
