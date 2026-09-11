@@ -935,7 +935,61 @@ npm run ingest:run                                                 # cron comple
 ```
 
 Désactivation d'urgence : `INGESTION_ENABLE_SIKAFINANCE_QUOTES=false`.
-Historique long : inchangé (`npm run history:sikafinance`, `enrich:sikafinance`).
+
+---
+
+## 19. Étape 23 — Backfill historique maximal (GetHistos + fiches)
+
+Demandée le 11/09/2026 : densifier la base aussi loin que les sources le
+permettent (BRVM officiel prioritaire, Sikafinance GetHistos en n°2), sans
+inventer de cours.
+
+### Stratégie de couverture
+
+1. **Annuel** `GetHistos xperiod=365` depuis 1998 — la série réelle commence
+   plus tard selon le titre (ex. SNTS : 18/09/2006, vérifié live). Stockage
+   années passées au 31/12.
+2. **Mensuel** `xperiod=30` depuis la première année réellement retournée.
+3. **Journalier** `xperiod=0` par fenêtres de 89 j (limite API `toolong`),
+   **uniquement** sur les plages encore lacunaires (< 35 clôtures BRVM/Sika
+   déjà en base dans la fenêtre) — reruns idempotents et respectueux.
+4. **Fiches SOCIETE** : ISIN, profil, PER, dividendes, CA/RN convertis en
+   Mds FCFA **seulement** si la page indique « chiffres en millions de FCFA ».
+5. **Events / news** Sika + **documents** BRVM via catalogue OuestBourse
+   (jamais `/docs/*`, interdit robots.txt Sika).
+
+Priorité inchangée : BRVM_OFFICIEL > SIKAFINANCE > OUESTBOURSE > RICHBOURSE >
+MANUEL. Un cours Sika n'est jamais marqué canonique si BRVM existe déjà à
+la même date. Les ratios Sika ne démotent pas une ligne BRVM canonique.
+
+### Comment lancer (prod / local avec `DATABASE_URL`)
+
+```
+# Complet (toutes les sociétés actives, reprise auto si interrompu)
+npm run history:sika-full
+
+# Quelques titres, journalier depuis une date
+npx ts-node scripts/run-history-backfill.ts SNTS SGBC --daily-from=2015-01-01
+
+# Sans journalier (annuel + mensuel + fiches + events)
+npx ts-node scripts/run-history-backfill.ts --daily=off
+
+# Cron-safe borné (Hobby 300 s) — pas dans vercel.json (quota 2 crons)
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/history-backfill?budgetMs=240000"
+```
+
+Répéter l'appel cron jusqu'à `incomplete: false`. Reprise via
+`ingestion_logs.errors.kind = HISTORY_BACKFILL`.
+
+Scripts historiques conservés comme raccourcis du même orchestrateur :
+`history:sikafinance` (annuel), `enrich:sikafinance` (annuel+mensuel+quotidien
+N ans + fiche), `enrich:sika-daily-2024`.
+
+Flags : `INGESTION_ENABLE_HISTORY_BACKFILL`, `_SIKA_DAILY_HISTORY`,
+`_SIKA_SHEETS`, `_SIKA_EVENTS`, `_OB_DOCUMENTS`.
+`INGESTION_HISTORY_BACKFILL_ON_CRON=true` enchaîne un rattrapage borné après
+`/api/cron/ingest` (défaut **false**, le cron quotidien est déjà chargé).
 
 ---
 

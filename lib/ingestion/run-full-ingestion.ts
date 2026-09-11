@@ -32,13 +32,14 @@ import { prisma } from "../prisma";
 import { brvmConnector } from "./connectors/brvm_connector";
 import { sikafinanceConnector } from "./connectors/sikafinance_connector";
 import { richbourseConnector } from "./connectors/richbourse_connector";
-import { getConnectorFeatureFlags } from "./connector-config";
+import { getConnectorFeatureFlags, getHistoryBackfillFlags } from "./connector-config";
 import { deriveSourceRunStatus, type IngestionRunStatus } from "./status";
 import { DISCREPANCY_THRESHOLD_PERCENT, reconcileIndexQuotes, reconcilePriceBatch } from "./reconciliation";
 import type { ReconciledIndex } from "./reconciliation";
 import { persistDiscrepancies, persistIndexQuotes, persistPriceQuotes } from "./persist";
 import { toPrismaDataSource } from "./prisma-mappers";
 import { sendIngestionAlert } from "./alerts";
+import { runHistoryBackfill, type HistoryBackfillSummary } from "./run-history-backfill";
 import type { ConnectorResult, DataSourceCode, MarketDataConnector, RawIndexQuote, RawPriceQuote } from "./types";
 
 export interface SourceRunSummary {
@@ -59,6 +60,7 @@ export interface FullIngestionSummary {
   reconciledIndicesCount: number;
   discrepanciesCount: number;
   unknownTickers: string[];
+  historyBackfill?: HistoryBackfillSummary | null;
 }
 
 interface ConnectorEnabled {
@@ -217,14 +219,33 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
   }
 
   const finishedAt = new Date();
+
+  let historyBackfill: HistoryBackfillSummary | null = null;
+  if (getHistoryBackfillFlags().onDailyCron) {
+    const elapsed = finishedAt.getTime() - startedAt.getTime();
+    const remaining = Math.max(15_000, 270_000 - elapsed);
+    try {
+      historyBackfill = await runHistoryBackfill({
+        timeBudgetMs: remaining,
+        resume: true,
+        logger: (msg) => console.log(`[ingest→history] ${msg}`),
+      });
+    } catch (err) {
+      console.warn(
+        `[ingest→history] backfill ignoré : ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
   return {
     startedAt: startedAt.toISOString(),
-    finishedAt: finishedAt.toISOString(),
-    durationMs: finishedAt.getTime() - startedAt.getTime(),
+    finishedAt: new Date().toISOString(),
+    durationMs: Date.now() - startedAt.getTime(),
     perSource,
     reconciledPricesCount: reconciledPrices.length,
     reconciledIndicesCount: reconciledIndices.length,
     discrepanciesCount: discrepancies.length,
     unknownTickers: priceResult.unknownTickers,
+    historyBackfill,
   };
 }

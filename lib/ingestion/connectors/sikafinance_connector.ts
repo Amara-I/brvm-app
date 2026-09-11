@@ -40,6 +40,8 @@ import {
   toRawIndexQuotes,
   toRawPriceQuotes,
 } from "../sika-market-parser";
+import { parseSikaCompanySheetHtml } from "../sika-company-sheet-parser";
+import type { IsoRange } from "../history-coverage";
 import type {
   ConnectorResult,
   MarketDataConnector,
@@ -382,6 +384,39 @@ export class SikafinanceConnector implements MarketDataConnector {
   }
 
   /**
+   * Journalier uniquement sur les fenêtres encore lacunaires (évite de
+   * re-pager 20 ans déjà densifiés). Chaque fenêtre doit rester ≤ 89 j.
+   */
+  async fetchDailyHistoryGaps(
+    ticker: string,
+    ranges: IsoRange[]
+  ): Promise<ConnectorResult<RawPriceQuote[]>> {
+    const fetchedAt = new Date().toISOString();
+    if (ranges.length === 0) {
+      return { ok: true, source: this.source, data: [], fetchedAt };
+    }
+    const all: RawPriceQuote[] = [];
+    for (const range of ranges) {
+      const part = await this.fetchHistos(ticker, range.from, range.to, "0");
+      if (!part.ok) {
+        if (!part.error.includes("toolong") && !part.error.includes("introuvable")) {
+          console.warn(`[sikafinance] daily ${ticker} ${range.from}→${range.to}: ${part.error}`);
+        }
+        continue;
+      }
+      all.push(...part.data);
+    }
+    const byDate = new Map<string, RawPriceQuote>();
+    for (const q of all) byDate.set(q.date, q);
+    return {
+      ok: true,
+      source: this.source,
+      data: [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+      fetchedAt,
+    };
+  }
+
+  /**
    * Page SOCIETE : profil (ISIN, description) + tableau pluriannuel
    * (CA, croissance, RN, PER, dividende) + capitalisation si publiée.
    */
@@ -403,181 +438,22 @@ export class SikafinanceConnector implements MarketDataConnector {
 
       const url = `${BASE_URL}/marches/societe/${sikaSym}`;
       const html = await fetchHtml(url, { checkRobots: true, cacheTtlMs: 12 * 60 * 60 * 1000 });
-      const $ = cheerio.load(html);
-      const pageText = $("body").text().replace(/\s+/g, " ");
+      const parsed = parseSikaCompanySheetHtml(html, t, fetchedAt);
 
-      const isinMatch = pageText.match(/\b([A-Z]{2}\d{10})\b/);
-      let isin = isinMatch?.[1] ?? null;
-      if (!isin) {
+      if (!parsed.profile.isin) {
         try {
           const cotHtml = await fetchHtml(`${BASE_URL}/marches/cotation_${sikaSym}`, {
             checkRobots: true,
             cacheTtlMs: 12 * 60 * 60 * 1000,
           });
           const cotIsin = cotHtml.match(/\b([A-Z]{2}\d{10})\b/);
-          if (cotIsin) isin = cotIsin[1]!;
+          if (cotIsin) parsed.profile.isin = cotIsin[1]!;
         } catch {
           /* ignore */
         }
       }
 
-      let description: string | null = null;
-      const descMatch = pageText.match(
-        /La société\s*:\s*(.+?)(?=\s*(?:Téléphone|Fax|Adresse|Dirigeants|Nombre de titres|Flottant|Valorisation)\s*:)/i
-      );
-      if (descMatch) description = descMatch[1]!.replace(/\s+/g, " ").trim();
-
-      const phone =
-        pageText.match(/Téléphone\s*:\s*(\(\+\d+\)[\d\s\-–]+|\+?[\d\s\-–()]{8,})/i)?.[1]?.trim() ?? null;
-      const fax =
-        pageText.match(/Fax\s*:\s*(\(\+\d+\)[\d\s\-–]+|\+?[\d\s\-–()]{8,})/i)?.[1]?.trim() ?? null;
-      const address =
-        pageText
-          .match(/Adresse\s*:\s*(.+?)(?=\s*(?:Dirigeants|Nombre de titres|Flottant|Téléphone|Fax)\s*:)/i)?.[1]
-          ?.trim() ?? null;
-      const directors =
-        pageText
-          .match(/Dirigeants\s*:\s*(.+?)(?=\s*(?:Nombre de titres|Flottant|Valorisation|Principaux)\s*:)/i)?.[1]
-          ?.replace(/\s+/g, " ")
-          .trim() ?? null;
-
-      let sharesOutstanding: number | null = null;
-      const sharesMatch = pageText.match(/Nombre de titres\s*:\s*([\d\s\u00a0]+)/i);
-      if (sharesMatch) sharesOutstanding = parseFrenchNumber(sharesMatch[1]!.replace(/\s/g, " "));
-
-      let floatPercent: number | null = null;
-      const floatMatch = pageText.match(/Flottant\s*:\s*([\d.,]+)\s*%/i);
-      if (floatMatch) floatPercent = parseFrenchNumber(floatMatch[1]!);
-
-      let mktCapMds: number | null = null;
-      let valuationLabel: string | null = null;
-      const valoMatch = pageText.match(
-        /Valorisation de la société\s*:\s*([\d\s\u00a0]+)\s*(MFCFA|Md[s]?\s*FCFA)?/i
-      );
-      if (valoMatch) {
-        valuationLabel = `${valoMatch[1]!.replace(/\s+/g, " ").trim()}${valoMatch[2] ? ` ${valoMatch[2]}` : ""}`;
-        const mfcfa = parseFrenchNumber(valoMatch[1]!.replace(/\s/g, " "));
-        if (mfcfa != null && mfcfa > 0) {
-          const unit = (valoMatch[2] ?? "MFCFA").toUpperCase();
-          mktCapMds = unit.includes("MFCFA")
-            ? Math.round((mfcfa / 1000) * 100) / 100
-            : Math.round(mfcfa * 100) / 100;
-        }
-      }
-
-      const shareholders: Array<{ name: string; percent: number | null }> = [];
-      // Format Sika : <span id="lstActionnaires">NOM*42,3;AUTRE*27,7</span>
-      const lstRaw =
-        $("#lstActionnaires").text().trim() ||
-        pageText.match(/lstActionnaires[^>]*>([^<]+)/i)?.[1]?.trim() ||
-        "";
-      if (lstRaw) {
-        for (const part of lstRaw.split(";")) {
-          const [namePart, pctPart] = part.split("*");
-          const name = (namePart ?? "").trim();
-          if (!name) continue;
-          const percent = pctPart != null ? parseFrenchNumber(pctPart) : null;
-          shareholders.push({ name, percent });
-        }
-      }
-
-      const fundamentals: RawCompanyFundamentals[] = [];
-      const dividends: RawDividendRow[] = [];
-
-      $("table").each((_, table) => {
-        const rows = $(table)
-          .find("tr")
-          .toArray()
-          .map((tr) =>
-            $(tr)
-              .find("th,td")
-              .toArray()
-              .map((c) => $(c).text().replace(/\u00a0/g, " ").trim())
-          );
-        if (rows.length < 2) return;
-        const header = rows[0]!;
-        const yearIdx: Array<{ col: number; year: number }> = [];
-        header.forEach((cell, col) => {
-          const y = Number(cell);
-          if (y >= 1990 && y <= 2100) yearIdx.push({ col, year: y });
-        });
-        if (yearIdx.length === 0) return;
-
-        const byLabel = new Map<string, string[]>();
-        for (const row of rows.slice(1)) {
-          const label = (row[0] ?? "").toLowerCase();
-          if (!label) continue;
-          byLabel.set(label, row);
-        }
-
-        for (const { col, year } of yearIdx) {
-          const perRow = [...byLabel.entries()].find(([l]) => l === "per" || l.startsWith("per"));
-          const growthRow = [...byLabel.entries()].find(([l]) => l.includes("croissance ca"));
-          const divRow = [...byLabel.entries()].find(([l]) => l.startsWith("dividende"));
-          const rnRow = [...byLabel.entries()].find(([l]) => l.includes("résultat net") || l.includes("resultat net"));
-          const caRow = [...byLabel.entries()].find(([l]) => l.includes("chiffre"));
-
-          const per = perRow ? parseFrenchNumber(perRow[1][col] ?? "") : null;
-          const revenueGrowth = growthRow ? parseFrenchNumber(growthRow[1][col] ?? "") : null;
-          const divAmt = divRow ? parseFrenchNumber(divRow[1][col] ?? "") : null;
-
-          // Marge nette approx si CA + RN présents (milliers / mêmes unités).
-          let netMargin: number | null = null;
-          const ca = caRow ? parseFrenchNumber(caRow[1][col] ?? "") : null;
-          const rn = rnRow ? parseFrenchNumber(rnRow[1][col] ?? "") : null;
-          if (ca != null && ca > 0 && rn != null) {
-            netMargin = Math.round((rn / ca) * 10000) / 100;
-          }
-
-          if (per != null || revenueGrowth != null || netMargin != null || (year === new Date().getUTCFullYear() && mktCapMds != null)) {
-            fundamentals.push({
-              ticker: t,
-              year,
-              per,
-              mktCapMds: year === new Date().getUTCFullYear() ? mktCapMds : null,
-              closePrice: null,
-              source: this.source,
-              fetchedAt,
-              revenueGrowth,
-              netMargin,
-            });
-          }
-          if (divAmt != null && divAmt > 0) {
-            dividends.push({ ticker: t, year, amount: divAmt, source: this.source, fetchedAt });
-          }
-        }
-      });
-
-      // Cap actuelle seule si aucun tableau d'années mais valo présente.
-      if (fundamentals.length === 0 && mktCapMds != null) {
-        fundamentals.push({
-          ticker: t,
-          year: new Date().getUTCFullYear(),
-          per: null,
-          mktCapMds,
-          closePrice: null,
-          source: this.source,
-          fetchedAt,
-        });
-      }
-
-      const profile: RawCompanyProfile = {
-        ticker: t,
-        isin,
-        description,
-        sharesOutstanding,
-        floatPercent,
-        phone,
-        fax,
-        address,
-        directors,
-        valuationLabel,
-        shareholders,
-        source: this.source,
-        fetchedAt,
-      };
-
-      return { ok: true, source: this.source, data: { profile, fundamentals, dividends }, fetchedAt };
+      return { ok: true, source: this.source, data: parsed, fetchedAt };
     } catch (err) {
       return {
         ok: false,

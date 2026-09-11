@@ -18,6 +18,21 @@ export interface ConnectorFeatureFlags {
   richbourseQuotes: boolean;
 }
 
+export interface HistoryBackfillFlags {
+  /** Orchestrateur GetHistos + enrichissement (défaut true). */
+  enabled: boolean;
+  /** Journalier chunké (défaut true ; désactiver si l'API sature). */
+  daily: boolean;
+  /** Fiches SOCIETE : ISIN, PER, CA/RN, dividendes. */
+  sheets: boolean;
+  /** Événements + actualités valeur. */
+  eventsNews: boolean;
+  /** Documents BRVM via catalogue OuestBourse (si clé configurée). */
+  documents: boolean;
+  /** Enchaîner un backfill borné après le cron d'ingestion quotidien (défaut false). */
+  onDailyCron: boolean;
+}
+
 function envFlag(name: string, defaultValue: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return defaultValue;
@@ -37,5 +52,19 @@ export function getConnectorFeatureFlags(): ConnectorFeatureFlags {
     sikafinanceQuotes: envFlag("INGESTION_ENABLE_SIKAFINANCE_QUOTES", true),
     richbourseIndices: envFlag("INGESTION_ENABLE_RICHBOURSE_INDICES", true),
     richbourseQuotes: envFlag("INGESTION_ENABLE_RICHBOURSE_QUOTES", true),
+  };
+}
+
+export function getHistoryBackfillFlags(): HistoryBackfillFlags {
+  return {
+    enabled: envFlag("INGESTION_ENABLE_HISTORY_BACKFILL", true),
+    daily: envFlag("INGESTION_ENABLE_SIKA_DAILY_HISTORY", true),
+    sheets: envFlag("INGESTION_ENABLE_SIKA_SHEETS", true),
+    eventsNews: envFlag("INGESTION_ENABLE_SIKA_EVENTS", true),
+    documents: envFlag("INGESTION_ENABLE_OB_DOCUMENTS", true),
+    // Désactivé par défaut : le cron Hobby (300 s) est déjà saturé par
+    // BRVM + Sika A–Z + Richbourse. Activer uniquement si on accepte un
+    // rattrapage incrémental (reprise ticker par ticker).
+    onDailyCron: envFlag("INGESTION_HISTORY_BACKFILL_ON_CRON", false),
   };
 }

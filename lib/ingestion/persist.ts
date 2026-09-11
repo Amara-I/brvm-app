@@ -23,6 +23,8 @@
 import type { PrismaClient } from "@prisma/client";
 import { toPrismaDataSource } from "./prisma-mappers";
 import type { DiscrepancyReport, ReconciledIndex, ReconciledPrice } from "./reconciliation";
+import { sourcesOutranking, sourceOutranks } from "./reconciliation";
+import type { DataSourceCode } from "./types";
 import type {
   RawCompanyDocument,
   RawCompanyEventItem,
@@ -129,25 +131,59 @@ export async function persistPriceQuotes(
     upserted++;
   }
 
-  let markedCanonical = 0;
+  const byTicker = new Map<string, ReconciledPrice[]>();
   for (const r of reconciled) {
-    const companyId = companyIdByTicker.get(r.ticker);
+    const arr = byTicker.get(r.ticker) ?? [];
+    arr.push(r);
+    byTicker.set(r.ticker, arr);
+  }
+
+  let markedCanonical = 0;
+  for (const [ticker, rows] of byTicker) {
+    const companyId = companyIdByTicker.get(ticker);
     if (!companyId) continue;
-    const date = new Date(`${r.date}T00:00:00.000Z`);
-    const dayEnd = new Date(date);
-    dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
-    const winningSource = toPrismaDataSource(r.resolvedSource);
-    // Jour calendaire entier : évite 2 canoniques si timestamps UTC diffèrent
-    // (ex. seed « date du jour » vs clôture à minuit).
-    await db.priceHistory.updateMany({
-      where: { companyId, date: { gte: date, lt: dayEnd } },
-      data: { isCanonical: false },
-    });
-    await db.priceHistory.update({
-      where: { uniq_price_company_date_source: { companyId, date, source: winningSource } },
-      data: { isCanonical: true },
-    });
-    markedCanonical++;
+
+    const blockedDates = new Set<string>();
+    const dateObjs = rows.map((r) => new Date(`${r.date}T00:00:00.000Z`));
+    const higherSources = [
+      ...new Set(rows.flatMap((r) => sourcesOutranking(r.resolvedSource).map(toPrismaDataSource))),
+    ];
+    if (higherSources.length > 0 && dateObjs.length > 0) {
+      const higherRows = await db.priceHistory.findMany({
+        where: { companyId, date: { in: dateObjs }, source: { in: higherSources } },
+        select: { date: true },
+      });
+      for (const h of higherRows) {
+        blockedDates.add(h.date.toISOString().slice(0, 10));
+      }
+    }
+
+    for (const r of rows) {
+      const date = new Date(`${r.date}T00:00:00.000Z`);
+      const dayEnd = new Date(date);
+      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
+      const winningSource = toPrismaDataSource(r.resolvedSource);
+      if (blockedDates.has(r.date)) {
+        // Une source supérieure existe déjà : ne jamais élever celle-ci,
+        // et rétrograder un canonique Sika/OB erroné le cas échéant.
+        await db.priceHistory.updateMany({
+          where: { companyId, date, source: winningSource },
+          data: { isCanonical: false },
+        });
+        continue;
+      }
+      // Jour calendaire entier : évite 2 canoniques si timestamps UTC diffèrent
+      // (ex. seed « date du jour » vs clôture à minuit).
+      await db.priceHistory.updateMany({
+        where: { companyId, date: { gte: date, lt: dayEnd } },
+        data: { isCanonical: false },
+      });
+      await db.priceHistory.update({
+        where: { uniq_price_company_date_source: { companyId, date, source: winningSource } },
+        data: { isCanonical: true },
+      });
+      markedCanonical++;
+    }
   }
 
   return { upserted, markedCanonical, unknownTickers: [...unknownTickers] };
@@ -192,6 +228,15 @@ export async function persistFinancialRatios(
       continue;
     }
     const source = toPrismaDataSource(row.source);
+    const existingCanon = await db.financialRatio.findFirst({
+      where: { companyId, year: row.year, isCanonical: true },
+      select: { source: true },
+    });
+    const incomingWins =
+      !existingCanon ||
+      existingCanon.source === source ||
+      sourceOutranks(row.source, existingCanon.source as DataSourceCode);
+
     await db.financialRatio.upsert({
       where: { uniq_ratio_company_year_source: { companyId, year: row.year, source } },
       update: {
@@ -203,7 +248,7 @@ export async function persistFinancialRatios(
         ...(row.debtRatio != null ? { debtRatio: row.debtRatio } : {}),
         ...(row.pbRatio != null ? { pbRatio: row.pbRatio } : {}),
         ...(row.fcf != null ? { fcf: row.fcf } : {}),
-        isCanonical: true,
+        isCanonical: incomingWins,
       },
       create: {
         companyId,
@@ -217,7 +262,7 @@ export async function persistFinancialRatios(
         debtRatio: row.debtRatio ?? null,
         pbRatio: row.pbRatio ?? null,
         fcf: row.fcf ?? null,
-        isCanonical: true,
+        isCanonical: incomingWins,
       },
     });
     // Comptes annuels (CA / RN / REX) — SQL direct tant que le client Prisma
@@ -235,11 +280,13 @@ export async function persistFinancialRatios(
       `;
     }
     upserted++;
-    await db.financialRatio.updateMany({
-      where: { companyId, year: row.year, source: { not: source } },
-      data: { isCanonical: false },
-    });
-    markedCanonical++;
+    if (incomingWins) {
+      await db.financialRatio.updateMany({
+        where: { companyId, year: row.year, source: { not: source } },
+        data: { isCanonical: false },
+      });
+      markedCanonical++;
+    }
   }
 
   return { upserted, markedCanonical, unknownTickers: [...unknownTickers] };
