@@ -4,6 +4,7 @@ import {
   parseChartRangeParam,
   parseIsoDateParam,
   seriesCoversChartRange,
+  seriesCoversIntervalLookback,
 } from "./chart-window";
 import type { ChartClosePoint } from "./indicators";
 
@@ -98,5 +99,20 @@ describe("seriesCoversChartRange", () => {
     expect(seriesCoversChartRange(oneY, "5A", false)).toBe(false);
     expect(seriesCoversChartRange(oneY, "MAX", false)).toBe(false);
     expect(seriesCoversChartRange(dense, "MAX", true)).toBe(true);
+  });
+});
+
+describe("seriesCoversIntervalLookback", () => {
+  it("ne relance pas si le lookback contigu est épuisé", () => {
+    const oneY = applyChartSeriesWindow(dense, { range: "1A" }).series;
+    expect(
+      seriesCoversIntervalLookback({
+        points: oneY,
+        range: "1A",
+        interval: "1M",
+        historyComplete: false,
+        lookbackExhausted: true,
+      })
+    ).toBe(true);
   });
 });

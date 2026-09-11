@@ -10,6 +10,11 @@ import { prisma } from "@/lib/prisma";
 import { apiSuccess, apiNotFound, apiValidationError, cacheHeaders } from "@/lib/api/response";
 import { chartSeriesQuerySchema } from "@/lib/api/query-schemas";
 import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
+import {
+  lookbackDaysForInterval,
+  sliceContiguousLookback,
+} from "@/lib/charts/contiguous-lookback";
+import type { CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
 import {
   fetchRichbourseCloseSeries,
@@ -308,10 +313,16 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   }
 
   const windowStart = windowed.series[0]?.time;
+  const intervalHint = (windowQuery.interval ?? "1D") as CandleInterval;
   let lookback: typeof series = [];
+  let lookbackExhausted = windowed.range === "MAX";
   if (windowStart && windowed.range !== "MAX") {
-    const idx = series.findIndex((p) => p.time === windowStart);
-    if (idx > 0) lookback = series.slice(Math.max(0, idx - 260), idx);
+    const sliced = sliceContiguousLookback(series, windowStart, {
+      maxDays: lookbackDaysForInterval(intervalHint),
+      maxPoints: 800,
+    });
+    lookback = sliced.points;
+    lookbackExhausted = sliced.exhausted;
   }
 
   return apiSuccess(
@@ -345,6 +356,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         range: windowed.range,
         from: windowed.from,
         to: windowed.to,
+        lookbackExhausted,
         dayChangePercent: dayChange,
         dayChangeAbs,
         change1YPercent: change1Y,
