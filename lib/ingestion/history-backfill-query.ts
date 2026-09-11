@@ -4,6 +4,7 @@
 // les fenêtres lacunaires. Ne baisse PAS le seuil de densité à 1 par défaut
 // (minPoints=1 ne refetch que les chunks vides et sauterait les années
 // mensuelles, ex. BICC 2023–2026). Passer minDailyPoints pour override.
+// Un GetHistos réussi sans nouvel upsert sature la fenêtre même sous 35 pts.
 
 import type { HistoryBackfillOptions } from "./run-history-backfill";
 import {

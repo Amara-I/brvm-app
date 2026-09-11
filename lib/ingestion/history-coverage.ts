@@ -16,6 +16,12 @@ export const DEFAULT_DAILY_CHUNK_DAYS = 89;
  * Nombre min de clôtures déjà en base dans une fenêtre ~89 j pour considérer
  * le chunk « assez dense » et éviter de re-frapper l'API (≈ 60 séances max ;
  * 35 = couverture réelle, pas seulement 1 point annuel au 31/12).
+ *
+ * Ce seuil reste le défaut de *planification* (une série mensuelle ~3 pts
+ * doit encore être densifiée). Il ne doit PAS servir de condition de retry
+ * infini : GetHistos ne renvoie souvent que ~28 clôtures / 89 j sur la BRVM.
+ * Après un fetch réussi sans nouvelle date, `isDailyChunkSatisfiedBySource`
+ * marque la fenêtre épuisée pour cette source.
  */
 export const DEFAULT_MIN_DAILY_POINTS_PER_CHUNK = 35;
 
@@ -67,10 +73,23 @@ export interface IsoRange {
   to: string;
 }
 
+/** Fenêtre journalière déjà saturée par la source (GetHistos n'a plus rien à ajouter). */
+export interface SatisfiedDailyChunk extends IsoRange {
+  ticker: string;
+}
+
 export interface ExistingPriceRef {
   date: string; // YYYY-MM-DD
   source: DataSourceCode;
   closePrice: number;
+}
+
+export function isoRangeKey(range: IsoRange): string {
+  return `${range.from}|${range.to}`;
+}
+
+export function satisfiedDailyChunkKey(chunk: SatisfiedDailyChunk): string {
+  return `${chunk.ticker}|${isoRangeKey(chunk)}`;
 }
 
 export function iterateDailyChunks(
@@ -128,16 +147,94 @@ export function minDailyPointsForChunk(
 /**
  * Retourne les fenêtres encore trop clairsemées (à re-fetcher en journalier).
  * `existingDates` = dates déjà couvertes par une source utilisable (BRVM ou Sika).
+ * `sourceSatisfied` = fenêtres déjà épuisées par un GetHistos réussi (même si
+ * le nombre de clôtures reste sous le seuil nominal de 35).
  */
 export function chunksNeedingFetch(
   chunks: IsoRange[],
   existingDates: Set<string>,
-  minPoints = DEFAULT_MIN_DAILY_POINTS_PER_CHUNK
+  minPoints = DEFAULT_MIN_DAILY_POINTS_PER_CHUNK,
+  sourceSatisfied?: Iterable<IsoRange>
 ): IsoRange[] {
+  const skip = new Set([...(sourceSatisfied ?? [])].map(isoRangeKey));
   return chunks.filter((c) => {
+    if (skip.has(isoRangeKey(c))) return false;
     const need = minDailyPointsForChunk(c.from, c.to, minPoints);
     return countDatesInRange(existingDates, c.from, c.to) < need;
   });
+}
+
+function uniqueIncomingDatesInWindow(incoming: RawPriceQuote[], chunk: IsoRange): Set<string> {
+  const dates = new Set<string>();
+  for (const q of incoming) {
+    if (q.date >= chunk.from && q.date <= chunk.to) dates.add(q.date);
+  }
+  return dates;
+}
+
+/**
+ * Après un GetHistos journalier *réussi* : la source a-t-elle déjà donné tout
+ * ce qu'elle a pour cette fenêtre ?
+ *
+ * 1. Upsert vide, ou 0 nouvelle date unique dans la fenêtre → épuisé
+ *    (re-fetch identique, cas BICC ~28 clôtures < seuil 35).
+ * 2. Sinon, plafond adaptatif = max(existingInChunk, fetchedCount) : on ne
+ *    redemande pas plus de points que ce que l'API vient de renvoyer.
+ *
+ * Le seuil nominal 35 reste inchangé pour *planifier* une série mensuelle.
+ */
+export function isDailyChunkSatisfiedBySource(opts: {
+  chunk: IsoRange;
+  existingCoveredDates: Set<string>;
+  incoming: RawPriceQuote[];
+  toUpsert: RawPriceQuote[];
+  minPoints?: number;
+}): boolean {
+  const { chunk } = opts;
+  const fetchedDates = uniqueIncomingDatesInWindow(opts.incoming, chunk);
+  const existingInChunk = countDatesInRange(opts.existingCoveredDates, chunk.from, chunk.to);
+  let newUnique = 0;
+  for (const d of fetchedDates) {
+    if (!opts.existingCoveredDates.has(d)) newUnique += 1;
+  }
+  const upsertInWindow = opts.toUpsert.filter((q) => q.date >= chunk.from && q.date <= chunk.to);
+
+  if (upsertInWindow.length === 0 || newUnique === 0) {
+    return true;
+  }
+
+  const coveredAfter = existingInChunk + newUnique;
+  const fetchedCount = fetchedDates.size;
+  const effectiveMin = Math.min(
+    minDailyPointsForChunk(chunk.from, chunk.to, opts.minPoints),
+    Math.max(existingInChunk, fetchedCount, 1)
+  );
+  return coveredAfter >= effectiveMin;
+}
+
+export function parseSatisfiedDailyChunks(raw: unknown): SatisfiedDailyChunk[] {
+  if (!Array.isArray(raw)) return [];
+  const out: SatisfiedDailyChunk[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const rec = item as { ticker?: unknown; from?: unknown; to?: unknown };
+    const ticker = typeof rec.ticker === "string" ? rec.ticker.trim().toUpperCase() : "";
+    const from = typeof rec.from === "string" ? rec.from : "";
+    const to = typeof rec.to === "string" ? rec.to : "";
+    if (!ticker || !isIsoDay(from) || !isIsoDay(to)) continue;
+    const key = `${ticker}|${from}|${to}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ ticker, from, to });
+  }
+  return out;
+}
+
+export function mergeSatisfiedDailyChunks(
+  groups: Iterable<Iterable<SatisfiedDailyChunk>>
+): SatisfiedDailyChunk[] {
+  return parseSatisfiedDailyChunks([...groups].flatMap((g) => [...g]));
 }
 
 export function quotesNeedingUpsert(
@@ -277,6 +374,16 @@ export interface DailyBackfillPlan {
   minDailyPoints: number;
 }
 
+export function satisfiedRangesForTicker(
+  chunks: Iterable<SatisfiedDailyChunk>,
+  ticker: string
+): IsoRange[] {
+  const t = ticker.toUpperCase();
+  return [...chunks]
+    .filter((c) => c.ticker === t)
+    .map((c) => ({ from: c.from, to: c.to }));
+}
+
 export function planDailyBackfill(opts: {
   flagDaily: boolean;
   forceDaily?: boolean;
@@ -288,6 +395,8 @@ export function planDailyBackfill(opts: {
   annualFromYear?: number;
   minDailyPoints?: number;
   todayIso?: string;
+  /** Fenêtres déjà saturées pour CE ticker (reprise cron sans re-boucler). */
+  sourceSatisfiedChunks?: Iterable<IsoRange>;
 }): DailyBackfillPlan {
   const forceDaily = opts.forceDaily === true;
   const flagDaily = opts.flagDaily;
@@ -297,6 +406,7 @@ export function planDailyBackfill(opts: {
   const existingPoints = opts.existing.length;
   const covered = coveredDailyDates(opts.existing);
   const existingCoveredPoints = covered.size;
+  const sourceSatisfied = opts.sourceSatisfiedChunks;
 
   const includeDaily = forceDaily || (!requestedOff && flagDaily && opts.includeDailyRequested !== false);
 
@@ -324,7 +434,7 @@ export function planDailyBackfill(opts: {
       return empty("flag_daily_disabled", null);
     }
     const chunks = iterateDailyChunks(fromIso, toIso);
-    const gaps = chunksNeedingFetch(chunks, covered, minDailyPoints);
+    const gaps = chunksNeedingFetch(chunks, covered, minDailyPoints, sourceSatisfied);
     return {
       includeDaily: false,
       flagDaily,
@@ -345,7 +455,7 @@ export function planDailyBackfill(opts: {
     return empty("no_from_iso", null);
   }
   const chunks = iterateDailyChunks(fromIso, toIso);
-  const gaps = chunksNeedingFetch(chunks, covered, minDailyPoints);
+  const gaps = chunksNeedingFetch(chunks, covered, minDailyPoints, sourceSatisfied);
   return {
     includeDaily: true,
     flagDaily,

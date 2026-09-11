@@ -17,7 +17,13 @@
 //                         et planifie les gaps (seuil 35 sauf minDailyPoints=)
 //
 // Diagnostic par ticker : includeDaily, flagDaily, dailyFromIso,
-// dailyGapsPlanned, dailyChunksFetched, existingPoints, dailySkipReason.
+// dailyGapsPlanned, dailyChunksFetched, dailyChunksSatisfied,
+// dailyGapsRemaining, existingPoints, dailySkipReason.
+//
+// GetHistos plafonne souvent ~28 clôtures / 89 j (< 35). Un fetch réussi
+// sans nouvel upsert marque la fenêtre « source épuisée » (persistance dans
+// ingestion_logs) pour ne pas reboucler à l'infini sur le même ticker.
+// minDailyPoints=20 reste un override ops possible, plus nécessaire pour ce stall.
 //
 // Ex. densifier BICC malgré un flag daily off en prod :
 //   .../history-backfill?forceDaily=1&maxTickers=1&tickers=BICC

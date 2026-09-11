@@ -6,10 +6,11 @@
 //      plus tard selon le titre — ex. SNTS 2006).
 //   2. Mensuel xperiod=30 depuis la première année réellement retournée.
 //   3. Journalier chunké ~89 j uniquement sur les fenêtres encore lacunaires
-//      (skip si déjà ≥ 35 clôtures BRVM/Sika dans la fenêtre).
+//      (skip si déjà ≥ 35 clôtures BRVM/Sika, OU si un GetHistos réussi n'a
+//      plus aucune date nouvelle — Sika plafonne souvent ~28 pts / 89 j).
 //      forceDaily=1 ignore INGESTION_ENABLE_SIKA_DAILY_HISTORY=false.
 //      Fenêtres persistées une par une + plafond Hobby (défaut 8 / ticker).
-//      Reprise sur le MÊME ticker tant qu'il reste des gaps.
+//      Reprise sur le MÊME ticker tant qu'il reste des gaps non saturés.
 //   4. Fiche SOCIETE (ISIN, CA/RN en Mds, PER, dividendes), events/news,
 //      documents BRVM via catalogue OuestBourse si la clé est configurée.
 //
@@ -21,7 +22,7 @@
 // Cron manuel : GET /api/cron/history-backfill (pas dans vercel.json — quota
 // Hobby = 2 crons déjà pris par ingest + research).
 
-import { DataSource, IngestionStatus } from "@prisma/client";
+import { DataSource, IngestionStatus, Prisma } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { prisma } from "../prisma";
 import { sikafinanceConnector } from "./connectors/sikafinance_connector";
@@ -46,14 +47,21 @@ import type { DataSourceCode, RawPriceQuote } from "./types";
 import {
   DEFAULT_ANNUAL_FROM_YEAR,
   DEFAULT_MIN_DAILY_POINTS_PER_CHUNK,
+  chunksNeedingFetch,
+  coveredDailyDates,
   earliestIsoFromQuotes,
+  isDailyChunkSatisfiedBySource,
   maxDailyChunksThisRun,
   mergeExistingPrices,
+  mergeSatisfiedDailyChunks,
   minIsoDate,
+  parseSatisfiedDailyChunks,
   planDailyBackfill,
   quotesEligibleForCanonical,
   quotesNeedingUpsert,
+  satisfiedRangesForTicker,
   type ExistingPriceRef,
+  type SatisfiedDailyChunk,
 } from "./history-coverage";
 
 const LOG_KIND = "HISTORY_BACKFILL";
@@ -96,6 +104,8 @@ export interface HistoryBackfillTickerResult {
   flagDaily: boolean;
   dailyFromIso: string | null;
   dailyGapsPlanned: number;
+  dailyChunksSatisfied: number;
+  dailyGapsRemaining: number;
   existingPoints: number;
   dailySkipReason: string | null;
   sheetsOk: boolean;
@@ -164,20 +174,45 @@ async function persistSikaQuotes(
   };
 }
 
-async function findResumeTicker(db: PrismaClient): Promise<string | null> {
+function asBackfillLogPayload(errors: unknown): {
+  kind?: string;
+  incomplete?: boolean;
+  nextTicker?: string;
+  sourceSatisfiedChunks?: unknown;
+} | null {
+  if (!errors || typeof errors !== "object") return null;
+  return errors as {
+    kind?: string;
+    incomplete?: boolean;
+    nextTicker?: string;
+    sourceSatisfiedChunks?: unknown;
+  };
+}
+
+async function loadHistoryBackfillCursor(db: PrismaClient): Promise<{
+  resumeTicker: string | null;
+  sourceSatisfiedChunks: SatisfiedDailyChunk[];
+}> {
   const logs = await db.ingestionLog.findMany({
     where: { source: DataSource.SIKAFINANCE },
     orderBy: { runAt: "desc" },
-    take: 25,
+    take: 50,
     select: { errors: true },
   });
+  let resumeTicker: string | null = null;
+  const groups: SatisfiedDailyChunk[][] = [];
   for (const row of logs) {
-    const payload = row.errors as { kind?: string; incomplete?: boolean; nextTicker?: string } | null;
-    if (payload?.kind === LOG_KIND && payload.incomplete && payload.nextTicker) {
-      return payload.nextTicker.toUpperCase();
+    const payload = asBackfillLogPayload(row.errors);
+    if (payload?.kind !== LOG_KIND) continue;
+    groups.push(parseSatisfiedDailyChunks(payload.sourceSatisfiedChunks));
+    if (!resumeTicker && payload.incomplete && payload.nextTicker) {
+      resumeTicker = payload.nextTicker.toUpperCase();
     }
   }
-  return null;
+  return {
+    resumeTicker,
+    sourceSatisfiedChunks: mergeSatisfiedDailyChunks(groups),
+  };
 }
 
 export async function runHistoryBackfill(
@@ -229,10 +264,12 @@ export async function runHistoryBackfill(
   });
   const companyIdByTicker = new Map(companies.map((c) => [c.ticker, c.id]));
 
+  const cursor = await loadHistoryBackfillCursor(db);
+  let sourceSatisfiedChunks = cursor.sourceSatisfiedChunks;
   let resumeAfter = options.resumeAfterTicker?.toUpperCase() ?? null;
   let resumeInclusive = options.resumeInclusive === true;
   if (!resumeAfter && options.resume !== false && !only?.length) {
-    resumeAfter = await findResumeTicker(db);
+    resumeAfter = cursor.resumeTicker;
     resumeInclusive = true;
   }
   let queue = companies;
@@ -295,6 +332,8 @@ export async function runHistoryBackfill(
         flagDaily: flags.daily,
         dailyFromIso: null,
         dailyGapsPlanned: 0,
+        dailyChunksSatisfied: 0,
+        dailyGapsRemaining: 0,
         existingPoints: 0,
         dailySkipReason: null,
         sheetsOk: false,
@@ -355,6 +394,7 @@ export async function runHistoryBackfill(
           annualFromYear: options.annualFromYear ?? DEFAULT_ANNUAL_FROM_YEAR,
           minDailyPoints,
           todayIso: toIsoDate(new Date()),
+          sourceSatisfiedChunks: satisfiedRangesForTicker(sourceSatisfiedChunks, co.ticker),
         });
         result.includeDaily = plan.includeDaily;
         result.flagDaily = plan.flagDaily;
@@ -388,15 +428,46 @@ export async function runHistoryBackfill(
                 continue;
               }
               result.dailyPoints += part.data.length;
+              const coveredBefore = coveredDailyDates(existing);
+              const toUpsert = quotesNeedingUpsert(part.data, existing);
               const persisted = await persistSikaQuotes(db, companyIdByTicker, existing, part.data);
               existing = persisted.existing;
               result.pricesUpserted += persisted.upserted;
               result.pricesCanonical += persisted.canonical;
+              if (
+                isDailyChunkSatisfiedBySource({
+                  chunk: range,
+                  existingCoveredDates: coveredBefore,
+                  incoming: part.data,
+                  toUpsert,
+                  minPoints: minDailyPoints,
+                })
+              ) {
+                sourceSatisfiedChunks = mergeSatisfiedDailyChunks([
+                  sourceSatisfiedChunks,
+                  [{ ticker: co.ticker, from: range.from, to: range.to }],
+                ]);
+                result.dailyChunksSatisfied += 1;
+              }
             }
-            if (result.dailyChunksFetched < plan.gaps.length) {
-              incomplete = true;
-              nextTicker = co.ticker;
-            }
+          }
+        }
+
+        if (plan.includeDaily) {
+          const remainingGaps = chunksNeedingFetch(
+            plan.chunks.length > 0 ? plan.chunks : plan.gaps,
+            coveredDailyDates(existing),
+            minDailyPoints,
+            satisfiedRangesForTicker(sourceSatisfiedChunks, co.ticker)
+          );
+          result.dailyGapsRemaining = remainingGaps.length;
+          if (remainingGaps.length > 0) {
+            incomplete = true;
+            nextTicker = co.ticker;
+          } else if (nextTicker === co.ticker) {
+            // Journalier saturé pour ce ticker (même sous le seuil 35) : avancer.
+            incomplete = false;
+            nextTicker = null;
           }
         }
 
@@ -443,6 +514,8 @@ export async function runHistoryBackfill(
             ` · mensuel ${result.monthlyPoints}` +
             ` · journalier ${result.dailyPoints}` +
             ` (${result.dailyChunksFetched}/${result.dailyGapsPlanned} fenêtres` +
+            ` restant=${result.dailyGapsRemaining}` +
+            ` saturées=${result.dailyChunksSatisfied}` +
             ` from=${result.dailyFromIso ?? "n/a"}` +
             ` flagDaily=${result.flagDaily}` +
             (result.dailySkipReason ? ` skip=${result.dailySkipReason}` : "") +
@@ -491,7 +564,8 @@ export async function runHistoryBackfill(
           incomplete,
           nextTicker,
           tickersOk: ok,
-        },
+          sourceSatisfiedChunks,
+        } as unknown as Prisma.InputJsonValue,
       },
     });
   }
