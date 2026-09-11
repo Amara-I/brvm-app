@@ -1,30 +1,45 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Connecteur Sikafinance — SOURCE N°2 (source: "SIKAFINANCE")
 // ═══════════════════════════════════════════════════════════════════════════
-// Endpoints publics confirmés le 12/08/2026 :
+// Endpoints publics revalidés le 10/09/2026 :
 //
-//   - Indices (accueil) : `.mkcol` → BRVM Composite + SIKA TOTAL RETURN
-//   - Cotation : `/marches/cotation_{TICKER}.{cc}` (ex. SNTS.sn, SGBC.ci)
-//     — l'ancien chemin sans suffixe pays retourne souvent 404.
-//   - Historique : POST `/api/general/GetHistos`
+//   - Cotations du jour : UNE page `/marches/aaz` (`#tblShare`) — Dernier,
+//     volume, variation pour toutes les valeurs. L'ancien scrape
+//     `/marches/cotation_{TICKER.cc}` via `.mkprice` est mort (la classe a
+//     disparu ; `cotation_{TICKER}` sans suffixe pays reste en 404).
+//   - Indices : `#tabQuotes2` sur la même page A–Z (BRVMC, BRVM30, SIKATR,
+//     sectoriels) ; repli accueil `.mkcol` / `.mkprice`.
+//   - Historique / dernier close de repli : POST `/api/general/GetHistos`
 //     body `{ ticker:"SNTS.sn", datedeb, datefin, xperiod }`
 //     xperiod "365" = annuel ; "30" = mensuel ; "0" = journalier
 //     (journalier limité ~89 jours sinon erreur API `toolong` — chunker).
-  //   - Fiche SOCIETE : `/marches/societe/{TICKER.cc}` (ISIN, description,
-  //     tableau CA/RN/PER/dividendes, valorisation, actionnaires).
-  //   - Actualités valeur : `/marches/news_valeur?s={TICKER.cc}`
-  //   - Événements : `/marches/events/{TICKER.cc}`
-  //   - Historiques (page) : `/marches/historiques/{TICKER.cc}` — l'API GetHistos
-  //     reste la voie d'ingestion des cours (cf. fetchAnnualHistory / daily).
-  //   - Liste des suffixes pays : `/marches/aaz` (cotation_TICKER.cc)
-  //
-  // robots.txt : Disallow `/listes/displaylist`, `/portif/displayp`, `/docs/*`
-  // — les chemins ci-dessus sont autorisés (pas de scrape /docs).
+//   - Cotation HTML (profil/ISIN uniquement) : `/marches/cotation_{TICKER.cc}`
+//   - Fiche SOCIETE : `/marches/societe/{TICKER.cc}` (ISIN, description,
+//     tableau CA/RN/PER/dividendes, valorisation, actionnaires).
+//   - Actualités valeur : `/marches/news_valeur?s={TICKER.cc}`
+//   - Événements : `/marches/events/{TICKER.cc}`
+//   - Historiques (page) : `/marches/historiques/{TICKER.cc}` — l'API GetHistos
+//     reste la voie d'ingestion des cours (cf. fetchAnnualHistory / daily).
+//   - Liste des suffixes pays : `/marches/aaz` (cotation_TICKER.cc)
+//
+// robots.txt : Disallow `/listes/displaylist`, `/portif/displayp`, `/docs/*`
+// — les chemins ci-dessus sont autorisés (pas de scrape /docs).
   // ═══════════════════════════════════════════════════════════════════════════
 
 import * as cheerio from "cheerio";
 import { fetchHtml, fetchJson, HttpFetchError } from "../http-client";
-import { parseFrenchNumber, parseDdMmYyyy, toIsoDate, lastBusinessDay } from "../parse-utils";
+import { parseFrenchNumber, parseDdMmYyyy, toIsoDate, lastBusinessDay, shiftIsoDate } from "../parse-utils";
+import {
+  lastHistosQuote,
+  mapSikaHistosToQuotes,
+  parseSikaAazIndices,
+  parseSikaAazQuotes,
+  parseSikaDate,
+  parseSikaHomepageIndices,
+  parseSikaSymbolMap,
+  toRawIndexQuotes,
+  toRawPriceQuotes,
+} from "../sika-market-parser";
 import type {
   ConnectorResult,
   MarketDataConnector,
@@ -44,54 +59,28 @@ const AAZ_URL = `${BASE_URL}/marches/aaz`;
 /** Fenêtre max journalière avant erreur API `toolong` (~90–100 jours). */
 const DAILY_CHUNK_DAYS = 89;
 
-const SLUG_TO_INDEX_CODE: Record<string, string> = {
-  BRVMC: "BRVM_COMPOSITE",
-  SIKATR: "SIKA_TOTAL_RETURN",
-};
-
-interface SikaHistoPoint {
-  Date: string; // DD/MM/YYYY
-  Open: number;
-  High: number;
-  Low: number;
-  Close: number;
-  Volume: number;
-}
-
 interface SikaHistosResponse {
-  lst?: SikaHistoPoint[] | "";
+  lst?: unknown;
   error?: string;
 }
 
 let cachedSikaSymbols: Map<string, string> | null = null;
 
+/// TTL court : la même URL sert aussi aux cours du jour (évite de resservir
+/// un HTML A–Z de 24 h et d'afficher des clôtures périmées).
+const AAZ_CACHE_TTL_MS = 5 * 60 * 1000;
+
 /// Mappe TICKER → symbole Sikafinance `TICKER.cc` (ex. SNTS → SNTS.sn).
 export async function loadSikaSymbolMap(): Promise<Map<string, string>> {
   if (cachedSikaSymbols) return cachedSikaSymbols;
-  const html = await fetchHtml(AAZ_URL, { cacheTtlMs: 24 * 60 * 60 * 1000 });
-  const map = new Map<string, string>();
-  const re = /cotation_([A-Z0-9]+)\.([a-z]{2})/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(html)) !== null) {
-    const ticker = m[1]!.toUpperCase();
-    const cc = m[2]!.toLowerCase();
-    map.set(ticker, `${ticker}.${cc}`);
-  }
-  cachedSikaSymbols = map;
-  return map;
+  const html = await fetchHtml(AAZ_URL, { cacheTtlMs: AAZ_CACHE_TTL_MS });
+  cachedSikaSymbols = parseSikaSymbolMap(html);
+  return cachedSikaSymbols;
 }
 
-function parseSikaDate(ddmmyyyy: string): { iso: string; year: number } | null {
-  const m = ddmmyyyy.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
-  const day = Number(m[1]);
-  const month = Number(m[2]);
-  const year = Number(m[3]);
-  if (!day || !month || !year || month > 12 || day > 31) return null;
-  const iso = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  const probe = new Date(`${iso}T00:00:00.000Z`);
-  if (Number.isNaN(probe.getTime())) return null;
-  return { iso, year };
+function rememberSymbolMap(html: string): Map<string, string> {
+  cachedSikaSymbols = parseSikaSymbolMap(html);
+  return cachedSikaSymbols;
 }
 
 /// Pour une série annuelle : stocke au 31/12 de l'année (années passées)
@@ -116,31 +105,21 @@ export class SikafinanceConnector implements MarketDataConnector {
     const fetchedAt = new Date().toISOString();
 
     try {
-      const html = await fetchHtml(BASE_URL);
-      const $ = cheerio.load(html);
-      const results: RawIndexQuote[] = [];
+      const aazHtml = await fetchHtml(AAZ_URL, { cacheTtlMs: AAZ_CACHE_TTL_MS });
+      rememberSymbolMap(aazHtml);
+      let parsed = parseSikaAazIndices(aazHtml);
 
-      $(".mkcol").each((_, col) => {
-        const link = $(col).find("a.mkname");
-        const href = link.attr("href") ?? "";
-        const slugMatch = href.match(/cotation_([A-Z0-9]+)/i);
-        const slug = slugMatch?.[1]?.toUpperCase();
-        const code = slug ? SLUG_TO_INDEX_CODE[slug] : undefined;
-        if (!code) return;
+      if (parsed.length === 0) {
+        const homeHtml = await fetchHtml(BASE_URL);
+        parsed = parseSikaHomepageIndices(homeHtml);
+      }
 
-        const label = link.text().trim();
-        const value = parseFrenchNumber($(col).find(".mkprice").first().text());
-        const changePercent = parseFrenchNumber($(col).find(".mkvar").first().text());
-        if (value === null) return;
-
-        results.push({ code, label, value, changePercent, source: this.source, date: isoDate, fetchedAt });
-      });
-
+      const results = toRawIndexQuotes(parsed, isoDate, fetchedAt);
       if (results.length === 0) {
         return {
           ok: false,
           source: this.source,
-          error: "Aucun indice trouvé sur la page d'accueil — structure HTML probablement modifiée",
+          error: "Aucun indice trouvé (A–Z / accueil) — structure HTML probablement modifiée",
           fetchedAt,
         };
       }
@@ -151,51 +130,81 @@ export class SikafinanceConnector implements MarketDataConnector {
   }
 
   async fetchQuotes(tickers: string[], date?: string): Promise<ConnectorResult<RawPriceQuote[]>> {
-    const isoDate = date ?? toIsoDate(lastBusinessDay());
+    const fallbackDate = date ?? toIsoDate(lastBusinessDay());
     const fetchedAt = new Date().toISOString();
-    const results: RawPriceQuote[] = [];
+    const wanted = new Set(tickers.map((t) => t.toUpperCase()));
 
-    let symbols: Map<string, string>;
+    let aazQuotes: RawPriceQuote[] = [];
+    let symbols: Map<string, string> | null = cachedSikaSymbols;
+
     try {
-      symbols = await loadSikaSymbolMap();
+      const html = await fetchHtml(AAZ_URL, { cacheTtlMs: AAZ_CACHE_TTL_MS });
+      symbols = rememberSymbolMap(html);
+      const sessionDate = await this.resolveSessionDate(symbols, [...wanted], fallbackDate);
+      aazQuotes = toRawPriceQuotes(parseSikaAazQuotes(html), sessionDate, fetchedAt).filter((q) =>
+        wanted.has(q.ticker)
+      );
     } catch (err) {
-      return {
-        ok: false,
-        source: this.source,
-        error: `Impossible de charger la liste A–Z Sikafinance: ${err instanceof Error ? err.message : String(err)}`,
-        fetchedAt,
-      };
+      console.warn(
+        `[sikafinance] A–Z: ${err instanceof Error ? err.message : String(err)} — repli GetHistos`
+      );
     }
 
-    for (const ticker of tickers) {
-      const t = ticker.toUpperCase();
-      const sikaSym = symbols.get(t);
-      if (!sikaSym) continue;
-      const url = `${BASE_URL}/marches/cotation_${sikaSym}`;
+    if (aazQuotes.length > 0) {
+      return { ok: true, source: this.source, data: aazQuotes, fetchedAt };
+    }
+
+    // Repli : dernier close GetHistos (fenêtre courte, 1 POST / ticker).
+    // Utilisé seulement si le tableau A–Z est vide / inaccessible.
+    if (!symbols) {
       try {
-        const html = await fetchHtml(url, { checkRobots: true });
-        const $ = cheerio.load(html);
-        const value = parseFrenchNumber($(".mkprice").first().text());
-        if (value !== null) {
-          results.push({
-            ticker: t,
-            closePrice: value,
-            volume: null,
-            source: this.source,
-            date: isoDate,
-            fetchedAt,
-          });
-        }
+        symbols = await loadSikaSymbolMap();
       } catch (err) {
-        const status = err instanceof HttpFetchError ? err.httpStatus : undefined;
-        if (status !== 404) {
-          // Autre erreur : on continue les autres tickers (non bloquant).
-          console.warn(`[sikafinance] ${t}: ${err instanceof Error ? err.message : String(err)}`);
-        }
+        return {
+          ok: false,
+          source: this.source,
+          error: `Impossible de charger la liste A–Z Sikafinance: ${err instanceof Error ? err.message : String(err)}`,
+          fetchedAt,
+        };
       }
     }
 
-    return { ok: true, source: this.source, data: results, fetchedAt };
+    const histosQuotes: RawPriceQuote[] = [];
+    const fromIso = shiftIsoDate(fallbackDate, -14) ?? fallbackDate;
+    for (const ticker of wanted) {
+      if (!symbols.get(ticker)) continue;
+      const part = await this.fetchHistos(ticker, fromIso, fallbackDate, "0");
+      if (!part.ok) continue;
+      const last = lastHistosQuote(part.data);
+      if (last) histosQuotes.push(last);
+    }
+
+    if (histosQuotes.length === 0 && wanted.size > 0) {
+      return {
+        ok: false,
+        source: this.source,
+        error: "Aucun cours Sikafinance (A–Z vide et GetHistos sans donnée)",
+        fetchedAt,
+      };
+    }
+    return { ok: true, source: this.source, data: histosQuotes, fetchedAt };
+  }
+
+  /// Date de séance la plus récente via un unique GetHistos (évite de dater
+  /// les cours A–Z au `lastBusinessDay` un lundi matin encore sans séance).
+  private async resolveSessionDate(
+    symbols: Map<string, string>,
+    preferredTickers: string[],
+    fallbackIso: string
+  ): Promise<string> {
+    const probe = ["SNTS", "SGBC", ...preferredTickers].find((t) => symbols.has(t));
+    if (!probe) return fallbackIso;
+    const fromIso = shiftIsoDate(fallbackIso, -14) ?? fallbackIso;
+    const part = await this.fetchHistos(probe, fromIso, fallbackIso, "0");
+    if (!part.ok) return fallbackIso;
+    const last = lastHistosQuote(part.data);
+    if (!last || last.date > fallbackIso) return fallbackIso;
+    return last.date;
   }
 
   /**
@@ -247,13 +256,15 @@ export class SikafinanceConnector implements MarketDataConnector {
       const lst = Array.isArray(json.lst) ? json.lst : [];
       const results: RawPriceQuote[] = [];
       for (const pt of lst) {
-        if (!pt || typeof pt.Close !== "number" || pt.Close <= 0) continue;
-        const storageDate = annualPointStorageDate(pt.Date);
+        if (!pt || typeof pt !== "object") continue;
+        const row = pt as { Date?: string; Close?: number; Volume?: number };
+        if (typeof row.Close !== "number" || row.Close <= 0 || typeof row.Date !== "string") continue;
+        const storageDate = annualPointStorageDate(row.Date);
         if (!storageDate || storageDate > toDate) continue;
         results.push({
           ticker: t,
-          closePrice: pt.Close,
-          volume: typeof pt.Volume === "number" && pt.Volume > 0 ? pt.Volume : null,
+          closePrice: row.Close,
+          volume: typeof row.Volume === "number" && row.Volume > 0 ? row.Volume : null,
           source: this.source,
           date: storageDate,
           fetchedAt,
@@ -306,21 +317,7 @@ export class SikafinanceConnector implements MarketDataConnector {
         };
       }
 
-      const lst = Array.isArray(json.lst) ? json.lst : [];
-      const results: RawPriceQuote[] = [];
-      for (const pt of lst) {
-        if (!pt || typeof pt.Close !== "number" || pt.Close <= 0) continue;
-        const parsed = parseSikaDate(pt.Date);
-        if (!parsed || parsed.iso > datefin) continue;
-        results.push({
-          ticker: t,
-          closePrice: pt.Close,
-          volume: typeof pt.Volume === "number" && pt.Volume > 0 ? pt.Volume : null,
-          source: this.source,
-          date: parsed.iso,
-          fetchedAt,
-        });
-      }
+      const results = mapSikaHistosToQuotes(t, json.lst, { dateMax: datefin, fetchedAt });
       return { ok: true, source: this.source, data: results, fetchedAt };
     } catch (err) {
       return {

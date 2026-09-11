@@ -1,17 +1,20 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Rafraîchissement ciblé des cours BRVM (bouton "Actualiser" + cron horaire)
 // ═══════════════════════════════════════════════════════════════════════════
-// Variante légère de `runFullIngestion` : uniquement les cotations BRVM.org
-// (source de vérité n°1), sans Sikafinance/Richbourse. Objectif : mettre à
-// jour les cours du jour en ~10–20 s sans attendre le cron multi-source.
+// Variante légère de `runFullIngestion` : cotations BRVM.org (source de
+// vérité n°1). Si BRVM ne renvoie aucun cours, repli Sikafinance A–Z
+// (1 requête, isolé) pour ne pas laisser le rafraîchissement horaire vide.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { IngestionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { brvmConnector } from "./connectors/brvm_connector";
+import { sikafinanceConnector } from "./connectors/sikafinance_connector";
+import { getConnectorFeatureFlags } from "./connector-config";
 import { persistFinancialRatios, persistPriceQuotes } from "./persist";
 import { toPrismaDataSource } from "./prisma-mappers";
 import { reconcilePriceBatch } from "./reconciliation";
+import type { RawPriceQuote } from "./types";
 
 export interface BrvmQuotesRefreshSummary {
   quotesFetched: number;
@@ -47,8 +50,24 @@ export async function runBrvmQuotesRefresh(
 
   try {
     const quotesResult = await brvmConnector.fetchQuotes(tickers);
-    const errors = quotesResult.ok ? [] : [quotesResult.error ?? "Échec fetchQuotes BRVM"];
-    const priceQuotes = quotesResult.ok ? quotesResult.data : [];
+    const errors: string[] = quotesResult.ok ? [] : [quotesResult.error ?? "Échec fetchQuotes BRVM"];
+    const priceQuotes: RawPriceQuote[] = quotesResult.ok ? [...quotesResult.data] : [];
+
+    // Repli Sika A–Z (1 requête) si BRVM n'a renvoyé aucun cours — isolation
+    // conservée : l'échec Sika n'empêche jamais de persister un résultat BRVM.
+    if (priceQuotes.length === 0 && getConnectorFeatureFlags().sikafinanceQuotes) {
+      try {
+        const sika = await sikafinanceConnector.fetchQuotes(tickers);
+        if (sika.ok && sika.data.length > 0) {
+          priceQuotes.push(...sika.data);
+          errors.push(`repli Sikafinance A–Z : ${sika.data.length} cours (BRVM vide)`);
+        } else if (!sika.ok) {
+          errors.push(`repli Sikafinance : ${sika.error}`);
+        }
+      } catch (err) {
+        errors.push(`repli Sikafinance : ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
 
     const { reconciled: reconciledPrices } = reconcilePriceBatch(priceQuotes);
     const priceResult = await persistPriceQuotes(prisma, priceQuotes, reconciledPrices, companyIdByTicker);
@@ -82,7 +101,11 @@ export async function runBrvmQuotesRefresh(
     }
 
     const status =
-      !quotesResult.ok ? IngestionStatus.FAILED : errors.length > 0 ? IngestionStatus.PARTIAL : IngestionStatus.SUCCESS;
+      priceQuotes.length === 0
+        ? IngestionStatus.FAILED
+        : errors.length > 0
+          ? IngestionStatus.PARTIAL
+          : IngestionStatus.SUCCESS;
 
     await prisma.ingestionLog.update({
       where: { id: log.id },

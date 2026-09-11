@@ -29,15 +29,12 @@ export function getConnectorFeatureFlags(): ConnectorFeatureFlags {
     brvmIndices: envFlag("INGESTION_ENABLE_BRVM_INDICES", true),
     brvmQuotes: envFlag("INGESTION_ENABLE_BRVM_QUOTES", true),
     sikafinanceIndices: envFlag("INGESTION_ENABLE_SIKAFINANCE_INDICES", true),
-    // Désactivé PAR DÉFAUT : aucun endpoint public confirmé pour les
-    // cotations par société sur Sikafinance à ce jour (cf. connecteur —
-    // `/marches/cotation_{TICKER}` retourne 404 pour la quasi-totalité des
-    // tickers). L'exécuter quotidiennement contre ~20-50 sociétés ne
-    // produirait que des 404 en boucle, ce qui va à l'encontre du principe
-    // de scraping respectueux (brief : "pas de surcharge des serveurs
-    // tiers"). Réactivable via `INGESTION_ENABLE_SIKAFINANCE_QUOTES=true`
-    // dès qu'un endpoint fonctionnel est confirmé manuellement.
-    sikafinanceQuotes: envFlag("INGESTION_ENABLE_SIKAFINANCE_QUOTES", false),
+    // Activé par défaut (10/09/2026) : une seule page `/marches/aaz`
+    // (`#tblShare`) publie Dernier + volume pour toutes les valeurs —
+    // plus de scrape `cotation_{TICKER}` (404 / `.mkprice` disparu).
+    // Repli GetHistos (dernier close) si le tableau A–Z est vide.
+    // Désactivable via `INGESTION_ENABLE_SIKAFINANCE_QUOTES=false`.
+    sikafinanceQuotes: envFlag("INGESTION_ENABLE_SIKAFINANCE_QUOTES", true),
     richbourseIndices: envFlag("INGESTION_ENABLE_RICHBOURSE_INDICES", true),
     richbourseQuotes: envFlag("INGESTION_ENABLE_RICHBOURSE_QUOTES", true),
   };

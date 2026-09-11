@@ -106,15 +106,23 @@ function GuestDemo() {
 }
 
 export default async function PortefeuillePage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUser().catch(() => null);
 
   if (!user) return <GuestDemo />;
 
-  const [portfolios, companies] = await Promise.all([
-    getUserPortfoliosWithMetrics(user.id),
-    prisma.company.findMany({ where: { isActive: true }, select: { ticker: true }, orderBy: { ticker: "asc" } }),
-  ]);
-  const tickers = companies.map((c) => c.ticker);
+  let portfolios: Awaited<ReturnType<typeof getUserPortfoliosWithMetrics>>;
+  let tickers: string[];
+  try {
+    const [loaded, companies] = await Promise.all([
+      getUserPortfoliosWithMetrics(user.id),
+      prisma.company.findMany({ where: { isActive: true }, select: { ticker: true }, orderBy: { ticker: "asc" } }),
+    ]);
+    portfolios = loaded;
+    tickers = companies.map((c) => c.ticker);
+  } catch (err) {
+    console.error("[portefeuille] lecture base impossible — aperçu invité :", err);
+    return <GuestDemo />;
+  }
 
   const tradesByPortfolio: Record<
     string,

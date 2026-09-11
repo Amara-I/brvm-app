@@ -19,6 +19,8 @@
 import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { seedCompaniesFullDataset } from "@/lib/api/offline-seed-dataset";
 
 export interface CompanyFullDataset {
   ticker: string;
@@ -356,5 +358,24 @@ const getCachedCompaniesFullDataset = unstable_cache(loadCompaniesFullDataset, [
   tags: ["companies-full"],
 });
 
-/** Déduplique au sein d'une même requête RSC + cache 60s entre requêtes. */
-export const getCompaniesFullDataset = cache(getCachedCompaniesFullDataset);
+function emptyCompaniesFullDataset(): CompaniesFullDataset {
+  return { years: [], companies: [], generatedAt: new Date().toISOString() };
+}
+
+/** Déduplique au sein d'une même requête RSC + cache 60s entre requêtes.
+ *  Base injoignable : seed en développement (UI locale lisible), jeu vide + "N/D"
+ *  en production (jamais de cours seed présentés comme live). */
+export const getCompaniesFullDataset = cache(async (): Promise<CompaniesFullDataset> => {
+  try {
+    return await getCachedCompaniesFullDataset();
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err;
+    console.error(
+      "[companies-full] base injoignable —",
+      process.env.NODE_ENV === "production" ? "affichage vide (N/D)" : "repli sur le seed local",
+      err instanceof Error ? err.message : err
+    );
+    if (process.env.NODE_ENV === "production") return emptyCompaniesFullDataset();
+    return seedCompaniesFullDataset();
+  }
+});

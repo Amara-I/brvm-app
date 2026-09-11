@@ -358,10 +358,21 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
   const company = dataset.companies.find((c) => c.ticker === t);
   if (!company) return null;
 
-  const dbCompany = await prisma.company.findUnique({
-    where: { ticker: t },
-    select: { id: true, isin: true, description: true, listedSince: true, profileMeta: true },
-  });
+  let dbCompany: {
+    id: string;
+    isin: string | null;
+    description: string | null;
+    listedSince: Date | null;
+    profileMeta: unknown;
+  } | null = null;
+  try {
+    dbCompany = await prisma.company.findUnique({
+      where: { ticker: t },
+      select: { id: true, isin: true, description: true, listedSince: true, profileMeta: true },
+    });
+  } catch {
+    dbCompany = null;
+  }
 
   const [docRows, eventRows, newsRows] = dbCompany
     ? await Promise.all([
