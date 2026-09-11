@@ -115,9 +115,16 @@ export function rangeFilter(points: ChartClosePoint[], range: ChartRange, asOf =
   }
   const iso = cutoff.toISOString().slice(0, 10);
   const filtered = points.filter((p) => p.time >= iso && p.time <= isoAsOf);
-  // Si trop peu de points (historique annuel sparse), élargir jusqu'à avoir ≥ 2 points.
   if (filtered.length >= 2) return filtered;
-  return points.slice(-Math.max(2, Math.min(points.length, 24)));
+  // 1 point dans la fenêtre : ajouter la séance précédente (bougie).
+  if (filtered.length === 1) {
+    const idx = points.findIndex((p) => p.time === filtered[0]!.time);
+    if (idx > 0) return points.slice(idx - 1, idx + 1);
+    return filtered;
+  }
+  // Fenêtre vide (week-end / trou) : 2 dernières séances, pas 24 points
+  // (= ~1 mois de daily, ou 20 ans d'annuel — illisible après densification).
+  return points.slice(-Math.min(2, points.length));
 }
 
 /** Alias rétrocompat pour les anciens appels 1Y/5Y/MAX. */

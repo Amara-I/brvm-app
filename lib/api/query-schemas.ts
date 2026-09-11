@@ -27,6 +27,14 @@ export const newsListQuerySchema = z.object({
   ticker: z.string().trim().toUpperCase().optional(),
 });
 
+/// GET /api/charts/:ticker — fenêtre d'historique (1A par défaut).
+export const chartSeriesQuerySchema = z.object({
+  range: z.string().trim().min(1).max(8).optional(),
+  from: z.string().trim().min(8).max(32).optional(),
+  to: z.string().trim().min(8).max(32).optional(),
+});
+export type ChartSeriesQuery = z.infer<typeof chartSeriesQuerySchema>;
+
 /// GET /api/research/findings — étape 10 (agent de recherche IA).
 export const researchFindingsQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),

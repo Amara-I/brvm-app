@@ -11,6 +11,7 @@ import {
   type ChartClosePoint,
   type ChartRange,
 } from "@/lib/charts/indicators";
+import { apiRangeForChartRange, seriesCoversChartRange } from "@/lib/charts/chart-window";
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import TradingChart, {
   type ChartIndicatorsState,
@@ -89,6 +90,7 @@ interface ChartApiPayload {
   countryFlag: string;
   sector: string;
   series: ChartClosePoint[];
+  lookback?: ChartClosePoint[];
   fundamentals: {
     per: number | null;
     mktCapMds: number | null;
@@ -104,7 +106,14 @@ interface ChartApiPayload {
     change1YPercent: number | null;
     lastVolume: number | null;
     source: string | null;
+    seriesSources?: string[];
     seriesEnriched?: boolean;
+    historyPoints?: number;
+    historyFirstDate?: string | null;
+    historyLastDate?: string | null;
+    range?: string;
+    from?: string | null;
+    to?: string | null;
     reconciliation?: {
       thresholdPercent: number;
       discrepanciesCount: number;
@@ -279,13 +288,28 @@ export default function ChartWorkbench({
     [indicators]
   );
 
-  const loadTicker = useCallback(async (t: string) => {
+  const payloadRef = useRef<ChartApiPayload | null>(null);
+  payloadRef.current = payload;
+
+  const loadTicker = useCallback(async (t: string, viewRange: ChartRange) => {
+    const apiRange = apiRangeForChartRange(viewRange);
+    const current = payloadRef.current;
+    if (current?.ticker === t) {
+      const combined = [...(current.lookback ?? []), ...current.series];
+      const complete =
+        current.stats.range === "MAX" ||
+        (typeof current.stats.historyPoints === "number" &&
+          current.stats.historyPoints <= combined.length);
+      if (seriesCoversChartRange(combined, apiRange, complete)) {
+        return;
+      }
+    }
     setLoading(true);
     setError(null);
     try {
       // Sans `cache: "no-store"` : le navigateur peut réutiliser la réponse
       // (Cache-Control s-maxage côté API) au lieu de relancer Sika/Rich.
-      const res = await fetch(`/api/charts/${t}`);
+      const res = await fetch(`/api/charts/${t}?range=${encodeURIComponent(apiRange)}`);
       const text = await res.text();
       let json: { ok?: boolean; error?: string; data?: unknown } = {};
       try {
@@ -304,19 +328,23 @@ export default function ChartWorkbench({
   }, []);
 
   useEffect(() => {
-    void loadTicker(ticker);
-  }, [ticker, loadTicker]);
+    void loadTicker(ticker, range);
+  }, [ticker, range, loadTicker]);
 
   useEffect(() => {
     let cancelled = false;
+    const apiRange = apiRangeForChartRange(range);
     async function loadCompare() {
       const next: Record<string, ChartClosePoint[]> = {};
       await Promise.all(
         compare.map(async (t) => {
           try {
-            const res = await fetch(`/api/charts/${t}`);
+            const res = await fetch(`/api/charts/${t}?range=${encodeURIComponent(apiRange)}`);
             const json = await res.json();
-            if (json.ok) next[t] = (json.data as ChartApiPayload).series;
+            if (json.ok) {
+              const data = json.data as ChartApiPayload;
+              next[t] = [...(data.lookback ?? []), ...data.series];
+            }
           } catch {
             /* ignore */
           }
@@ -329,14 +357,19 @@ export default function ChartWorkbench({
     return () => {
       cancelled = true;
     };
-  }, [compare]);
+  }, [compare, range]);
+
+  const historySeries = useMemo(
+    () => (payload ? [...(payload.lookback ?? []), ...payload.series] : []),
+    [payload]
+  );
 
   const mainSeries = useMemo(() => {
     if (!payload) return [];
-    let pts = rangeFilter(payload.series, range);
+    let pts = rangeFilter(historySeries, range);
     if (percentScale) pts = normalizeTo100(pts);
     return pts;
-  }, [payload, range, percentScale]);
+  }, [payload, historySeries, range, percentScale]);
 
   const hasRealVolume = useMemo(
     () => (payload?.series ?? []).some((p) => typeof p.volume === "number" && p.volume > 0),
@@ -917,7 +950,7 @@ export default function ChartWorkbench({
               <TradingChart
                 ticker={ticker}
                 series={mainSeries}
-                fullSeries={payload?.series ?? []}
+                fullSeries={historySeries}
                 interval={interval}
                 compareSeries={compareSeries}
                 indicators={indicators}
@@ -963,7 +996,16 @@ export default function ChartWorkbench({
               </>
             )}
             <span>
-              Source : {payload?.stats.source ?? "N/D"} · {payload?.stats.points ?? 0} points
+              Source :{" "}
+              {payload?.stats.seriesSources && payload.stats.seriesSources.length > 0
+                ? payload.stats.seriesSources.join(" + ")
+                : (payload?.stats.source ?? "N/D")}
+              {" · "}
+              {payload?.stats.points ?? mainSeries.length} points
+              {payload?.stats.historyPoints != null &&
+              payload.stats.historyPoints !== (payload.stats.points ?? 0)
+                ? ` (fenêtre ${payload.stats.range ?? range} · historique ${payload.stats.historyPoints})`
+                : ""}
               {payload?.stats.seriesEnriched
                 ? ` (densifié${
                     payload.stats.reconciliation?.densifySources?.length

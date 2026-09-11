@@ -1,10 +1,15 @@
 // GET /api/charts/[ticker] — série + fondamentaux pour le workbench TV-like.
 // Densification multi-source : base canonique (priorité BRVM à l'ingestion)
 // + Sikafinance + Richbourse, croisés avec seuil d'écart 2 %.
+//
+// Fenêtre : `?range=1A|1Y|5A|MAX|…` (défaut 1A) et/ou `?from=&to=` (YYYY-MM-DD).
+// Les métriques / stats de cours restent calculées sur l'historique COMPLET.
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiNotFound, cacheHeaders } from "@/lib/api/response";
+import { apiSuccess, apiNotFound, apiValidationError, cacheHeaders } from "@/lib/api/response";
+import { chartSeriesQuerySchema } from "@/lib/api/query-schemas";
+import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
 import {
   fetchRichbourseCloseSeries,
@@ -36,8 +41,13 @@ import {
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: NextRequest, { params }: { params: { ticker: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
   const ticker = params.ticker.toUpperCase();
+  const parsedQuery = chartSeriesQuerySchema.safeParse(
+    Object.fromEntries(request.nextUrl.searchParams)
+  );
+  if (!parsedQuery.success) return apiValidationError(parsedQuery.error);
+  const windowQuery = parsedQuery.data;
 
   const company = await prisma.company.findUnique({
     where: { ticker },
@@ -271,6 +281,11 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
   });
 
   const lastDb = dbSeries[dbSeries.length - 1] ?? null;
+  const dbSources = [...new Set(dbSeries.map((p) => p.source))];
+  const historyFirstDate = series[0]?.time ?? null;
+  const historyLastDate = series[series.length - 1]?.time ?? null;
+  const historyPoints = series.length;
+  const windowed = applyChartSeriesWindow(series, windowQuery);
   const last = series[series.length - 1] ?? null;
   const prev = series.length >= 2 ? series[series.length - 2]! : null;
   const dayChange =
@@ -292,6 +307,13 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
     if (ref.value > 0) change1Y = Math.round(((last.value - ref.value) / ref.value) * 10000) / 100;
   }
 
+  const windowStart = windowed.series[0]?.time;
+  let lookback: typeof series = [];
+  if (windowStart && windowed.range !== "MAX") {
+    const idx = series.findIndex((p) => p.time === windowStart);
+    if (idx > 0) lookback = series.slice(Math.max(0, idx - 260), idx);
+  }
+
   return apiSuccess(
     {
       ticker: company.ticker,
@@ -300,7 +322,8 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
       country: company.country.name,
       countryFlag: company.country.flagEmoji,
       sector: company.sector.name,
-      series: series.map(({ time, value, volume }) => ({ time, value, volume })),
+      series: windowed.series.map(({ time, value, volume }) => ({ time, value, volume })),
+      lookback: lookback.map(({ time, value, volume }) => ({ time, value, volume })),
       fundamentals: {
         per: ratio?.per != null ? Number(ratio.per) : null,
         mktCapMds: ratio?.mktCap != null ? Number(ratio.mktCap) : null,
@@ -314,14 +337,22 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
       stats: {
         lastClose: last?.value ?? null,
         lastDate: last?.time ?? null,
-        firstDate: series[0]?.time ?? null,
-        points: series.length,
+        firstDate: windowed.series[0]?.time ?? historyFirstDate,
+        points: windowed.series.length,
+        historyPoints,
+        historyFirstDate,
+        historyLastDate,
+        range: windowed.range,
+        from: windowed.from,
+        to: windowed.to,
         dayChangePercent: dayChange,
         dayChangeAbs,
         change1YPercent: change1Y,
         lastVolume: last?.volume ?? null,
         source: lastDb?.source ?? null,
-        seriesEnriched: seriesSourceNote === "multi_source_merged",
+        seriesSources: dbSources,
+        seriesEnriched:
+          seriesSourceNote === "multi_source_merged" || dbSources.length > 1,
         reconciliation: {
           thresholdPercent: DISCREPANCY_THRESHOLD_PERCENT,
           discrepanciesCount,
