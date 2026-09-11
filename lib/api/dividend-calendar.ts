@@ -5,6 +5,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export type DividendDatePrecision = "payment" | "ex" | "exercice";
 
@@ -63,6 +64,27 @@ function mapSource(source: string): string {
 }
 
 export async function getDividendCalendarDataset(): Promise<DividendCalendarDataset> {
+  try {
+    return await loadDividendCalendarFromDb();
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err;
+    console.error(
+      "[dividendes] base injoignable — calendrier vide (N/D) :",
+      err instanceof Error ? err.message : err
+    );
+    return {
+      events: [],
+      years: [],
+      calendarYears: [],
+      sectors: [],
+      datedCount: 0,
+      exerciceOnlyCount: 0,
+      upcomingCount: 0,
+    };
+  }
+}
+
+async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
   const rows = await prisma.dividend.findMany({
     where: {
       isCanonical: true,

@@ -3,7 +3,10 @@ import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import SidebarLayout from "@/components/layout/SidebarLayout";
 
 export default async function AppHeader({ children }: { children?: React.ReactNode }) {
-  const [user, nav] = await Promise.all([getCurrentUser(), getCompaniesNavIndex()]);
+  const [user, nav] = await Promise.all([
+    getCurrentUser().catch(() => null),
+    getCompaniesNavIndex(),
+  ]);
   const searchIndex = nav.companies.map((c) => ({
     ticker: c.ticker,
     name: c.name,

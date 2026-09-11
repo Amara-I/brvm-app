@@ -16,11 +16,13 @@ export const metadata = {
 };
 
 export default async function ActualitesPage() {
-  const articles = await prisma.newsArticle.findMany({
-    include: { company: { select: { ticker: true, name: true } } },
-    orderBy: { publishedAt: "desc" },
-    take: 30,
-  });
+  const articles = await prisma.newsArticle
+    .findMany({
+      include: { company: { select: { ticker: true, name: true } } },
+      orderBy: { publishedAt: "desc" },
+      take: 30,
+    })
+    .catch(() => []);
 
   return (
     <AppHeader>

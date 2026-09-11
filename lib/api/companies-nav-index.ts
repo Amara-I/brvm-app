@@ -4,6 +4,8 @@ import { cache } from "react";
 import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { seedCompaniesNavIndex } from "@/lib/api/offline-seed-dataset";
 
 export type NavCompany = {
   ticker: string;
@@ -78,5 +80,21 @@ const getCachedNavIndex = unstable_cache(loadCompaniesNavIndex, ["companies-nav-
   tags: ["companies-nav"],
 });
 
-/** Déduplique les appels au sein d'une même requête RSC. */
-export const getCompaniesNavIndex = cache(getCachedNavIndex);
+/** Déduplique les appels au sein d'une même requête RSC.
+ *  Base injoignable : seed en développement, menu vide en production. */
+export const getCompaniesNavIndex = cache(async () => {
+  try {
+    return await getCachedNavIndex();
+  } catch (err) {
+    if (!isDatabaseUnavailable(err)) throw err;
+    console.error(
+      "[companies-nav] base injoignable —",
+      process.env.NODE_ENV === "production" ? "menu vide" : "repli seed local",
+      err instanceof Error ? err.message : err
+    );
+    if (process.env.NODE_ENV === "production") {
+      return { companies: [] as NavCompany[], sectorGroups: [] as SectorGroup[] };
+    }
+    return seedCompaniesNavIndex();
+  }
+});

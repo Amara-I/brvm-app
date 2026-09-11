@@ -3,7 +3,7 @@
   max-width: none;
   margin: 0 auto;
   padding: 0 0 2.5rem;
-  text-align: center;
+  text-align: start;
 }
 
 .board {
@@ -318,8 +318,8 @@
   min-width: 16.5rem;
   padding: 0.35rem 0.55rem 0.35rem 0.35rem;
   border-radius: 10px;
-  background: color-mix(in srgb, var(--c-bg) 78%, #050505 22%);
-  border: 1px solid var(--c-border-thin);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
 }
 
 .spark {

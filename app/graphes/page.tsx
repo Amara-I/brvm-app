@@ -33,7 +33,7 @@ export default async function GraphesPage({
     (universe.some((u) => u.ticker === "ABJC") ? "ABJC" : null) ||
     (universe.some((u) => u.ticker === "SNTS") ? "SNTS" : universe[0]?.ticker ?? "SNTS");
 
-  const userId = await getCurrentUserId();
+  const userId = await getCurrentUserId().catch(() => null);
 
   return (
     <AppHeader>

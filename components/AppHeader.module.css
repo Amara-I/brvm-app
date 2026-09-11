@@ -110,7 +110,7 @@
   width: 100%;
   max-width: none;
   margin: 0;
-  text-align: center;
+  text-align: start;
 }
 
 /* Tableaux, formulaires et blocs de données : alignement à gauche pour la lecture. */

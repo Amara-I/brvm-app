@@ -27,7 +27,7 @@ export default async function CompanyActionPage({
   const ticker = params.ticker.toUpperCase();
   const [payload, userId] = await Promise.all([
     getCompanySheetPayload(ticker),
-    getCurrentUserId(),
+    getCurrentUserId().catch(() => null),
   ]);
   if (!payload) notFound();
 

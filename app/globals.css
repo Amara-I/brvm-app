@@ -28,6 +28,10 @@
   --c-silver: #94a3b8;
   --c-text: #16241b;
   --c-textdim: #5b6b60;
+  /* Alias : des modules CSS utilisaient --c-text-dim / --c-textDim (inconnus)
+     → le texte secondaire héritait la couleur du corps, hiérarchie cassée. */
+  --c-text-dim: var(--c-textdim);
+  --c-textDim: var(--c-textdim);
   /* Méta Source / Synchronisé — contraste renforcé (AD-2026-08-22-001) */
   --c-text-meta: #3a4a40;
   --c-teal: #0d9488;
@@ -63,6 +67,8 @@
   --c-silver: #94a3b8;
   --c-text: #e2d9c5;
   --c-textdim: #6b7280;
+  --c-text-dim: var(--c-textdim);
+  --c-textDim: var(--c-textdim);
   --c-text-meta: #b8c0cc;
   --c-teal: #14b8a6;
   --c-purple: #a855f7;

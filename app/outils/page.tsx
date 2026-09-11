@@ -35,12 +35,19 @@ export default async function OutilsPage({
     catRaw && catRaw !== "TOUS" && (Object.values(ResearchCategory) as string[]).includes(catRaw)
       ? (catRaw as ResearchCategory)
       : undefined;
-  const findings = await prisma.researchFinding.findMany({
-    where: catFilter ? { category: catFilter } : undefined,
-    orderBy: { discoveredAt: "desc" },
-    take: 40,
-  });
-  const designCount = await prisma.researchFinding.count({ where: { category: ResearchCategory.DESIGN } });
+  let findings: Awaited<ReturnType<typeof prisma.researchFinding.findMany>> = [];
+  let designCount = 0;
+  try {
+    findings = await prisma.researchFinding.findMany({
+      where: catFilter ? { category: catFilter } : undefined,
+      orderBy: { discoveredAt: "desc" },
+      take: 40,
+    });
+    designCount = await prisma.researchFinding.count({ where: { category: ResearchCategory.DESIGN } });
+  } catch {
+    findings = [];
+    designCount = 0;
+  }
 
   const filters = ["TOUS", "DESIGN", "UX", "FONCTIONNALITE", "CONCURRENCE", "CONTENU"] as const;
 
