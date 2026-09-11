@@ -21,7 +21,12 @@ export interface ConnectorFeatureFlags {
 export interface HistoryBackfillFlags {
   /** Orchestrateur GetHistos + enrichissement (défaut true). */
   enabled: boolean;
-  /** Journalier chunké (défaut true ; désactiver si l'API sature). */
+  /**
+   * Journalier chunké (défaut true). `false` saute toutes les fenêtres
+   * GetHistos xperiod=0 — annual/monthly/sheets continuent, d'où des
+   * réponses cron `dailyChunksFetched: 0` sur des séries encore mensuelles
+   * (cas BICC). Override ops : `?forceDaily=1`.
+   */
   daily: boolean;
   /** Fiches SOCIETE : ISIN, PER, CA/RN, dividendes. */
   sheets: boolean;
