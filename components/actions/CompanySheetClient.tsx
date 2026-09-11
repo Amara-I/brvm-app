@@ -29,6 +29,7 @@ import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import ChartWorkbench from "@/components/charts/ChartWorkbench";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
+import ChangeValue from "@/components/ui/ChangeValue";
 import styles from "./CompanySheet.module.css";
 
 const DATA_SOURCE_LABELS: Record<string, string> = {
@@ -305,10 +306,15 @@ export default function CompanySheetClient({
           </div>
         </div>
         <div className={styles.heroPrice}>
-          <div className={styles.price}>{price > 0 ? `${fmtNum(price)} FCFA` : "N/D"}</div>
-          <div className={styles.chg} style={{ color: up ? C.green : C.red }}>
-            {chgPct != null ? `${fmtPct(chgPct)}` : "N/D"}
-            {chgAbs != null ? ` (${chgAbs >= 0 ? "+" : ""}${fmtNum(chgAbs)})` : ""}
+          <div className={styles.price}>{price > 0 ? `${fmtNum(price)} FCFA` : <span className="ob-nd">N/D</span>}</div>
+          <div className={styles.chg}>
+            <ChangeValue value={chgPct} pill />
+            {chgAbs != null ? (
+              <span className="ob-num" style={{ marginLeft: 6, color: "var(--c-textdim)" }}>
+                ({chgAbs >= 0 ? "+" : ""}
+                {fmtNum(chgAbs)})
+              </span>
+            ) : null}
           </div>
         </div>
         <div className={styles.heroActions}>

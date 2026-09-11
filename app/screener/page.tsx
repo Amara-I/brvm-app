@@ -1,9 +1,7 @@
-// Page "Screener" — étape 10 (navigation complète).
-// Filtres rapides façon Ouestbourse (brief initial du projet, jamais livré
-// avant cette étape) : Rentabilité / Dividendes / Croissance / Valorisation.
 import AppHeader from "@/components/AppHeader";
-import { C } from "@/lib/theme/colors";
-import { PAGE_LEAD, PAGE_TITLE } from "@/lib/theme/typography";
+import SiteFooter from "@/components/layout/SiteFooter";
+import EmptyState from "@/components/ui/EmptyState";
+import PageHeader from "@/components/ui/PageHeader";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
 import { allCompaniesWithMetrics } from "@/lib/calc/market-summary-stats";
@@ -25,18 +23,27 @@ export default async function ScreenerPage() {
 
   return (
     <AppHeader>
-      <div>
-        <h1 style={PAGE_TITLE}>Screener</h1>
-        <p style={PAGE_LEAD}>
-          Filtrez les {companies.length} sociétés cotées par rentabilité, dividendes, croissance, valorisation ou solidité —
-          puis affinez par secteur et pays. Cliquez un ticker pour ouvrir sa fiche détaillée.
-        </p>
+      <div className="ob-page">
+        <PageHeader
+          kicker="BRVM · UEMOA"
+          title="Screener"
+          lead={
+            <>
+              Filtrez les {companies.length} sociétés cotées par rentabilité, dividendes, croissance, valorisation ou
+              solidité — puis affinez par secteur et pays. Cliquez un ticker pour ouvrir sa fiche détaillée.
+            </>
+          }
+        />
         {companies.length > 0 ? (
           <ScreenerTable companies={companies} />
         ) : (
-          <p style={{ color: C.textDim }}>Aucune société disponible pour l&apos;instant.</p>
+          <EmptyState
+            title="Aucune société disponible"
+            body="Les données de marché n’ont pas encore été chargées. Les champs vides s’affichent N/D — aucun cours n’est inventé."
+          />
         )}
       </div>
+      <SiteFooter />
     </AppHeader>
   );
 }

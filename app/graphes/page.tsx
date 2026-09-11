@@ -1,10 +1,11 @@
 // Page Graphes premium — étape 17 (lightweight-charts / TradingView OSS).
 import AppHeader from "@/components/AppHeader";
 import ChartWorkbench from "@/components/charts/ChartWorkbench";
+import EmptyState from "@/components/ui/EmptyState";
+import PageHeader from "@/components/ui/PageHeader";
+import SiteFooter from "@/components/layout/SiteFooter";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
-import { C } from "@/lib/theme/colors";
-import { PAGE_LEAD, PAGE_TITLE } from "@/lib/theme/typography";
 
 export const dynamic = "force-dynamic";
 
@@ -37,24 +38,23 @@ export default async function GraphesPage({
 
   return (
     <AppHeader>
-      <div>
-        <h1 style={PAGE_TITLE}>Graphes</h1>
-        <p style={{ ...PAGE_LEAD, marginBottom: 18 }}>
-          Analyse graphique des titres BRVM — indicateurs, tracés et comparaison multi-titres.
-        </p>
+      <div className="ob-page">
+        <PageHeader
+          kicker="Analyse technique"
+          title="Graphes"
+          lead="Analyse graphique des titres BRVM — indicateurs, tracés et comparaison multi-titres."
+        />
 
         {universe.length === 0 ? (
-          <p style={{ color: C.textDim }}>Aucune société disponible pour l&apos;instant.</p>
+          <EmptyState
+            title="Aucune société disponible"
+            body="Le graphique s’affichera dès que des titres seront chargés. En l’absence de série, l’interface indique N/D."
+          />
         ) : (
-          <div data-align-left>
-            <ChartWorkbench
-              universe={universe}
-              initialTicker={initialTicker}
-              isAuthenticated={Boolean(userId)}
-            />
-          </div>
+          <ChartWorkbench universe={universe} initialTicker={initialTicker} isAuthenticated={Boolean(userId)} />
         )}
       </div>
+      <SiteFooter />
     </AppHeader>
   );
 }

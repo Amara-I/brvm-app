@@ -86,6 +86,8 @@ const C = {
   greenSoft: "var(--c-green-soft)",
   redSoft: "var(--c-red-soft)",
   selectedBg: "var(--c-selected-bg)",
+  elevated: "var(--c-elevated)",
+  inset: "var(--c-inset)",
 };
 
 // ── Libellés lisibles pour l'indicateur discret "source des données" ───────

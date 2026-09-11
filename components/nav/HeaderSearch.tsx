@@ -1,11 +1,9 @@
 "use client";
 
-// Bouton recherche global — à gauche du bascule thème (demande utilisateur).
-
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { C } from "@/lib/theme/colors";
 import { IconSearch } from "@/components/icons/HeaderIcons";
+import styles from "./HeaderSearch.module.css";
 
 export interface HeaderSearchItem {
   ticker: string;
@@ -42,6 +40,19 @@ export default function HeaderSearch({ companies }: { companies: HeaderSearchIte
     };
   }, [open]);
 
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+      e.preventDefault();
+      setOpen(true);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return companies.slice(0, 8);
@@ -62,104 +73,44 @@ export default function HeaderSearch({ companies }: { companies: HeaderSearchIte
   }
 
   return (
-    <div ref={rootRef} style={{ position: "relative", flexShrink: 0 }}>
+    <div ref={rootRef} className={styles.root}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Rechercher une société"
         aria-expanded={open}
-        title="Rechercher"
-        style={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 34,
-          height: 34,
-          borderRadius: 8,
-          border: `1px solid ${C.border}`,
-          background: open ? C.selectedBg : "transparent",
-          color: C.text,
-          cursor: "pointer",
-          fontSize: "1rem",
-          lineHeight: 1,
-          flexShrink: 0,
-        }}
+        title="Rechercher (raccourci / )"
+        className={`${styles.trigger} ${open ? styles.triggerOpen : ""}`}
       >
         <IconSearch size={15} />
+        <span className={styles.triggerLabel}>Rechercher un ticker…</span>
+        <kbd className={styles.kbd}>/</kbd>
       </button>
 
       {open && (
-        <div
-          role="dialog"
-          aria-label="Recherche sociétés"
-          style={{
-            position: "absolute",
-            right: 0,
-            top: "calc(100% + 8px)",
-            width: "min(20rem, calc(100vw - 2rem))",
-            background: C.panel,
-            border: `1px solid ${C.border}`,
-            borderRadius: 10,
-            boxShadow: "0 12px 40px rgba(0,0,0,0.18)",
-            zIndex: 100,
-            padding: 10,
-          }}
-        >
+        <div role="dialog" aria-label="Recherche sociétés" className={styles.panel}>
           <input
             ref={inputRef}
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Ticker ou nom…"
+            placeholder="Ticker, nom ou secteur…"
             aria-label="Rechercher une société"
-            style={{
-              width: "100%",
-              boxSizing: "border-box",
-              font: "inherit",
-              fontSize: "0.85rem",
-              padding: "8px 10px",
-              borderRadius: 8,
-              border: `1px solid ${C.border}`,
-              background: C.bg,
-              color: C.text,
-              marginBottom: 8,
-            }}
+            className={styles.input}
             onKeyDown={(e) => {
               if (e.key === "Enter" && results[0]) go(results[0].ticker);
             }}
           />
-          <ul style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: 280, overflowY: "auto" }}>
+          <ul className={styles.list}>
             {results.length === 0 ? (
-              <li style={{ padding: "10px 8px", fontSize: "0.8rem", color: C.textDim }}>Aucun résultat (N/D).</li>
+              <li className={styles.empty}>Aucun résultat — N/D</li>
             ) : (
               results.map((c) => (
                 <li key={c.ticker}>
-                  <button
-                    type="button"
-                    onClick={() => go(c.ticker)}
-                    style={{
-                      width: "100%",
-                      textAlign: "left",
-                      border: "none",
-                      background: "transparent",
-                      color: C.text,
-                      cursor: "pointer",
-                      padding: "8px 8px",
-                      borderRadius: 6,
-                      fontFamily: "inherit",
-                      fontSize: "0.82rem",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = C.selectedBg;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                    }}
-                  >
-                    <strong style={{ color: C.gold }}>{c.ticker}</strong>
-                    <span style={{ color: C.textDim }}> · </span>
-                    {c.name}
-                    <div style={{ fontSize: "0.7rem", color: C.textDim }}>{c.sector}</div>
+                  <button type="button" onClick={() => go(c.ticker)} className={styles.item}>
+                    <span className={styles.ticker}>{c.ticker}</span>
+                    <span> · {c.name}</span>
+                    <div className={styles.sector}>{c.sector}</div>
                   </button>
                 </li>
               ))

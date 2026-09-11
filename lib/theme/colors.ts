@@ -45,6 +45,8 @@ export const C = {
   greenSoft: "var(--c-green-soft)",
   redSoft: "var(--c-red-soft)",
   selectedBg: "var(--c-selected-bg)",
+  elevated: "var(--c-elevated)",
+  inset: "var(--c-inset)",
 } as const;
 
 import { FONT_SANS_STACK } from "@/lib/theme/fonts";

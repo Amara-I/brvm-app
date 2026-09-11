@@ -286,8 +286,14 @@ export default function ChartWorkbench({
       // Sans `cache: "no-store"` : le navigateur peut réutiliser la réponse
       // (Cache-Control s-maxage côté API) au lieu de relancer Sika/Rich.
       const res = await fetch(`/api/charts/${t}`);
-      const json = await res.json();
-      if (!json.ok) throw new Error(json.error ?? "Échec de chargement");
+      const text = await res.text();
+      let json: { ok?: boolean; error?: string; data?: unknown } = {};
+      try {
+        json = text ? (JSON.parse(text) as { ok?: boolean; error?: string; data?: unknown }) : {};
+      } catch {
+        throw new Error("Série indisponible — N/D");
+      }
+      if (!json.ok) throw new Error(json.error ?? "Série indisponible — N/D");
       setPayload(json.data as ChartApiPayload);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -903,7 +909,10 @@ export default function ChartWorkbench({
             {loading ? (
               <div className={styles.empty}>Chargement du graphique…</div>
             ) : error ? (
-              <div className={styles.empty}>{error}</div>
+              <div className={styles.empty} role="status">
+                <strong style={{ color: "var(--tv-text)" }}>Série indisponible</strong>
+                <span>N/D — les cours n’ont pas pu être chargés pour ce ticker.</span>
+              </div>
             ) : (
               <TradingChart
                 ticker={ticker}

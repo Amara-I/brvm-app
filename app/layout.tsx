@@ -15,8 +15,9 @@
 // `:root`, s'applique déjà correctement).
 import Script from "next/script";
 import { Suspense } from "react";
-import { Inter } from "next/font/google";
+import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
+import "./ui.css";
 import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
 import ScrollRestoration from "@/components/navigation/ScrollRestoration";
 
@@ -28,6 +29,13 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+  variable: "--font-ibm-plex-mono",
+});
+
 export const metadata = {
   title: BRAND_NAME,
   description: "Analyse financière des sociétés cotées à la BRVM",
@@ -37,7 +45,7 @@ const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.str
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="fr" className={inter.variable}>
+    <html lang="fr" className={`${inter.variable} ${ibmPlexMono.variable}`}>
       <head>
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}

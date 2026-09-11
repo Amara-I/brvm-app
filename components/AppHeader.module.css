@@ -1,5 +1,4 @@
 .shell {
-  --sidebar-width: 236px;
   display: grid;
   grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
   grid-template-rows: var(--app-header-height) minmax(0, 1fr);
@@ -14,10 +13,10 @@
   grid-area: brand;
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 16px;
   border-right: 1px solid var(--c-border);
   border-bottom: 1px solid var(--c-border);
-  background: var(--c-bg);
+  background: var(--c-panel);
   box-sizing: border-box;
   min-height: 0;
   overflow: hidden;
@@ -50,14 +49,15 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 0 16px;
+  padding: 0 18px;
   border-bottom: 1px solid var(--c-border);
-  background: var(--c-bg);
+  background: color-mix(in srgb, var(--c-panel) 88%, var(--c-bg));
   box-sizing: border-box;
   min-height: 0;
   position: sticky;
   top: 0;
   z-index: 80;
+  backdrop-filter: blur(10px);
 }
 
 .topActions {
@@ -74,7 +74,7 @@
   flex-direction: column;
   min-height: 0;
   border-right: 1px solid var(--c-border);
-  background: var(--c-bg);
+  background: var(--c-panel);
   overflow: hidden;
   z-index: 90;
 }
@@ -102,7 +102,7 @@
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  padding: 18px 20px 32px;
+  padding: 20px 24px 40px;
   box-sizing: border-box;
 }
 
@@ -139,14 +139,14 @@
   color: var(--c-text);
   font-size: var(--fs-body-sm);
   border: 1px solid var(--c-border);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   padding: 8px 12px;
   text-decoration: none;
   text-align: center;
   white-space: nowrap;
   flex-shrink: 0;
   line-height: 1.2;
-  background: transparent;
+  background: var(--c-panel);
   cursor: pointer;
   font-family: inherit;
 }
@@ -162,9 +162,9 @@
   display: none;
   align-items: center;
   justify-content: center;
-  background: transparent;
+  background: var(--c-panel);
   border: 1px solid var(--c-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--c-text);
   padding: 7px 10px;
   font-size: 1.05rem;

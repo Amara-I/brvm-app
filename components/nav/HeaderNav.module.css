@@ -15,33 +15,55 @@
   width: 100%;
 }
 
+.navGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 14px;
+}
+
+.navGroup:first-child {
+  margin-top: 2px;
+}
+
+.navGroupLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-textdim);
+  padding: 4px 12px 6px;
+}
+
 .navLink {
   color: var(--hn-text);
   text-decoration: none;
-  font-size: var(--fs-nav, 0.9375rem);
+  font-size: var(--fs-nav, 0.875rem);
   font-weight: 500;
   padding: 8px 12px;
   border-radius: 8px;
   white-space: nowrap;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
 }
 
 .navLinkSidebar {
   display: block;
   width: 100%;
-  font-size: var(--fs-nav, 0.9375rem);
+  font-size: var(--fs-nav, 0.875rem);
   font-weight: 500;
-  padding: 9px 12px;
+  padding: 8px 12px;
   white-space: normal;
 }
 
 .navLink:hover,
 .trigger:hover {
-  background: var(--hn-panel);
+  background: var(--hn-panelAlt);
 }
 
 .navLinkActive {
   color: var(--hn-green);
   background: var(--hn-panelAlt);
+  font-weight: 650;
 }
 
 @media (max-width: 860px) {

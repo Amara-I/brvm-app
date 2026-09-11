@@ -3,8 +3,10 @@ import Link from "next/link";
 import { ResearchCategory } from "@prisma/client";
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
-import { PAGE_LEAD, PAGE_TITLE, SECTION_TITLE, PANEL_TEXT } from "@/lib/theme/typography";
+import { SECTION_TITLE, PANEL_TEXT } from "@/lib/theme/typography";
 import { prisma } from "@/lib/prisma";
+import PageHeader from "@/components/ui/PageHeader";
+import EmptyState from "@/components/ui/EmptyState";
 
 export const dynamic = "force-dynamic";
 
@@ -53,11 +55,12 @@ export default async function OutilsPage({
 
   return (
     <AppHeader>
-      <div>
-        <h1 style={PAGE_TITLE}>Outils</h1>
-        <p style={PAGE_LEAD}>
-          Export de données et veille automatisée pour perfectionner la plateforme (design premium inclus).
-        </p>
+      <div className="ob-page">
+        <PageHeader
+          kicker="Plateforme"
+          title="Outils"
+          lead="Export de données et veille automatisée pour perfectionner la plateforme (design premium inclus)."
+        />
 
         <div style={panel()} data-align-left>
           <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Capacités OuestBourse</h2>
@@ -221,13 +224,10 @@ export default async function OutilsPage({
           </div>
 
           {findings.length === 0 ? (
-            <p style={{ ...PANEL_TEXT, fontStyle: "italic", margin: 0 }}>
-              Aucune suggestion pour l&apos;instant — activez{" "}
-              <code style={{ color: C.silver }}>RESEARCH_AGENT_ENABLED=true</code>, puis lancez{" "}
-              <code style={{ color: C.silver }}>npm run research:run</code>
-              . Avec <code style={{ color: C.silver }}>RESEARCH_SEARCH_API_KEY</code> (SerpAPI) ou sans clé
-              (fallback Google News RSS).
-            </p>
+            <EmptyState
+              title="Aucune suggestion pour l’instant"
+              body="Activez RESEARCH_AGENT_ENABLED, puis lancez npm run research:run. Avec une clé SerpAPI ou le fallback Google News RSS."
+            />
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
               {findings.map((f) => (

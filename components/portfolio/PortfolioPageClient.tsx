@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { C } from "@/lib/theme/colors";
-import { PAGE_TITLE } from "@/lib/theme/typography";
 import CreatePortfolioButton from "@/components/portfolio/CreatePortfolioButton";
 import AddHoldingForm from "@/components/portfolio/AddHoldingForm";
 import PortfolioHoldingsTable from "@/components/portfolio/PortfolioHoldingsTable";
@@ -12,7 +11,17 @@ import PortfolioTradesHistory from "@/components/portfolio/PortfolioTradesHistor
 import PortfolioDiscreteControls from "@/components/portfolio/PortfolioDiscreteControls";
 import PortfolioExcelIO from "@/components/portfolio/PortfolioExcelIO";
 import PortfolioManageBar from "@/components/portfolio/PortfolioManageBar";
-import { AllocationBars, fmtFcfa, Kpi, panelStyle, allocationLayoutRow, allocationSectorsCol, allocationTickersCol } from "@/components/portfolio/PortfolioPageParts";
+import {
+  AllocationBars,
+  fmtFcfa,
+  Kpi,
+  panelStyle,
+  allocationLayoutRow,
+  allocationSectorsCol,
+  allocationTickersCol,
+} from "@/components/portfolio/PortfolioPageParts";
+import EmptyState from "@/components/ui/EmptyState";
+import PageHeader from "@/components/ui/PageHeader";
 import type { UserPortfoliosWithMetrics } from "@/lib/api/portfolio-data";
 import type { PortfolioTradeRow } from "@/lib/api/portfolio-trades";
 import { PORTFOLIO_CHANGED_EVENT, PORTFOLIO_TRADES_CHANGED_EVENT, summarizeRealizedPnlClient } from "@/lib/api/portfolio-trades-client";
@@ -156,7 +165,7 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
   const hideAlloc = isMasked(discrete, masks, "allocationAmounts");
 
   return (
-    <div data-align-left>
+    <div className="ob-page">
       <style>{`
         .portfolio-flash {
           outline: 2px solid var(--c-gold);
@@ -164,34 +173,27 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
           transition: outline-color 0.3s ease;
         }
       `}</style>
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "center",
-          alignItems: "flex-start",
-          width: "100%",
-          marginBottom: 20,
-          flexWrap: "wrap",
-          gap: 12,
-        }}
-      >
-        <h1 style={{ ...PAGE_TITLE, marginBottom: 0 }}>Mon portefeuille</h1>
-        <CreatePortfolioButton onCreated={reloadFromApi} />
-        <PortfolioDiscreteControls
-          discrete={discrete}
-          onDiscreteChange={(v) => setDiscrete(v)}
-          masks={masks}
-          onMasksChange={setMasks}
-        />
-      </div>
+      <PageHeader
+        kicker="Positions"
+        title="Mon portefeuille"
+        actions={
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <CreatePortfolioButton onCreated={reloadFromApi} />
+            <PortfolioDiscreteControls
+              discrete={discrete}
+              onDiscreteChange={(v) => setDiscrete(v)}
+              masks={masks}
+              onMasksChange={setMasks}
+            />
+          </div>
+        }
+      />
 
       {portfolios.length === 0 && (
-        <div style={panelStyle}>
-          <p style={{ color: C.textDim, fontSize: "var(--fs-page-lead)", margin: 0 }}>
-            Vous n&apos;avez pas encore de portefeuille. Cliquez sur « + Nouveau portefeuille » pour commencer à suivre
-            vos positions BRVM.
-          </p>
-        </div>
+        <EmptyState
+          title="Aucun portefeuille pour l’instant"
+          body="Cliquez sur « + Nouveau portefeuille » pour commencer à suivre vos positions BRVM. Les champs sans donnée s’affichent N/D."
+        />
       )}
 
       {portfolios.map((p) => {
