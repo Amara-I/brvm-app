@@ -7,6 +7,9 @@
 //   2. Mensuel xperiod=30 depuis la première année réellement retournée.
 //   3. Journalier chunké ~89 j uniquement sur les fenêtres encore lacunaires
 //      (skip si déjà ≥ 35 clôtures BRVM/Sika dans la fenêtre).
+//      forceDaily=1 ignore INGESTION_ENABLE_SIKA_DAILY_HISTORY=false.
+//      Fenêtres persistées une par une + plafond Hobby (défaut 8 / ticker).
+//      Reprise sur le MÊME ticker tant qu'il reste des gaps.
 //   4. Fiche SOCIETE (ISIN, CA/RN en Mds, PER, dividendes), events/news,
 //      documents BRVM via catalogue OuestBourse si la clé est configurée.
 //
@@ -42,11 +45,12 @@ import { reconcilePriceBatch } from "./reconciliation";
 import type { DataSourceCode, RawPriceQuote } from "./types";
 import {
   DEFAULT_ANNUAL_FROM_YEAR,
-  chunksNeedingFetch,
-  coveredDailyDates,
+  DEFAULT_MIN_DAILY_POINTS_PER_CHUNK,
   earliestIsoFromQuotes,
-  iterateDailyChunks,
+  maxDailyChunksThisRun,
   mergeExistingPrices,
+  minIsoDate,
+  planDailyBackfill,
   quotesEligibleForCanonical,
   quotesNeedingUpsert,
   type ExistingPriceRef,
@@ -62,12 +66,20 @@ export interface HistoryBackfillOptions {
   includeAnnual?: boolean;
   includeMonthly?: boolean;
   includeDaily?: boolean;
+  /** Ignore `INGESTION_ENABLE_SIKA_DAILY_HISTORY=false` et planifie les gaps. */
+  forceDaily?: boolean;
+  /** Seuil chunksNeedingFetch (défaut 35). 1 = fenêtres vides seulement. */
+  minDailyPoints?: number;
+  /** Plafond de fenêtres GetHistos journalières par ticker pour ce run. */
+  maxDailyChunks?: number;
   includeSheets?: boolean;
   includeEventsNews?: boolean;
   includeDocuments?: boolean;
   timeBudgetMs?: number;
   resume?: boolean;
   resumeAfterTicker?: string;
+  /** true = reprendre AU ticker (log incomplete) ; false = après (query `after`). */
+  resumeInclusive?: boolean;
   maxTickers?: number;
   logger?: (msg: string) => void;
 }
@@ -80,6 +92,12 @@ export interface HistoryBackfillTickerResult {
   monthlyPoints: number;
   dailyPoints: number;
   dailyChunksFetched: number;
+  includeDaily: boolean;
+  flagDaily: boolean;
+  dailyFromIso: string | null;
+  dailyGapsPlanned: number;
+  existingPoints: number;
+  dailySkipReason: string | null;
   sheetsOk: boolean;
   events: number;
   news: number;
@@ -97,6 +115,10 @@ export interface HistoryBackfillSummary {
   tickersOk: number;
   pricesUpserted: number;
   pricesCanonical: number;
+  flagDaily: boolean;
+  includeDaily: boolean;
+  forceDaily: boolean;
+  minDailyPoints: number;
   perTicker: HistoryBackfillTickerResult[];
 }
 
@@ -166,6 +188,12 @@ export async function runHistoryBackfill(
   const startedAtMs = Date.now();
   const startedAt = new Date();
 
+  const forceDaily = options.forceDaily === true;
+  const minDailyPoints = options.minDailyPoints ?? DEFAULT_MIN_DAILY_POINTS_PER_CHUNK;
+  const includeDailyRequested =
+    forceDaily || (options.includeDaily !== false && options.dailyFrom !== "off");
+  const includeDailyEffective = includeDailyRequested && (forceDaily || flags.daily);
+
   if (!flags.enabled) {
     log(options, "→ Backfill historique désactivé (INGESTION_ENABLE_HISTORY_BACKFILL=false)");
     return {
@@ -178,16 +206,16 @@ export async function runHistoryBackfill(
       tickersOk: 0,
       pricesUpserted: 0,
       pricesCanonical: 0,
+      flagDaily: flags.daily,
+      includeDaily: false,
+      forceDaily,
+      minDailyPoints,
       perTicker: [],
     };
   }
 
   const includeAnnual = options.includeAnnual !== false;
   const includeMonthly = options.includeMonthly !== false;
-  const includeDaily =
-    options.includeDaily !== false &&
-    flags.daily &&
-    options.dailyFrom !== "off";
   const includeSheets = options.includeSheets !== false && flags.sheets;
   const includeEventsNews = options.includeEventsNews !== false && flags.eventsNews;
   const includeDocuments =
@@ -202,14 +230,23 @@ export async function runHistoryBackfill(
   const companyIdByTicker = new Map(companies.map((c) => [c.ticker, c.id]));
 
   let resumeAfter = options.resumeAfterTicker?.toUpperCase() ?? null;
+  let resumeInclusive = options.resumeInclusive === true;
   if (!resumeAfter && options.resume !== false && !only?.length) {
     resumeAfter = await findResumeTicker(db);
+    resumeInclusive = true;
   }
   let queue = companies;
   if (resumeAfter) {
-    const idx = queue.findIndex((c) => c.ticker > resumeAfter!);
+    const idx = queue.findIndex((c) =>
+      resumeInclusive ? c.ticker >= resumeAfter! : c.ticker > resumeAfter!
+    );
     queue = idx >= 0 ? queue.slice(idx) : [];
-    if (queue.length) log(options, `→ Reprise après ${resumeAfter} (${queue.length} restante(s))`);
+    if (queue.length) {
+      log(
+        options,
+        `→ Reprise ${resumeInclusive ? "depuis" : "après"} ${resumeAfter} (${queue.length} restante(s))`
+      );
+    }
   }
   if (options.maxTickers != null && options.maxTickers >= 0) {
     queue = queue.slice(0, options.maxTickers);
@@ -221,7 +258,8 @@ export async function runHistoryBackfill(
     `→ Backfill historique Sika — ${queue.length} société(s)` +
       ` · annuel=${includeAnnual ? options.annualFromYear ?? DEFAULT_ANNUAL_FROM_YEAR : "off"}` +
       ` · mensuel=${includeMonthly}` +
-      ` · journalier=${includeDaily ? dailyFromOpt ?? "auto" : "off"}` +
+      ` · journalier=${includeDailyEffective ? dailyFromOpt ?? "auto" : "off"}` +
+      ` · flagDaily=${flags.daily} forceDaily=${forceDaily} minDailyPoints=${minDailyPoints}` +
       ` · fiches=${includeSheets} events=${includeEventsNews} docs=${includeDocuments}`
   );
 
@@ -253,6 +291,12 @@ export async function runHistoryBackfill(
         monthlyPoints: 0,
         dailyPoints: 0,
         dailyChunksFetched: 0,
+        includeDaily: includeDailyEffective,
+        flagDaily: flags.daily,
+        dailyFromIso: null,
+        dailyGapsPlanned: 0,
+        existingPoints: 0,
+        dailySkipReason: null,
         sheetsOk: false,
         events: 0,
         news: 0,
@@ -270,7 +314,7 @@ export async function runHistoryBackfill(
           );
           if (annual.ok) {
             result.annualPoints = annual.data.length;
-            firstSikaIso = earliestIsoFromQuotes(annual.data) ?? firstSikaIso;
+            firstSikaIso = minIsoDate(firstSikaIso, earliestIsoFromQuotes(annual.data));
             const persisted = await persistSikaQuotes(db, companyIdByTicker, existing, annual.data);
             existing = persisted.existing;
             result.pricesUpserted += persisted.upserted;
@@ -288,7 +332,9 @@ export async function runHistoryBackfill(
           const monthly = await sikafinanceConnector.fetchMonthlyHistory(co.ticker, fromYear);
           if (monthly.ok) {
             result.monthlyPoints = monthly.data.length;
-            firstSikaIso = earliestIsoFromQuotes(monthly.data) ?? firstSikaIso;
+            // min() : le mensuel GetHistos est souvent tronqué (~60 mois) et
+            // ne doit pas écraser l'annuel qui remonte plus loin (BICC 2006).
+            firstSikaIso = minIsoDate(firstSikaIso, earliestIsoFromQuotes(monthly.data));
             const persisted = await persistSikaQuotes(db, companyIdByTicker, existing, monthly.data);
             existing = persisted.existing;
             result.pricesUpserted += persisted.upserted;
@@ -298,40 +344,58 @@ export async function runHistoryBackfill(
           }
         }
 
-        if (includeDaily) {
-          let fromIso: string | null = null;
-          if (typeof dailyFromOpt === "string" && /^\d{4}-\d{2}-\d{2}$/.test(dailyFromOpt)) {
-            fromIso = dailyFromOpt;
-          } else if (dailyFromOpt === "off") {
-            fromIso = null;
-          } else {
-            fromIso = firstSikaIso;
-            if (!fromIso) {
-              const sika = existing.filter((e) => e.source === "SIKAFINANCE").map((e) => e.date).sort();
-              fromIso = sika[0] ?? `${options.annualFromYear ?? DEFAULT_ANNUAL_FROM_YEAR}-01-01`;
-            }
-            if (co.listedSince) {
-              const listed = toIsoDate(co.listedSince);
-              if (listed > fromIso) fromIso = listed;
-            }
-          }
+        const plan = planDailyBackfill({
+          flagDaily: flags.daily,
+          forceDaily,
+          includeDailyRequested: options.includeDaily !== false,
+          dailyFromOpt,
+          firstSikaIso,
+          existing,
+          listedSinceIso: co.listedSince ? toIsoDate(co.listedSince) : null,
+          annualFromYear: options.annualFromYear ?? DEFAULT_ANNUAL_FROM_YEAR,
+          minDailyPoints,
+          todayIso: toIsoDate(new Date()),
+        });
+        result.includeDaily = plan.includeDaily;
+        result.flagDaily = plan.flagDaily;
+        result.dailyFromIso = plan.fromIso;
+        result.dailyGapsPlanned = plan.gaps.length;
+        result.existingPoints = plan.existingPoints;
+        result.dailySkipReason = plan.skipReason;
 
-          if (fromIso) {
-            const toIso = toIsoDate(new Date());
-            const chunks = iterateDailyChunks(fromIso, toIso);
-            const gaps = chunksNeedingFetch(chunks, coveredDailyDates(existing));
-            result.dailyChunksFetched = gaps.length;
-            if (gaps.length > 0) {
-              const daily = await sikafinanceConnector.fetchDailyHistoryGaps(co.ticker, gaps);
-              if (daily.ok) {
-                result.dailyPoints = daily.data.length;
-                const persisted = await persistSikaQuotes(db, companyIdByTicker, existing, daily.data);
-                existing = persisted.existing;
-                result.pricesUpserted += persisted.upserted;
-                result.pricesCanonical += persisted.canonical;
-              } else {
-                log(options, `  ${co.ticker}: journalier ✗ ${daily.error}`);
+        if (plan.includeDaily && plan.gaps.length > 0) {
+          const limit = maxDailyChunksThisRun({
+            timeLeftMs: timeLeft(startedAtMs, options.timeBudgetMs),
+            maxDailyChunks: options.maxDailyChunks,
+          });
+          if (limit === 0) {
+            result.dailySkipReason = "time_budget";
+            incomplete = true;
+            nextTicker = co.ticker;
+          } else {
+            const toFetch = plan.gaps.slice(0, Number.isFinite(limit) ? limit : plan.gaps.length);
+            for (const range of toFetch) {
+              if (timeLeft(startedAtMs, options.timeBudgetMs) < 20_000) {
+                result.dailySkipReason = "time_budget";
+                incomplete = true;
+                nextTicker = co.ticker;
+                break;
               }
+              const part = await sikafinanceConnector.fetchHistos(co.ticker, range.from, range.to, "0");
+              result.dailyChunksFetched += 1;
+              if (!part.ok) {
+                log(options, `  ${co.ticker}: journalier ${range.from}→${range.to} ✗ ${part.error}`);
+                continue;
+              }
+              result.dailyPoints += part.data.length;
+              const persisted = await persistSikaQuotes(db, companyIdByTicker, existing, part.data);
+              existing = persisted.existing;
+              result.pricesUpserted += persisted.upserted;
+              result.pricesCanonical += persisted.canonical;
+            }
+            if (result.dailyChunksFetched < plan.gaps.length) {
+              incomplete = true;
+              nextTicker = co.ticker;
             }
           }
         }
@@ -377,7 +441,13 @@ export async function runHistoryBackfill(
           options,
           `  ${co.ticker}: annuel ${result.annualPoints}` +
             ` · mensuel ${result.monthlyPoints}` +
-            ` · journalier ${result.dailyPoints} (${result.dailyChunksFetched} fenêtres)` +
+            ` · journalier ${result.dailyPoints}` +
+            ` (${result.dailyChunksFetched}/${result.dailyGapsPlanned} fenêtres` +
+            ` from=${result.dailyFromIso ?? "n/a"}` +
+            ` flagDaily=${result.flagDaily}` +
+            (result.dailySkipReason ? ` skip=${result.dailySkipReason}` : "") +
+            `)` +
+            ` · existants ${result.existingPoints}` +
             ` · prix +${result.pricesUpserted}` +
             (result.sheetsOk ? " · fiche OK" : "") +
             (result.events ? ` · events ${result.events}` : "") +
@@ -390,6 +460,10 @@ export async function runHistoryBackfill(
       }
 
       perTicker.push(result);
+      if (incomplete && nextTicker === co.ticker) {
+        log(options, `  ${co.ticker}: journalier incomplet — reprise sur ce ticker au prochain run`);
+        break;
+      }
     }
 
     if (!incomplete && options.timeBudgetMs && timeLeft(startedAtMs, options.timeBudgetMs) < 0) {
@@ -440,6 +514,10 @@ export async function runHistoryBackfill(
     tickersOk: perTicker.filter((t) => !t.error).length,
     pricesUpserted,
     pricesCanonical,
+    flagDaily: flags.daily,
+    includeDaily: includeDailyEffective,
+    forceDaily,
+    minDailyPoints,
     perTicker,
   };
 }

@@ -6,7 +6,8 @@
 //   npx ts-node scripts/run-history-backfill.ts SNTS SGBC
 //   npx ts-node scripts/run-history-backfill.ts --daily-from=2015-01-01
 //   npx ts-node scripts/run-history-backfill.ts --daily=off --no-events
-//   npx ts-node scripts/run-history-backfill.ts --max-tickers=3 --no-resume
+//   npx ts-node scripts/run-history-backfill.ts --force-daily --max-tickers=1 BICC
+//   npx ts-node scripts/run-history-backfill.ts --min-daily-points=1 --max-daily-chunks=8
 //   npx ts-node scripts/run-history-backfill.ts --budget-ms=240000
 //
 // Nécessite DATABASE_URL. Aucun cours n'est inventé : seules les séries
@@ -32,13 +33,19 @@ function parseArgs(argv: string[]): HistoryBackfillOptions {
   const budget = Number(get("--budget-ms"));
   const maxTickers = Number(get("--max-tickers"));
   const annualFrom = Number(get("--annual-from"));
+  const minDailyPoints = Number(get("--min-daily-points"));
+  const maxDailyChunks = Number(get("--max-daily-chunks"));
+  const forceDaily = flags.includes("--force-daily");
 
   return {
     tickers: tickers.length ? tickers : undefined,
     dailyFrom,
     includeAnnual: !flags.includes("--no-annual"),
     includeMonthly: !flags.includes("--no-monthly"),
-    includeDaily: dailyFrom !== "off" && !flags.includes("--no-daily"),
+    includeDaily: forceDaily || (dailyFrom !== "off" && !flags.includes("--no-daily")),
+    forceDaily,
+    minDailyPoints: Number.isFinite(minDailyPoints) && minDailyPoints >= 1 ? minDailyPoints : undefined,
+    maxDailyChunks: Number.isFinite(maxDailyChunks) && maxDailyChunks >= 0 ? Math.floor(maxDailyChunks) : undefined,
     includeSheets: !flags.includes("--no-sheets"),
     includeEventsNews: !flags.includes("--no-events"),
     includeDocuments: !flags.includes("--no-docs"),

@@ -3,12 +3,33 @@
 // Déclenchement manuel / scheduler externe :
 //   curl -H "Authorization: Bearer $CRON_SECRET" \
 //     "https://<host>/api/cron/history-backfill?budgetMs=240000"
-// Query : tickers=SNTS,SGBC · dailyFrom=2015-01-01|auto|off · maxTickers=5
-//         after=SNTS · noSheets=1 · noDaily=1
+//
+// Query :
+//   tickers=SNTS,SGBC     restreint le run
+//   dailyFrom=2015-01-01|auto|off
+//   maxTickers=5
+//   after=SNTS            reprend APRÈS ce ticker (exclusif)
+//   noSheets=1 · noDaily=1 · noEvents=1 · noDocs=1 · noResume=1
+//   budgetMs=240000       plafond Hobby (défaut 240 s)
+//   maxDailyChunks=8      fenêtres GetHistos journalières / ticker / run
+//   minDailyPoints=35     seuil de densité pour skip une fenêtre (défaut 35)
+//   forceDaily=1          ignore INGESTION_ENABLE_SIKA_DAILY_HISTORY=false
+//                         et planifie les gaps (seuil 35 sauf minDailyPoints=)
+//
+// Diagnostic par ticker : includeDaily, flagDaily, dailyFromIso,
+// dailyGapsPlanned, dailyChunksFetched, existingPoints, dailySkipReason.
+//
+// Ex. densifier BICC malgré un flag daily off en prod :
+//   .../history-backfill?forceDaily=1&maxTickers=1&tickers=BICC
+//
+// Note : minDailyPoints=1 ne refetch QUE les fenêtres à 0 point (les années
+// mensuelles ~13 pts resteraient lacunaires). Garder 35 pour une vraie
+// densification journalière.
 
 import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
 import { runHistoryBackfill } from "@/lib/ingestion/run-history-backfill";
+import { parseHistoryBackfillSearchParams } from "@/lib/ingestion/history-backfill-query";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 
 export const dynamic = "force-dynamic";
@@ -19,31 +40,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ ok: false, error: "Non autorisé" }, { status: 401 });
   }
 
-  const q = request.nextUrl.searchParams;
-  const tickers = q.get("tickers")?.split(",").map((t) => t.trim().toUpperCase()).filter(Boolean);
-  const dailyFromRaw = q.get("dailyFrom") ?? "auto";
-  const dailyFrom =
-    dailyFromRaw === "off" || dailyFromRaw === "false"
-      ? "off"
-      : /^\d{4}-\d{2}-\d{2}$/.test(dailyFromRaw)
-        ? dailyFromRaw
-        : "auto";
-  const budgetMs = Number(q.get("budgetMs") ?? "240000");
-  const maxTickers = q.get("maxTickers") ? Number(q.get("maxTickers")) : undefined;
+  const parsed = parseHistoryBackfillSearchParams(request.nextUrl.searchParams);
 
   try {
-    const summary = await runHistoryBackfill({
-      tickers: tickers?.length ? tickers : undefined,
-      dailyFrom,
-      includeDaily: dailyFrom !== "off" && q.get("noDaily") !== "1",
-      includeSheets: q.get("noSheets") !== "1",
-      includeEventsNews: q.get("noEvents") !== "1",
-      includeDocuments: q.get("noDocs") !== "1",
-      timeBudgetMs: Number.isFinite(budgetMs) && budgetMs > 0 ? budgetMs : 240_000,
-      maxTickers: maxTickers != null && Number.isFinite(maxTickers) ? maxTickers : undefined,
-      resume: q.get("noResume") !== "1",
-      resumeAfterTicker: q.get("after")?.toUpperCase() || undefined,
-    });
+    const summary = await runHistoryBackfill(parsed);
     return NextResponse.json({ ok: true, data: summary });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

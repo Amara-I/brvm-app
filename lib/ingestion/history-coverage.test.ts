@@ -2,14 +2,20 @@ import { describe, expect, it } from "vitest";
 import type { ReconciledPrice } from "./reconciliation";
 import type { RawPriceQuote } from "./types";
 import {
+  FORCE_DAILY_EMPTY_WINDOW_MIN_POINTS,
   chunksNeedingFetch,
   coveredDailyDates,
   earliestYearFromQuotes,
   iterateDailyChunks,
+  maxDailyChunksThisRun,
   mergeExistingPrices,
+  minIsoDate,
+  planDailyBackfill,
   quotesEligibleForCanonical,
   quotesNeedingUpsert,
+  resolveDailyFromIso,
 } from "./history-coverage";
+import type { ExistingPriceRef } from "./history-coverage";
 
 function quote(overrides: Partial<RawPriceQuote>): RawPriceQuote {
   return {
@@ -143,5 +149,157 @@ describe("earliestYearFromQuotes", () => {
       ])
     ).toBe(2006);
     expect(earliestYearFromQuotes([])).toBeNull();
+  });
+});
+
+function annualLikeExisting(fromYear: number, toYear: number): ExistingPriceRef[] {
+  const out: ExistingPriceRef[] = [];
+  for (let y = fromYear; y <= toYear; y++) {
+    out.push({ date: `${y}-12-31`, source: "SIKAFINANCE", closePrice: 1000 + y });
+  }
+  return out;
+}
+
+describe("resolveDailyFromIso / planDailyBackfill", () => {
+  it("garde le plus tôt entre annuel Sika (2006) et mensuel plus court (~2021)", () => {
+    const existing = annualLikeExisting(2006, 2026);
+    // Mensuel GetHistos ne renvoie souvent que ~60 derniers mois.
+    const fromIso = resolveDailyFromIso({
+      dailyFromOpt: "auto",
+      firstSikaIso: "2021-08-01",
+      existing,
+      listedSinceIso: null,
+      annualFromYear: 1998,
+    });
+    expect(fromIso).toBe("2006-12-31");
+  });
+
+  it("n'applique pas listedSince s'il existe déjà des cours avant cette date", () => {
+    const existing = annualLikeExisting(2006, 2026);
+    const fromIso = resolveDailyFromIso({
+      dailyFromOpt: "auto",
+      firstSikaIso: "2006-12-31",
+      existing,
+      listedSinceIso: "2025-04-28",
+      annualFromYear: 1998,
+    });
+    expect(fromIso).toBe("2006-12-31");
+  });
+
+  it("applique listedSince seulement sans aucun cours antérieur (IPO récente)", () => {
+    const existing: ExistingPriceRef[] = [
+      { date: "2025-06-01", source: "SIKAFINANCE", closePrice: 10 },
+    ];
+    const fromIso = resolveDailyFromIso({
+      dailyFromOpt: "auto",
+      firstSikaIso: "1998-01-01",
+      existing,
+      listedSinceIso: "2025-04-28",
+      annualFromYear: 1998,
+    });
+    expect(fromIso).toBe("2025-04-28");
+  });
+
+  it("cas BICC : série mensuelle 2006–2026 → ~77 fenêtres à densifier, même si le flag daily est off", () => {
+    const existing: ExistingPriceRef[] = [];
+    for (let y = 2006; y <= 2020; y++) {
+      existing.push({ date: `${y}-12-31`, source: "SIKAFINANCE", closePrice: 1 });
+    }
+    // ~1 point / mois 2023–2026 (pas assez pour 35 / 89 j)
+    for (let y = 2021; y <= 2026; y++) {
+      for (let m = 1; m <= 12; m++) {
+        if (y === 2026 && m > 9) break;
+        existing.push({
+          date: `${y}-${String(m).padStart(2, "0")}-01`,
+          source: "SIKAFINANCE",
+          closePrice: 1,
+        });
+      }
+    }
+    const plan = planDailyBackfill({
+      flagDaily: false,
+      forceDaily: false,
+      dailyFromOpt: "auto",
+      firstSikaIso: "2006-12-31",
+      existing,
+      listedSinceIso: null,
+      todayIso: "2026-09-11",
+    });
+    expect(plan.includeDaily).toBe(false);
+    expect(plan.skipReason).toBe("flag_daily_disabled");
+    expect(plan.fromIso).toBe("2006-12-31");
+    expect(plan.gaps.length).toBeGreaterThan(50);
+    expect(plan.existingPoints).toBe(existing.length);
+  });
+
+  it("forceDaily=1 ignore le flag et planifie les mêmes gaps BICC", () => {
+    const existing = annualLikeExisting(2006, 2026);
+    const plan = planDailyBackfill({
+      flagDaily: false,
+      forceDaily: true,
+      dailyFromOpt: "auto",
+      firstSikaIso: "2006-12-31",
+      existing,
+      listedSinceIso: null,
+      todayIso: "2026-09-11",
+    });
+    expect(plan.includeDaily).toBe(true);
+    expect(plan.skipReason).toBeNull();
+    expect(plan.gaps.length).toBeGreaterThan(50);
+    expect(plan.flagDaily).toBe(false);
+    expect(plan.forceDaily).toBe(true);
+  });
+
+  it("minDailyPoints=1 ne refetch que les fenêtres vides (années mensuelles sautées)", () => {
+    const existing: ExistingPriceRef[] = [];
+    for (let m = 1; m <= 9; m++) {
+      existing.push({
+        date: `2026-${String(m).padStart(2, "0")}-01`,
+        source: "SIKAFINANCE",
+        closePrice: 1,
+      });
+    }
+    const aggressive = planDailyBackfill({
+      flagDaily: true,
+      firstSikaIso: "2026-01-01",
+      existing,
+      todayIso: "2026-09-11",
+      minDailyPoints: 35,
+    });
+    const emptyOnly = planDailyBackfill({
+      flagDaily: true,
+      firstSikaIso: "2026-01-01",
+      existing,
+      todayIso: "2026-09-11",
+      minDailyPoints: FORCE_DAILY_EMPTY_WINDOW_MIN_POINTS,
+    });
+    expect(aggressive.gaps.length).toBeGreaterThan(emptyOnly.gaps.length);
+  });
+});
+
+describe("maxDailyChunksThisRun", () => {
+  it("plafonne à 8 fenêtres sur un cron Hobby avec budget restant", () => {
+    expect(maxDailyChunksThisRun({ timeLeftMs: 200_000 })).toBe(8);
+  });
+
+  it("autorise 1 fenêtre s'il reste ≥ 20 s même sous la réserve fiches", () => {
+    expect(maxDailyChunksThisRun({ timeLeftMs: 22_000 })).toBe(1);
+  });
+
+  it("n'impose pas de plafond temps au CLI (Infinity)", () => {
+    expect(maxDailyChunksThisRun({ timeLeftMs: Number.POSITIVE_INFINITY })).toBe(
+      Number.POSITIVE_INFINITY
+    );
+  });
+
+  it("respecte maxDailyChunks explicite (forceDaily ops)", () => {
+    expect(maxDailyChunksThisRun({ timeLeftMs: 200_000, maxDailyChunks: 2 })).toBe(2);
+  });
+});
+
+describe("minIsoDate", () => {
+  it("ignore les null et garde la plus ancienne ISO", () => {
+    expect(minIsoDate(null, "2021-08-01", "2006-12-31", undefined)).toBe("2006-12-31");
+    expect(minIsoDate(null, undefined)).toBeNull();
   });
 });
