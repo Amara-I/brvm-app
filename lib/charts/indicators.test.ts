@@ -39,6 +39,12 @@ describe("rangeFilter", () => {
     const filtered = rangeFilter(sample, "1A", new Date("2026-08-10T00:00:00.000Z"));
     expect(filtered.map((p) => p.time)).toEqual(["2025-12-31", "2026-08-10"]);
   });
+
+  it("n'élargit plus une fenêtre 1J vide à 24 points (historique annuel)", () => {
+    const filtered = rangeFilter(sample, "1J", new Date("2026-08-10T00:00:00.000Z"));
+    expect(filtered.length).toBeLessThanOrEqual(2);
+    expect(filtered[filtered.length - 1]?.time).toBe("2026-08-10");
+  });
 });
 
 describe("dedupeChartPointsByDay", () => {

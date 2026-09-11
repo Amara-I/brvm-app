@@ -23,6 +23,7 @@ import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import type { CompanySheetPayload } from "@/lib/api/company-sheet-dataset";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { rangeFilter, type ChartRange } from "@/lib/charts/indicators";
+import { downsampleLttb } from "@/lib/charts/downsample";
 import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel";
 import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel";
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
@@ -165,7 +166,7 @@ export default function CompanySheetClient({
       if (payload.series.length >= 60) return;
       setDenseLoading(true);
       try {
-        const res = await fetch(`/api/charts/${company.ticker}`);
+        const res = await fetch(`/api/charts/${company.ticker}?range=MAX`);
         const json = await res.json();
         if (!cancelled && json.ok && Array.isArray(json.data?.series) && json.data.series.length > series.length) {
           setSeries(json.data.series as ChartClosePoint[]);
@@ -210,9 +211,10 @@ export default function CompanySheetClient({
       .sort((a, b) => a.name.localeCompare(b.name, "fr"));
   }, [peers, company.sector, company.ticker]);
 
-  const chartSeries = useMemo(() => rangeFilter(series, range), [series, range]);
-  const last = chartSeries[chartSeries.length - 1] ?? series[series.length - 1];
-  const prev = chartSeries.length >= 2 ? chartSeries[chartSeries.length - 2] : null;
+  const rangedSeries = useMemo(() => rangeFilter(series, range), [series, range]);
+  const chartSeries = useMemo(() => downsampleLttb(rangedSeries, 360), [rangedSeries]);
+  const last = rangedSeries[rangedSeries.length - 1] ?? series[series.length - 1];
+  const prev = rangedSeries.length >= 2 ? rangedSeries[rangedSeries.length - 2] : null;
   const price = metrics.currentPrice || last?.value || 0;
   const chgPct = dayChangePercent ?? (last && prev && prev.value ? ((last.value - prev.value) / prev.value) * 100 : null);
   const chgAbs = dayChangeAbs ?? (last && prev ? last.value - prev.value : null);
