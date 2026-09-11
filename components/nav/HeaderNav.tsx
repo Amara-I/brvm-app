@@ -66,42 +66,51 @@ export default function HeaderNav({
   const sidebar = layout === "sidebar";
   const close = onNavigate;
 
+  const links = (
+    <>
+      {sidebar ? <p className={styles.navGroupLabel}>Investir</p> : null}
+      <NavLink
+        href="/portefeuille"
+        label="Portefeuille"
+        active={isActive("/portefeuille")}
+        onClick={close}
+        sidebar={sidebar}
+      />
+      <NavLink
+        href="/simulation"
+        label="Simulation"
+        active={isActive("/simulation")}
+        onClick={close}
+        sidebar={sidebar}
+      />
+      {sidebar ? <p className={styles.navGroupLabel}>Marché</p> : null}
+      <NavLink href="/marche" label="Marché" active={isActive("/marche")} onClick={close} sidebar={sidebar} />
+      <NavLink href="/screener" label="Screener" active={isActive("/screener")} onClick={close} sidebar={sidebar} />
+      <NavLink href="/graphes" label="Graphes" active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
+      <CompanyMegaMenu
+        groups={sectorGroups}
+        totalCount={totalCompanies}
+        variant={sidebar ? "sidebar" : "inline"}
+        onNavigate={close}
+      />
+      <NavLink
+        href="/calendrier-dividendes"
+        label="Dividendes"
+        active={isActive("/calendrier-dividendes")}
+        onClick={close}
+        sidebar={sidebar}
+      />
+      {sidebar ? <p className={styles.navGroupLabel}>Ressources</p> : null}
+      <EducationMegaMenu variant={sidebar ? "sidebar" : "inline"} onNavigate={close} />
+      <NavLink href="/actualites" label="Actualités" active={isActive("/actualites")} onClick={close} sidebar={sidebar} />
+      <NavLink href="/outils" label="Outils" active={isActive("/outils")} onClick={close} sidebar={sidebar} />
+    </>
+  );
+
   return (
     <div style={cssVars}>
       <nav aria-label="Navigation principale" className={sidebar ? styles.sidebarNav : styles.desktopNav}>
-        <NavLink
-          href="/portefeuille"
-          label="Portefeuille"
-          active={isActive("/portefeuille")}
-          onClick={close}
-          sidebar={sidebar}
-        />
-        <NavLink href="/marche" label="Marché" active={isActive("/marche")} onClick={close} sidebar={sidebar} />
-        <NavLink href="/screener" label="Screener" active={isActive("/screener")} onClick={close} sidebar={sidebar} />
-        <NavLink href="/graphes" label="Graphes" active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
-        <NavLink
-          href="/simulation"
-          label="Simulation"
-          active={isActive("/simulation")}
-          onClick={close}
-          sidebar={sidebar}
-        />
-        <CompanyMegaMenu
-          groups={sectorGroups}
-          totalCount={totalCompanies}
-          variant={sidebar ? "sidebar" : "inline"}
-          onNavigate={close}
-        />
-        <EducationMegaMenu variant={sidebar ? "sidebar" : "inline"} onNavigate={close} />
-        <NavLink
-          href="/calendrier-dividendes"
-          label="Dividendes"
-          active={isActive("/calendrier-dividendes")}
-          onClick={close}
-          sidebar={sidebar}
-        />
-        <NavLink href="/actualites" label="Actualités" active={isActive("/actualites")} onClick={close} sidebar={sidebar} />
-        <NavLink href="/outils" label="Outils" active={isActive("/outils")} onClick={close} sidebar={sidebar} />
+        {links}
       </nav>
     </div>
   );

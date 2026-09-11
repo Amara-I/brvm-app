@@ -1,15 +1,16 @@
 .shell {
   background: var(--c-panel);
   border: 1px solid var(--c-border);
-  border-radius: 14px;
+  border-radius: var(--radius-lg);
   overflow: hidden;
+  box-shadow: var(--shadow-sm);
 }
 
 .toolbar {
   position: sticky;
   top: 0;
   z-index: 5;
-  background: var(--c-panel);
+  background: color-mix(in srgb, var(--c-panel) 92%, var(--c-bg));
   border-bottom: 1px solid var(--c-border);
   padding: 14px 16px;
   display: flex;
@@ -25,25 +26,30 @@
 
 .chip,
 .chipActive {
-  border-radius: 999px;
-  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  padding: 7px 14px;
   font-size: var(--fs-body-sm);
   cursor: pointer;
   font-family: inherit;
+  transition: background var(--duration-fast) var(--ease-out), border-color var(--duration-fast) var(--ease-out);
 }
 
 .chip {
   background: var(--c-bg);
   color: var(--c-text);
   border: 1px solid var(--c-border);
-  font-weight: 400;
+  font-weight: 500;
+}
+
+.chip:hover {
+  border-color: var(--c-gold);
 }
 
 .chipActive {
-  background: var(--c-gold);
-  color: #080b12;
-  border: 1px solid var(--c-gold);
-  font-weight: 700;
+  background: var(--c-green);
+  color: #fff;
+  border: 1px solid transparent;
+  font-weight: 650;
 }
 
 .filters {
@@ -70,7 +76,7 @@
   background: var(--c-bg);
   color: var(--c-text);
   border: 1px solid var(--c-border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   padding: 8px 10px;
   font-size: 0.82rem;
   font-family: inherit;
@@ -90,35 +96,43 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
+  font-size: var(--fs-data);
 }
 
 .table thead th {
   position: sticky;
   top: 0;
-  background: var(--c-bg);
+  background: var(--c-panel);
   color: var(--c-textdim);
   text-align: left;
   padding: 10px 10px;
   border-bottom: 1px solid var(--c-border);
-  font-weight: 600;
+  font-weight: 650;
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   z-index: 1;
 }
 
 .table tbody td {
   padding: 10px;
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: 1px solid var(--c-border-thin);
   color: var(--c-text);
   vertical-align: middle;
 }
 
 .table tbody tr:hover td {
-  background: var(--c-selected-bg, rgba(212, 168, 67, 0.06));
+  background: var(--c-selected-bg);
 }
 
 .tickerLink {
   color: var(--c-text);
   text-decoration: none;
+}
+
+.tickerLink strong {
+  font-family: var(--font-num);
+  letter-spacing: 0.02em;
 }
 
 .tickerLink:hover strong {

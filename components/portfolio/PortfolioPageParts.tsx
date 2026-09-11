@@ -7,6 +7,7 @@ export const panelStyle: React.CSSProperties = {
   borderRadius: 14,
   padding: 20,
   marginBottom: 16,
+  boxShadow: "var(--shadow-sm)",
 };
 
 /** Ligne allocation sectorielle + répartition par action (50 % / 50 %). */
@@ -44,31 +45,14 @@ export function Kpi({
   educationSlug?: string;
 }) {
   return (
-    <div
-      style={{
-        flex: "1 1 150px",
-        background: C.bg,
-        border: `1px solid ${C.border}`,
-        borderRadius: 12,
-        padding: "14px 12px",
-      }}
-    >
-      <div
-        style={{
-          color: C.textDim,
-          fontSize: "var(--fs-body-xs)",
-          textTransform: "uppercase",
-          letterSpacing: "0.04em",
-        }}
-      >
+    <div className="ob-kpi">
+      <p className="ob-kpi-label">
         {educationSlug ? <EducationTermLink slug={educationSlug}>{label}</EducationTermLink> : label}
-      </div>
-      <div style={{ color: color ?? C.text, fontSize: "1.55rem", fontWeight: 700, marginTop: 6 }}>{value}</div>
-      {hint ? (
-        <div style={{ color: C.textMeta, fontSize: "var(--fs-body-xs)", fontWeight: 600, marginTop: 6, lineHeight: 1.4 }}>
-          {hint}
-        </div>
-      ) : null}
+      </p>
+      <p className="ob-kpi-value" style={{ color: color ?? C.text }}>
+        {value}
+      </p>
+      {hint ? <p className="ob-kpi-hint">{hint}</p> : null}
     </div>
   );
 }

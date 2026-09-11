@@ -2,14 +2,21 @@
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
-import { HERO_TITLE, PAGE_LEAD } from "@/lib/theme/typography";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { getUserPortfoliosWithMetrics } from "@/lib/api/portfolio-data";
 import { prisma } from "@/lib/prisma";
 import PortfolioPageClient from "@/components/portfolio/PortfolioPageClient";
 import PortfolioAllocationChart from "@/components/portfolio/PortfolioAllocationChart";
-import { AllocationBars, Kpi, panelStyle, allocationLayoutRow, allocationSectorsCol, allocationTickersCol } from "@/components/portfolio/PortfolioPageParts";
+import {
+  AllocationBars,
+  Kpi,
+  panelStyle,
+  allocationLayoutRow,
+  allocationSectorsCol,
+  allocationTickersCol,
+} from "@/components/portfolio/PortfolioPageParts";
 import { listPortfolioTrades, summarizeRealizedPnl, ensureOpeningTrades } from "@/lib/api/portfolio-trades";
+import PageHeader from "@/components/ui/PageHeader";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
@@ -34,21 +41,21 @@ function GuestDemo() {
 
   return (
     <AppHeader>
-      <div>
-        <h1 style={HERO_TITLE}>Portefeuille</h1>
-        <p style={PAGE_LEAD}>
-          Suivez la valorisation, la performance latente et l&apos;allocation de vos positions BRVM. Connectez-vous pour
-          enregistrer un portefeuille réel.
-        </p>
+      <div className="ob-page">
+        <PageHeader
+          kicker="Positions"
+          title="Portefeuille"
+          lead="Suivez la valorisation, la performance latente et l’allocation de vos positions BRVM. Connectez-vous pour enregistrer un portefeuille réel."
+        />
 
-        <div style={{ ...panelStyle, marginBottom: 18, textAlign: "center" }}>
+        <div className="ob-card ob-card-pad" style={{ marginBottom: 18, textAlign: "center" }}>
           <strong style={{ color: C.text, fontSize: "var(--fs-body-sm)" }}>Chiffres illustratifs</strong>
           <p style={{ color: C.textDim, fontSize: "var(--fs-body-sm)", margin: "6px 0 0" }}>
             L&apos;aperçu ci-dessous est une démonstration visuelle — ce ne sont pas vos positions ni des cours live.
           </p>
         </div>
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 16, justifyContent: "center" }}>
+        <div className="ob-kpi-grid" style={{ marginBottom: 16 }}>
           {demoKpis.map((k) => (
             <Kpi key={k.l} label={k.l} value={k.v} educationSlug={k.edu} />
           ))}
@@ -69,33 +76,11 @@ function GuestDemo() {
               />
             </div>
           </div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22, justifyContent: "center" }}>
-            <Link
-              href="/connexion"
-              style={{
-                color: C.text,
-                border: `1px solid ${C.border}`,
-                borderRadius: 10,
-                padding: "10px 18px",
-                textDecoration: "none",
-                fontSize: "var(--fs-body-sm)",
-                fontWeight: 600,
-              }}
-            >
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22 }}>
+            <Link href="/connexion" className="ob-btn-secondary">
               Connexion
             </Link>
-            <Link
-              href="/inscription"
-              style={{
-                color: "#080B12",
-                background: C.gold,
-                fontWeight: 700,
-                borderRadius: 10,
-                padding: "10px 18px",
-                textDecoration: "none",
-                fontSize: "var(--fs-body-sm)",
-              }}
-            >
+            <Link href="/inscription" className="ob-btn-gold">
               Créer un compte
             </Link>
           </div>

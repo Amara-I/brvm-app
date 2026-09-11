@@ -1,0 +1,131 @@
+.root {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-textdim);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  min-width: 0;
+  transition: border-color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+
+.trigger:hover,
+.triggerOpen {
+  border-color: color-mix(in srgb, var(--c-gold) 50%, var(--c-border));
+  background: var(--c-panel);
+  color: var(--c-text);
+}
+
+.triggerLabel {
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kbd {
+  margin-left: auto;
+  font-family: var(--font-num);
+  font-size: 0.68rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  color: var(--c-textdim);
+}
+
+.panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(22rem, calc(100vw - 2rem));
+  background: var(--c-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-lg);
+  z-index: 100;
+  padding: 10px;
+}
+
+.input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 9px 11px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  margin-bottom: 8px;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.item {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--c-text);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.82rem;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: var(--c-selected-bg);
+}
+
+.ticker {
+  font-family: var(--font-num);
+  font-weight: 700;
+  color: var(--c-gold);
+  letter-spacing: 0.02em;
+}
+
+.sector {
+  font-size: 0.7rem;
+  color: var(--c-textdim);
+}
+
+.empty {
+  padding: 10px 8px;
+  font-size: 0.8rem;
+  color: var(--c-textdim);
+}
+
+@media (max-width: 860px) {
+  .triggerLabel,
+  .kbd {
+    display: none;
+  }
+
+  .trigger {
+    width: 36px;
+    padding: 0;
+    justify-content: center;
+  }
+}

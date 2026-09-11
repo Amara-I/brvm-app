@@ -9,6 +9,8 @@ import { C } from "@/lib/theme/colors";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import type { CompanyWithMetrics } from "@/lib/calc/market-summary-stats";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
+import ChangeValue from "@/components/ui/ChangeValue";
+import SignalBadge from "@/components/ui/SignalBadge";
 import {
   applyColumnSort,
   type ColumnFilterDef,
@@ -207,21 +209,22 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                   </td>
                   <td className={styles.dim}>{co.sector}</td>
                   <td className={styles.dim}>{co.country}</td>
-                  <td style={{ color: C.blue, fontWeight: 700 }}>{metrics.score}</td>
-                  <td style={{ color: num(metrics.perf5Percent) >= 0 ? C.green : C.red }}>
-                    {metrics.perf5Percent !== "N/D"
-                      ? `${num(metrics.perf5Percent) >= 0 ? "+" : ""}${metrics.perf5Percent}%`
-                      : "N/D"}
+                  <td className="ob-num" style={{ color: C.blue, fontWeight: 700 }}>
+                    {metrics.score}
                   </td>
-                  <td style={{ color: C.teal }}>{metrics.dividendYieldPercent}%</td>
-                  <td>{co.per > 0 ? co.per.toFixed(1) : "N/D"}</td>
                   <td>
-                    <span
-                      title={metrics.signalSummary}
-                      style={{ color: metrics.signal.color, fontWeight: 700, fontSize: "0.72rem", cursor: "help" }}
-                    >
-                      {metrics.signal.label}
-                    </span>
+                    {metrics.perf5Percent !== "N/D" ? (
+                      <ChangeValue value={num(metrics.perf5Percent)} digits={1} />
+                    ) : (
+                      <span className="ob-nd">N/D</span>
+                    )}
+                  </td>
+                  <td className="ob-num" style={{ color: C.teal }}>
+                    {metrics.dividendYieldPercent}%
+                  </td>
+                  <td className="ob-num">{co.per > 0 ? co.per.toFixed(1) : <span className="ob-nd">N/D</span>}</td>
+                  <td>
+                    <SignalBadge label={metrics.signal.label} title={metrics.signalSummary} />
                   </td>
                   <td
                     title={metrics.riskAnalysis.summary}

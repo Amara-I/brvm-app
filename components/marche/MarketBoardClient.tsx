@@ -33,6 +33,8 @@ import {
 import marketStyles from "@/components/marche/MarketChrome.module.css";
 import styles from "@/components/marche/MarketBoard.module.css";
 import { C } from "@/lib/theme/colors";
+import ChangeValue from "@/components/ui/ChangeValue";
+import SignalBadge from "@/components/ui/SignalBadge";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 
@@ -46,11 +48,6 @@ export interface MarketBoardClientProps {
 }
 
 const COL_COUNT = 11;
-
-function formatSignedPct(pct: number | null): string {
-  if (pct == null) return "N/D";
-  return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
-}
 
 type MarketRow = CompanyFullDataset;
 
@@ -501,26 +498,21 @@ export default function MarketBoardClient({
                         <td className={styles.sectorCell} title="Domaine d'activité">
                           {co.sector?.trim() ? co.sector : "N/D"}
                         </td>
-                        <td
-                          className={styles.dayChg}
-                          title="Variation journalière (vs séance précédente)"
-                          style={{
-                            color: dayChg == null ? C.textDim : dayChg >= 0 ? C.green : C.red,
-                          }}
-                        >
-                          {formatSignedPct(dayChg)}
+                        <td className={styles.dayChg}>
+                          <ChangeValue
+                            value={dayChg}
+                            title="Variation journalière (vs séance précédente)"
+                          />
                         </td>
                         <td>
                           <div className={styles.sparkCell}>
                             <MarketSparkline values={spark.values} width={200} height={52} />
-                            <span
-                              className={styles.sparkChg}
-                              title="Variation début → fin sur l'horizon"
-                              style={{ color: chg == null ? C.textDim : chg >= 0 ? C.green : C.red }}
-                            >
-                              {chg == null
-                                ? "N/D"
-                                : `${chg >= 0 ? "▲" : "▼"} ${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%`}
+                            <span className={styles.sparkChg} title="Variation début → fin sur l'horizon">
+                              {chg == null ? (
+                                <span className="ob-nd">N/D</span>
+                              ) : (
+                                <ChangeValue value={chg} />
+                              )}
                             </span>
                           </div>
                         </td>
@@ -543,8 +535,8 @@ export default function MarketBoardClient({
                             {m.score}
                           </span>
                         </td>
-                        <td style={{ color: m.signal.color, fontWeight: 700, fontSize: "0.78rem" }}>
-                          {m.signal.label}
+                        <td>
+                          <SignalBadge label={m.signal.label} title={m.signalSummary} />
                         </td>
                         <td className={styles.meta}>{m.confidence}</td>
                       </tr>
@@ -747,7 +739,9 @@ function MarketChrome(props: {
       <div className={marketStyles.topBar}>
         <div className={marketStyles.topRow}>
           <div>
-            <div className={marketStyles.label}>Choisir un marché boursier</div>
+            <div className={marketStyles.label}>Marché</div>
+            <h1 className={marketStyles.pageTitle}>Vue d&apos;ensemble</h1>
+            <div className={marketStyles.labelMuted}>Choisir un marché boursier</div>
             <div className={marketStyles.chips} role="listbox" aria-label="Marchés boursiers africains">
               {AFRICAN_EXCHANGES.map((m) => {
                 const active = m.code === props.marketCode;
@@ -774,6 +768,7 @@ function MarketChrome(props: {
           </div>
           <div className={marketStyles.actions}>
             <div style={{ fontSize: "0.72rem", color: C.textDim }}>
+              <span className="ob-live-dot ob-pulse" aria-hidden="true" />
               Dernière MAJ : <span style={{ color: C.gold }}>{props.lastUpdate}</span>
             </div>
             {props.live && (
@@ -813,8 +808,8 @@ function MarketChrome(props: {
             ].map((k) => (
               <div key={k.l} className={marketStyles.kpiCard}>
                 <div className={marketStyles.kpiLabel}>{k.l}</div>
-                <div className={marketStyles.kpiValue} style={{ color: k.c }}>
-                  {k.v}
+                <div className={`${marketStyles.kpiValue} ob-num`} style={{ color: k.c }}>
+                  {k.v === "N/D" ? <span className="ob-nd">N/D</span> : k.v}
                 </div>
               </div>
             ))}
@@ -828,25 +823,17 @@ function MarketChrome(props: {
                 </div>
               </div>
             ) : (
-              props.indexPills.map((idx) => {
-                const up = (idx.changePercent ?? 0) >= 0;
-                return (
+              props.indexPills.map((idx) => (
                   <div key={idx.code} className={marketStyles.indexPill}>
                     <div className={marketStyles.indexName}>{idx.name}</div>
-                    <div className={marketStyles.indexValue}>
+                    <div className={`${marketStyles.indexValue} ob-num`}>
                       {idx.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}
                     </div>
-                    <div
-                      className={marketStyles.indexChg}
-                      style={{ color: idx.changePercent == null ? C.textDim : up ? C.green : C.red }}
-                    >
-                      {idx.changePercent == null
-                        ? "N/D"
-                        : `${up ? "+" : ""}${idx.changePercent.toFixed(2)}%`}
+                    <div className={marketStyles.indexChg}>
+                      <ChangeValue value={idx.changePercent} />
                     </div>
                   </div>
-                );
-              })
+                ))
             )}
           </div>
         </>
