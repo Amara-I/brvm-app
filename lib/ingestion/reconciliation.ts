@@ -24,9 +24,19 @@ export const SOURCE_PRIORITY: DataSourceCode[] = [
 /// sources doit être journalisée pour audit manuel (cf. brief).
 export const DISCREPANCY_THRESHOLD_PERCENT = 2;
 
-function sourceRank(source: DataSourceCode): number {
+export function sourceRank(source: DataSourceCode): number {
   const idx = SOURCE_PRIORITY.indexOf(source);
   return idx === -1 ? SOURCE_PRIORITY.length : idx;
+}
+
+/** `true` si `a` est strictement prioritaire sur `b` (rang plus petit). */
+export function sourceOutranks(a: DataSourceCode, b: DataSourceCode): boolean {
+  return sourceRank(a) < sourceRank(b);
+}
+
+/** Sources strictement plus prioritaires que `source` (pour bloquer un canonique). */
+export function sourcesOutranking(source: DataSourceCode): DataSourceCode[] {
+  return SOURCE_PRIORITY.filter((s) => sourceOutranks(s, source));
 }
 
 export interface DiscrepancyReport {
