@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { C } from "@/lib/theme/colors";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
-import { comingSoonExchanges, isBrvmNavPath } from "@/lib/markets/nav-structure";
+import { comingSoonExchanges, comingSoonMarketHref, isBrvmNavPath } from "@/lib/markets/nav-structure";
 import CompanyMegaMenu from "./CompanyMegaMenu";
 import EducationMegaMenu from "./EducationMegaMenu";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
@@ -83,7 +83,7 @@ export default function HeaderNav({
       <NavLink
         href="/marche"
         label="Vue d'ensemble"
-        active={isActive("/marche")}
+        active={pathname === "/marche"}
         onClick={close}
         sidebar={sidebar}
       />
@@ -157,19 +157,23 @@ export default function HeaderNav({
         brvmPages
       )}
       {sidebar
-        ? soonExchanges.map((exchange) => (
-            <button
-              key={exchange.code}
-              type="button"
-              className={styles.navSoon}
-              disabled
-              aria-disabled="true"
-              title={`${exchange.name} — bientôt disponible`}
-            >
-              <span>{exchange.shortLabel}</span>
-              <span className={styles.soonBadge}>bientôt</span>
-            </button>
-          ))
+        ? soonExchanges.map((exchange) => {
+            const href = comingSoonMarketHref(exchange.code);
+            const active = isActive(href);
+            return (
+              <Link
+                key={exchange.code}
+                href={href}
+                className={`${styles.navSoon} ${active ? styles.navSoonActive : ""}`}
+                aria-current={active ? "page" : undefined}
+                title={`${exchange.shortLabel} — bientôt`}
+                onClick={close}
+              >
+                <span>{exchange.shortLabel}</span>
+                <span className={styles.soonBadge}>bientôt</span>
+              </Link>
+            );
+          })
         : null}
 
       {sidebar ? <p className={styles.navGroupLabel}>Ressources</p> : null}

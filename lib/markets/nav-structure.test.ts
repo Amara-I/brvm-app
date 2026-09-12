@@ -4,8 +4,11 @@ import {
   BRVM_NAV_HREFS,
   GLOBAL_NAV_HREFS,
   comingSoonExchanges,
+  comingSoonMarketHref,
   isBrvmNavPath,
+  isComingSoonMarketPath,
   isGlobalNavPath,
+  parseComingSoonMarketSlug,
 } from "./nav-structure";
 
 describe("isBrvmNavPath", () => {
@@ -28,6 +31,7 @@ describe("isBrvmNavPath", () => {
     expect(isBrvmNavPath("/actualites")).toBe(false);
     expect(isBrvmNavPath("/education")).toBe(false);
     expect(isBrvmNavPath("/connexion")).toBe(false);
+    expect(isBrvmNavPath("/marches/ngx")).toBe(false);
   });
 
   it("ignore un pathname vide", () => {
@@ -56,5 +60,27 @@ describe("comingSoonExchanges", () => {
     expect(codes).toEqual(["BVMAC", "NGX", "NSE", "JSE", "GSE", "TSE"]);
     expect(codes).not.toContain("BRVM");
     expect(AFRICAN_EXCHANGES.filter((e) => e.live).map((e) => e.code)).toEqual(["BRVM"]);
+  });
+});
+
+describe("coming-soon market routes", () => {
+  it("construit un href hors /marche", () => {
+    expect(comingSoonMarketHref("NGX")).toBe("/marches/ngx");
+    expect(comingSoonMarketHref("BVMAC")).toBe("/marches/bvmac");
+  });
+
+  it("n'accepte que les places non live", () => {
+    expect(parseComingSoonMarketSlug("ngx")?.code).toBe("NGX");
+    expect(parseComingSoonMarketSlug("JSE")?.code).toBe("JSE");
+    expect(parseComingSoonMarketSlug("brvm")).toBeNull();
+    expect(parseComingSoonMarketSlug("unknown")).toBeNull();
+  });
+
+  it("détecte les pages bientôt sans les confondre avec /marche", () => {
+    expect(isComingSoonMarketPath("/marches/ngx")).toBe(true);
+    expect(isComingSoonMarketPath("/marches/tse")).toBe(true);
+    expect(isComingSoonMarketPath("/marche")).toBe(false);
+    expect(isComingSoonMarketPath("/marche/ngx")).toBe(false);
+    expect(isComingSoonMarketPath("/marches/brvm")).toBe(false);
   });
 });
