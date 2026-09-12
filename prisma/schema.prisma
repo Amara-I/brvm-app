@@ -740,3 +740,32 @@ model ResearchFinding {
   @@index([discoveredAt])
   @@map("research_findings")
 }
+
+// ─────────────────────────────────────────────────────────────────────────
+// ANALYTIQUE PREMIÈRE PARTIE (usage produit, vue admin)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Clic / page vue côté client. Pas de PII dans le payload : pas d'email,
+/// nom, IP, user-agent ni query-string. `userId` uniquement si une session
+/// NextAuth existe déjà (id interne, jamais l'email). `sessionId` = UUID
+/// anonyme (localStorage). Rétention : `ANALYTICS_RETENTION_DAYS` (90 j).
+model AnalyticsEvent {
+  id         String   @id @default(cuid())
+  /// page_view | nav_click | feature_click
+  name       String
+  /// Clé produit allowlistée (marche, screener, graphes, …).
+  feature    String
+  /// Chemin sans query/hash, ex. /screener, /actions/SNTS.
+  path       String
+  /// Détail allowlisté, ex. range:1A, tab:projection, nav.
+  action     String?
+  userId     String?  @map("user_id")
+  sessionId  String?  @map("session_id")
+  occurredAt DateTime @default(now()) @map("occurred_at")
+
+  @@index([occurredAt])
+  @@index([feature, occurredAt])
+  @@index([name, occurredAt])
+  @@index([path, occurredAt])
+  @@map("analytics_events")
+}

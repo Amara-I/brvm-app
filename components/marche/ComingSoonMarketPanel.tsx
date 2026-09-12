@@ -24,6 +24,8 @@ export default function ComingSoonMarketPanel({
       <Link
         href={isIndices ? "/indices" : "/marche"}
         className={`${styles.primaryBtn} ${marketStyles.comingCta}`}
+        data-analytics-feature="coming_soon_market"
+        data-analytics-action={isIndices ? "cta_indices_brvm" : "cta_brvm"}
       >
         {isIndices ? "Voir les indices BRVM" : "Afficher la BRVM"}
       </Link>

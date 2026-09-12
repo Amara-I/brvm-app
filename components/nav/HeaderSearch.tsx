@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconSearch } from "@/components/icons/HeaderIcons";
+import { trackFeature } from "@/components/analytics/track-client";
 import styles from "./HeaderSearch.module.css";
 
 export interface HeaderSearchItem {
@@ -69,6 +70,7 @@ export default function HeaderSearch({ companies }: { companies: HeaderSearchIte
   function go(ticker: string) {
     setOpen(false);
     setQ("");
+    trackFeature("search", "select_company");
     router.push(`/actions/${ticker}`);
   }
 

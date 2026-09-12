@@ -20,6 +20,7 @@ import "./globals.css";
 import "./ui.css";
 import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
 import ScrollRestoration from "@/components/navigation/ScrollRestoration";
+import AnalyticsBeacon from "@/components/analytics/AnalyticsBeacon";
 
 import { BRAND_NAME } from "@/lib/theme/brand";
 
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <main id="main-content">
           <Suspense fallback={null}>
             <ScrollRestoration />
+            <AnalyticsBeacon />
           </Suspense>
           {children}
         </main>
