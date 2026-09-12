@@ -108,6 +108,14 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
+}
+
+.marketTriggerMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .liveDot {
@@ -179,24 +187,6 @@
   letter-spacing: 0.03em;
   color: var(--hn-gold);
   opacity: 0.9;
-}
-
-.soonMarketLabel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin: 8px 0 0;
-  padding: 4px 12px 2px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--hn-textDim);
-}
-
-.marketGroup + .marketGroup .soonMarketLabel {
-  margin-top: 10px;
 }
 
 @media (max-width: 860px) {

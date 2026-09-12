@@ -66,3 +66,25 @@ export function parseComingSoonMarketPath(pathname: string | null | undefined): 
 export function isComingSoonMarketPath(pathname: string | null | undefined): boolean {
   return parseComingSoonMarketPath(pathname) !== null;
 }
+
+/** True si la route courante appartient à cette place « bientôt ». */
+export function isComingSoonMarketNavPath(
+  pathname: string | null | undefined,
+  code: AfricanExchange["code"],
+): boolean {
+  return parseComingSoonMarketPath(pathname)?.code === code;
+}
+
+/**
+ * Accordion des places non-BRVM : fermé par défaut pour désengorger
+ * la sidebar ; ouvert si l’utilisateur l’a basculé, ou si la route
+ * active est sous cette place (pour voir où l’on se trouve).
+ */
+export function isComingSoonMarketSectionOpen(
+  pathname: string | null | undefined,
+  code: AfricanExchange["code"],
+  userOpen: boolean | undefined,
+): boolean {
+  if (userOpen !== undefined) return userOpen;
+  return isComingSoonMarketNavPath(pathname, code);
+}
