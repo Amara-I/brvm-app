@@ -382,11 +382,11 @@ export default function CompanySheetClient({
                     aria-live="polite"
                     title={
                       rangeChange
-                        ? `${chartRangeChangeLabel(range)} · ${formatWindowChangeAbs(rangeChange.abs)}`
+                        ? `${chartRangeChangeLabel(range, "Max")} · ${formatWindowChangeAbs(rangeChange.abs)}`
                         : "Variation N/D — moins de 2 points sur cette fenêtre"
                     }
                   >
-                    <span className={styles.rangeChgLabel}>{chartRangeChangeLabel(range)}</span>
+                    <span className={styles.rangeChgLabel}>{chartRangeChangeLabel(range, "Max")}</span>
                     <span
                       className={
                         rangeChange == null

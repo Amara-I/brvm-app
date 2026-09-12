@@ -86,5 +86,6 @@ describe("formatWindowChangeAbs / labels", () => {
     expect(chartRangeChangeLabel("1J")).toBe("Variation 1J");
     expect(chartRangeChangeLabel("1A")).toBe("Variation 1A");
     expect(chartRangeChangeLabel("MAX")).toBe("Variation Tout");
+    expect(chartRangeChangeLabel("MAX", "Max")).toBe("Variation Max");
   });
 });

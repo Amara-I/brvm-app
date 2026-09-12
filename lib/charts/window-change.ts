@@ -43,8 +43,8 @@ export function computeWindowChangeFromCandles(
 }
 
 /** Libellé FR du KPI, aligné sur les pastilles d'horizon du workbench. */
-export function chartRangeChangeLabel(range: ChartRange): string {
-  if (range === "MAX") return "Variation Tout";
+export function chartRangeChangeLabel(range: ChartRange, maxLabel = "Tout"): string {
+  if (range === "MAX") return `Variation ${maxLabel}`;
   return `Variation ${range}`;
 }
 
