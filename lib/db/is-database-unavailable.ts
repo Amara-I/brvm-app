@@ -15,3 +15,11 @@ export function isDatabaseUnavailable(err: unknown): boolean {
     text
   );
 }
+
+/** Table / colonne absente (migration pas encore appliquée) — pas un crash page. */
+export function isMissingDatabaseObject(err: unknown): boolean {
+  const text = err instanceof Error ? `${err.name} ${err.message}` : String(err);
+  return /P2021|P2022|does not exist|n'existe pas|Unknown (arg|table|column|field)|relation .+ does not exist/i.test(
+    text
+  );
+}
