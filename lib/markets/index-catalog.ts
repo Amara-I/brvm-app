@@ -37,23 +37,37 @@ const KNOWN: Record<string, IndexCatalogEntry> = {
     compositionKind: "unavailable",
     description: "Compartiment Principal de la BRVM. Composition officielle N/D en base.",
   },
+  BRVM_COMPOSITE_TOTAL_RETURN: {
+    family: "principal",
+    compositionKind: "all_listed",
+    description:
+      "Indice total return du Composite BRVM. Les pondérations officielles ne sont pas stockées en base.",
+  },
   SIKA_TOTAL_RETURN: {
     family: "autre",
     compositionKind: "unavailable",
     description:
       "Indice total return publié par Sikafinance — ce n’est pas un indice officiel BRVM. Composition N/D.",
   },
+  INDICE_SIKAFINANCE: {
+    family: "autre",
+    compositionKind: "unavailable",
+    description: "Indicateur Sikafinance — ce n’est pas un indice officiel BRVM. Composition N/D.",
+  },
 };
 
 const SECTOR_ALIASES: Array<{ pattern: RegExp; sectorName: string }> = [
-  { pattern: /SERVICES[_\s-]?PUBLICS|\bBRVM[_-]?SP\b/, sectorName: "Services Publics" },
-  { pattern: /INDUSTR/, sectorName: "Industrie" },
-  { pattern: /FINANCE|BANQUE/, sectorName: "Banques" },
-  { pattern: /TELECOM/, sectorName: "Télécoms" },
-  { pattern: /ENERG/, sectorName: "Énergie" },
-  { pattern: /DISTRIB|CONSO[_\s-]?BASE|CONSOMMATION[_\s-]?BASE/, sectorName: "Conso. Base" },
-  { pattern: /DISCRETIONNAIRE|CONSO[_\s-]?DISC/, sectorName: "Conso. Discrétionnaire" },
-  { pattern: /DIVERT/, sectorName: "Divertissement" },
+  { pattern: /BRVM.*SERVICES[_\s-]?PUBLICS|\bBRVM[_-]?SP\b/, sectorName: "Services Publics" },
+  { pattern: /BRVM.*INDUSTR/, sectorName: "Industrie" },
+  { pattern: /BRVM.*(?:FINANCE|BANQUE)/, sectorName: "Banques" },
+  { pattern: /BRVM.*TELECOM/, sectorName: "Télécoms" },
+  { pattern: /BRVM.*ENERG/, sectorName: "Énergie" },
+  {
+    pattern: /BRVM.*CONSOMMATION[_\s-]*(DE[_\s-]*)?BASE|BRVM.*CONSO[_\s-]?BASE/,
+    sectorName: "Conso. Base",
+  },
+  { pattern: /BRVM.*DISCRETIONNAIRE|BRVM.*CONSO[_\s-]?DISC/, sectorName: "Conso. Discrétionnaire" },
+  { pattern: /BRVM.*DIVERT/, sectorName: "Divertissement" },
 ];
 
 export const INDEX_FAMILY_LABELS: Record<IndexFamily, string> = {

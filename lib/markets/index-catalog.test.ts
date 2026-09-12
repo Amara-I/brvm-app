@@ -24,6 +24,18 @@ describe("resolveIndexCatalog", () => {
     expect(sika.compositionKind).toBe("unavailable");
   });
 
+  it("ne classe pas INDICE SIKAFINANCE comme sectoriel BRVM", () => {
+    const sika = resolveIndexCatalog("INDICE_SIKAFINANCE", "INDICE SIKAFINANCE");
+    expect(sika.family).toBe("autre");
+    expect(sika.compositionKind).toBe("unavailable");
+  });
+
+  it("reconnaît Consommation de base malgré le « DE »", () => {
+    const base = resolveIndexCatalog("BRVM_CONSOMMATION_DE_BASE", "BRVM - CONSOMMATION DE BASE");
+    expect(base.family).toBe("sectoriel");
+    expect(base.sectorName).toBe("Conso. Base");
+  });
+
   it("reste honnête sur un code inconnu", () => {
     const unknown = resolveIndexCatalog("XYZ_FOO", "Foo Index");
     expect(unknown.compositionKind).toBe("unavailable");
