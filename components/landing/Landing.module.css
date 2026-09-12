@@ -142,10 +142,16 @@
   margin-bottom: 2px;
 }
 
-/* ── Cartes flottantes (côté droit du hero) ────────────────────────── */
+/* ── Cartes hero (côté droit) — empilées avec gap, jamais superposées.
+   Ancien rendu « cartes flottantes » : margin-bottom: -30px + z-index
+   faisait chevaucher le résumé marché sur le titre « Meilleurs scores ». */
 .heroRight {
   position: relative;
-  min-height: 380px;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 16px;
 }
 .card {
   background: var(--c-panel);
@@ -153,18 +159,14 @@
   border-radius: 16px;
   padding: 18px 20px;
   box-shadow: 0 12px 32px -16px rgba(0, 0, 0, 0.12);
+  width: 100%;
+  max-width: none;
+  margin: 0;
 }
-.cardPortfolio {
-  position: relative;
-  z-index: 2;
-  max-width: 300px;
-  margin-bottom: -30px;
-}
+.cardPortfolio,
 .cardStock {
   position: relative;
-  z-index: 1;
-  max-width: 320px;
-  margin-left: 60px;
+  z-index: auto;
 }
 .cardLabel {
   color: var(--c-textdim);
@@ -483,17 +485,6 @@
   .heroInner {
     grid-template-columns: 1fr;
     padding-bottom: 40px;
-  }
-  .heroRight {
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .cardPortfolio,
-  .cardStock {
-    max-width: none;
-    margin: 0;
   }
   .featureRow {
     grid-template-columns: repeat(2, 1fr);
