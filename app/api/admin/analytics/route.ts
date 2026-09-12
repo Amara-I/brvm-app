@@ -6,7 +6,7 @@ import { getAnalyticsSummary } from "@/lib/analytics/summary";
 import { parseAnalyticsDays } from "@/lib/analytics/aggregate";
 import { apiError, apiSuccess, privateCacheHeaders } from "@/lib/api/response";
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const data = await getAnalyticsSummary(days);
     return apiSuccess(data, { headers: privateCacheHeaders() });
   } catch (err) {
-    if (isDatabaseUnavailable(err)) {
+    if (isDatabaseUnavailable(err) || isMissingDatabaseObject(err)) {
       return apiError("Base de données indisponible", 503);
     }
     throw err;
