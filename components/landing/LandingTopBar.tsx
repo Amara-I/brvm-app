@@ -19,7 +19,8 @@ export default function LandingTopBar({
     <header className={styles.topBar}>
       <Link href="/" className={styles.topBrand} aria-label="OuestBourse — accueil">
         <span className={styles.topBrandDot} aria-hidden="true" />
-        Plateforme d&apos;analyse africaine
+        <span className={styles.topBrandFull}>Plateforme d&apos;analyse africaine</span>
+        <span className={styles.topBrandShort}>Analyse africaine</span>
       </Link>
 
       <div className={styles.topSearch}>

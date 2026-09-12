@@ -15,8 +15,8 @@ export default function AfricaHeroBackdrop() {
       <div className={styles.heroGlowSoft} />
       <svg className={styles.africaMap} viewBox="0 0 760 860" fill="none">
         <defs>
-          <pattern id="lp-africa-dots" width="7" height="7" patternUnits="userSpaceOnUse">
-            <circle cx="1.1" cy="1.1" r="0.72" fill="#D4A843" opacity="0.42" />
+          <pattern id="lp-africa-dots" width="6" height="6" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="0.85" fill="#E8C56A" opacity="0.72" />
           </pattern>
           <clipPath id="lp-africa-clip">
             <path d={continent} />
@@ -28,6 +28,7 @@ export default function AfricaHeroBackdrop() {
             <stop offset="100%" stopColor="#8A6A2C" stopOpacity="0.15" />
           </linearGradient>
         </defs>
+        <path d={continent} fill="rgba(212,168,67,0.045)" />
         <rect width="760" height="860" fill="url(#lp-africa-dots)" clipPath="url(#lp-africa-clip)" />
         <path className={styles.africaStroke} d={continent} />
         <path className={styles.africaStroke} d={madagascar} />

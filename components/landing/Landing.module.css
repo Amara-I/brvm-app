@@ -6,8 +6,8 @@
 .page {
   --lp-bg: #05070b;
   --lp-bg-alt: #080b11;
-  --lp-panel: rgba(10, 13, 18, 0.62);
-  --lp-border: rgba(255, 255, 255, 0.07);
+  --lp-panel: rgba(14, 17, 24, 0.7);
+  --lp-border: rgba(212, 168, 67, 0.16);
   --lp-gold: #d4a843;
   --lp-gold-soft: rgba(212, 168, 67, 0.1);
   --lp-green: #22c55e;
@@ -60,6 +60,10 @@
   letter-spacing: 0.16em;
   text-transform: uppercase;
   min-width: 0;
+}
+
+.topBrandShort {
+  display: none;
 }
 
 .topBrandDot {
@@ -154,12 +158,12 @@
 
 .heroGlow {
   position: absolute;
-  width: min(640px, 70vw);
-  height: min(640px, 70vw);
-  right: -4%;
-  top: 2%;
+  width: min(680px, 74vw);
+  height: min(680px, 74vw);
+  right: -2%;
+  top: 0;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(212, 168, 67, 0.18), transparent 70%);
+  background: radial-gradient(circle, rgba(212, 168, 67, 0.22), transparent 68%);
 }
 
 .heroGlowSoft {
@@ -174,28 +178,28 @@
 
 .africaMap {
   position: absolute;
-  left: 34%;
-  top: 0;
-  width: min(56%, 640px);
+  left: 32%;
+  top: -4%;
+  width: min(60%, 700px);
   height: auto;
-  opacity: 0.9;
+  opacity: 1;
 }
 
 .africaStroke {
   fill: none;
   stroke: url(#lp-africa-stroke);
-  stroke-width: 1.15;
+  stroke-width: 1.35;
   stroke-linejoin: round;
 }
 
 .chartOverlay {
   position: absolute;
-  left: 40%;
-  top: 28%;
-  width: min(38%, 420px);
+  left: 38%;
+  top: 22%;
+  width: min(42%, 460px);
   height: auto;
-  opacity: 0.72;
-  filter: drop-shadow(0 0 14px rgba(212, 168, 67, 0.18));
+  opacity: 0.88;
+  filter: drop-shadow(0 0 16px rgba(212, 168, 67, 0.22));
 }
 
 .heroInner {
@@ -300,7 +304,7 @@
 .ctaSecondary {
   background: transparent;
   color: var(--lp-text);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(244, 239, 228, 0.22);
 }
 
 .ctaSecondary:hover {
@@ -370,7 +374,9 @@
   border: 1px solid var(--lp-border);
   border-radius: 16px;
   padding: 16px 16px 14px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 40px -28px rgba(0, 0, 0, 0.8);
   width: 100%;
   max-width: 100%;
   min-width: 0;
@@ -579,7 +585,7 @@
   gap: 16px 12px;
   align-items: start;
   backdrop-filter: blur(14px);
-  box-shadow: 0 0 40px -18px rgba(212, 168, 67, 0.35);
+  box-shadow: 0 0 48px -14px rgba(212, 168, 67, 0.42);
 }
 
 .statItem {
@@ -1030,11 +1036,11 @@
 }
 
 @media (max-width: 520px) {
-  .topBrand {
-    max-width: 9.5rem;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .topBrandFull {
+    display: none;
+  }
+  .topBrandShort {
+    display: inline;
   }
   .h1 {
     font-size: 1.75rem;
