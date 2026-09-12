@@ -178,12 +178,9 @@ export default function LandingPage({
                 <span
                   key={exchange.code}
                   className={`${styles.exchangeChip} ${exchange.live ? styles.exchangeLive : ""}`}
+                  title={exchange.live ? exchange.region : "Bientôt"}
                 >
-                  <span className={styles.exchangeMark} />
-                  <strong>{exchange.shortLabel}</strong>
-                  <span className={styles.exchangeMeta}>
-                    {exchange.live ? "UEMOA" : "Bientôt"}
-                  </span>
+                  {exchange.shortLabel}
                 </span>
               ))}
             </div>
@@ -197,7 +194,7 @@ export default function LandingPage({
 
             <div className={styles.ctaRow}>
               <Link href="/marche" className={styles.ctaPrimary}>
-                Explorer le marché <IconArrow size={16} />
+                Explorer les marchés <IconArrow size={16} />
               </Link>
               <Link href="/graphes" className={styles.ctaSecondary}>
                 <IconChart size={16} /> Voir les graphes
@@ -225,20 +222,26 @@ export default function LandingPage({
               </div>
               <div className={styles.cardValue}>{formatMdsFcfa(stats.totalMarketCapBnFcfa)}</div>
               <div className={styles.cardMetrics}>
-                <span className={`${styles.cardChip} ${styles.chipGreen}`}>
-                  {stats.avgPerf5Percent !== null
-                    ? `${stats.avgPerf5Percent >= 0 ? "+" : ""}${stats.avgPerf5Percent.toFixed(1)}% · 5 ans`
-                    : "Perf. 5 ans N/D"}
-                </span>
-                <span className={`${styles.cardChip} ${styles.chipAccent}`}>
-                  {stats.companiesCount} sociétés
-                </span>
-                <span className={`${styles.cardChip} ${styles.chipAccent}`}>
-                  {sectorsCount} secteurs
-                </span>
-                <span className={`${styles.cardChip} ${styles.chipAccent}`}>
-                  {stats.buySignalsCount} signaux ≥ 65/100
-                </span>
+                <div className={styles.metricCell}>
+                  <strong className={styles.chipGreen}>
+                    {stats.avgPerf5Percent !== null
+                      ? `${stats.avgPerf5Percent >= 0 ? "+" : ""}${stats.avgPerf5Percent.toFixed(1)}%`
+                      : "N/D"}
+                  </strong>
+                  <span>5 ans</span>
+                </div>
+                <div className={styles.metricCell}>
+                  <strong>{stats.companiesCount}</strong>
+                  <span>Sociétés</span>
+                </div>
+                <div className={styles.metricCell}>
+                  <strong>{sectorsCount}</strong>
+                  <span>Secteurs</span>
+                </div>
+                <div className={styles.metricCell}>
+                  <strong>{stats.buySignalsCount}</strong>
+                  <span>Signaux ≥ 65</span>
+                </div>
               </div>
             </div>
 
@@ -306,7 +309,8 @@ export default function LandingPage({
               </span>
               <div>
                 <div className={styles.statValue}>{stats.companiesCount}</div>
-                <div className={styles.statLabel}>Sociétés cotées suivies</div>
+                <div className={styles.statLabel}>Sociétés cotées</div>
+                <div className={styles.statHint}>Données sourcées</div>
               </div>
             </div>
             <div className={styles.statItem}>
@@ -315,7 +319,8 @@ export default function LandingPage({
               </span>
               <div>
                 <div className={styles.statValue}>{yearsSpan !== null ? `${yearsSpan}` : "N/D"}</div>
-                <div className={styles.statLabel}>Années d&apos;historique ({horizonLabel})</div>
+                <div className={styles.statLabel}>Ans d&apos;historique</div>
+                <div className={styles.statHint}>{horizonLabel}</div>
               </div>
             </div>
             <div className={styles.statItem}>
@@ -324,7 +329,8 @@ export default function LandingPage({
               </span>
               <div>
                 <div className={styles.statValue}>{sectorsCount}</div>
-                <div className={styles.statLabel}>Secteurs en base</div>
+                <div className={styles.statLabel}>Secteurs couverts</div>
+                <div className={styles.statHint}>En base réelle</div>
               </div>
             </div>
             <div className={styles.statItem}>
@@ -333,7 +339,8 @@ export default function LandingPage({
               </span>
               <div>
                 <div className={styles.statValue}>{educationTermsCount}</div>
-                <div className={styles.statLabel}>Termes du lexique Éducation</div>
+                <div className={styles.statLabel}>Termes du lexique</div>
+                <div className={styles.statHint}>Pour lire et investir</div>
               </div>
             </div>
             <div className={styles.statNote}>
