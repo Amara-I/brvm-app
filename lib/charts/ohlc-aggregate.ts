@@ -22,14 +22,12 @@ function hasIntraday(points: ChartClosePoint[]): boolean {
   return points.some((p) => p.time.length > 10);
 }
 
-function weekKey(d: Date): string {
-  // ISO week: Monday-start, key = Thursday's year-week for stability
+/** Lundi ISO (UTC) de la semaine contenant `d`. */
+export function isoWeekMonday(d: Date): Date {
   const t = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const day = t.getUTCDay() || 7;
-  t.setUTCDate(t.getUTCDate() + 4 - day);
-  const yearStart = new Date(Date.UTC(t.getUTCFullYear(), 0, 1));
-  const week = Math.ceil(((t.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-  return `${t.getUTCFullYear()}-W${String(week).padStart(2, "0")}`;
+  t.setUTCDate(t.getUTCDate() - (day - 1));
+  return t;
 }
 
 function bucketKey(time: string, interval: CandleInterval): string {
@@ -41,28 +39,29 @@ function bucketKey(time: string, interval: CandleInterval): string {
     return d.toISOString().slice(0, 10);
   }
   if (interval === "1W") {
-    return weekKey(d);
+    return isoWeekMonday(d).toISOString().slice(0, 10);
   }
-  // 1M
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
 function bucketDisplayTime(key: string, interval: CandleInterval): string {
-  if (interval === "1H") return key.slice(0, 10); // LWC business day fallback if no intraday axis
-  if (interval === "1D") return key;
-  if (interval === "1W") {
-    // Map week key to the Monday date approximation for chart axis
-    const [y, w] = key.split("-W");
-    const year = Number(y);
-    const week = Number(w);
-    const jan4 = new Date(Date.UTC(year, 0, 4));
-    const day = jan4.getUTCDay() || 7;
-    const monday = new Date(jan4);
-    monday.setUTCDate(jan4.getUTCDate() - day + 1 + (week - 1) * 7);
-    return monday.toISOString().slice(0, 10);
-  }
-  // 1M → mid-month for axis
+  if (interval === "1H") return key.slice(0, 10);
+  if (interval === "1D" || interval === "1W") return key;
   return `${key}-01`;
+}
+
+/** Dernier jour calendaire couvert par une bougie (pour tester l'intersection avec la plage). */
+export function barPeriodEnd(time: string, interval: CandleInterval): string {
+  const day = time.slice(0, 10);
+  if (interval === "1H" || interval === "1D") return day;
+  if (interval === "1W") {
+    const d = parseTime(day);
+    d.setUTCDate(d.getUTCDate() + 6);
+    return d.toISOString().slice(0, 10);
+  }
+  const d = parseTime(day);
+  const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0));
+  return end.toISOString().slice(0, 10);
 }
 
 export interface AggregateResult {

@@ -6,12 +6,22 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  rangeFilter,
+  type ChartClosePoint,
+  type ChartRange,
+} from "@/lib/charts/indicators";
+import {
   normalizeTo100,
   rangeFilter,
   type ChartClosePoint,
   type ChartRange,
 } from "@/lib/charts/indicators";
-import { apiRangeForChartRange, seriesCoversChartRange } from "@/lib/charts/chart-window";
+import {
+  apiRangeForChartRange,
+  lastPointAsOf,
+  seriesCoversChartRange,
+  seriesCoversIntervalLookback,
+} from "@/lib/charts/chart-window";
 import {
   aggregateCandles,
   CANDLE_INTERVALS,
@@ -23,7 +33,8 @@ import {
   computeWindowChangeFromCandles,
   formatWindowChangeAbs,
   formatWindowChangePercent,
-} from "@/lib/charts/window-change";
+} from "@/lib/charts/window-change"; 
+  main
 import TradingChart, {
   type ChartIndicatorsState,
   type ChartViewUndoEntry,
@@ -126,6 +137,7 @@ interface ChartApiPayload {
     range?: string;
     from?: string | null;
     to?: string | null;
+    lookbackExhausted?: boolean;
     reconciliation?: {
       thresholdPercent: number;
       discrepanciesCount: number;
@@ -303,7 +315,7 @@ export default function ChartWorkbench({
   const payloadRef = useRef<ChartApiPayload | null>(null);
   payloadRef.current = payload;
 
-  const loadTicker = useCallback(async (t: string, viewRange: ChartRange) => {
+  const loadTicker = useCallback(async (t: string, viewRange: ChartRange, viewInterval: CandleInterval) => {
     const apiRange = apiRangeForChartRange(viewRange);
     const current = payloadRef.current;
     if (current?.ticker === t) {
@@ -312,7 +324,15 @@ export default function ChartWorkbench({
         current.stats.range === "MAX" ||
         (typeof current.stats.historyPoints === "number" &&
           current.stats.historyPoints <= combined.length);
-      if (seriesCoversChartRange(combined, apiRange, complete)) {
+      const rangeOk = seriesCoversChartRange(combined, apiRange, complete);
+      const lookbackOk = seriesCoversIntervalLookback({
+        points: combined,
+        range: apiRange,
+        interval: viewInterval,
+        historyComplete: complete,
+        lookbackExhausted: current.stats.lookbackExhausted === true,
+      });
+      if (rangeOk && lookbackOk) {
         return;
       }
     }
@@ -321,7 +341,9 @@ export default function ChartWorkbench({
     try {
       // Sans `cache: "no-store"` : le navigateur peut réutiliser la réponse
       // (Cache-Control s-maxage côté API) au lieu de relancer Sika/Rich.
-      const res = await fetch(`/api/charts/${t}?range=${encodeURIComponent(apiRange)}`);
+      const res = await fetch(
+        `/api/charts/${t}?range=${encodeURIComponent(apiRange)}&interval=${encodeURIComponent(viewInterval)}`
+      );
       const text = await res.text();
       let json: { ok?: boolean; error?: string; data?: unknown } = {};
       try {
@@ -340,8 +362,8 @@ export default function ChartWorkbench({
   }, []);
 
   useEffect(() => {
-    void loadTicker(ticker, range);
-  }, [ticker, range, loadTicker]);
+    void loadTicker(ticker, range, interval);
+  }, [ticker, range, interval, loadTicker]);
 
   useEffect(() => {
     let cancelled = false;
@@ -351,7 +373,9 @@ export default function ChartWorkbench({
       await Promise.all(
         compare.map(async (t) => {
           try {
-            const res = await fetch(`/api/charts/${t}?range=${encodeURIComponent(apiRange)}`);
+            const res = await fetch(
+              `/api/charts/${t}?range=${encodeURIComponent(apiRange)}&interval=${encodeURIComponent(interval)}`
+            );
             const json = await res.json();
             if (json.ok) {
               const data = json.data as ChartApiPayload;
@@ -369,7 +393,7 @@ export default function ChartWorkbench({
     return () => {
       cancelled = true;
     };
-  }, [compare, range]);
+  }, [compare, range, interval]);
 
   const historySeries = useMemo(
     () => (payload ? [...(payload.lookback ?? []), ...payload.series] : []),
@@ -380,6 +404,19 @@ export default function ChartWorkbench({
   const windowSeries = useMemo(() => {
     if (!payload) return [];
     return rangeFilter(historySeries, range);
+  }, [payload, historySeries, range]);
+
+  const mainSeries = useMemo(() => {
+    if (!payload) return [];
+  const historySeries = useMemo(
+    () => (payload ? [...(payload.lookback ?? []), ...payload.series] : []),
+    [payload]
+  );
+
+  /** Série de la fenêtre (cours bruts) — même filtre que le graphique, hors échelle %. */
+  const windowSeries = useMemo(() => {
+    if (!payload) return [];
+    return rangeFilter(historySeries, range, lastPointAsOf(historySeries));
   }, [payload, historySeries, range]);
 
   const mainSeries = useMemo(() => {
@@ -406,8 +443,26 @@ export default function ChartWorkbench({
       .map((t, i) => {
         const raw = compareData[t];
         if (!raw) return null;
-        let pts = rangeFilter(raw, range);
+        let pts = rangeFilter(raw, range, lastPointAsOf(raw));
         if (percentScale) pts = normalizeTo100(pts);
+        return { id: t, color: COMPARE_COLORS[i % COMPARE_COLORS.length]!, points: pts };
+      })
+      .filter(Boolean) as Array<{ id: string; color: string; points: ChartClosePoint[] }>;
+  }, [compare, compareData, range, percentScale]); 
+      main
+
+  const hasRealVolume = useMemo(
+    () => (payload?.series ?? []).some((p) => typeof p.volume === "number" && p.volume > 0),
+    [payload]
+  );
+
+  const compareSeries = useMemo(() => {
+    if (!percentScale && compare.length === 0) return [];
+    return compare
+      .map((t, i) => {
+        const raw = compareData[t];
+        if (!raw) return null;
+        const pts = rangeFilter(raw, range, lastPointAsOf(raw));
         return { id: t, color: COMPARE_COLORS[i % COMPARE_COLORS.length]!, points: pts };
       })
       .filter(Boolean) as Array<{ id: string; color: string; points: ChartClosePoint[] }>;

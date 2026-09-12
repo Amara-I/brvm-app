@@ -18,11 +18,7 @@ import {
   type MouseEventParams,
 } from "lightweight-charts";
 import { computeSma, type ChartClosePoint } from "@/lib/charts/indicators";
-import {
-  aggregateCandles,
-  candlesToCloses,
-  type CandleInterval,
-} from "@/lib/charts/ohlc-aggregate";
+import { type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import {
   computeAdxSeries,
   computeBollinger,
@@ -35,7 +31,8 @@ import {
   computeVolumeFlow,
   computeWilliamsRSeries,
 } from "@/lib/charts/chart-indicators";
-import { buildIndicatorWindow, clipPointsToRange } from "@/lib/charts/indicator-lookback";
+import { clipPointsToRange } from "@/lib/charts/indicator-lookback";
+import { alignSeriesToInterval, buildSyncedChartView } from "@/lib/charts/synced-chart-view";
 import { computeBottomPaneLayout } from "@/lib/charts/bottom-pane-layout";
 import {
   loadChartDrawings,
@@ -496,13 +493,8 @@ export default function TradingChart({
     const el = containerRef.current;
     if (!el || series.length === 0) return;
 
-    const agg = aggregateCandles(series, interval);
-    onIntervalNote?.(agg.note);
-    const candles = agg.candles;
-    if (candles.length === 0) return;
-
-    const visibleFrom = candles[0]!.time;
-    const visibleTo = candles[candles.length - 1]!.time;
+    const visibleFrom = series[0]!.time;
+    const visibleTo = series[series.length - 1]!.time;
 
     function requiredLookback(ind: ChartIndicatorsState): number {
       let n = 2;
@@ -524,7 +516,7 @@ export default function TradingChart({
     }
 
     const history = fullSeries && fullSeries.length > 0 ? fullSeries : series;
-    const indWindow = buildIndicatorWindow({
+    const view = buildSyncedChartView({
       fullPoints: history,
       visibleFrom,
       visibleTo,
@@ -532,11 +524,16 @@ export default function TradingChart({
       lookbackBars: requiredLookback(indicators),
       percentScale,
     });
-    const closes = indWindow.closes.length > 0 ? indWindow.closes : candlesToCloses(candles);
-    const indCandles = indWindow.candles.length > 0 ? indWindow.candles : candles;
+    onIntervalNote?.(view.note);
+    const candles = view.candles;
+    if (candles.length === 0) return;
+    const closes = view.indicatorCloses;
+    const indCandles = view.indicatorCandles;
+    const candleFrom = candles[0]!.time;
+    const candleTo = candles[candles.length - 1]!.time;
 
     function clipVisible(pts: ChartClosePoint[]): ChartClosePoint[] {
-      return clipPointsToRange(pts, visibleFrom, visibleTo);
+      return clipPointsToRange(pts, candleFrom, candleTo);
     }
 
     const showRsi = indicators.rsi;
@@ -928,6 +925,14 @@ export default function TradingChart({
     }
 
     for (const cmp of compareSeries) {
+      const aligned = alignSeriesToInterval(
+        cmp.points,
+        interval,
+        visibleFrom,
+        visibleTo,
+        percentScale
+      );
+      if (aligned.length === 0) continue;
       const s = chart.addLineSeries({
         color: cmp.color,
         lineWidth: 2,
@@ -936,7 +941,7 @@ export default function TradingChart({
         lastValueVisible: true,
         title: cmp.id,
       });
-      s.setData(cmp.points.map((p) => ({ time: p.time as Time, value: p.value })) as LineData[]);
+      s.setData(aligned.map((p) => ({ time: p.time as Time, value: p.value })) as LineData[]);
     }
 
     const hasRealVol = candles.some((c) => c.volume != null && c.volume > 0);

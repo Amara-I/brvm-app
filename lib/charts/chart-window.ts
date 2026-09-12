@@ -9,6 +9,8 @@ import {
   type ChartClosePoint,
   type ChartRange,
 } from "./indicators";
+import { lookbackDaysForInterval, subtractUtcDays } from "./contiguous-lookback";
+import type { CandleInterval } from "./ohlc-aggregate";
 
 export const DEFAULT_CHART_RANGE: ChartRange = "1A";
 
@@ -167,4 +169,24 @@ export function seriesCoversChartRange(
   const asOf = lastPointAsOf(points);
   const cutoff = chartRangeCutoffIso(range, asOf);
   return points[0]!.time <= cutoff;
+}
+
+/**
+ * La série déjà chargée contient-elle assez d'historique contigu avant la
+ * fenêtre pour les SMA de l'intervalle (sans relancer un fetch) ?
+ */
+export function seriesCoversIntervalLookback(opts: {
+  points: ChartClosePoint[];
+  range: ChartRange;
+  interval: CandleInterval;
+  historyComplete: boolean;
+  lookbackExhausted: boolean;
+}): boolean {
+  const { points, range, interval, historyComplete, lookbackExhausted } = opts;
+  if (points.length === 0) return false;
+  if (historyComplete || range === "MAX" || lookbackExhausted) return true;
+  const asOf = lastPointAsOf(points);
+  const cutoff = chartRangeCutoffIso(range, asOf);
+  const needFrom = subtractUtcDays(cutoff, lookbackDaysForInterval(interval));
+  return points[0]!.time <= needFrom;
 }
