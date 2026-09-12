@@ -377,14 +377,8 @@ export default function CompanySheetClient({
               <div className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>Cours</h2>
                 <div className={styles.rangeTools}>
-                  <span
-                    className={
-                      rangeChange == null
-                        ? styles.rangeChgNd
-                        : rangeChange.percent >= 0
-                          ? styles.rangeChgUp
-                          : styles.rangeChgDown
-                    }
+                  <div
+                    className={styles.rangeChgBlock}
                     aria-live="polite"
                     title={
                       rangeChange
@@ -392,8 +386,19 @@ export default function CompanySheetClient({
                         : "Variation N/D — moins de 2 points sur cette fenêtre"
                     }
                   >
-                    {formatWindowChangePercent(rangeChange?.percent)}
-                  </span>
+                    <span className={styles.rangeChgLabel}>{chartRangeChangeLabel(range)}</span>
+                    <span
+                      className={
+                        rangeChange == null
+                          ? styles.rangeChgNd
+                          : rangeChange.percent >= 0
+                            ? styles.rangeChgUp
+                            : styles.rangeChgDown
+                      }
+                    >
+                      {formatWindowChangePercent(rangeChange?.percent)}
+                    </span>
+                  </div>
                   <div className={styles.rangeRow}>
                     {RANGES.map((r) => (
                       <button
