@@ -3,7 +3,7 @@
 
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 import { dataSourceLabel } from "@/lib/api/data-source-label";
 import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import { resolveIndexCatalog } from "@/lib/markets/index-catalog";
@@ -124,28 +124,40 @@ async function loadIndexDetailFromDb(code: string): Promise<MarketIndexDetail | 
 }
 
 async function loadStoredComposition(marketIndexId: string) {
-  const latest = await prisma.marketIndexConstituent.findFirst({
-    where: { marketIndexId },
-    orderBy: [{ asOf: "desc" }, { source: "asc" }],
-    select: { asOf: true, source: true, note: true },
-  });
-  if (!latest) return null;
+  try {
+    const latest = await prisma.marketIndexConstituent.findFirst({
+      where: { marketIndexId },
+      orderBy: [{ asOf: "desc" }, { source: "asc" }],
+      select: { asOf: true, source: true, note: true },
+    });
+    if (!latest) return null;
 
-  const rows = await prisma.marketIndexConstituent.findMany({
-    where: { marketIndexId, asOf: latest.asOf, source: latest.source },
-    orderBy: { ticker: "asc" },
-  });
-  if (rows.length === 0) return null;
+    const rows = await prisma.marketIndexConstituent.findMany({
+      where: { marketIndexId, asOf: latest.asOf, source: latest.source },
+      orderBy: { ticker: "asc" },
+    });
+    if (rows.length === 0) return null;
 
-  return {
-    tickers: rows.map((row) => ({
-      ticker: row.ticker,
-      weight: row.weight != null ? Number(row.weight) : null,
-    })),
-    asOf: latest.asOf.toISOString().slice(0, 10),
-    note: latest.note,
-    official: latest.source === "BRVM_OFFICIEL",
-  };
+    return {
+      tickers: rows.map((row) => ({
+        ticker: row.ticker,
+        weight: row.weight != null ? Number(row.weight) : null,
+      })),
+      asOf: latest.asOf.toISOString().slice(0, 10),
+      note: latest.note,
+      official: latest.source === "BRVM_OFFICIEL",
+    };
+  } catch (err) {
+    // Preview/prod avant `prisma migrate deploy` : la table n'existe pas encore.
+    if (isMissingDatabaseObject(err) || isDatabaseUnavailable(err)) {
+      console.warn(
+        "[indices] composition stockée indisponible — repli catalogue",
+        err instanceof Error ? err.message : err
+      );
+      return null;
+    }
+    throw err;
+  }
 }
 
 export const getMarketIndexList = cache(async (): Promise<MarketIndexListItem[]> => {

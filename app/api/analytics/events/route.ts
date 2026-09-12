@@ -9,7 +9,7 @@ import { isAnalyticsTrackingEnabled } from "@/lib/analytics/config";
 import { persistAnalyticsEvents } from "@/lib/analytics/persist";
 import { sanitizeAnalyticsBatch } from "@/lib/analytics/sanitize";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
-import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
     const accepted = await persistAnalyticsEvents(events, userId);
     return apiSuccess({ accepted }, { status: 201 });
   } catch (err) {
-    if (isDatabaseUnavailable(err)) {
+    if (isDatabaseUnavailable(err) || isMissingDatabaseObject(err)) {
       return apiError("Base de données indisponible", 503);
     }
     throw err;
