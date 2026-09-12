@@ -32,6 +32,8 @@ export const chartSeriesQuerySchema = z.object({
   range: z.string().trim().min(1).max(8).optional(),
   from: z.string().trim().min(8).max(32).optional(),
   to: z.string().trim().min(8).max(32).optional(),
+  /// Intervalle de bougies (1H/1D/1W/1M) — élargit le lookback indicateurs.
+  interval: z.enum(["1H", "1D", "1W", "1M"]).optional(),
 });
 export type ChartSeriesQuery = z.infer<typeof chartSeriesQuerySchema>;
 

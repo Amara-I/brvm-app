@@ -25,4 +25,19 @@ describe("aggregateCandles", () => {
     expect(r.candles[0]!.close).toBe(120);
     expect(r.candles[1]!.close).toBe(130);
   });
+
+  it("agrège une série journalière dense en hebdo (lundi ISO)", () => {
+    const pts: ChartClosePoint[] = [];
+    const d = new Date("2024-01-01T00:00:00.000Z");
+    for (let i = 0; i < 20; i++) {
+      pts.push({ time: d.toISOString().slice(0, 10), value: 100 + i, volume: 1 });
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    const r = aggregateCandles(pts, "1W");
+    expect(r.candles.length).toBeGreaterThanOrEqual(3);
+    expect(r.candles.length).toBeLessThan(pts.length);
+    expect(r.candles[0]!.time).toBe("2024-01-01");
+    const mondays = r.candles.map((c) => new Date(`${c.time}T00:00:00.000Z`).getUTCDay());
+    expect(mondays.every((dow) => dow === 1)).toBe(true);
+  });
 });
