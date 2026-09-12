@@ -12,9 +12,9 @@ import AppHeader from "@/components/AppHeader";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "OuestBourse — Marché, graphes et signaux BRVM",
+  title: "OuestBourse — Marchés, graphes et signaux pour l'Afrique",
   description:
-    "Plateforme d'analyse de la BRVM : marché, screener, graphes techniques, fiches sociétés, portefeuille et lexique — données sourcées BRVM / Sikafinance / Richbourse.",
+    "Plateforme d'analyse des marchés africains : BRVM (données réelles), screener, graphes techniques, fiches sociétés, portefeuille et lexique — sources BRVM / Sikafinance / Richbourse.",
 };
 
 export default async function LandingRoute() {

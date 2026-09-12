@@ -1,28 +1,21 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// Palette du HERO de la landing page — étape 11 (rebranding OuestBourse)
-// ═══════════════════════════════════════════════════════════════════════════
-// Historique : à l'étape 10, toute la landing page utilisait une palette
-// sombre dédiée (brun/orangé, approximative — aucune capture réelle
-// disponible à ce moment-là). Depuis l'étape 11 (capture réelle fournie par
-// l'utilisateur), le header et le reste du site utilisent la palette CLAIRE
-// partagée (`lib/theme/colors.ts`) — seule la section HERO de la landing
-// reste sombre (fond photo/dégradé foncé, comme sur la capture), avec des
-// teintes vert forêt/or cohérentes avec le logo réel `public/logo.png`
-// plutôt que le brun approximatif d'origine.
+// Palette du HERO landing — toile sombre premium (charbon / or / vert).
+// Identité marketing figée : indépendante de la bascule clair/sombre du site.
+// Les variables CSS `--lp-*` dans Landing.module.css sont la source appliquée.
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const LC = {
-  bg: "#0A1B12",
-  bgAlt: "#0D2116",
-  panel: "#12281A",
-  panelAlt: "#173225",
-  border: "#254733",
-  accent: "#D9A441",
+  bg: "#05070b",
+  bgAlt: "#0a0e14",
+  panel: "rgba(16, 20, 28, 0.78)",
+  panelAlt: "#131822",
+  border: "rgba(212, 168, 67, 0.22)",
+  accent: "#D4A843",
   accentDim: "#8A6A2C",
-  cream: "#F5F1E6",
-  text: "#E7EFE9",
-  textDim: "#9FB3A5",
-  green: "#4ADE80",
+  cream: "#F3EAD8",
+  text: "#F3EAD8",
+  textDim: "#9AA3B2",
+  green: "#22C55E",
 } as const;
 
 export const LANDING_SANS =
