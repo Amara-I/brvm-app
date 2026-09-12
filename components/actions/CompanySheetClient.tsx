@@ -419,24 +419,6 @@ export default function CompanySheetClient({
                     ))}
                   </div>
                 </div>
-                main
-                    >
-                      {formatWindowChangePercent(rangeChange?.percent)}
-                    </span>
-                  </div>
-                  <div className={styles.rangeRow}>
-                    {RANGES.map((r) => (
-                      <button
-                        key={r.key}
-                        type="button"
-                        className={range === r.key ? styles.rangeActive : styles.rangeBtn}
-                        onClick={() => setRange(r.key)}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
               </div>
               <p className={styles.sessionNote}>
                 séance du {sessionLabel}
