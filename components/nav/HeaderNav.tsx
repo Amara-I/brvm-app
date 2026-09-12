@@ -1,9 +1,11 @@
 "use client";
 
+import { useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { C } from "@/lib/theme/colors";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
+import { comingSoonExchanges, isBrvmNavPath } from "@/lib/markets/nav-structure";
 import CompanyMegaMenu from "./CompanyMegaMenu";
 import EducationMegaMenu from "./EducationMegaMenu";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
@@ -17,10 +19,12 @@ export interface HeaderNavUser {
 const cssVars = {
   "--hn-text": C.text,
   "--hn-green": C.green,
+  "--hn-gold": C.gold,
   "--hn-panel": C.panel,
   "--hn-panelAlt": C.selectedBg,
   "--hn-border": C.border,
   "--hn-bg": C.bg,
+  "--hn-textDim": C.textDim,
 } as React.CSSProperties;
 
 function NavLink({
@@ -65,6 +69,47 @@ export default function HeaderNav({
   const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
   const sidebar = layout === "sidebar";
   const close = onNavigate;
+  const brvmActive = isBrvmNavPath(pathname);
+  const [brvmOpen, setBrvmOpen] = useState(true);
+  const brvmPanelId = useId();
+  const soonExchanges = comingSoonExchanges();
+
+  useEffect(() => {
+    if (brvmActive) setBrvmOpen(true);
+  }, [brvmActive]);
+
+  const brvmPages = (
+    <>
+      <NavLink
+        href="/marche"
+        label="Vue d'ensemble"
+        active={isActive("/marche")}
+        onClick={close}
+        sidebar={sidebar}
+      />
+      <NavLink
+        href="/screener"
+        label="Screener"
+        active={isActive("/screener")}
+        onClick={close}
+        sidebar={sidebar}
+      />
+      <NavLink href="/graphes" label="Graphes" active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
+      <CompanyMegaMenu
+        groups={sectorGroups}
+        totalCount={totalCompanies}
+        variant={sidebar ? "sidebar" : "inline"}
+        onNavigate={close}
+      />
+      <NavLink
+        href="/calendrier-dividendes"
+        label="Dividendes"
+        active={isActive("/calendrier-dividendes")}
+        onClick={close}
+        sidebar={sidebar}
+      />
+    </>
+  );
 
   const links = (
     <>
@@ -83,23 +128,50 @@ export default function HeaderNav({
         onClick={close}
         sidebar={sidebar}
       />
-      {sidebar ? <p className={styles.navGroupLabel}>Marché</p> : null}
-      <NavLink href="/marche" label="Marché" active={isActive("/marche")} onClick={close} sidebar={sidebar} />
-      <NavLink href="/screener" label="Screener" active={isActive("/screener")} onClick={close} sidebar={sidebar} />
-      <NavLink href="/graphes" label="Graphes" active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
-      <CompanyMegaMenu
-        groups={sectorGroups}
-        totalCount={totalCompanies}
-        variant={sidebar ? "sidebar" : "inline"}
-        onNavigate={close}
-      />
-      <NavLink
-        href="/calendrier-dividendes"
-        label="Dividendes"
-        active={isActive("/calendrier-dividendes")}
-        onClick={close}
-        sidebar={sidebar}
-      />
+
+      {sidebar ? <p className={styles.navGroupLabel}>Marchés</p> : null}
+      {sidebar ? (
+        <div className={styles.marketGroup}>
+          <button
+            type="button"
+            className={`${styles.marketTrigger} ${brvmActive ? styles.marketTriggerActive : ""}`}
+            aria-expanded={brvmOpen}
+            aria-controls={brvmPanelId}
+            onClick={() => setBrvmOpen((open) => !open)}
+          >
+            <span className={styles.marketTriggerMain}>
+              <span className={styles.liveDot} aria-hidden="true" />
+              BRVM
+            </span>
+            <span className={`${styles.chevron} ${brvmOpen ? styles.chevronOpen : ""}`} aria-hidden="true">
+              ▾
+            </span>
+          </button>
+          {brvmOpen ? (
+            <div id={brvmPanelId} className={styles.navNested} role="group" aria-label="Pages BRVM">
+              {brvmPages}
+            </div>
+          ) : null}
+        </div>
+      ) : (
+        brvmPages
+      )}
+      {sidebar
+        ? soonExchanges.map((exchange) => (
+            <button
+              key={exchange.code}
+              type="button"
+              className={styles.navSoon}
+              disabled
+              aria-disabled="true"
+              title={`${exchange.name} — bientôt disponible`}
+            >
+              <span>{exchange.shortLabel}</span>
+              <span className={styles.soonBadge}>bientôt</span>
+            </button>
+          ))
+        : null}
+
       {sidebar ? <p className={styles.navGroupLabel}>Ressources</p> : null}
       <EducationMegaMenu variant={sidebar ? "sidebar" : "inline"} onNavigate={close} />
       <NavLink href="/actualites" label="Actualités" active={isActive("/actualites")} onClick={close} sidebar={sidebar} />
