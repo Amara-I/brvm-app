@@ -73,36 +73,44 @@
 
 .africaMap {
   position: absolute;
-  left: 24%;
+  left: 32%;
   right: auto;
-  top: -4%;
-  width: min(72%, 820px);
+  top: -2%;
+  width: min(58%, 680px);
   height: auto;
   opacity: 1;
 }
 
 .africaFill {
-  fill: url(#lp-africa-fill);
+  fill: rgba(212, 168, 67, 0.045);
 }
 
 .africaStroke {
   fill: none;
   stroke: url(#lp-africa-stroke);
-  stroke-width: 2.15;
+  stroke-width: 2.35;
+  stroke-linejoin: round;
+}
+
+.africaWires {
+  fill: none;
+  stroke: rgba(243, 210, 122, 0.28);
+  stroke-width: 1;
 }
 
 .africaDots {
-  opacity: 0.55;
+  opacity: 0.7;
 }
 
 .chartOverlay {
   position: absolute;
-  right: 4%;
-  top: 18%;
-  width: min(58%, 620px);
+  left: 38%;
+  right: auto;
+  top: 26%;
+  width: min(40%, 460px);
   height: auto;
-  opacity: 0.95;
-  filter: drop-shadow(0 0 22px rgba(212, 168, 67, 0.38));
+  opacity: 0.78;
+  filter: drop-shadow(0 0 18px rgba(212, 168, 67, 0.32));
 }
 
 .heroInner {
