@@ -18,3 +18,19 @@ export function downsampleSeries(values: number[], maxPoints = 28): number[] {
   }
   return out;
 }
+
+/** Moyenne des cours annuels déjà présents — jamais interpolée ni inventée. */
+export function averageYearlySeries(
+  companies: Array<{ prices: Record<number, number> }>,
+  years: number[]
+): number[] {
+  return years
+    .map((year) => {
+      const vals = companies
+        .map((company) => company.prices[year])
+        .filter((value): value is number => typeof value === "number" && value > 0);
+      if (vals.length === 0) return null;
+      return vals.reduce((sum, value) => sum + value, 0) / vals.length;
+    })
+    .filter((value): value is number => value != null);
+}

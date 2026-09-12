@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { downsampleSeries, seriesFromYearlyPrices } from "./price-series";
+import { averageYearlySeries, downsampleSeries, seriesFromYearlyPrices } from "./price-series";
 
 describe("seriesFromYearlyPrices", () => {
   it("ordonne les années et ignore les zéros", () => {
@@ -28,5 +28,19 @@ describe("downsampleSeries", () => {
     expect(sampled[0]).toBe(1);
     expect(sampled[sampled.length - 1]).toBe(10);
     expect(sampled).toHaveLength(4);
+  });
+});
+
+describe("averageYearlySeries", () => {
+  it("moyenne les cours positifs déjà présents, sans inventer d'année", () => {
+    expect(
+      averageYearlySeries(
+        [
+          { prices: { 2024: 10, 2025: 20 } },
+          { prices: { 2024: 30, 2025: 0 } },
+        ],
+        [2023, 2024, 2025]
+      )
+    ).toEqual([20, 20]);
   });
 });

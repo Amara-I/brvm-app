@@ -3,6 +3,38 @@
   flex-shrink: 0;
 }
 
+.rootLanding {
+  width: min(28rem, 42vw);
+}
+
+.triggerLanding {
+  width: 100%;
+  height: 38px;
+  padding: 0 12px 0 14px;
+  border-radius: 999px;
+  border-color: rgba(255, 255, 255, 0.08);
+  background: rgba(8, 10, 14, 0.55);
+  color: #9aa3b2;
+}
+
+.triggerLanding:hover,
+.triggerLanding.triggerOpen {
+  border-color: rgba(212, 168, 67, 0.35);
+  background: rgba(12, 14, 20, 0.75);
+  color: #f3ead8;
+}
+
+.triggerLanding .triggerLabel {
+  max-width: none;
+  flex: 1;
+  text-align: left;
+}
+
+.triggerLanding .kbd {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
 .trigger {
   display: inline-flex;
   align-items: center;
@@ -127,5 +159,14 @@
     width: 36px;
     padding: 0;
     justify-content: center;
+  }
+
+  .rootLanding {
+    width: auto;
+  }
+
+  .triggerLanding {
+    width: 36px;
+    padding: 0;
   }
 }

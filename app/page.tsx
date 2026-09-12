@@ -6,8 +6,9 @@
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { computeMarketSummaryStats, topScoredCompanies } from "@/lib/calc/market-summary-stats";
 import { EDUCATION_TERMS } from "@/lib/education/catalog";
+import { averageYearlySeries } from "@/lib/landing/price-series";
 import LandingPage from "@/components/landing/LandingPage";
-import AppHeader from "@/components/AppHeader";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,14 @@ export default async function LandingRoute() {
   const sectorsCount = new Set(dataset.companies.map((c) => c.sector).filter(Boolean)).size;
 
   return (
-    <AppHeader>
+    <LandingChrome>
       <LandingPage
         stats={stats}
         topCompanies={topCompanies}
         sectorsCount={sectorsCount}
         educationTermsCount={EDUCATION_TERMS.length}
+        marketSeries={averageYearlySeries(dataset.companies, dataset.years)}
       />
-    </AppHeader>
+    </LandingChrome>
   );
 }

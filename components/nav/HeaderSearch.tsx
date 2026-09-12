@@ -12,7 +12,13 @@ export interface HeaderSearchItem {
   sector: string;
 }
 
-export default function HeaderSearch({ companies }: { companies: HeaderSearchItem[] }) {
+export default function HeaderSearch({
+  companies,
+  variant = "default",
+}: {
+  companies: HeaderSearchItem[];
+  variant?: "default" | "landing";
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -43,16 +49,20 @@ export default function HeaderSearch({ companies }: { companies: HeaderSearchIte
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
       const t = e.target as HTMLElement | null;
       if (!t) return;
       if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
+      const slash = e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey;
+      const commandK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
+      if (!slash && !commandK) return;
       e.preventDefault();
       setOpen(true);
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+
+  const landing = variant === "landing";
 
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
@@ -75,18 +85,20 @@ export default function HeaderSearch({ companies }: { companies: HeaderSearchIte
   }
 
   return (
-    <div ref={rootRef} className={styles.root}>
+    <div ref={rootRef} className={`${styles.root} ${landing ? styles.rootLanding : ""}`}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-label="Rechercher une société"
         aria-expanded={open}
-        title="Rechercher (raccourci / )"
-        className={`${styles.trigger} ${open ? styles.triggerOpen : ""}`}
+        title="Rechercher (raccourcis / et ⌘K)"
+        className={`${styles.trigger} ${landing ? styles.triggerLanding : ""} ${open ? styles.triggerOpen : ""}`}
       >
         <IconSearch size={15} />
-        <span className={styles.triggerLabel}>Rechercher un ticker…</span>
-        <kbd className={styles.kbd}>/</kbd>
+        <span className={styles.triggerLabel}>
+          {landing ? "Rechercher un ticker, une société…" : "Rechercher un ticker…"}
+        </span>
+        <kbd className={styles.kbd}>{landing ? "⌘K" : "/"}</kbd>
       </button>
 
       {open && (

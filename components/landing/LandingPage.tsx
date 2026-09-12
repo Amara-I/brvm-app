@@ -19,9 +19,9 @@ import {
   IconChart,
   IconDividend,
   IconFile,
+  IconFunnel,
   IconGrad,
   IconPie,
-  IconShield,
   IconSpark,
   IconStar,
   IconTarget,
@@ -36,12 +36,17 @@ export interface LandingPageProps {
   sectorsCount: number;
   /** Nombre de termes du lexique Éducation. */
   educationTermsCount: number;
+  /** Moyenne des cours annuels déjà en base — jamais interpolée. */
+  marketSeries: number[];
 }
 
 const LANDING_EXCHANGE_CODES = ["BRVM", "NGX", "GSE", "NSE"] as const;
 
 function formatMdsFcfa(value: number): string {
-  return `${value.toLocaleString("fr-FR")} Mds FCFA`;
+  return `${value.toLocaleString("fr-FR", {
+    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
+    maximumFractionDigits: 2,
+  })} Mds FCFA`;
 }
 
 function formatSignal(metrics: CalcMetricsResult): string {
@@ -64,6 +69,7 @@ export default function LandingPage({
   topCompanies,
   sectorsCount,
   educationTermsCount,
+  marketSeries,
 }: LandingPageProps) {
   const yearsSpan =
     stats.firstYear && stats.lastYear ? stats.lastYear - stats.firstYear + 1 : null;
@@ -79,27 +85,27 @@ export default function LandingPage({
   const heroFeatures = [
     {
       t: "Screener intelligent",
-      d: `Filtrez, triez et trouvez les meilleures opportunités parmi ${stats.companiesCount} titres.`,
+      d: "Filtrez, triez et trouvez les meilleures opportunités.",
       href: "/screener",
-      icon: <IconTarget size={18} />,
+      icon: <IconFunnel size={16} />,
     },
     {
       t: "Graphiques avancés",
       d: "Indicateurs techniques, Fibonacci et multi-horizons.",
       href: "/graphes",
-      icon: <IconChart size={18} />,
+      icon: <IconChart size={16} />,
     },
     {
       t: "Portefeuille",
-      d: "Suivi en temps réel et répartition détaillée.",
+      d: "Suivi en temps réel et performance détaillée.",
       href: "/portefeuille",
-      icon: <IconBriefcase size={18} />,
+      icon: <IconBriefcase size={16} />,
     },
     {
       t: "Éducation",
-      d: `Apprenez, progressez et investissez mieux — ${educationTermsCount} termes.`,
+      d: "Apprenez, progressez et investissez mieux.",
       href: "/education",
-      icon: <IconGrad size={18} />,
+      icon: <IconGrad size={16} />,
     },
   ];
 
@@ -160,24 +166,19 @@ export default function LandingPage({
         <AfricaHeroBackdrop />
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
-            <span className={styles.badge}>
-              <span className={styles.badgeDot} />
-              Plateforme d&apos;analyse africaine
-            </span>
-
             <h1 className={styles.h1}>
               Marchés, graphes
               <br />
               et signaux
               <br />
-              pour <span className={styles.h1Accent}>l&apos;Afrique</span>.
+              <span className={styles.h1Accent}>pour l&apos;Afrique.</span>
             </h1>
 
             <div className={styles.exchangeRow} aria-label="Places boursières">
               {landingExchanges.map((exchange) => (
                 <span
                   key={exchange.code}
-                  className={`${styles.exchangeChip} ${exchange.live ? styles.exchangeLive : ""}`}
+                  className={styles.exchangeChip}
                   title={exchange.live ? exchange.region : "Bientôt"}
                 >
                   {exchange.shortLabel}
@@ -186,10 +187,9 @@ export default function LandingPage({
             </div>
 
             <p className={styles.paragraph}>
-              {BRAND_NAME} regroupe les {stats.companiesCount} sociétés suivies sur la BRVM, des
-              historiques sourcés (BRVM, Sikafinance, Richbourse), des signaux expliqués et des
-              outils d&apos;analyse graphique. NGX, GSE et d&apos;autres places sont listées dans le
-              sélecteur de marché. Destiné à l&apos;information, pas un conseil en investissement.
+              La plateforme tout-en-un des investisseurs africains.
+              Données fiables, analyses avancées et signaux actionnables
+              pour des décisions éclairées.
             </p>
 
             <div className={styles.ctaRow}>
@@ -216,16 +216,19 @@ export default function LandingPage({
 
           <div className={styles.heroRight}>
             <div className={`${styles.card} ${styles.cardPortfolio}`}>
-              <div className={styles.cardLabel}>
-                <span className={styles.liveDot} />
-                Marché · Données réelles
+              <div className={styles.cardPortfolioHead}>
+                <div className={styles.cardLabel}>
+                  <span className={styles.liveDot} />
+                  Marché – Données en temps réel
+                </div>
+                <LandingSparkline values={marketSeries} width={92} height={28} />
               </div>
               <div className={styles.cardValue}>{formatMdsFcfa(stats.totalMarketCapBnFcfa)}</div>
               <div className={styles.cardMetrics}>
                 <div className={styles.metricCell}>
                   <strong className={styles.chipGreen}>
                     {stats.avgPerf5Percent !== null
-                      ? `${stats.avgPerf5Percent >= 0 ? "+" : ""}${stats.avgPerf5Percent.toFixed(1)}%`
+                      ? `${stats.avgPerf5Percent >= 0 ? "+" : ""}${stats.avgPerf5Percent.toFixed(1).replace(".", ",")}%`
                       : "N/D"}
                   </strong>
                   <span>5 ans</span>
@@ -239,8 +242,12 @@ export default function LandingPage({
                   <span>Secteurs</span>
                 </div>
                 <div className={styles.metricCell}>
-                  <strong>{stats.buySignalsCount}</strong>
-                  <span>Signaux ≥ 65</span>
+                  <strong>
+                    {stats.companiesCount > 0
+                      ? `${stats.buySignalsCount}/${stats.companiesCount}`
+                      : "N/D"}
+                  </strong>
+                  <span>Signaux</span>
                 </div>
               </div>
             </div>
@@ -260,7 +267,7 @@ export default function LandingPage({
                   <span className={styles.stockTicker}>N/D</span>
                 </div>
               ) : (
-                topCompanies.map(({ co, metrics }, index) => {
+                topCompanies.map(({ co, metrics }) => {
                   const signal = formatSignal(metrics);
                   const tone = signalTone(signal);
                   return (
@@ -269,7 +276,6 @@ export default function LandingPage({
                       href={`/actions/${co.ticker}`}
                       className={styles.stockRow}
                     >
-                      <span className={styles.stockRank}>{index + 1}</span>
                       <span className={styles.stockIdentity}>
                         <span className={styles.stockTicker}>{co.ticker}</span>
                         <span className={styles.stockName}>{co.name || "N/D"}</span>
@@ -289,7 +295,7 @@ export default function LandingPage({
                         </span>
                         <span className={perfClass(metrics.perf5Percent)}>
                           {metrics.perf5Percent !== "N/D"
-                            ? `${parseFloat(metrics.perf5Percent) >= 0 ? "+" : ""}${metrics.perf5Percent}%`
+                            ? `${parseFloat(metrics.perf5Percent) >= 0 ? "+" : ""}${metrics.perf5Percent.replace(".", ",")}%`
                             : "N/D"}
                         </span>
                       </span>
@@ -305,50 +311,45 @@ export default function LandingPage({
           <div className={styles.statsInner}>
             <div className={styles.statItem}>
               <span className={styles.statIcon}>
-                <IconBuilding size={18} />
+                <IconBuilding size={16} />
               </span>
               <div>
                 <div className={styles.statValue}>{stats.companiesCount}</div>
                 <div className={styles.statLabel}>Sociétés cotées</div>
-                <div className={styles.statHint}>Données sourcées</div>
+                <div className={styles.statHint}>Données suivies en continu</div>
               </div>
             </div>
             <div className={styles.statItem}>
               <span className={styles.statIcon}>
-                <IconCalendar size={18} />
+                <IconCalendar size={16} />
               </span>
               <div>
                 <div className={styles.statValue}>{yearsSpan !== null ? `${yearsSpan}` : "N/D"}</div>
                 <div className={styles.statLabel}>Ans d&apos;historique</div>
-                <div className={styles.statHint}>{horizonLabel}</div>
+                <div className={styles.statHint}>
+                  {horizonLabel !== "N/D" ? `${horizonLabel} inclus` : "N/D"}
+                </div>
               </div>
             </div>
             <div className={styles.statItem}>
               <span className={styles.statIcon}>
-                <IconPie size={18} />
+                <IconPie size={16} />
               </span>
               <div>
                 <div className={styles.statValue}>{sectorsCount}</div>
                 <div className={styles.statLabel}>Secteurs couverts</div>
-                <div className={styles.statHint}>En base réelle</div>
+                <div className={styles.statHint}>Tous les secteurs en base</div>
               </div>
             </div>
             <div className={styles.statItem}>
               <span className={styles.statIcon}>
-                <IconBook size={18} />
+                <IconBook size={16} />
               </span>
               <div>
                 <div className={styles.statValue}>{educationTermsCount}</div>
                 <div className={styles.statLabel}>Termes du lexique</div>
-                <div className={styles.statHint}>Pour lire et investir</div>
+                <div className={styles.statHint}>Pour comprendre et investir</div>
               </div>
-            </div>
-            <div className={styles.statNote}>
-              <IconShield size={13} />
-              Sources : BRVM officiel · Sikafinance · Richbourse · Rend. div. moyen :{" "}
-              {stats.avgDividendYieldPercent !== null
-                ? `${stats.avgDividendYieldPercent.toFixed(1).replace(".", ",")} %`
-                : "N/D"}
             </div>
           </div>
         </div>
