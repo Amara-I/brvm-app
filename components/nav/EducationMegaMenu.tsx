@@ -105,6 +105,8 @@ export default function EducationMegaMenu({
           aria-controls={panelId}
           onFocus={openMenu}
           onClick={closeMenu}
+          data-analytics-feature="education"
+          data-analytics-action="nav"
         >
           Éducation
           <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
@@ -125,7 +127,13 @@ export default function EducationMegaMenu({
             <span className={styles.panelTitle}>
               Parcours par catégories — {total} fiches
             </span>
-            <Link href="/education" className={styles.headerAll} onClick={closeMenu}>
+            <Link
+              href="/education"
+              className={styles.headerAll}
+              onClick={closeMenu}
+              data-analytics-feature="education"
+              data-analytics-action="mega_menu_all"
+            >
               Voir tout →
             </Link>
           </div>
@@ -139,6 +147,8 @@ export default function EducationMegaMenu({
                     className={styles.sectorHeading}
                     onClick={closeMenu}
                     style={{ textDecoration: "none", display: "block" }}
+                    data-analytics-feature="education"
+                    data-analytics-action="mega_menu_category"
                   >
                     {cat.title}{" "}
                     <span className={styles.sectorCount}>({countTermsByCategory(cat.slug)})</span>
@@ -150,6 +160,8 @@ export default function EducationMegaMenu({
                       className={styles.companyRow}
                       role="menuitem"
                       onClick={closeMenu}
+                      data-analytics-feature="education"
+                      data-analytics-action="mega_menu"
                     >
                       <span className={styles.companyName} style={{ margin: 0 }}>
                         {theme.title}

@@ -17,11 +17,13 @@ import {
 import CompanyMegaMenu from "./CompanyMegaMenu";
 import EducationMegaMenu from "./EducationMegaMenu";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
+import { featureFromPath } from "@/lib/analytics/features";
 import styles from "./HeaderNav.module.css";
 
 export interface HeaderNavUser {
   name: string | null | undefined;
   email: string | null | undefined;
+  isAdmin?: boolean;
 }
 
 const cssVars = {
@@ -41,12 +43,18 @@ function NavLink({
   active,
   onClick,
   sidebar,
+  analyticsFeature,
+  analyticsAction,
+  skipAnalytics,
 }: {
   href: string;
   label: string;
   active: boolean;
   onClick?: () => void;
   sidebar?: boolean;
+  analyticsFeature?: string;
+  analyticsAction?: string;
+  skipAnalytics?: boolean;
 }) {
   return (
     <Link
@@ -54,6 +62,8 @@ function NavLink({
       aria-current={active ? "page" : undefined}
       className={`${styles.navLink} ${sidebar ? styles.navLinkSidebar : ""} ${active ? styles.navLinkActive : ""}`}
       onClick={onClick}
+      data-analytics-feature={skipAnalytics ? undefined : analyticsFeature ?? featureFromPath(href)}
+      data-analytics-action={skipAnalytics ? undefined : analyticsAction ?? "nav"}
     >
       {label}
     </Link>
@@ -114,6 +124,7 @@ export default function HeaderNav({
   totalCompanies,
   layout = "sidebar",
   onNavigate,
+  user,
 }: {
   sectorGroups: SectorGroup[];
   totalCompanies: number;
@@ -246,6 +257,8 @@ export default function HeaderNav({
                   active={overviewActive}
                   onClick={close}
                   sidebar={sidebar}
+                  analyticsFeature="coming_soon_market"
+                  analyticsAction={`nav:${exchange.code}`}
                 />
                 <NavLink
                   href={indicesHref}
@@ -253,6 +266,8 @@ export default function HeaderNav({
                   active={indicesActive}
                   onClick={close}
                   sidebar={sidebar}
+                  analyticsFeature="coming_soon_market"
+                  analyticsAction={`nav-indices:${exchange.code}`}
                 />
               </MarketNavGroup>
             );
@@ -263,6 +278,19 @@ export default function HeaderNav({
       <EducationMegaMenu variant={sidebar ? "sidebar" : "inline"} onNavigate={close} />
       <NavLink href="/actualites" label="Actualités" active={isActive("/actualites")} onClick={close} sidebar={sidebar} />
       <NavLink href="/outils" label="Outils" active={isActive("/outils")} onClick={close} sidebar={sidebar} />
+      {user?.isAdmin ? (
+        <>
+          {sidebar ? <p className={styles.navGroupLabel}>Admin</p> : null}
+          <NavLink
+            href="/admin/analytics"
+            label="Analytique"
+            active={isActive("/admin/analytics")}
+            onClick={close}
+            sidebar={sidebar}
+            skipAnalytics
+          />
+        </>
+      ) : null}
     </>
   );
 

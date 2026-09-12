@@ -32,6 +32,7 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import SignalBadge from "@/components/ui/SignalBadge";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
+import { trackFeature } from "@/components/analytics/track-client";
 
 export interface MarketBoardClientProps {
   initialData: CompaniesFullDataset;
@@ -312,6 +313,12 @@ export default function MarketBoardClient({
 
   function toggleRow(ticker: string) {
     setExpanded((cur) => (cur === ticker ? null : ticker));
+    trackFeature("marche", "expand_row");
+  }
+
+  function handleHorizon(next: MarketHorizon) {
+    setHorizon(next);
+    trackFeature("marche", `horizon:${next}`);
   }
 
   const buySignals = companies.filter((c) => (metricsByTicker.get(c.ticker)?.score ?? 0) >= 65).length;
@@ -400,7 +407,7 @@ export default function MarketBoardClient({
                             <span>Aperçu</span>
                             <label className={styles.horizonInline}>
                               <span className={styles.srOnly}>Horizon historique</span>
-                              <HorizonSelect value={horizon} onChange={setHorizon} />
+                              <HorizonSelect value={horizon} onChange={handleHorizon} />
                             </label>
                           </span>
                         ),
@@ -625,10 +632,20 @@ function ExpandedPanel({
         </ul>
       )}
       <div className={styles.detailLinks}>
-        <Link href={`/actions/${company.ticker}`} className={styles.primaryBtn}>
+        <Link
+          href={`/actions/${company.ticker}`}
+          className={styles.primaryBtn}
+          data-analytics-feature="company_sheet"
+          data-analytics-action="from_marche"
+        >
           Détails société cotée
         </Link>
-        <Link href={`/graphes?ticker=${company.ticker}`} className={styles.secondaryBtn}>
+        <Link
+          href={`/graphes?ticker=${company.ticker}`}
+          className={styles.secondaryBtn}
+          data-analytics-feature="graphes"
+          data-analytics-action="from_marche"
+        >
           Analyse graphique
         </Link>
       </div>

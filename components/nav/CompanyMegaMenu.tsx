@@ -107,6 +107,8 @@ export default function CompanyMegaMenu({
           aria-controls={panelId}
           onFocus={openMenu}
           onClick={() => setOpen(false)}
+          data-analytics-feature="societes_cotees"
+          data-analytics-action="nav"
         >
           Sociétés cotées
           <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
@@ -127,7 +129,13 @@ export default function CompanyMegaMenu({
             <span className={styles.panelTitle}>
               La cote — {totalCount} émetteur{totalCount > 1 ? "s" : ""}
             </span>
-            <Link href="/societes-cotees" className={styles.headerAll} onClick={closeMenu}>
+            <Link
+              href="/societes-cotees"
+              className={styles.headerAll}
+              onClick={closeMenu}
+              data-analytics-feature="societes_cotees"
+              data-analytics-action="mega_menu_all"
+            >
               Voir tout →
             </Link>
           </div>
@@ -145,6 +153,8 @@ export default function CompanyMegaMenu({
                     className={styles.companyRow}
                     role="menuitem"
                     onClick={closeMenu}
+                    data-analytics-feature="company_sheet"
+                    data-analytics-action="mega_menu"
                   >
                     <span className={styles.logoMark} aria-hidden="true">
                       {co.ticker.slice(0, 2)}

@@ -112,6 +112,14 @@ export default function MentionsLegalesPage() {
             utilisé à ce jour ; si cela devait changer, un bandeau de consentement serait mis en place au préalable.
           </p>
           <p>
+            <strong>Mesure d&apos;usage (première partie)</strong> — afin d&apos;améliorer le produit, OuestBourse
+            enregistre des événements d&apos;usage agrégés (page visitée, fonctionnalité cliquée) dans sa propre base.
+            Aucune adresse e-mail, nom, adresse IP ou contenu de formulaire n&apos;est stocké dans ces événements. Un
+            identifiant de session anonyme (stocké en localStorage) permet d&apos;estimer le nombre de visiteurs
+            distincts. Les événements sont conservés 90 jours. Si vous êtes connecté, seul l&apos;identifiant interne
+            du compte peut être associé à l&apos;événement, jamais votre e-mail.
+          </p>
+          <p>
             <strong>Vos droits</strong> — conformément à la réglementation applicable en matière de protection des données, vous
             disposez d&apos;un droit d&apos;accès, de rectification, d&apos;effacement et de portabilité de vos données. Pour exercer
             ces droits ou pour toute question, contactez l&apos;éditeur de l&apos;application à l&apos;adresse indiquée dans les
