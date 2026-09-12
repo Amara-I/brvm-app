@@ -7,6 +7,7 @@ import { AFRICAN_EXCHANGES, type AfricanExchange } from "./african-exchanges";
 /** Liens actuellement sous le groupe « Marché », désormais enfants de BRVM. */
 export const BRVM_NAV_HREFS = [
   "/marche",
+  "/indices",
   "/screener",
   "/graphes",
   "/societes-cotees",
@@ -41,6 +42,12 @@ export function comingSoonMarketHref(code: AfricanExchange["code"]): string {
   return `${COMING_SOON_MARKET_PREFIX}/${code.toLowerCase()}`;
 }
 
+/** Slot Indices : BRVM live à `/indices`, autres places sous `/marches/{code}/indices`. */
+export function marketIndicesHref(code: AfricanExchange["code"]): string {
+  if (code === "BRVM") return "/indices";
+  return `${comingSoonMarketHref(code)}/indices`;
+}
+
 export function parseComingSoonMarketSlug(slug: string | undefined): AfricanExchange | null {
   if (!slug) return null;
   const exchange = AFRICAN_EXCHANGES.find((item) => item.code === slug.trim().toUpperCase());
@@ -48,8 +55,14 @@ export function parseComingSoonMarketSlug(slug: string | undefined): AfricanExch
   return exchange;
 }
 
+/** Accepte `/marches/ngx` et `/marches/ngx/indices`. */
+export function parseComingSoonMarketPath(pathname: string | null | undefined): AfricanExchange | null {
+  if (!pathname) return null;
+  if (!pathname.startsWith(`${COMING_SOON_MARKET_PREFIX}/`)) return null;
+  const slug = pathname.slice(COMING_SOON_MARKET_PREFIX.length + 1).split("/").filter(Boolean)[0];
+  return parseComingSoonMarketSlug(slug);
+}
+
 export function isComingSoonMarketPath(pathname: string | null | undefined): boolean {
-  if (!pathname) return false;
-  if (!pathname.startsWith(`${COMING_SOON_MARKET_PREFIX}/`)) return false;
-  return parseComingSoonMarketSlug(pathname.slice(COMING_SOON_MARKET_PREFIX.length + 1)) !== null;
+  return parseComingSoonMarketPath(pathname) !== null;
 }

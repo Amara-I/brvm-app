@@ -161,6 +161,13 @@
   border-radius: 8px;
   padding: 8px 12px;
   min-width: 140px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+a.indexPill:hover {
+  border-color: var(--c-gold);
 }
 
 .indexName {

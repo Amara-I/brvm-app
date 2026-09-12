@@ -41,9 +41,9 @@ export default function SiteFooter() {
           <Link href="/actualites" className={styles.link}>
             Actualités
           </Link>
-          <span className={styles.soon}>
-            Indices BRVM <em>BIENTÔT</em>
-          </span>
+          <Link href="/indices" className={styles.link}>
+            Indices BRVM
+          </Link>
           <Link href="/calendrier-dividendes" className={styles.link}>
             Calendrier dividendes
           </Link>

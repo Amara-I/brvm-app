@@ -745,15 +745,15 @@ function MarketChrome(props: {
       </div>
       <div className={marketStyles.indicesStrip} aria-label="Indices">
         {props.indexPills.length === 0 ? (
-          <div className={marketStyles.indexPill}>
+          <Link href="/indices" className={marketStyles.indexPill}>
             <div className={marketStyles.indexName}>Indices</div>
             <div className={marketStyles.indexValue} style={{ color: C.textDim }}>
               N/D
             </div>
-          </div>
+          </Link>
         ) : (
           props.indexPills.map((idx) => (
-            <div key={idx.code} className={marketStyles.indexPill}>
+            <Link key={idx.code} href={`/indices/${idx.code}`} className={marketStyles.indexPill}>
               <div className={marketStyles.indexName}>{idx.name}</div>
               <div className={`${marketStyles.indexValue} ob-num`}>
                 {idx.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}
@@ -761,7 +761,7 @@ function MarketChrome(props: {
               <div className={marketStyles.indexChg}>
                 <ChangeValue value={idx.changePercent} />
               </div>
-            </div>
+            </Link>
           ))
         )}
       </div>
