@@ -6,7 +6,9 @@ import {
   comingSoonExchanges,
   comingSoonMarketHref,
   isBrvmNavPath,
+  isComingSoonMarketNavPath,
   isComingSoonMarketPath,
+  isComingSoonMarketSectionOpen,
   isGlobalNavPath,
   marketIndicesHref,
   parseComingSoonMarketPath,
@@ -98,5 +100,22 @@ describe("coming-soon market routes", () => {
     expect(isComingSoonMarketPath("/marches/ngx/indices")).toBe(true);
     expect(parseComingSoonMarketPath("/marches/jse/indices")?.code).toBe("JSE");
     expect(isBrvmNavPath("/marches/ngx/indices")).toBe(false);
+  });
+
+  it("identifie la place bientôt active sans confondre les voisines", () => {
+    expect(isComingSoonMarketNavPath("/marches/ngx", "NGX")).toBe(true);
+    expect(isComingSoonMarketNavPath("/marches/ngx/indices", "NGX")).toBe(true);
+    expect(isComingSoonMarketNavPath("/marches/jse", "NGX")).toBe(false);
+    expect(isComingSoonMarketNavPath("/marche", "NGX")).toBe(false);
+    expect(isComingSoonMarketNavPath(null, "NGX")).toBe(false);
+  });
+
+  it("ferme les places bientôt par défaut et les ouvre sur la route active", () => {
+    expect(isComingSoonMarketSectionOpen("/portefeuille", "NGX", undefined)).toBe(false);
+    expect(isComingSoonMarketSectionOpen("/marches/ngx", "NGX", undefined)).toBe(true);
+    expect(isComingSoonMarketSectionOpen("/marches/ngx/indices", "NGX", undefined)).toBe(true);
+    expect(isComingSoonMarketSectionOpen("/marches/ngx", "JSE", undefined)).toBe(false);
+    expect(isComingSoonMarketSectionOpen("/marches/ngx", "NGX", false)).toBe(false);
+    expect(isComingSoonMarketSectionOpen("/portefeuille", "NGX", true)).toBe(true);
   });
 });
