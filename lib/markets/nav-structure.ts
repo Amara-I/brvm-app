@@ -33,3 +33,23 @@ export function isGlobalNavPath(pathname: string | null | undefined): boolean {
 export function comingSoonExchanges(): AfricanExchange[] {
   return AFRICAN_EXCHANGES.filter((exchange) => !exchange.live);
 }
+
+/** Pages placeholder hors /marche, pour ne pas polluer la vue d'ensemble BRVM. */
+export const COMING_SOON_MARKET_PREFIX = "/marches";
+
+export function comingSoonMarketHref(code: AfricanExchange["code"]): string {
+  return `${COMING_SOON_MARKET_PREFIX}/${code.toLowerCase()}`;
+}
+
+export function parseComingSoonMarketSlug(slug: string | undefined): AfricanExchange | null {
+  if (!slug) return null;
+  const exchange = AFRICAN_EXCHANGES.find((item) => item.code === slug.trim().toUpperCase());
+  if (!exchange || exchange.live) return null;
+  return exchange;
+}
+
+export function isComingSoonMarketPath(pathname: string | null | undefined): boolean {
+  if (!pathname) return false;
+  if (!pathname.startsWith(`${COMING_SOON_MARKET_PREFIX}/`)) return false;
+  return parseComingSoonMarketSlug(pathname.slice(COMING_SOON_MARKET_PREFIX.length + 1)) !== null;
+}

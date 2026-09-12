@@ -201,11 +201,18 @@
   color: var(--c-gold);
   font-size: 1.15rem;
   font-weight: 700;
-  margin-bottom: 8px;
+  margin: 0 0 8px;
 }
 
 .comingBody {
   color: var(--c-textdim);
   font-size: 0.85rem;
   line-height: 1.5;
+  margin: 0;
+}
+
+.comingCta {
+  display: inline-block;
+  margin-top: 18px;
+  text-decoration: none;
 }
