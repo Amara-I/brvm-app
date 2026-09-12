@@ -11,30 +11,19 @@ import {
   type ChartRange,
 } from "@/lib/charts/indicators";
 import {
-  normalizeTo100,
-  rangeFilter,
-  type ChartClosePoint,
-  type ChartRange,
-} from "@/lib/charts/indicators";
-import {
   apiRangeForChartRange,
   lastPointAsOf,
   seriesCoversChartRange,
   seriesCoversIntervalLookback,
 } from "@/lib/charts/chart-window";
-import {
-  aggregateCandles,
-  CANDLE_INTERVALS,
-  type CandleInterval,
-} from "@/lib/charts/ohlc-aggregate";
+import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/charts/ohlc-aggregate";
+import { buildSyncedChartView } from "@/lib/charts/synced-chart-view";
 import {
   chartRangeChangeLabel,
-  computeWindowChange,
   computeWindowChangeFromCandles,
   formatWindowChangeAbs,
   formatWindowChangePercent,
-} from "@/lib/charts/window-change"; 
-  main
+} from "@/lib/charts/window-change";
 import TradingChart, {
   type ChartIndicatorsState,
   type ChartViewUndoEntry,
@@ -400,56 +389,28 @@ export default function ChartWorkbench({
     [payload]
   );
 
-  /** Série de la fenêtre (cours bruts) — même filtre que le graphique, hors échelle %. */
-  const windowSeries = useMemo(() => {
-    if (!payload) return [];
-    return rangeFilter(historySeries, range);
-  }, [payload, historySeries, range]);
-
-  const mainSeries = useMemo(() => {
-    if (!payload) return [];
-  const historySeries = useMemo(
-    () => (payload ? [...(payload.lookback ?? []), ...payload.series] : []),
-    [payload]
-  );
-
-  /** Série de la fenêtre (cours bruts) — même filtre que le graphique, hors échelle %. */
+  /** Fenêtre visible (cours bruts) — même `rangeFilter` + asOf que le graphique. */
   const windowSeries = useMemo(() => {
     if (!payload) return [];
     return rangeFilter(historySeries, range, lastPointAsOf(historySeries));
   }, [payload, historySeries, range]);
 
-  const mainSeries = useMemo(() => {
-    if (!payload) return [];
-    return percentScale ? normalizeTo100(windowSeries) : windowSeries;
-  }, [payload, windowSeries, percentScale]);
+  const mainSeries = windowSeries;
 
   const windowChange = useMemo(() => {
-    if (interval === "1D" || interval === "1H") {
-      return computeWindowChange(windowSeries);
-    }
-    const { candles } = aggregateCandles(windowSeries, interval);
+    const from = windowSeries[0]?.time;
+    const to = windowSeries[windowSeries.length - 1]?.time;
+    if (!from || !to) return null;
+    const { candles } = buildSyncedChartView({
+      fullPoints: historySeries,
+      visibleFrom: from,
+      visibleTo: to,
+      interval,
+      lookbackBars: 1,
+      percentScale: false,
+    });
     return computeWindowChangeFromCandles(candles);
-  }, [windowSeries, interval]);
-
-  const hasRealVolume = useMemo(
-    () => (payload?.series ?? []).some((p) => typeof p.volume === "number" && p.volume > 0),
-    [payload]
-  );
-
-  const compareSeries = useMemo(() => {
-    if (!percentScale && compare.length === 0) return [];
-    return compare
-      .map((t, i) => {
-        const raw = compareData[t];
-        if (!raw) return null;
-        let pts = rangeFilter(raw, range, lastPointAsOf(raw));
-        if (percentScale) pts = normalizeTo100(pts);
-        return { id: t, color: COMPARE_COLORS[i % COMPARE_COLORS.length]!, points: pts };
-      })
-      .filter(Boolean) as Array<{ id: string; color: string; points: ChartClosePoint[] }>;
-  }, [compare, compareData, range, percentScale]); 
-      main
+  }, [historySeries, windowSeries, interval]);
 
   const hasRealVolume = useMemo(
     () => (payload?.series ?? []).some((p) => typeof p.volume === "number" && p.volume > 0),
