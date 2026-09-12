@@ -630,6 +630,34 @@
   font-weight: 700;
 }
 
+.rangeTools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.rangeChgUp,
+.rangeChgDown,
+.rangeChgNd {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rangeChgUp {
+  color: var(--c-green);
+}
+
+.rangeChgDown {
+  color: var(--c-red);
+}
+
+.rangeChgNd {
+  color: var(--c-textdim);
+}
+
 .rangeRow {
   display: flex;
   gap: 4px;

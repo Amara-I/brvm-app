@@ -805,6 +805,30 @@
   font-weight: 700;
 }
 
+.rangeChgUp,
+.rangeChgDown,
+.rangeChgNd {
+  margin-left: 6px;
+  padding: 3px 7px;
+  border-radius: 3px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rangeChgUp {
+  color: var(--tv-green);
+}
+
+.rangeChgDown {
+  color: var(--tv-red);
+}
+
+.rangeChgNd {
+  color: var(--tv-dim);
+}
+
 .chartRow {
   display: grid;
   grid-template-columns: 64px 1fr;

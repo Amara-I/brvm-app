@@ -24,6 +24,12 @@ import type { CompanySheetPayload } from "@/lib/api/company-sheet-dataset";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { rangeFilter, type ChartRange } from "@/lib/charts/indicators";
 import { downsampleLttb } from "@/lib/charts/downsample";
+import {
+  chartRangeChangeLabel,
+  computeWindowChange,
+  formatWindowChangeAbs,
+  formatWindowChangePercent,
+} from "@/lib/charts/window-change";
 import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel";
 import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel";
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
@@ -212,6 +218,7 @@ export default function CompanySheetClient({
   }, [peers, company.sector, company.ticker]);
 
   const rangedSeries = useMemo(() => rangeFilter(series, range), [series, range]);
+  const rangeChange = useMemo(() => computeWindowChange(rangedSeries), [rangedSeries]);
   const chartSeries = useMemo(() => downsampleLttb(rangedSeries, 360), [rangedSeries]);
   const last = rangedSeries[rangedSeries.length - 1] ?? series[series.length - 1];
   const prev = rangedSeries.length >= 2 ? rangedSeries[rangedSeries.length - 2] : null;
@@ -369,17 +376,36 @@ export default function CompanySheetClient({
             <section className={styles.card}>
               <div className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>Cours</h2>
-                <div className={styles.rangeRow}>
-                  {RANGES.map((r) => (
-                    <button
-                      key={r.key}
-                      type="button"
-                      className={range === r.key ? styles.rangeActive : styles.rangeBtn}
-                      onClick={() => setRange(r.key)}
-                    >
-                      {r.label}
-                    </button>
-                  ))}
+                <div className={styles.rangeTools}>
+                  <span
+                    className={
+                      rangeChange == null
+                        ? styles.rangeChgNd
+                        : rangeChange.percent >= 0
+                          ? styles.rangeChgUp
+                          : styles.rangeChgDown
+                    }
+                    aria-live="polite"
+                    title={
+                      rangeChange
+                        ? `${chartRangeChangeLabel(range)} · ${formatWindowChangeAbs(rangeChange.abs)}`
+                        : "Variation N/D — moins de 2 points sur cette fenêtre"
+                    }
+                  >
+                    {formatWindowChangePercent(rangeChange?.percent)}
+                  </span>
+                  <div className={styles.rangeRow}>
+                    {RANGES.map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        className={range === r.key ? styles.rangeActive : styles.rangeBtn}
+                        onClick={() => setRange(r.key)}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               <p className={styles.sessionNote}>

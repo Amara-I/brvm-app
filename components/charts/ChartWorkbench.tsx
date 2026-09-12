@@ -12,7 +12,18 @@ import {
   type ChartRange,
 } from "@/lib/charts/indicators";
 import { apiRangeForChartRange, seriesCoversChartRange } from "@/lib/charts/chart-window";
-import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/charts/ohlc-aggregate";
+import {
+  aggregateCandles,
+  CANDLE_INTERVALS,
+  type CandleInterval,
+} from "@/lib/charts/ohlc-aggregate";
+import {
+  chartRangeChangeLabel,
+  computeWindowChange,
+  computeWindowChangeFromCandles,
+  formatWindowChangeAbs,
+  formatWindowChangePercent,
+} from "@/lib/charts/window-change";
 import TradingChart, {
   type ChartIndicatorsState,
   type ChartViewUndoEntry,
@@ -364,12 +375,24 @@ export default function ChartWorkbench({
     [payload]
   );
 
+  /** Série de la fenêtre (cours bruts) — même filtre que le graphique, hors échelle %. */
+  const windowSeries = useMemo(() => {
+    if (!payload) return [];
+    return rangeFilter(historySeries, range);
+  }, [payload, historySeries, range]);
+
   const mainSeries = useMemo(() => {
     if (!payload) return [];
-    let pts = rangeFilter(historySeries, range);
-    if (percentScale) pts = normalizeTo100(pts);
-    return pts;
-  }, [payload, historySeries, range, percentScale]);
+    return percentScale ? normalizeTo100(windowSeries) : windowSeries;
+  }, [payload, windowSeries, percentScale]);
+
+  const windowChange = useMemo(() => {
+    if (interval === "1D" || interval === "1H") {
+      return computeWindowChange(windowSeries);
+    }
+    const { candles } = aggregateCandles(windowSeries, interval);
+    return computeWindowChangeFromCandles(candles);
+  }, [windowSeries, interval]);
 
   const hasRealVolume = useMemo(
     () => (payload?.series ?? []).some((p) => typeof p.volume === "number" && p.volume > 0),
@@ -650,7 +673,18 @@ export default function ChartWorkbench({
         </div>
 
         <div className={styles.metrics}>
-          <Metric label="Variation 1A" value={fmtPct(stats?.change1YPercent)} up={(stats?.change1YPercent ?? 0) >= 0} />
+          <Metric
+            label={chartRangeChangeLabel(range)}
+            value={formatWindowChangePercent(windowChange?.percent)}
+            up={windowChange == null ? undefined : windowChange.percent >= 0}
+            title={
+              windowChange
+                ? `${formatWindowChangeAbs(windowChange.abs)} · ${range}${
+                    interval !== "1D" ? ` · ${intervalLabel}` : ""
+                  }`
+                : "Variation N/D — moins de 2 points sur cette fenêtre"
+            }
+          />
           <Metric
             label="Volume"
             value={stats?.lastVolume != null && stats.lastVolume > 0 ? stats.lastVolume.toLocaleString("fr-FR") : "N/D"}
@@ -871,6 +905,23 @@ export default function ChartWorkbench({
               {r.label}
             </button>
           ))}
+          <span
+            className={
+              windowChange == null
+                ? styles.rangeChgNd
+                : windowChange.percent >= 0
+                  ? styles.rangeChgUp
+                  : styles.rangeChgDown
+            }
+            aria-live="polite"
+            title={
+              windowChange
+                ? `${chartRangeChangeLabel(range)} · ${formatWindowChangeAbs(windowChange.abs)}`
+                : "Variation N/D — moins de 2 points sur cette fenêtre"
+            }
+          >
+            {formatWindowChangePercent(windowChange?.percent)}
+          </span>
           <button
             type="button"
             className={percentScale ? styles.toolChipOn : styles.toolChip}
@@ -1062,9 +1113,19 @@ export default function ChartWorkbench({
   );
 }
 
-function Metric({ label, value, up }: { label: string; value: string; up?: boolean }) {
+function Metric({
+  label,
+  value,
+  up,
+  title,
+}: {
+  label: string;
+  value: string;
+  up?: boolean;
+  title?: string;
+}) {
   return (
-    <div className={styles.metric}>
+    <div className={styles.metric} title={title}>
       <div className={styles.metricLabel}>{label}</div>
       <div className={styles.metricValue} style={up === undefined ? undefined : { color: up ? "#26a69a" : "#ef5350" }}>
         {value}
@@ -1075,11 +1136,6 @@ function Metric({ label, value, up }: { label: string; value: string; up?: boole
 
 function fmt(n: number): string {
   return Math.round(n).toLocaleString("fr-FR");
-}
-
-function fmtPct(n: number | null | undefined): string {
-  if (n == null) return "N/D";
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}%`;
 }
 
 function marketOpenHint(): string {
