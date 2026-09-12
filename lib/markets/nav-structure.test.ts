@@ -8,6 +8,8 @@ import {
   isBrvmNavPath,
   isComingSoonMarketPath,
   isGlobalNavPath,
+  marketIndicesHref,
+  parseComingSoonMarketPath,
   parseComingSoonMarketSlug,
 } from "./nav-structure";
 
@@ -21,6 +23,12 @@ describe("isBrvmNavPath", () => {
   it("reconnaît les fiches sociétés BRVM", () => {
     expect(isBrvmNavPath("/actions/SNTS")).toBe(true);
     expect(isBrvmNavPath("/actions")).toBe(true);
+  });
+
+  it("reconnaît les pages Indices BRVM", () => {
+    expect(BRVM_NAV_HREFS).toContain("/indices");
+    expect(isBrvmNavPath("/indices")).toBe(true);
+    expect(isBrvmNavPath("/indices/BRVM_COMPOSITE")).toBe(true);
   });
 
   it("ne range pas les pages globales sous BRVM", () => {
@@ -82,5 +90,13 @@ describe("coming-soon market routes", () => {
     expect(isComingSoonMarketPath("/marche")).toBe(false);
     expect(isComingSoonMarketPath("/marche/ngx")).toBe(false);
     expect(isComingSoonMarketPath("/marches/brvm")).toBe(false);
+  });
+
+  it("range le slot Indices sous chaque place bientôt", () => {
+    expect(marketIndicesHref("BRVM")).toBe("/indices");
+    expect(marketIndicesHref("NGX")).toBe("/marches/ngx/indices");
+    expect(isComingSoonMarketPath("/marches/ngx/indices")).toBe(true);
+    expect(parseComingSoonMarketPath("/marches/jse/indices")?.code).toBe("JSE");
+    expect(isBrvmNavPath("/marches/ngx/indices")).toBe(false);
   });
 });

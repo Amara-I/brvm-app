@@ -5,7 +5,12 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { C } from "@/lib/theme/colors";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
-import { comingSoonExchanges, comingSoonMarketHref, isBrvmNavPath } from "@/lib/markets/nav-structure";
+import {
+  comingSoonExchanges,
+  comingSoonMarketHref,
+  isBrvmNavPath,
+  marketIndicesHref,
+} from "@/lib/markets/nav-structure";
 import CompanyMegaMenu from "./CompanyMegaMenu";
 import EducationMegaMenu from "./EducationMegaMenu";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
@@ -88,6 +93,13 @@ export default function HeaderNav({
         sidebar={sidebar}
       />
       <NavLink
+        href="/indices"
+        label="Indices"
+        active={isActive("/indices")}
+        onClick={close}
+        sidebar={sidebar}
+      />
+      <NavLink
         href="/screener"
         label="Screener"
         active={isActive("/screener")}
@@ -158,20 +170,33 @@ export default function HeaderNav({
       )}
       {sidebar
         ? soonExchanges.map((exchange) => {
-            const href = comingSoonMarketHref(exchange.code);
-            const active = isActive(href);
+            const overviewHref = comingSoonMarketHref(exchange.code);
+            const indicesHref = marketIndicesHref(exchange.code);
+            const overviewActive = pathname === overviewHref;
+            const indicesActive = isActive(indicesHref);
             return (
-              <Link
-                key={exchange.code}
-                href={href}
-                className={`${styles.navSoon} ${active ? styles.navSoonActive : ""}`}
-                aria-current={active ? "page" : undefined}
-                title={`${exchange.shortLabel} — bientôt`}
-                onClick={close}
-              >
-                <span>{exchange.shortLabel}</span>
-                <span className={styles.soonBadge}>bientôt</span>
-              </Link>
+              <div key={exchange.code} className={styles.marketGroup}>
+                <p className={styles.soonMarketLabel}>
+                  <span>{exchange.shortLabel}</span>
+                  <span className={styles.soonBadge}>bientôt</span>
+                </p>
+                <div className={styles.navNested} role="group" aria-label={`Pages ${exchange.shortLabel}`}>
+                  <NavLink
+                    href={overviewHref}
+                    label="Vue d'ensemble"
+                    active={overviewActive}
+                    onClick={close}
+                    sidebar={sidebar}
+                  />
+                  <NavLink
+                    href={indicesHref}
+                    label="Indices"
+                    active={indicesActive}
+                    onClick={close}
+                    sidebar={sidebar}
+                  />
+                </div>
+              </div>
             );
           })
         : null}

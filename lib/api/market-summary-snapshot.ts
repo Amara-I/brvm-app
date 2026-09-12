@@ -1,6 +1,7 @@
 // Snapshot indices + movers pour le bandeau marché de /marche.
 
 import { prisma } from "@/lib/prisma";
+import { isHeadlineIndex } from "@/lib/markets/index-catalog";
 
 export interface MarketIndexSnapshot {
   code: string;
@@ -15,8 +16,6 @@ export interface MarketSummarySnapshot {
   otherIndices: MarketIndexSnapshot[];
   asOf: string;
 }
-
-const HEADLINE_INDEX_CODES = ["BRVM_COMPOSITE", "BRVM_30"];
 
 export async function getMarketSummarySnapshot(): Promise<MarketSummarySnapshot> {
   const indices = await prisma.marketIndex.findMany({
@@ -40,8 +39,8 @@ export async function getMarketSummarySnapshot(): Promise<MarketSummarySnapshot>
     }));
 
   return {
-    headlineIndices: serialized.filter((i) => HEADLINE_INDEX_CODES.includes(i.code)),
-    otherIndices: serialized.filter((i) => !HEADLINE_INDEX_CODES.includes(i.code)).slice(0, 8),
+    headlineIndices: serialized.filter((i) => isHeadlineIndex(i.code)),
+    otherIndices: serialized.filter((i) => !isHeadlineIndex(i.code)).slice(0, 8),
     asOf: new Date().toISOString(),
   };
 }
