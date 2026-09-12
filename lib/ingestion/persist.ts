@@ -23,7 +23,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { toPrismaDataSource } from "./prisma-mappers";
 import type { DiscrepancyReport, ReconciledIndex, ReconciledPrice } from "./reconciliation";
-import { sourcesOutranking, sourceOutranks } from "./reconciliation";
+import { canElevateCanonical, sourcesOutranking, sourceOutranks } from "./reconciliation";
 import type { DataSourceCode } from "./types";
 import type {
   RawCompanyDocument,
@@ -32,6 +32,7 @@ import type {
   RawCompanyNewsItem,
   RawCompanyProfile,
   RawDividendRow,
+  RawIndexConstituent,
   RawIndexQuote,
   RawPriceQuote,
 } from "./types";
@@ -593,6 +594,18 @@ export async function persistIndexQuotes(
     if (!marketIndexId) continue;
     const date = new Date(`${r.date}T00:00:00.000Z`);
     const winningSource = toPrismaDataSource(r.resolvedSource);
+    const existing = await db.marketIndexValue.findMany({
+      where: { marketIndexId, date },
+      select: { source: true },
+    });
+    const existingSources = existing.map((row) => row.source as DataSourceCode);
+    if (!canElevateCanonical(r.resolvedSource, existingSources)) {
+      await db.marketIndexValue.updateMany({
+        where: { marketIndexId, date, source: winningSource },
+        data: { isCanonical: false },
+      });
+      continue;
+    }
     await db.marketIndexValue.updateMany({ where: { marketIndexId, date }, data: { isCanonical: false } });
     await db.marketIndexValue.update({
       where: { uniq_index_date_source: { marketIndexId, date, source: winningSource } },
@@ -602,6 +615,58 @@ export async function persistIndexQuotes(
   }
 
   return { upserted, markedCanonical };
+}
+
+export interface PersistIndexConstituentsResult {
+  upserted: number;
+  indexCodes: string[];
+}
+
+/// Remplace le snapshot (indice + source + asOf) par la liste fournie.
+export async function persistIndexConstituents(
+  db: PrismaClient,
+  rows: RawIndexConstituent[]
+): Promise<PersistIndexConstituentsResult> {
+  const byKey = new Map<string, RawIndexConstituent[]>();
+  for (const row of rows) {
+    const key = `${row.indexCode}__${row.source}__${row.asOf}`;
+    const list = byKey.get(key) ?? [];
+    list.push(row);
+    byKey.set(key, list);
+  }
+
+  let upserted = 0;
+  const indexCodes = new Set<string>();
+
+  for (const group of byKey.values()) {
+    const first = group[0]!;
+    const marketIndex = await db.marketIndex.upsert({
+      where: { code: first.indexCode },
+      update: {},
+      create: { code: first.indexCode, name: first.indexCode.replace(/_/g, " ") },
+    });
+    const asOf = new Date(`${first.asOf}T00:00:00.000Z`);
+    const source = toPrismaDataSource(first.source);
+    await db.marketIndexConstituent.deleteMany({
+      where: { marketIndexId: marketIndex.id, source, asOf },
+    });
+    for (const row of group) {
+      await db.marketIndexConstituent.create({
+        data: {
+          marketIndexId: marketIndex.id,
+          ticker: row.ticker.toUpperCase(),
+          weight: row.weight,
+          source,
+          asOf,
+          note: row.note ?? null,
+        },
+      });
+      upserted++;
+    }
+    indexCodes.add(first.indexCode);
+  }
+
+  return { upserted, indexCodes: [...indexCodes] };
 }
 
 /// Journalise les écarts > seuil détectés par la réconciliation dans

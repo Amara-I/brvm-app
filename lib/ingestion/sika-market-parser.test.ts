@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { annualPointStorageDate } from "./connectors/sikafinance_connector";
 import {
+  annualIndexStorageDate,
+  indexHistoryCompatible,
   lastHistosQuote,
+  mapSikaHistosToIndexQuotes,
   mapSikaHistosToQuotes,
   parseSikaAazIndices,
   parseSikaAazQuotes,
   parseSikaHomepageIndices,
+  parseSikaIndexSymbols,
   parseSikaSymbolMap,
 } from "./sika-market-parser";
 
@@ -160,5 +164,47 @@ describe("mapSikaHistosToQuotes", () => {
   it("ignore lst vide / nodata", () => {
     expect(mapSikaHistosToQuotes("SNTS", "", { fetchedAt: "x" })).toEqual([]);
     expect(mapSikaHistosToQuotes("SNTS", undefined, { fetchedAt: "x" })).toEqual([]);
+  });
+});
+
+describe("index GetHistos helpers", () => {
+  it("extrait les slugs d'indices sans suffixe pays", () => {
+    const symbols = parseSikaIndexSymbols(AAZ_HTML);
+    expect(symbols.find((s) => s.code === "BRVM_COMPOSITE")?.sikaSymbol).toBe("BRVMC");
+    expect(symbols.find((s) => s.code === "BRVM_30")?.sikaSymbol).toBe("BRVM30");
+  });
+
+  it("re-date l'annuel au 31/12 pour les années passées", () => {
+    expect(annualIndexStorageDate("2015-01-01", new Date("2026-09-12T00:00:00Z"))).toBe("2015-12-31");
+    expect(annualIndexStorageDate("2026-01-01", new Date("2026-09-12T00:00:00Z"))).toBe("2026-09-12");
+  });
+
+  it("convertit GetHistos en points d'indice", () => {
+    const quotes = mapSikaHistosToIndexQuotes(
+      "BRVM_COMPOSITE",
+      "BRVM COMPOSITE",
+      [
+        { Date: "10/09/2026", Close: 552.75 },
+        { Date: "11/09/2026", Close: 555.48 },
+      ],
+      { fetchedAt: "x" }
+    );
+    expect(quotes).toHaveLength(2);
+    expect(quotes[1]).toEqual(
+      expect.objectContaining({ code: "BRVM_COMPOSITE", date: "2026-09-11", value: 555.48 })
+    );
+  });
+
+  it("refuse une série rebaseée trop éloignée du niveau officiel", () => {
+    expect(
+      indexHistoryCompatible({ date: "2026-09-11", value: 297.67 }, [
+        { date: "2026-09-11", value: 777.9 },
+      ])
+    ).toBe(false);
+    expect(
+      indexHistoryCompatible({ date: "2026-09-11", value: 555.48 }, [
+        { date: "2026-09-11", value: 555.48 },
+      ])
+    ).toBe(true);
   });
 });

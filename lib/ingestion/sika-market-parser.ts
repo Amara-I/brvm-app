@@ -8,7 +8,7 @@ import * as cheerio from "cheerio";
 import type { CheerioAPI } from "cheerio";
 import type { AnyNode } from "domhandler";
 import { findHeaderIndex } from "./html-table";
-import { normalizeIndexCode, parseFrenchNumber } from "./parse-utils";
+import { normalizeIndexCode, parseFrenchNumber, toIsoDate } from "./parse-utils";
 import type { RawIndexQuote, RawPriceQuote } from "./types";
 
 export interface ParsedSikaAazQuote {
@@ -24,6 +24,8 @@ export interface ParsedSikaIndex {
   label: string;
   value: number;
   changePercent: number | null;
+  /// Slug GetHistos (ex. BRVMC, BRVM30, BRVM-SF) — pas de suffixe pays.
+  sikaSymbol: string;
 }
 
 export interface SikaHistoPoint {
@@ -167,9 +169,27 @@ export function parseSikaAazIndices(html: string): ParsedSikaIndex[] {
       label,
       value,
       changePercent: changeCol >= 0 ? parseFrenchNumber(cells[changeCol] ?? "") : null,
+      sikaSymbol: parsed.ticker,
     });
   });
   return results;
+}
+
+export interface SikaIndexSymbol {
+  code: string;
+  sikaSymbol: string;
+  label: string;
+}
+
+/// Mappe nos codes d'indice vers le(s) slug(s) GetHistos (page A–Z `#tabQuotes2`).
+/// Un même code peut avoir plusieurs slugs (ex. BRVMSP / BRVM-SP) : l'appelant
+/// choisit la série compatible avec le niveau officiel.
+export function parseSikaIndexSymbols(html: string): SikaIndexSymbol[] {
+  return parseSikaAazIndices(html).map((idx) => ({
+    code: idx.code,
+    sikaSymbol: idx.sikaSymbol,
+    label: idx.label,
+  }));
 }
 
 const HOMEPAGE_SLUG_TO_CODE: Record<string, string> = {
@@ -195,7 +215,7 @@ export function parseSikaHomepageIndices(html: string): ParsedSikaIndex[] {
     const changePercent = parseFrenchNumber($(col).find(".mkvar").first().text());
     if (value === null) return;
     seen.add(code);
-    results.push({ code, label, value, changePercent });
+    results.push({ code, label, value, changePercent, sikaSymbol: slug ?? code });
   });
   return results;
 }
@@ -239,6 +259,66 @@ export function mapSikaHistosToQuotes(
     });
   }
   return results;
+}
+
+/// Re-date un point annuel GetHistos (souvent daté 01/01) : années passées
+/// → 31/12 ; année courante → `asOf` (évite un pic isolé au 1er janvier).
+export function annualIndexStorageDate(iso: string, asOf = new Date()): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return null;
+  const year = Number(iso.slice(0, 4));
+  const currentYear = asOf.getUTCFullYear();
+  if (year < currentYear) return `${year}-12-31`;
+  if (year > currentYear) return null;
+  return toIsoDate(asOf);
+}
+
+export function mapSikaHistosToIndexQuotes(
+  code: string,
+  label: string,
+  lst: unknown,
+  opts: {
+    dateMax?: string;
+    fetchedAt: string;
+    dateTransform?: (iso: string) => string | null;
+  }
+): RawIndexQuote[] {
+  const prices = mapSikaHistosToQuotes(code, lst, { dateMax: opts.dateMax, fetchedAt: opts.fetchedAt });
+  const results: RawIndexQuote[] = [];
+  for (const q of prices) {
+    const date = opts.dateTransform ? opts.dateTransform(q.date) : q.date;
+    if (!date) continue;
+    if (opts.dateMax && date > opts.dateMax) continue;
+    results.push({
+      code,
+      label,
+      value: q.closePrice,
+      changePercent: q.changePercent ?? null,
+      source: "SIKAFINANCE",
+      date,
+      fetchedAt: opts.fetchedAt,
+    });
+  }
+  return results;
+}
+
+/** Écart relatif entre le dernier point officiel et la série Sika (même date ou ±7 j). */
+export function indexHistoryCompatible(
+  official: { date: string; value: number } | null,
+  incoming: Array<{ date: string; value: number }>,
+  maxDeltaPercent = 5
+): boolean {
+  if (!official || !(official.value > 0) || incoming.length === 0) return incoming.length > 0;
+  const sameDay = incoming.find((p) => p.date === official.date);
+  let probe = sameDay ?? null;
+  if (!probe) {
+    const window = incoming
+      .filter((p) => Math.abs(Date.parse(`${p.date}T00:00:00.000Z`) - Date.parse(`${official.date}T00:00:00.000Z`)) <= 7 * 86_400_000)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    probe = window[0] ?? incoming[incoming.length - 1] ?? null;
+  }
+  if (!probe || !(probe.value > 0)) return false;
+  const delta = Math.abs(probe.value - official.value) / official.value;
+  return delta * 100 <= maxDeltaPercent;
 }
 
 export function lastHistosQuote(quotes: RawPriceQuote[]): RawPriceQuote | null {

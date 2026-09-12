@@ -46,6 +46,11 @@ function formatPrice(value: number | null): string {
   return value.toLocaleString("fr-FR", { maximumFractionDigits: 0 });
 }
 
+function formatWeight(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return "N/D";
+  return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+}
+
 export default function IndexDetailClient({ detail }: { detail: MarketIndexDetail }) {
   const [range, setRange] = useState<ChartRange>("1A");
   const windowed = useMemo(
@@ -167,6 +172,7 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
                   <th scope="col">Ticker</th>
                   <th scope="col">Société</th>
                   <th scope="col">Secteur</th>
+                  <th scope="col">Poids</th>
                   <th scope="col">Cours</th>
                 </tr>
               </thead>
@@ -180,6 +186,7 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
                     </td>
                     <td>{row.name}</td>
                     <td>{row.sector || "N/D"}</td>
+                    <td className="ob-num">{formatWeight(row.weight)}</td>
                     <td className="ob-num">{formatPrice(row.lastPrice)}</td>
                   </tr>
                 ))}

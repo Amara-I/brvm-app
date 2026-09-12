@@ -29,6 +29,7 @@ export interface IndexConstituent {
   name: string;
   sector: string;
   lastPrice: number | null;
+  weight: number | null;
 }
 
 export interface MarketIndexComposition {
@@ -36,6 +37,20 @@ export interface MarketIndexComposition {
   note: string;
   sectorName: string | null;
   constituents: IndexConstituent[];
+  asOf: string | null;
+  official: boolean;
+}
+
+export interface StoredIndexConstituent {
+  ticker: string;
+  weight: number | null;
+}
+
+export interface StoredIndexComposition {
+  tickers: StoredIndexConstituent[];
+  asOf: string | null;
+  note: string | null;
+  official: boolean;
 }
 
 export interface MarketIndexDetail extends MarketIndexListItem {
@@ -51,7 +66,21 @@ export interface IndexPeerCompany {
   lastPrice: number | null;
 }
 
-export function compositionNote(kind: IndexCompositionKind, sectorName?: string): string {
+export function compositionNote(
+  kind: IndexCompositionKind,
+  sectorName?: string,
+  stored?: StoredIndexComposition | null
+): string {
+  if (stored?.official && stored.tickers.length > 0) {
+    const asOf = stored.asOf ? ` au ${stored.asOf}` : "";
+    return (
+      stored.note?.trim() ||
+      `Composition officielle BRVM${asOf}. Pondérations individuelles N/D.`
+    );
+  }
+  if (kind === "official") {
+    return stored?.note?.trim() || "Composition officielle non disponible en base.";
+  }
   if (kind === "all_listed") {
     return "Univers de cote : toutes les sociétés actives suivies en base. Pondérations officielles N/D.";
   }
@@ -98,15 +127,32 @@ export function toIndexListItem(
 export function buildIndexComposition(
   kind: IndexCompositionKind,
   sectorName: string | undefined,
-  companies: IndexPeerCompany[]
+  companies: IndexPeerCompany[],
+  stored?: StoredIndexComposition | null
 ): MarketIndexComposition {
+  const byTicker = new Map(companies.map((c) => [c.ticker.toUpperCase(), c]));
   let constituents: IndexConstituent[] = [];
-  if (kind === "all_listed") {
+  let effectiveKind = kind;
+
+  if (stored && stored.tickers.length > 0) {
+    effectiveKind = stored.official ? "official" : kind === "unavailable" ? "official" : kind;
+    constituents = stored.tickers.map((row) => {
+      const company = byTicker.get(row.ticker.toUpperCase());
+      return {
+        ticker: row.ticker.toUpperCase(),
+        name: company?.name ?? row.ticker.toUpperCase(),
+        sector: company?.sector ?? "N/D",
+        lastPrice: company?.lastPrice ?? null,
+        weight: row.weight,
+      };
+    });
+  } else if (kind === "all_listed") {
     constituents = companies.map((c) => ({
       ticker: c.ticker,
       name: c.name,
       sector: c.sector,
       lastPrice: c.lastPrice,
+      weight: null,
     }));
   } else if (kind === "sector_peers" && sectorName) {
     constituents = companies
@@ -116,16 +162,19 @@ export function buildIndexComposition(
         name: c.name,
         sector: c.sector,
         lastPrice: c.lastPrice,
+        weight: null,
       }));
   }
 
   constituents.sort((a, b) => a.name.localeCompare(b.name, "fr"));
 
   return {
-    kind,
-    note: compositionNote(kind, sectorName),
+    kind: effectiveKind,
+    note: compositionNote(kind, sectorName, stored),
     sectorName: sectorName ?? null,
     constituents,
+    asOf: stored?.asOf ?? null,
+    official: Boolean(stored?.official && stored.tickers.length > 0),
   };
 }
 

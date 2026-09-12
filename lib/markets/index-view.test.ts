@@ -29,6 +29,23 @@ describe("buildIndexComposition", () => {
     const composition = buildIndexComposition("unavailable", undefined, companies);
     expect(composition.constituents).toEqual([]);
     expect(composition.note).toMatch(/non disponible/);
+    expect(composition.official).toBe(false);
+  });
+
+  it("utilise les composantes stockées (avis) sans inventer de poids", () => {
+    const composition = buildIndexComposition("official", undefined, companies, {
+      tickers: [
+        { ticker: "SNTS", weight: null },
+        { ticker: "SGBC", weight: null },
+      ],
+      asOf: "2026-07-01",
+      note: "Avis 191-2026 / BRVM / DG. Pondérations individuelles N/D.",
+      official: true,
+    });
+    expect(composition.official).toBe(true);
+    expect(composition.constituents.map((c) => c.ticker)).toEqual(["SGBC", "SNTS"]);
+    expect(composition.constituents.every((c) => c.weight == null)).toBe(true);
+    expect(composition.note).toMatch(/Avis 191-2026/);
   });
 });
 

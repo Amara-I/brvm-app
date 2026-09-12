@@ -28,6 +28,17 @@ export interface RawIndexQuote {
   fetchedAt: string; // ISO datetime
 }
 
+/// Composante d'indice récupérée depuis une source (poids souvent absent).
+export interface RawIndexConstituent {
+  indexCode: string;
+  ticker: string;
+  weight: number | null;
+  source: DataSourceCode;
+  /// Date d'effet (YYYY-MM-DD).
+  asOf: string;
+  note?: string | null;
+}
+
 /// Cotation d'une action pour une société/date donnée, récupérée depuis une source.
 export interface RawPriceQuote {
   ticker: string;
