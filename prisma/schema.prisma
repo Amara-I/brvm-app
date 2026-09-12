@@ -434,11 +434,12 @@ model IngestionLog {
 /// Un indice de marché BRVM (ex: "BRVM Composite", "BRVM 10"), pour l'endpoint
 /// `GET /api/market/summary`.
 model MarketIndex {
-  id     String             @id @default(cuid())
+  id            String                    @id @default(cuid())
   /// Code court unique, ex: "BRVM_COMPOSITE", "BRVM_10".
-  code   String             @unique
-  name   String
-  values MarketIndexValue[]
+  code          String                    @unique
+  name          String
+  values        MarketIndexValue[]
+  constituents  MarketIndexConstituent[]
 
   @@map("market_indices")
 }
@@ -464,6 +465,27 @@ model MarketIndexValue {
   @@unique([marketIndexId, date, source], name: "uniq_index_date_source")
   @@index([marketIndexId, date])
   @@map("market_index_values")
+}
+
+/// Composante d'un indice (ex. les 30 titres du BRVM 30). Les pondérations
+/// officielles sont rarement publiées en clair : `weight` reste null → « N/D ».
+model MarketIndexConstituent {
+  id            String      @id @default(cuid())
+  marketIndexId String      @map("market_index_id")
+  marketIndex   MarketIndex @relation(fields: [marketIndexId], references: [id], onDelete: Cascade)
+  ticker        String
+  /// Pondération officielle (%) si la source la publie — sinon null = N/D.
+  weight        Decimal?    @db.Decimal(8, 4)
+  source        DataSource
+  /// Date d'effet de la composition (ex. avis trimestriel BRVM).
+  asOf          DateTime    @map("as_of") @db.Date
+  /// Référence documentaire (n° d'avis, URL), jamais un chiffre inventé.
+  note          String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@unique([marketIndexId, ticker, asOf, source], name: "uniq_index_constituent")
+  @@index([marketIndexId, asOf])
+  @@map("market_index_constituents")
 }
 
 /// Actualité de marché agrégée (principalement Sikafinance), pour

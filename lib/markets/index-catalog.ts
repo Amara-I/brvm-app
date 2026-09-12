@@ -4,7 +4,7 @@
 export const HEADLINE_INDEX_CODES = ["BRVM_COMPOSITE", "BRVM_30"] as const;
 
 export type IndexFamily = "principal" | "sectoriel" | "autre";
-export type IndexCompositionKind = "all_listed" | "sector_peers" | "unavailable";
+export type IndexCompositionKind = "official" | "all_listed" | "sector_peers" | "unavailable";
 
 export interface IndexCatalogEntry {
   family: IndexFamily;
@@ -23,9 +23,9 @@ const KNOWN: Record<string, IndexCatalogEntry> = {
   },
   BRVM_30: {
     family: "principal",
-    compositionKind: "unavailable",
+    compositionKind: "official",
     description:
-      "Indice des 30 valeurs les plus liquides de la BRVM. La composition officielle n’est pas encore disponible en base.",
+      "Indice des 30 valeurs les plus liquides de la BRVM. Composition issue des avis officiels BRVM lorsque disponibles.",
   },
   BRVM_PRESTIGE: {
     family: "principal",

@@ -3,6 +3,7 @@ import {
   reconcilePriceQuotes,
   reconcilePriceBatch,
   reconcileIndexQuotes,
+  canElevateCanonical,
   DISCREPANCY_THRESHOLD_PERCENT,
   sourceOutranks,
   sourcesOutranking,
@@ -126,5 +127,11 @@ describe("reconcileIndexQuotes", () => {
     const { reconciled, deltaPercent } = reconcileIndexQuotes("BRVM_COMPOSITE", "2026-08-07", quotes);
     expect(reconciled?.resolvedSource).toBe("BRVM_OFFICIEL");
     expect(deltaPercent).toBe(0);
+  });
+
+  it("n'élève pas Sika s'il existe déjà un point BRVM", () => {
+    expect(canElevateCanonical("SIKAFINANCE", ["BRVM_OFFICIEL", "SIKAFINANCE"])).toBe(false);
+    expect(canElevateCanonical("SIKAFINANCE", ["SIKAFINANCE"])).toBe(true);
+    expect(canElevateCanonical("BRVM_OFFICIEL", ["SIKAFINANCE"])).toBe(true);
   });
 });

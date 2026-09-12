@@ -4,7 +4,7 @@ import { familySortRank, isHeadlineIndex, resolveIndexCatalog } from "./index-ca
 describe("resolveIndexCatalog", () => {
   it("connaît les indices principaux BRVM", () => {
     expect(resolveIndexCatalog("BRVM_COMPOSITE").compositionKind).toBe("all_listed");
-    expect(resolveIndexCatalog("BRVM_30").compositionKind).toBe("unavailable");
+    expect(resolveIndexCatalog("BRVM_30").compositionKind).toBe("official");
     expect(resolveIndexCatalog("BRVM_COMPOSITE").family).toBe("principal");
   });
 

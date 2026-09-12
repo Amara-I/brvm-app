@@ -89,6 +89,7 @@ async function loadIndexDetailFromDb(code: string): Promise<MarketIndexDetail | 
   const stats = computeIndexStats(series);
   const catalog = resolveIndexCatalog(row.code, row.name);
   const nav = await getCompaniesNavIndex();
+  const storedComposition = await loadStoredComposition(row.id);
   const list = toIndexListItem(
     row.code,
     row.name,
@@ -113,7 +114,37 @@ async function loadIndexDetailFromDb(code: string): Promise<MarketIndexDetail | 
     ...list,
     stats,
     series,
-    composition: buildIndexComposition(catalog.compositionKind, catalog.sectorName, nav.companies),
+    composition: buildIndexComposition(
+      catalog.compositionKind,
+      catalog.sectorName,
+      nav.companies,
+      storedComposition
+    ),
+  };
+}
+
+async function loadStoredComposition(marketIndexId: string) {
+  const latest = await prisma.marketIndexConstituent.findFirst({
+    where: { marketIndexId },
+    orderBy: [{ asOf: "desc" }, { source: "asc" }],
+    select: { asOf: true, source: true, note: true },
+  });
+  if (!latest) return null;
+
+  const rows = await prisma.marketIndexConstituent.findMany({
+    where: { marketIndexId, asOf: latest.asOf, source: latest.source },
+    orderBy: { ticker: "asc" },
+  });
+  if (rows.length === 0) return null;
+
+  return {
+    tickers: rows.map((row) => ({
+      ticker: row.ticker,
+      weight: row.weight != null ? Number(row.weight) : null,
+    })),
+    asOf: latest.asOf.toISOString().slice(0, 10),
+    note: latest.note,
+    official: latest.source === "BRVM_OFFICIEL",
   };
 }
 
