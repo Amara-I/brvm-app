@@ -1,7 +1,7 @@
 import styles from "./Landing.module.css";
 
 /**
- * Décor du hero : Afrique en pointillés + chandelier/courbe or.
+ * Texture de fond : Afrique en pointillés, quasi invisible.
  * Purement ornemental (aria-hidden) — aucun chiffre de marché.
  */
 export default function AfricaHeroBackdrop() {
@@ -12,76 +12,49 @@ export default function AfricaHeroBackdrop() {
   return (
     <div className={styles.heroArt} aria-hidden="true">
       <div className={styles.heroGlow} />
-      <div className={styles.heroGlowSoft} />
       <svg className={styles.africaMap} viewBox="0 0 760 860" fill="none">
         <defs>
-          <pattern id="lp-africa-dots" width="6" height="6" patternUnits="userSpaceOnUse">
-            <circle cx="1" cy="1" r="0.85" fill="#E8C56A" opacity="0.72" />
+          <pattern id="lp-africa-dots" width="9" height="9" patternUnits="userSpaceOnUse">
+            <circle cx="1" cy="1" r="0.55" fill="#D4A843" opacity="0.55" />
           </pattern>
           <clipPath id="lp-africa-clip">
             <path d={continent} />
             <path d={madagascar} />
           </clipPath>
-          <linearGradient id="lp-africa-stroke" x1="80" y1="40" x2="680" y2="800" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#F8DE9A" stopOpacity="0.55" />
-            <stop offset="55%" stopColor="#D4A843" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#8A6A2C" stopOpacity="0.15" />
-          </linearGradient>
         </defs>
-        <path d={continent} fill="rgba(212,168,67,0.045)" />
         <rect width="760" height="860" fill="url(#lp-africa-dots)" clipPath="url(#lp-africa-clip)" />
-        <path className={styles.africaStroke} d={continent} />
-        <path className={styles.africaStroke} d={madagascar} />
       </svg>
 
       <svg className={styles.chartOverlay} viewBox="0 0 560 240" fill="none">
         <defs>
           <linearGradient id="lp-chart-line" x1="0" y1="0" x2="560" y2="0" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#D4A843" stopOpacity="0.15" />
-            <stop offset="45%" stopColor="#F6D889" />
-            <stop offset="100%" stopColor="#22C55E" />
-          </linearGradient>
-          <linearGradient id="lp-chart-fill" x1="0" y1="0" x2="0" y2="240" gradientUnits="userSpaceOnUse">
-            <stop offset="0%" stopColor="#D4A843" stopOpacity="0.16" />
-            <stop offset="100%" stopColor="#D4A843" stopOpacity="0" />
+            <stop offset="0%" stopColor="#D4A843" stopOpacity="0.2" />
+            <stop offset="100%" stopColor="#D4A843" stopOpacity="0.55" />
           </linearGradient>
         </defs>
-        <path
-          d="M10 178 C52 170 68 154 94 136 C122 116 138 152 164 132 C192 110 208 86 234 98 C260 110 276 72 306 64 C336 56 352 96 382 76 C412 56 432 38 460 48 C488 58 504 34 534 26 L552 22 V228 H10 Z"
-          fill="url(#lp-chart-fill)"
-        />
-        <path
-          d="M10 178 C52 170 68 154 94 136 C122 116 138 152 164 132 C192 110 208 86 234 98 C260 110 276 72 306 64 C336 56 352 96 382 76 C412 56 432 38 460 48 C488 58 504 34 534 26 L552 22"
-          stroke="url(#lp-chart-line)"
-          strokeWidth="1.35"
-          strokeLinecap="round"
-        />
         {[
-          [48, 158, 26],
-          [94, 134, 32],
-          [140, 148, 22],
-          [186, 108, 36],
-          [232, 96, 28],
-          [278, 70, 34],
-          [324, 88, 26],
-          [370, 62, 32],
-          [416, 50, 24],
-          [462, 44, 30],
-          [508, 28, 22],
+          [40, 150, 22],
+          [78, 128, 28],
+          [116, 140, 18],
+          [154, 104, 30],
+          [192, 92, 24],
+          [230, 70, 28],
+          [268, 84, 20],
+          [306, 58, 26],
         ].map(([x, close, size], i) => {
           const up = i % 3 !== 1;
-          const body = size * 0.4;
-          const color = up ? "#22C55E" : "#E2BD5C";
+          const body = size * 0.38;
+          const color = up ? "#D4A843" : "#8A6A2C";
           const top = close - size / 2;
           return (
-            <g key={x} opacity={0.72}>
-              <path d={`M${x} ${top} V${top + size}`} stroke={color} strokeWidth="0.9" />
+            <g key={x} opacity={0.45}>
+              <path d={`M${x} ${top} V${top + size}`} stroke={color} strokeWidth="0.7" />
               <rect
-                x={x - 3.2}
+                x={x - 2.4}
                 y={up ? close - body * 0.18 : close - body * 0.72}
-                width="6.4"
+                width="4.8"
                 height={body}
-                rx="0.8"
+                rx="0.6"
                 fill={color}
               />
             </g>
