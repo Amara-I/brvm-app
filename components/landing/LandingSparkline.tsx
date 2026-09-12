@@ -46,11 +46,11 @@ export default function LandingSparkline({
       aria-hidden="true"
       focusable="false"
     >
-      <polyline fill={up ? "rgba(34,197,94,0.14)" : "rgba(239,68,68,0.12)"} stroke="none" points={fill} />
+      <polyline fill={up ? "rgba(34,197,94,0.1)" : "rgba(239,68,68,0.08)"} stroke="none" points={fill} />
       <polyline
         fill="none"
         stroke={stroke}
-        strokeWidth={1.6}
+        strokeWidth={1.15}
         strokeLinecap="round"
         strokeLinejoin="round"
         points={line}
