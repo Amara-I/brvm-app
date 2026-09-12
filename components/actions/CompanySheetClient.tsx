@@ -34,6 +34,7 @@ import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel"
 import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel";
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
+import { trackFeature } from "@/components/analytics/track-client";
 import ChartWorkbench from "@/components/charts/ChartWorkbench";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import ChangeValue from "@/components/ui/ChangeValue";
@@ -351,7 +352,10 @@ export default function CompanySheetClient({
             role="tab"
             aria-selected={tab === t.key}
             className={tab === t.key ? styles.tabActive : styles.tab}
-            onClick={() => setTab(t.key)}
+            onClick={() => {
+              setTab(t.key);
+              trackFeature("company_sheet", `tab:${t.key}`);
+            }}
           >
             {t.label}
           </button>
@@ -395,6 +399,27 @@ export default function CompanySheetClient({
                             ? styles.rangeChgUp
                             : styles.rangeChgDown
                       }
+                    >
+                      {formatWindowChangePercent(rangeChange?.percent)}
+                    </span>
+                  </div>
+                  <div className={styles.rangeRow}>
+                    {RANGES.map((r) => (
+                      <button
+                        key={r.key}
+                        type="button"
+                        className={range === r.key ? styles.rangeActive : styles.rangeBtn}
+                        onClick={() => {
+                          setRange(r.key);
+                          trackFeature("company_sheet", `range:${r.key}`);
+                        }}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                main
                     >
                       {formatWindowChangePercent(rangeChange?.percent)}
                     </span>

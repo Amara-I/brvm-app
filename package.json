@@ -23,6 +23,7 @@
     "history:backfill": "ts-node scripts/backfill-history-from-richbourse.ts",
     "history:sikafinance": "ts-node scripts/backfill-history-from-sikafinance.ts",
     "history:sika-full": "ts-node scripts/run-history-backfill.ts",
+    "history:indices": "ts-node scripts/run-index-enrichment.ts",
     "enrich:sikafinance": "ts-node scripts/enrich-from-sikafinance.ts",
     "enrich:sika-profiles": "ts-node scripts/enrich-sika-profiles.ts",
     "dividends:refresh": "ts-node scripts/refresh-dividends.ts",

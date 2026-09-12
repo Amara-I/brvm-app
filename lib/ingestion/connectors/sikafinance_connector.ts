@@ -30,15 +30,18 @@ import * as cheerio from "cheerio";
 import { fetchHtml, fetchJson, HttpFetchError } from "../http-client";
 import { parseFrenchNumber, parseDdMmYyyy, toIsoDate, lastBusinessDay, shiftIsoDate } from "../parse-utils";
 import {
+  annualIndexStorageDate,
   lastHistosQuote,
   mapSikaHistosToQuotes,
   parseSikaAazIndices,
   parseSikaAazQuotes,
   parseSikaDate,
   parseSikaHomepageIndices,
+  parseSikaIndexSymbols,
   parseSikaSymbolMap,
   toRawIndexQuotes,
   toRawPriceQuotes,
+  type SikaIndexSymbol,
 } from "../sika-market-parser";
 import { parseSikaCompanySheetHtml } from "../sika-company-sheet-parser";
 import type { IsoRange } from "../history-coverage";
@@ -67,6 +70,7 @@ interface SikaHistosResponse {
 }
 
 let cachedSikaSymbols: Map<string, string> | null = null;
+let cachedSikaIndexSymbols: SikaIndexSymbol[] | null = null;
 
 /// TTL court : la même URL sert aussi aux cours du jour (évite de resservir
 /// un HTML A–Z de 24 h et d'afficher des clôtures périmées).
@@ -82,7 +86,15 @@ export async function loadSikaSymbolMap(): Promise<Map<string, string>> {
 
 function rememberSymbolMap(html: string): Map<string, string> {
   cachedSikaSymbols = parseSikaSymbolMap(html);
+  cachedSikaIndexSymbols = parseSikaIndexSymbols(html);
   return cachedSikaSymbols;
+}
+
+export async function loadSikaIndexSymbols(): Promise<SikaIndexSymbol[]> {
+  if (cachedSikaIndexSymbols && cachedSikaIndexSymbols.length > 0) return cachedSikaIndexSymbols;
+  const html = await fetchHtml(AAZ_URL, { cacheTtlMs: AAZ_CACHE_TTL_MS });
+  rememberSymbolMap(html);
+  return cachedSikaIndexSymbols ?? [];
 }
 
 /// Pour une série annuelle : stocke au 31/12 de l'année (années passées)
@@ -304,6 +316,27 @@ export class SikafinanceConnector implements MarketDataConnector {
         return { ok: false, source: this.source, error: `Ticker ${t} introuvable sur Sikafinance (A–Z)`, fetchedAt };
       }
 
+      return this.fetchHistosBySymbol(sikaSym, t, datedeb, datefin, xperiod, fetchedAt);
+    } catch (err) {
+      return {
+        ok: false,
+        source: this.source,
+        error: err instanceof Error ? err.message : String(err),
+        httpStatus: err instanceof HttpFetchError ? err.httpStatus : undefined,
+        fetchedAt,
+      };
+    }
+  }
+
+  async fetchHistosBySymbol(
+    sikaSym: string,
+    tickerLabel: string,
+    datedeb: string,
+    datefin: string,
+    xperiod: "0" | "5" | "30" | "91" | "365",
+    fetchedAt = new Date().toISOString()
+  ): Promise<ConnectorResult<RawPriceQuote[]>> {
+    try {
       const json = await fetchJson<SikaHistosResponse>(HISTOS_URL, {
         method: "POST",
         body: { ticker: sikaSym, datedeb, datefin, xperiod },
@@ -319,7 +352,7 @@ export class SikafinanceConnector implements MarketDataConnector {
         };
       }
 
-      const results = mapSikaHistosToQuotes(t, json.lst, { dateMax: datefin, fetchedAt });
+      const results = mapSikaHistosToQuotes(tickerLabel, json.lst, { dateMax: datefin, fetchedAt });
       return { ok: true, source: this.source, data: results, fetchedAt };
     } catch (err) {
       return {
@@ -330,6 +363,41 @@ export class SikafinanceConnector implements MarketDataConnector {
         fetchedAt,
       };
     }
+  }
+
+  /**
+   * Historique d'indice via GetHistos (slugs A–Z : BRVMC, BRVM30, BRVM-SF…).
+   * `xperiod` 365 re-date les années passées au 31/12.
+   */
+  async fetchIndexHistos(
+    code: string,
+    sikaSymbol: string,
+    label: string,
+    datedeb: string,
+    datefin: string,
+    xperiod: "0" | "30" | "365" = "0"
+  ): Promise<ConnectorResult<RawIndexQuote[]>> {
+    const fetchedAt = new Date().toISOString();
+    const prices = await this.fetchHistosBySymbol(sikaSymbol, code, datedeb, datefin, xperiod, fetchedAt);
+    if (!prices.ok) {
+      return { ok: false, source: this.source, error: prices.error, httpStatus: prices.httpStatus, fetchedAt };
+    }
+    const transform = xperiod === "365" ? annualIndexStorageDate : undefined;
+    const data: RawIndexQuote[] = [];
+    for (const q of prices.data) {
+      const date = transform ? transform(q.date) : q.date;
+      if (!date || date > datefin) continue;
+      data.push({
+        code,
+        label,
+        value: q.closePrice,
+        changePercent: q.changePercent ?? null,
+        source: this.source,
+        date,
+        fetchedAt,
+      });
+    }
+    return { ok: true, source: this.source, data, fetchedAt };
   }
 
   /** Historique mensuel (xperiod=30) — densifie sans saturer l'API. */

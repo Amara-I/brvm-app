@@ -171,3 +171,26 @@ export function reconcileIndexQuotes(
     deltaPercent: Math.round(delta * 100) / 100,
   };
 }
+
+export function reconcileIndexBatch(allQuotes: RawIndexQuote[]): ReconciledIndex[] {
+  const keys = new Set(allQuotes.map((q) => `${q.code}__${q.date}`));
+  const reconciled: ReconciledIndex[] = [];
+  for (const key of keys) {
+    const [code, date] = key.split("__");
+    if (!code || !date) continue;
+    const { reconciled: row } = reconcileIndexQuotes(code, date, allQuotes);
+    if (row) reconciled.push(row);
+  }
+  return reconciled;
+}
+
+/** Ne pas élever une source s'il existe déjà une valeur plus prioritaire. */
+export function canElevateCanonical(
+  resolvedSource: DataSourceCode,
+  existingSources: Iterable<DataSourceCode>
+): boolean {
+  for (const source of existingSources) {
+    if (sourceOutranks(source, resolvedSource)) return false;
+  }
+  return true;
+}

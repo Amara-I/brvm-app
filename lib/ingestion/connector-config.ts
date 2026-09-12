@@ -38,6 +38,17 @@ export interface HistoryBackfillFlags {
   onDailyCron: boolean;
 }
 
+export interface IndexEnrichmentFlags {
+  /** Historique multi-points GetHistos (défaut true). */
+  history: boolean;
+  /** Composition BRVM 30 depuis les avis officiels (défaut true). */
+  composition: boolean;
+  /** Refresh composition après le cron quotidien (1 PDF — défaut true). */
+  compositionOnDailyCron: boolean;
+  /** Dernières séances (≤ 21 j) Composite + BRVM 30 après le cron (défaut true). */
+  recentHistoryOnDailyCron: boolean;
+}
+
 function envFlag(name: string, defaultValue: boolean): boolean {
   const raw = process.env[name];
   if (raw === undefined || raw === "") return defaultValue;
@@ -71,5 +82,14 @@ export function getHistoryBackfillFlags(): HistoryBackfillFlags {
     // BRVM + Sika A–Z + Richbourse. Activer uniquement si on accepte un
     // rattrapage incrémental (reprise ticker par ticker).
     onDailyCron: envFlag("INGESTION_HISTORY_BACKFILL_ON_CRON", false),
+  };
+}
+
+export function getIndexEnrichmentFlags(): IndexEnrichmentFlags {
+  return {
+    history: envFlag("INGESTION_ENABLE_INDEX_HISTORY", true),
+    composition: envFlag("INGESTION_ENABLE_INDEX_COMPOSITION", true),
+    compositionOnDailyCron: envFlag("INGESTION_INDEX_COMPOSITION_ON_CRON", true),
+    recentHistoryOnDailyCron: envFlag("INGESTION_INDEX_RECENT_HISTORY_ON_CRON", true),
   };
 }

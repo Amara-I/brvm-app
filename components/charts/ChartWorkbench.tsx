@@ -34,6 +34,7 @@ import ChartAnalysisControls, {
 } from "./ChartAnalysisControls";
 import ChartAlertControls from "./ChartAlertControls";
 import AnalysisRecap from "@/components/analysis/AnalysisRecap";
+import { trackFeature } from "@/components/analytics/track-client";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import { C } from "@/lib/theme/colors";
 import { technicalRecapLines, truncateSummary } from "@/lib/calc/analysis-recap";
@@ -814,6 +815,7 @@ export default function ChartWorkbench({
                     onClick={() => {
                       setInterval(opt.key);
                       setShowIntervalMenu(false);
+                      trackFeature("graphes", `interval:${opt.key}`);
                     }}
                   >
                     {opt.label} — {opt.title}
@@ -898,7 +900,10 @@ export default function ChartWorkbench({
               key={r.key}
               type="button"
               className={range === r.key ? styles.rangeActive : styles.rangeBtn}
-              onClick={() => setRange(r.key)}
+              onClick={() => {
+                setRange(r.key);
+                trackFeature("graphes", `range:${r.key}`);
+              }}
               aria-pressed={range === r.key}
               title={`Plage ${r.label}`}
             >

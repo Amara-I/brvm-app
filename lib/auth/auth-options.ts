@@ -21,6 +21,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { isAdminEmail } from "./admin-emails";
 
 const providers: AuthOptions["providers"] = [
   CredentialsProvider({
@@ -68,12 +69,15 @@ export const authOptions: AuthOptions = {
         token.id = user.id;
         token.role = user.role;
       }
+      if (token.email && isAdminEmail(String(token.email))) {
+        token.role = "ADMIN";
+      }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id;
-        session.user.role = token.role;
+        session.user.role = token.role ?? "USER";
       }
       return session;
     },

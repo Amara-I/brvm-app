@@ -9,12 +9,7 @@ import { calcMetrics } from "@/lib/calc/calc-metrics";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import type { MarketSummarySnapshot } from "@/lib/api/market-summary-snapshot";
-import {
-  AFRICAN_EXCHANGES,
-  DEFAULT_EXCHANGE_CODE,
-  getExchange,
-  type AfricanExchangeCode,
-} from "@/lib/markets/african-exchanges";
+import { DEFAULT_EXCHANGE_CODE, getExchange } from "@/lib/markets/african-exchanges";
 import {
   annualSeriesFromPrices,
   filterSeriesByHorizon,
@@ -37,6 +32,7 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import SignalBadge from "@/components/ui/SignalBadge";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
+import { trackFeature } from "@/components/analytics/track-client";
 
 export interface MarketBoardClientProps {
   initialData: CompaniesFullDataset;
@@ -69,10 +65,6 @@ export default function MarketBoardClient({
   const [marketSummary, setMarketSummary] = useState(initialMarketSummary);
   const [sparkSeriesByTicker, setSparkSeriesByTicker] = useState(initialSparkSeries);
   const [dayChangesByTicker, setDayChangesByTicker] = useState(initialDayChanges);
-  const [marketCode, setMarketCode] = usePersistedState<AfricanExchangeCode>(
-    `${pageKey}:market`,
-    DEFAULT_EXCHANGE_CODE
-  );
   const [query, setQuery] = usePersistedState(`${pageKey}:query`, "");
   const [sectorFilter, setSectorFilter] = usePersistedState(`${pageKey}:sector`, "Tous");
   const [sortBy, setSortBy] = usePersistedState<"score" | "perf5" | "yield" | "price" | "mktcap">(
@@ -87,7 +79,7 @@ export default function MarketBoardClient({
     new Date(initialData.generatedAt).toLocaleDateString("fr-FR")
   );
 
-  const exchange = getExchange(marketCode);
+  const exchange = getExchange(DEFAULT_EXCHANGE_CODE);
   const companies = dataset.companies;
   const years = dataset.years;
 
@@ -321,38 +313,12 @@ export default function MarketBoardClient({
 
   function toggleRow(ticker: string) {
     setExpanded((cur) => (cur === ticker ? null : ticker));
+    trackFeature("marche", "expand_row");
   }
 
-  if (!exchange.live) {
-    return (
-      <div className={styles.page}>
-        <MarketChrome
-          marketCode={marketCode}
-          setMarketCode={setMarketCode}
-          lastUpdate={lastUpdate}
-          refreshing={refreshing}
-          onRefresh={handleRefresh}
-          live={false}
-          companiesCount={0}
-          totalMktCap={0}
-          buySignals={0}
-          avgYield="N/D"
-          indexPills={[]}
-          currency={exchange.currency}
-          exchangeName={exchange.name}
-          region={exchange.region}
-        />
-        <div className={marketStyles.comingSoon}>
-          <div className={marketStyles.comingTitle}>{exchange.shortLabel} — bientôt</div>
-          <div className={marketStyles.comingBody}>
-            Couverture en cours. Explorez la BRVM en attendant.
-          </div>
-          <button type="button" className={styles.primaryBtn} onClick={() => setMarketCode("BRVM")}>
-            Afficher la BRVM
-          </button>
-        </div>
-      </div>
-    );
+  function handleHorizon(next: MarketHorizon) {
+    setHorizon(next);
+    trackFeature("marche", `horizon:${next}`);
   }
 
   const buySignals = companies.filter((c) => (metricsByTicker.get(c.ticker)?.score ?? 0) >= 65).length;
@@ -369,12 +335,9 @@ export default function MarketBoardClient({
   return (
     <div className={styles.page}>
       <MarketChrome
-        marketCode={marketCode}
-        setMarketCode={setMarketCode}
         lastUpdate={lastUpdate}
         refreshing={refreshing}
         onRefresh={handleRefresh}
-        live
         companiesCount={companies.length}
         totalMktCap={totalMktCap}
         buySignals={buySignals}
@@ -444,7 +407,7 @@ export default function MarketBoardClient({
                             <span>Aperçu</span>
                             <label className={styles.horizonInline}>
                               <span className={styles.srOnly}>Horizon historique</span>
-                              <HorizonSelect value={horizon} onChange={setHorizon} />
+                              <HorizonSelect value={horizon} onChange={handleHorizon} />
                             </label>
                           </span>
                         ),
@@ -669,10 +632,20 @@ function ExpandedPanel({
         </ul>
       )}
       <div className={styles.detailLinks}>
-        <Link href={`/actions/${company.ticker}`} className={styles.primaryBtn}>
+        <Link
+          href={`/actions/${company.ticker}`}
+          className={styles.primaryBtn}
+          data-analytics-feature="company_sheet"
+          data-analytics-action="from_marche"
+        >
           Détails société cotée
         </Link>
-        <Link href={`/graphes?ticker=${company.ticker}`} className={styles.secondaryBtn}>
+        <Link
+          href={`/graphes?ticker=${company.ticker}`}
+          className={styles.secondaryBtn}
+          data-analytics-feature="graphes"
+          data-analytics-action="from_marche"
+        >
           Analyse graphique
         </Link>
       </div>
@@ -719,12 +692,9 @@ function ScoreExplainer() {
 }
 
 function MarketChrome(props: {
-  marketCode: AfricanExchangeCode;
-  setMarketCode: (c: AfricanExchangeCode) => void;
   lastUpdate: string;
   refreshing: boolean;
   onRefresh: () => void;
-  live: boolean;
   companiesCount: number;
   totalMktCap: number;
   buySignals: number;
@@ -741,103 +711,77 @@ function MarketChrome(props: {
           <div>
             <div className={marketStyles.label}>Marché</div>
             <h1 className={marketStyles.pageTitle}>Vue d&apos;ensemble</h1>
-            <div className={marketStyles.labelMuted}>Choisir un marché boursier</div>
-            <div className={marketStyles.chips} role="listbox" aria-label="Marchés boursiers africains">
-              {AFRICAN_EXCHANGES.map((m) => {
-                const active = m.code === props.marketCode;
-                return (
-                  <button
-                    key={m.code}
-                    type="button"
-                    role="option"
-                    aria-selected={active}
-                    className={active ? marketStyles.chipActive : m.live ? marketStyles.chip : marketStyles.chipSoon}
-                    onClick={() => props.setMarketCode(m.code)}
-                  >
-                    {m.shortLabel}
-                    {!m.live ? " · bientôt" : ""}
-                  </button>
-                );
-              })}
-            </div>
-            <div className={marketStyles.marketMeta}>
-              <strong style={{ color: C.text }}>{props.exchangeName}</strong>
-              {" · "}
+            <p className={marketStyles.marketIdentity}>{props.exchangeName}</p>
+            <p className={marketStyles.marketMeta}>
               {props.region} · Devise {props.currency}
-            </div>
+            </p>
           </div>
           <div className={marketStyles.actions}>
             <div style={{ fontSize: "0.72rem", color: C.textDim }}>
               <span className="ob-live-dot ob-pulse" aria-hidden="true" />
               Dernière MAJ : <span style={{ color: C.gold }}>{props.lastUpdate}</span>
             </div>
-            {props.live && (
-              <button
-                type="button"
-                className={styles.primaryBtn}
-                onClick={props.onRefresh}
-                disabled={props.refreshing}
-                aria-label={
-                  props.refreshing
-                    ? "Actualisation des cours BRVM en cours"
-                    : "Actualiser les cours BRVM"
-                }
-              >
-                {props.refreshing ? "⟳ Actualisation..." : "⟳ Actualiser les cours"}
-              </button>
-            )}
+            <button
+              type="button"
+              className={styles.primaryBtn}
+              onClick={props.onRefresh}
+              disabled={props.refreshing}
+              aria-label={
+                props.refreshing
+                  ? "Actualisation des cours BRVM en cours"
+                  : "Actualiser les cours BRVM"
+              }
+            >
+              {props.refreshing ? "⟳ Actualisation..." : "⟳ Actualiser les cours"}
+            </button>
           </div>
         </div>
       </div>
 
-      {props.live && (
-        <>
-          <div className={marketStyles.kpiStrip}>
-            {[
-              { l: "Sociétés cotées", v: String(props.companiesCount), c: C.blue },
-              {
-                l: "Capitalisation totale",
-                v:
-                  props.totalMktCap > 0
-                    ? `${props.totalMktCap.toLocaleString("fr-FR")} Mds ${props.currency}`
-                    : "N/D",
-                c: C.gold,
-              },
-              { l: "Rend. moyen marché", v: props.avgYield, c: C.green },
-              { l: "Signaux ACHAT", v: String(props.buySignals), c: C.green },
-            ].map((k) => (
-              <div key={k.l} className={marketStyles.kpiCard}>
-                <div className={marketStyles.kpiLabel}>{k.l}</div>
-                <div className={`${marketStyles.kpiValue} ob-num`} style={{ color: k.c }}>
-                  {k.v === "N/D" ? <span className="ob-nd">N/D</span> : k.v}
-                </div>
-              </div>
-            ))}
+      <div className={marketStyles.kpiStrip}>
+        {[
+          { l: "Sociétés cotées", v: String(props.companiesCount), c: C.blue },
+          {
+            l: "Capitalisation totale",
+            v:
+              props.totalMktCap > 0
+                ? `${props.totalMktCap.toLocaleString("fr-FR")} Mds ${props.currency}`
+                : "N/D",
+            c: C.gold,
+          },
+          { l: "Rend. moyen marché", v: props.avgYield, c: C.green },
+          { l: "Signaux ACHAT", v: String(props.buySignals), c: C.green },
+        ].map((k) => (
+          <div key={k.l} className={marketStyles.kpiCard}>
+            <div className={marketStyles.kpiLabel}>{k.l}</div>
+            <div className={`${marketStyles.kpiValue} ob-num`} style={{ color: k.c }}>
+              {k.v === "N/D" ? <span className="ob-nd">N/D</span> : k.v}
+            </div>
           </div>
-          <div className={marketStyles.indicesStrip} aria-label="Indices">
-            {props.indexPills.length === 0 ? (
-              <div className={marketStyles.indexPill}>
-                <div className={marketStyles.indexName}>Indices</div>
-                <div className={marketStyles.indexValue} style={{ color: C.textDim }}>
-                  N/D
-                </div>
+        ))}
+      </div>
+      <div className={marketStyles.indicesStrip} aria-label="Indices">
+        {props.indexPills.length === 0 ? (
+          <Link href="/indices" className={marketStyles.indexPill}>
+            <div className={marketStyles.indexName}>Indices</div>
+            <div className={marketStyles.indexValue} style={{ color: C.textDim }}>
+              N/D
+            </div>
+          </Link>
+        ) : (
+          props.indexPills.map((idx) => (
+            <Link key={idx.code} href={`/indices/${idx.code}`} className={marketStyles.indexPill}>
+              <div className={marketStyles.indexName}>{idx.name}</div>
+              <div className={`${marketStyles.indexValue} ob-num`}>
+                {idx.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}
               </div>
-            ) : (
-              props.indexPills.map((idx) => (
-                  <div key={idx.code} className={marketStyles.indexPill}>
-                    <div className={marketStyles.indexName}>{idx.name}</div>
-                    <div className={`${marketStyles.indexValue} ob-num`}>
-                      {idx.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}
-                    </div>
-                    <div className={marketStyles.indexChg}>
-                      <ChangeValue value={idx.changePercent} />
-                    </div>
-                  </div>
-                ))
-            )}
-          </div>
-        </>
-      )}
+              <div className={marketStyles.indexChg}>
+                <ChangeValue value={idx.changePercent} />
+              </div>
+            </Link>
+          ))
+        )}
+      </div>
     </div>
   );
 }

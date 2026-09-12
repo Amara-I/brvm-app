@@ -33,6 +33,7 @@ import { brvmConnector } from "./connectors/brvm_connector";
 import { sikafinanceConnector } from "./connectors/sikafinance_connector";
 import { richbourseConnector } from "./connectors/richbourse_connector";
 import { getConnectorFeatureFlags, getHistoryBackfillFlags } from "./connector-config";
+import { runIndexEnrichmentOnDailyCron, type IndexEnrichmentSummary } from "./run-index-enrichment";
 import { deriveSourceRunStatus, type IngestionRunStatus } from "./status";
 import { DISCREPANCY_THRESHOLD_PERCENT, reconcileIndexQuotes, reconcilePriceBatch } from "./reconciliation";
 import type { ReconciledIndex } from "./reconciliation";
@@ -61,6 +62,7 @@ export interface FullIngestionSummary {
   discrepanciesCount: number;
   unknownTickers: string[];
   historyBackfill?: HistoryBackfillSummary | null;
+  indexEnrichment?: IndexEnrichmentSummary | null;
 }
 
 interface ConnectorEnabled {
@@ -220,6 +222,19 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
 
   const finishedAt = new Date();
 
+  let indexEnrichment: IndexEnrichmentSummary | null = null;
+  try {
+    const elapsed = finishedAt.getTime() - startedAt.getTime();
+    const remaining = Math.max(10_000, 270_000 - elapsed);
+    indexEnrichment = await runIndexEnrichmentOnDailyCron(remaining, (msg) =>
+      console.log(`[ingest→indices] ${msg}`)
+    );
+  } catch (err) {
+    console.warn(
+      `[ingest→indices] enrichissement ignoré : ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   let historyBackfill: HistoryBackfillSummary | null = null;
   if (getHistoryBackfillFlags().onDailyCron) {
     const elapsed = finishedAt.getTime() - startedAt.getTime();
@@ -247,5 +262,6 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
     discrepanciesCount: discrepancies.length,
     unknownTickers: priceResult.unknownTickers,
     historyBackfill,
+    indexEnrichment,
   };
 }

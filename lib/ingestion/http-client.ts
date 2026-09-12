@@ -227,3 +227,56 @@ export async function fetchJson<T = unknown>(url: string, options: FetchJsonOpti
   throw lastError instanceof Error ? lastError : new Error(`Échec de récupération JSON de ${url}`);
 }
 
+/// GET binaire (PDF d'avis BRVM) — même robots / rate-limit / retry que le HTML.
+export async function fetchBuffer(url: string, options: FetchHtmlOptions = {}): Promise<Buffer> {
+  const { checkRobots = true, cacheTtlMs = 12 * 60 * 60 * 1000, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const { hostname } = new URL(url);
+
+  const cached = readCache(url, cacheTtlMs);
+  if (cached !== null) return Buffer.from(cached, "base64");
+
+  if (checkRobots) {
+    const allowed = await isPathAllowed(url, DEFAULT_USER_AGENT);
+    if (!allowed) {
+      throw new HttpFetchError(`Bloqué par robots.txt de ${hostname} pour l'User-Agent ${DEFAULT_USER_AGENT}`);
+    }
+  }
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    await waitForRateLimit(hostname);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": DEFAULT_USER_AGENT, Accept: "application/pdf,application/octet-stream,*/*" },
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+
+      if (res.status === 429 || res.status >= 500) {
+        lastError = new HttpFetchError(`HTTP ${res.status} sur ${url}`, res.status);
+        await sleep(500 * 2 ** attempt);
+        continue;
+      }
+      if (res.status === 403) {
+        throw new HttpFetchError(`HTTP 403 (accès refusé) sur ${url}`, 403);
+      }
+      if (!res.ok) {
+        throw new HttpFetchError(`HTTP ${res.status} sur ${url}`, res.status);
+      }
+
+      const body = Buffer.from(await res.arrayBuffer());
+      writeCache(url, body.toString("base64"));
+      return body;
+    } catch (err) {
+      clearTimeout(timer);
+      lastError = err;
+      if (err instanceof HttpFetchError && err.httpStatus === 403) throw err;
+      if (attempt < MAX_RETRIES) await sleep(500 * 2 ** attempt);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`Échec de récupération binaire de ${url}`);
+}
+

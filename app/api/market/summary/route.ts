@@ -19,12 +19,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { apiSuccess, cacheHeaders } from "@/lib/api/response";
+import { isHeadlineIndex } from "@/lib/markets/index-catalog";
 
 export const dynamic = "force-dynamic";
-
-/// Codes des indices à mettre en avant en tête de réponse (les autres
-/// indices sectoriels, s'ils existent, sont retournés dans `otherIndices`).
-const HEADLINE_INDEX_CODES = ["BRVM_COMPOSITE", "BRVM_30"];
 
 export async function GET() {
   const indices = await prisma.marketIndex.findMany({
@@ -48,8 +45,8 @@ export async function GET() {
       source: idx.values[0].source,
     }));
 
-  const headline = serializedIndices.filter((i) => HEADLINE_INDEX_CODES.includes(i.code));
-  const otherIndices = serializedIndices.filter((i) => !HEADLINE_INDEX_CODES.includes(i.code));
+  const headline = serializedIndices.filter((i) => isHeadlineIndex(i.code));
+  const otherIndices = serializedIndices.filter((i) => !isHeadlineIndex(i.code));
 
   // Top hausses / baisses : dernier + avant-dernier cours canonique par société.
   const companies = await prisma.company.findMany({
