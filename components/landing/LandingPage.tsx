@@ -8,7 +8,6 @@ import type { CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import { AFRICAN_EXCHANGES } from "@/lib/markets/african-exchanges";
 import { seriesFromYearlyPrices } from "@/lib/landing/price-series";
 import { BRAND_NAME } from "@/lib/theme/brand";
-import AfricaHeroBackdrop from "./AfricaHeroBackdrop";
 import LandingSparkline from "./LandingSparkline";
 import {
   IconArrow,
@@ -163,8 +162,7 @@ export default function LandingPage({
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
-        <AfricaHeroBackdrop />
-        <div className={styles.heroShell}>
+        <div className={`${styles.rail} ${styles.heroStack}`}>
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
             <h1 className={styles.h1}>
@@ -200,18 +198,6 @@ export default function LandingPage({
               <Link href="/graphes" className={styles.ctaSecondary}>
                 <IconChart size={14} /> Voir les graphes
               </Link>
-            </div>
-
-            <div className={styles.featureRow}>
-              {heroFeatures.map((item) => (
-                <Link key={item.t} href={item.href} className={styles.featureItem}>
-                  <span className={styles.featureIcon}>{item.icon}</span>
-                  <span className={styles.featureText}>
-                    <strong>{item.t}</strong>
-                    {item.d}
-                  </span>
-                </Link>
-              ))}
             </div>
           </div>
 
@@ -310,6 +296,18 @@ export default function LandingPage({
           </div>
         </div>
 
+        <div className={styles.featureRow}>
+          {heroFeatures.map((item) => (
+            <Link key={item.t} href={item.href} className={styles.featureItem}>
+              <span className={styles.featureIcon}>{item.icon}</span>
+              <span className={styles.featureText}>
+                <strong>{item.t}</strong>
+                {item.d}
+              </span>
+            </Link>
+          ))}
+        </div>
+
         <div className={styles.statsBar}>
           <div className={styles.statsInner}>
             <div className={styles.statItem}>
@@ -361,6 +359,7 @@ export default function LandingPage({
 
       <div className={styles.belowHero}>
         <section className={styles.section}>
+          <div className={styles.rail}>
           <p className={styles.sectionEyebrow}>Pourquoi {BRAND_NAME}</p>
           <h2 className={styles.sectionTitle}>
             Une seule plateforme pour lire et tracer les marchés africains.
@@ -387,9 +386,11 @@ export default function LandingPage({
               </p>
             </div>
           </div>
+          </div>
         </section>
 
         <section className={`${styles.section} ${styles.sectionAlt}`}>
+          <div className={styles.rail}>
           <p className={styles.sectionEyebrow}>Modules de la plateforme</p>
           <h2 className={styles.sectionTitle}>Tout ce que vous retrouvez dans le menu.</h2>
           <p className={styles.sectionLead}>
@@ -409,9 +410,11 @@ export default function LandingPage({
               </article>
             ))}
           </div>
+          </div>
         </section>
 
         <section className={styles.section}>
+          <div className={styles.rail}>
           <p className={styles.sectionEyebrow}>Données & analyse</p>
           <h2 className={styles.sectionTitle}>De la source officielle à votre décision.</h2>
           <p className={styles.sectionLead}>
@@ -445,9 +448,11 @@ export default function LandingPage({
               </div>
             ))}
           </div>
+          </div>
         </section>
 
         <section className={`${styles.section} ${styles.sectionAlt}`}>
+          <div className={styles.rail}>
           <div className={styles.ctaBand}>
             <div>
               <h2 className={styles.ctaBandTitle}>Explorez la plateforme maintenant</h2>
@@ -475,9 +480,11 @@ export default function LandingPage({
               </Link>
             </div>
           </div>
+          </div>
         </section>
 
         <footer className={styles.landingFooter}>
+          <div className={styles.rail}>
           <div className={styles.footerInner}>
             <div>
               <div className={styles.footerBrand}>{BRAND_NAME}</div>
@@ -536,6 +543,7 @@ export default function LandingPage({
             © {new Date().getFullYear()} {BRAND_NAME} · Sources : BRVM officiel · Sikafinance ·
             Richbourse
           </p>
+          </div>
         </footer>
       </div>
     </div>

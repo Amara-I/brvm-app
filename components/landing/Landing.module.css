@@ -34,19 +34,33 @@
   box-sizing: border-box;
 }
 
+/* Même rail pour header, hero, features, stats et sections. */
+.rail {
+  width: 100%;
+  max-width: var(--lp-max);
+  margin-left: auto;
+  margin-right: auto;
+  padding-left: var(--lp-gutter);
+  padding-right: var(--lp-gutter);
+  box-sizing: border-box;
+}
+
 /* ── Chrome landing (hors SidebarLayout) ───────────────────────────── */
 .topBar {
   position: sticky;
   top: 0;
   z-index: 80;
+  background: rgba(5, 7, 11, 0.78);
+  backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+}
+
+.topBarInner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   align-items: center;
   gap: 16px;
-  padding: 12px var(--lp-gutter);
-  background: rgba(5, 7, 11, 0.78);
-  backdrop-filter: blur(16px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  padding: 12px 0;
 }
 
 .topBrand {
@@ -139,67 +153,21 @@
 
 /* ── Hero ───────────────────────────────────────────────────────────── */
 .hero {
-  position: relative;
-  padding: 56px 0 8px;
-  background:
-    radial-gradient(ellipse 55% 40% at 72% 18%, rgba(212, 168, 67, 0.06), transparent 70%),
-    linear-gradient(180deg, #07090d 0%, var(--lp-bg) 100%);
-  isolation: isolate;
+  padding: 48px 0 40px;
+  background: var(--lp-bg);
 }
 
-.heroArt {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.heroGlow {
-  position: absolute;
-  width: min(560px, 60vw);
-  height: min(560px, 60vw);
-  right: 4%;
-  top: 4%;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(212, 168, 67, 0.08), transparent 72%);
-}
-
-.africaMap {
-  position: absolute;
-  left: 10%;
-  top: -6%;
-  width: min(82%, 900px);
-  height: auto;
-  opacity: 0.3;
-}
-
-.chartOverlay {
-  position: absolute;
-  left: 22%;
-  top: 16%;
-  width: min(36%, 380px);
-  height: auto;
-  opacity: 0.28;
-}
-
-/* Même rail que les cartes + le bandeau : bords droits alignés. */
-.heroShell {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: var(--lp-max);
-  margin: 0 auto;
-  padding: 0 var(--lp-gutter) 44px;
-  box-sizing: border-box;
+.heroStack {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
 }
 
 .heroInner {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(300px, 0.92fr);
-  gap: 36px 40px;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.92fr);
+  gap: 40px;
   align-items: start;
-  padding: 0 0 28px;
   width: 100%;
   box-sizing: border-box;
 }
@@ -209,7 +177,6 @@
   flex-direction: column;
   align-items: flex-start;
   max-width: 36rem;
-  padding-top: 8px;
 }
 
 .h1 {
@@ -301,8 +268,8 @@
 
 .featureRow {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px 22px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px 24px;
   width: 100%;
 }
 
@@ -347,10 +314,7 @@
 
 /* ── Cartes hero : colonne flex + gap, jamais superposées. */
 .heroRight {
-  position: relative;
-  z-index: 1;
   min-width: 0;
-  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -644,15 +608,9 @@
 .section {
   width: 100%;
   margin: 0;
-  padding: 64px var(--lp-gutter);
+  padding: 64px 0;
   text-align: center;
   box-sizing: border-box;
-}
-
-.section > * {
-  max-width: var(--lp-max);
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .sectionAlt {
@@ -868,13 +826,11 @@
 .landingFooter {
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   background: #05070b;
-  padding: 40px var(--lp-gutter) 28px;
+  padding: 40px 0 28px;
 }
 
 .footerInner {
   width: 100%;
-  max-width: var(--lp-max);
-  margin: 0 auto;
   display: grid;
   grid-template-columns: 1.4fr 1fr 1fr 1fr;
   gap: 24px;
@@ -918,8 +874,7 @@
 
 .footerCopy {
   width: 100%;
-  max-width: var(--lp-max);
-  margin: 22px auto 0;
+  margin: 22px 0 0;
   padding: 16px 0 0;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   color: var(--lp-textdim);
@@ -934,16 +889,16 @@
   }
 }
 
-@media (min-width: 960px) {
+@media (max-width: 960px) {
   .featureRow {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 900px) {
-  .topBar {
+  .topBarInner {
     grid-template-columns: auto 1fr auto;
-    padding: 10px 18px;
+    padding: 10px 0;
     gap: 10px;
   }
   .topBrand {
@@ -958,34 +913,20 @@
     display: none;
   }
   .hero {
-    padding-top: 28px;
+    padding: 28px 0 32px;
   }
-  .heroShell {
-    padding-bottom: 28px;
+  .heroStack {
+    gap: 28px;
   }
   .heroInner {
     grid-template-columns: 1fr;
-    gap: 26px;
-    padding-bottom: 20px;
+    gap: 24px;
   }
   .heroCopy {
     max-width: none;
-    padding-top: 0;
   }
   .h1 {
     font-size: clamp(1.85rem, 8vw, 2.4rem);
-  }
-  .africaMap {
-    left: 8%;
-    width: min(92%, 520px);
-    top: 2%;
-    opacity: 0.16;
-  }
-  .chartOverlay {
-    display: none;
-  }
-  .featureRow {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .cardMetrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
