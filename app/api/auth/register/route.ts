@@ -15,6 +15,7 @@ import { registerSchema } from "@/lib/auth/schemas";
 import { issueAuthToken } from "@/lib/auth/tokens";
 import { buildAuthLink } from "@/lib/auth/app-url";
 import { isDevAuthPreviewEnabled, sendAuthEmail } from "@/lib/auth/email";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
 
@@ -24,13 +25,29 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return apiValidationError(parsed.error);
 
   const email = parsed.data.email.toLowerCase();
-  const existing = await prisma.user.findUnique({ where: { email } });
+  let existing;
+  try {
+    existing = await prisma.user.findUnique({ where: { email } });
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+    }
+    throw error;
+  }
   if (existing) return apiError("Un compte existe déjà avec cette adresse email", 409);
 
   const passwordHash = await hashPassword(parsed.data.password);
-  const user = await prisma.user.create({
-    data: { email, passwordHash, name: parsed.data.name ?? null },
-  });
+  let user;
+  try {
+    user = await prisma.user.create({
+      data: { email, passwordHash, name: parsed.data.name ?? null },
+    });
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+    }
+    throw error;
+  }
 
   const rawToken = await issueAuthToken(user.id, "EMAIL_VERIFY");
   let verificationEmailSent = false;

@@ -17,20 +17,25 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return apiValidationError(parsed.error);
 
   const email = parsed.data.email.toLowerCase();
-  const user = await prisma.user.findUnique({ where: { email } });
-
   let devResetUrl: string | undefined;
-  if (user?.passwordHash) {
-    const rawToken = await issueAuthToken(user.id, "PASSWORD_RESET");
-    if (rawToken) {
-      const mailed = await sendAuthEmail("reset", email, rawToken);
-      if (!mailed.ok) {
-        console.error("[auth] envoi email de reset échoué", mailed.error);
-      }
-      if (isDevAuthPreviewEnabled()) {
-        devResetUrl = buildAuthLink("/reinitialiser-mot-de-passe", rawToken);
+
+  try {
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (user?.passwordHash) {
+      const rawToken = await issueAuthToken(user.id, "PASSWORD_RESET");
+      if (rawToken) {
+        const mailed = await sendAuthEmail("reset", email, rawToken);
+        if (!mailed.ok) {
+          console.error("[auth] envoi email de reset échoué", mailed.error);
+        }
+        if (isDevAuthPreviewEnabled()) {
+          devResetUrl = buildAuthLink("/reinitialiser-mot-de-passe", rawToken);
+        }
       }
     }
+  } catch (error) {
+    // Toujours 200 : ne pas révéler l'existence du compte ni l'état de la base.
+    console.error("[auth] forgot-password : impossible de traiter la demande", error);
   }
 
   return apiSuccess({

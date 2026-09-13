@@ -6,6 +6,7 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { issueAuthToken } from "@/lib/auth/tokens";
 import { buildAuthLink } from "@/lib/auth/app-url";
 import { isDevAuthPreviewEnabled, sendAuthEmail } from "@/lib/auth/email";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
 
@@ -13,10 +14,18 @@ export async function POST() {
   const user = await getCurrentUser();
   if (!user?.id) return apiError("Connexion requise", 401);
 
-  const dbUser = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { email: true, emailVerified: true },
-  });
+  let dbUser;
+  try {
+    dbUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { email: true, emailVerified: true },
+    });
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+    }
+    throw error;
+  }
   if (!dbUser?.email) return apiError("Compte introuvable", 404);
   if (dbUser.emailVerified) return apiSuccess({ alreadyVerified: true });
 

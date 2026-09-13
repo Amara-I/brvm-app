@@ -6,6 +6,7 @@ import { apiSuccess, apiError, apiValidationError } from "@/lib/api/response";
 import { resetPasswordSchema } from "@/lib/auth/schemas";
 import { consumeAuthToken } from "@/lib/auth/tokens";
 import { hashPassword } from "@/lib/auth/password";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
 
@@ -14,20 +15,27 @@ export async function POST(request: NextRequest) {
   const parsed = resetPasswordSchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);
 
-  const consumed = await consumeAuthToken(parsed.data.token, "PASSWORD_RESET");
-  if (!consumed) {
-    return apiError("Ce lien de réinitialisation est invalide ou a expiré. Demandez-en un nouveau.", 400);
-  }
+  try {
+    const consumed = await consumeAuthToken(parsed.data.token, "PASSWORD_RESET");
+    if (!consumed) {
+      return apiError("Ce lien de réinitialisation est invalide ou a expiré. Demandez-en un nouveau.", 400);
+    }
 
-  const passwordHash = await hashPassword(parsed.data.password);
-  await prisma.user.update({
-    where: { id: consumed.userId },
-    data: {
-      passwordHash,
-      // Preuve de possession de la boîte mail → email considéré confirmé.
-      emailVerified: new Date(),
-    },
-  });
+    const passwordHash = await hashPassword(parsed.data.password);
+    await prisma.user.update({
+      where: { id: consumed.userId },
+      data: {
+        passwordHash,
+        // Preuve de possession de la boîte mail → email considéré confirmé.
+        emailVerified: new Date(),
+      },
+    });
+  } catch (error) {
+    if (isDatabaseUnavailable(error)) {
+      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+    }
+    throw error;
+  }
 
   return apiSuccess({ reset: true });
 }
