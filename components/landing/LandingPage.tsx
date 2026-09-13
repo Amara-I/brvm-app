@@ -269,7 +269,9 @@ export default function LandingPage({
                         <span className={styles.stockTicker}>{co.ticker}</span>
                         <span className={styles.stockName}>{co.name || "N/D"}</span>
                       </span>
-                      <LandingSparkline values={seriesFromYearlyPrices(co.prices)} width={72} height={24} />
+                      <span className={styles.sparkCell}>
+                        <LandingSparkline values={seriesFromYearlyPrices(co.prices)} width={72} height={24} />
+                      </span>
                       <span className={styles.stockMeta}>
                         <span
                           className={
