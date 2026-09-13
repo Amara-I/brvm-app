@@ -103,6 +103,14 @@ export default function EducationTermPage({
             </>
           )}
 
+          {term.ctaHref && term.ctaLabel && (
+            <p style={{ marginTop: 18 }}>
+              <Link href={term.ctaHref} className={styles.cta}>
+                {term.ctaLabel}
+              </Link>
+            </p>
+          )}
+
           {term.sources && term.sources.length > 0 ? (
             <>
               <p className={styles.sectionLabel}>Sources</p>

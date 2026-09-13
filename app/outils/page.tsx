@@ -87,6 +87,7 @@ export default async function OutilsPage({
                 { label: "Centre de notifications", state: "Disponible" as const, href: "/notifications" },
                 { label: "Préférences d'alertes", state: "Disponible" as const, href: "/profil" },
                 { label: "Simulation rendements", state: "Disponible" as const, href: "/simulation" },
+                { label: "Taille de position", state: "Disponible" as const, href: "/outils/taille-position" },
               ] as const
             ).map((cap) => (
               <li
@@ -143,6 +144,29 @@ export default async function OutilsPage({
             }}
           >
             Voir les aperçus
+          </a>
+        </div>
+
+        <div style={panel()} data-align-left>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Taille de position</h2>
+          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
+            Calculette de risque : quantité recommandée = (capital × taux %) / (entrée − stop). Cours chargé
+            depuis la base lorsqu&apos;un ticker est choisi — jamais inventé. Gratuit, sans abonnement.
+          </p>
+          <a
+            href="/outils/taille-position"
+            style={{
+              display: "inline-block",
+              background: C.gold,
+              color: "#080B12",
+              fontWeight: 700,
+              borderRadius: 8,
+              padding: "8px 16px",
+              textDecoration: "none",
+              fontSize: "var(--fs-body-sm)",
+            }}
+          >
+            Ouvrir la calculette
           </a>
         </div>
 

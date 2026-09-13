@@ -329,6 +329,12 @@ export default function CompanySheetClient({
           </div>
         </div>
         <div className={styles.heroActions}>
+          <Link
+            href={`/outils/taille-position?ticker=${encodeURIComponent(company.ticker)}`}
+            className={styles.btnOutline}
+          >
+            Calculer la taille de position
+          </Link>
           <TickerAlertButton
             isAuthenticated={isAuthenticated}
             ticker={company.ticker}
@@ -1039,6 +1045,12 @@ export default function CompanySheetClient({
               )}
               <Link href={`/marche`} className={styles.inlineLink}>
                 Voir dans le marché →
+              </Link>
+              <Link
+                href={`/outils/taille-position?ticker=${encodeURIComponent(company.ticker)}`}
+                className={styles.inlineLink}
+              >
+                Calculer la taille de position →
               </Link>
               <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("charts")}>
                 Analyse graphique →
