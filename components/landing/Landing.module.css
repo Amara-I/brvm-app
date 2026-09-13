@@ -983,10 +983,6 @@
 }
 
 @media (max-width: 520px) {
-  .chrome,
-  .page {
-    --lp-gutter: 22px;
-  }
   .topBrandLogo {
     height: 26px;
   }
