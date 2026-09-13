@@ -1,7 +1,6 @@
 import { Suspense } from "react";
-import AppHeader from "@/components/AppHeader";
+import AuthPage from "@/components/auth/AuthPage";
 import LoginForm from "@/components/auth/LoginForm";
-import PageHeader from "@/components/ui/PageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -12,15 +11,13 @@ export const metadata = {
 
 export default function ConnexionPage() {
   return (
-    <AppHeader>
-      <div className="ob-page" style={{ maxWidth: 440, margin: "0 auto", paddingTop: 24 }}>
-        <PageHeader kicker="Compte" title="Connexion" lead="Accédez à votre portefeuille et vos préférences OuestBourse." />
-        <div className="ob-card ob-card-pad">
-          <Suspense fallback={null}>
-            <LoginForm />
-          </Suspense>
-        </div>
-      </div>
-    </AppHeader>
+    <AuthPage
+      title="Connexion"
+      lead="Accédez à votre portefeuille et vos préférences OuestBourse."
+    >
+      <Suspense fallback={null}>
+        <LoginForm />
+      </Suspense>
+    </AuthPage>
   );
 }

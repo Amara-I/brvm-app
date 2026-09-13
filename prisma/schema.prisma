@@ -85,6 +85,15 @@ enum UserRole {
   @@map("user_role")
 }
 
+/// Jetons one-shot pour confirmation d'email et réinitialisation de mot de passe.
+/// Stockés hachés (SHA-256) — le secret brut n'existe que dans le lien email.
+enum AuthTokenType {
+  EMAIL_VERIFY
+  PASSWORD_RESET
+
+  @@map("auth_token_type")
+}
+
 /// Catégorie d'une trouvaille de l'agent de recherche IA (étape 10) —
 /// veille produit/UX, distincte de la veille financière (`DataSource`).
 enum ResearchCategory {
@@ -567,9 +576,12 @@ model User {
   portfolios Portfolio[]
   chartAnalyses ChartAnalysis[]
   priceAlerts   PriceAlert[]
+  cursor/notifications-system-b107
   alertRules    AlertRule[]
   notifications NotificationEvent[]
   notificationPreference NotificationPreference?
+  authTokens    AuthToken[]
+ main
 
   @@map("users")
 }
@@ -614,6 +626,22 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+/// Jetons applicatifs (hors NextAuth) : confirmation d'email + reset mot de passe.
+/// `tokenHash` = SHA-256 du secret envoyé par email ; usage unique (`usedAt`).
+model AuthToken {
+  id        String        @id @default(cuid())
+  userId    String        @map("user_id")
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      AuthTokenType
+  tokenHash String        @unique @map("token_hash")
+  expiresAt DateTime      @map("expires_at")
+  usedAt    DateTime?     @map("used_at")
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  @@index([userId, type])
+  @@map("auth_tokens")
 }
 
 /// Portefeuille personnel d'un utilisateur (feature façon Ouestbourse).

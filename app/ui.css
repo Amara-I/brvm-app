@@ -4,9 +4,10 @@
 
 .ob-page {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
   margin: 0;
   text-align: start;
+  overflow-wrap: break-word;
 }
 
 .ob-page-header {
@@ -43,6 +44,7 @@
   letter-spacing: -0.03em;
   line-height: 1.15;
   text-align: start;
+  overflow-wrap: break-word;
 }
 
 .ob-page-lead {
@@ -52,6 +54,7 @@
   font-size: var(--fs-page-lead);
   line-height: 1.55;
   text-align: start;
+  overflow-wrap: break-word;
 }
 
 .ob-card {

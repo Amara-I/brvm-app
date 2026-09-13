@@ -15,10 +15,12 @@
 // `:root`, s'applique déjà correctement).
 import Script from "next/script";
 import { Suspense } from "react";
+import type { Viewport } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import "./ui.css";
 import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
+import { BROWSER_CHROME_BG } from "@/lib/theme/browser-chrome";
 import ScrollRestoration from "@/components/navigation/ScrollRestoration";
 import AnalyticsBeacon from "@/components/analytics/AnalyticsBeacon";
 
@@ -42,7 +44,14 @@ export const metadata = {
   description: "Analyse financière des sociétés cotées à la BRVM",
 };
 
-const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");}}catch(e){}})();`;
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: BROWSER_CHROME_BG.light,
+};
+
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);}m.setAttribute("content",${JSON.stringify(BROWSER_CHROME_BG.dark)});}}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

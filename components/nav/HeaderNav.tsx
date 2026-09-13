@@ -24,6 +24,7 @@ export interface HeaderNavUser {
   name: string | null | undefined;
   email: string | null | undefined;
   isAdmin?: boolean;
+  emailVerified?: boolean;
 }
 
 const cssVars = {
