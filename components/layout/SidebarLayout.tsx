@@ -8,7 +8,7 @@ import HeaderNav from "@/components/nav/HeaderNav";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NotificationBell from "@/components/notifications/NotificationBell";
-import AccountMenu from "@/components/auth/AccountMenu"; main
+import AccountMenu from "@/components/auth/AccountMenu";
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";

@@ -41,8 +41,12 @@ export async function sendNotificationEmail(input: {
   `,
   });
 
-  if (!result.ok) return { sent: false, error: result.error };
-  if (result.provider === "log") return { sent: false, skipped: "email_not_configured" };
+  if (!result.ok) {
+    if (result.code === "not_configured" || result.code === "invalid_from") {
+      return { sent: false, skipped: "email_not_configured" };
+    }
+    return { sent: false, error: result.error };
+  }
   return { sent: true };
 }
 
