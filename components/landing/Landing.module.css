@@ -15,22 +15,28 @@
   --lp-text: #f4efe4;
   --lp-textdim: #8b93a3;
   --lp-cream: #f7f1e4;
-  --lp-gutter: clamp(36px, 7vw, 96px);
+  --lp-gutter: clamp(24px, 7vw, 96px);
   --lp-max: 1180px;
 }
 
 .chrome {
-  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
   background: var(--lp-bg);
   color: var(--lp-text);
   font-family: var(--font-inter), system-ui, sans-serif;
+  overflow-x: clip;
 }
 
 .page {
   margin: 0;
+  width: 100%;
+  max-width: 100%;
   background: var(--lp-bg);
   color: var(--lp-text);
-  overflow-x: hidden;
+  overflow-x: clip;
   box-sizing: border-box;
 }
 
@@ -40,8 +46,8 @@
   max-width: var(--lp-max);
   margin-left: auto;
   margin-right: auto;
-  padding-left: var(--lp-gutter);
-  padding-right: var(--lp-gutter);
+  padding-left: max(var(--lp-gutter), env(safe-area-inset-left, 0px));
+  padding-right: max(var(--lp-gutter), env(safe-area-inset-right, 0px));
   box-sizing: border-box;
 }
 
@@ -53,6 +59,7 @@
   background: rgba(5, 7, 11, 0.78);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.045);
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .topBarInner {
@@ -176,6 +183,8 @@
   color: var(--lp-cream);
   margin: 0 0 18px;
   font-weight: 650;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .h1Accent {
@@ -210,6 +219,7 @@
   line-height: 1.6;
   max-width: 32rem;
   margin: 0 0 22px;
+  overflow-wrap: break-word;
 }
 
 .ctaRow {
@@ -631,6 +641,7 @@
   color: var(--lp-cream);
   line-height: 1.25;
   letter-spacing: -0.02em;
+  overflow-wrap: break-word;
 }
 
 .sectionLead {
@@ -639,6 +650,7 @@
   line-height: 1.65;
   max-width: 40rem;
   margin: 0 auto 32px;
+  overflow-wrap: break-word;
 }
 
 .grid2 {
@@ -823,7 +835,7 @@
 .landingFooter {
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   background: #05070b;
-  padding: 40px 0 28px;
+  padding: 40px 0 calc(28px + env(safe-area-inset-bottom, 0px));
 }
 
 .footerInner {
@@ -941,7 +953,7 @@
 @media (max-width: 760px) {
   .chrome,
   .page {
-    --lp-gutter: 20px;
+    --lp-gutter: 24px;
   }
   .section {
     padding-top: 40px;
@@ -960,6 +972,14 @@
   .topAuthPrimary {
     display: none;
   }
+  .ctaBand {
+    padding: 20px 18px;
+  }
+  .featureCard,
+  .trustBlock,
+  .cycleStep {
+    min-width: 0;
+  }
 }
 
 @media (max-width: 520px) {
@@ -975,7 +995,7 @@
     gap: 14px;
   }
   .statsInner {
-    padding: 16px 12px 14px;
+    padding: 16px 14px 14px;
     gap: 16px 8px;
   }
   .statIcon {
@@ -997,5 +1017,15 @@
   }
   .cardPortfolioMain {
     flex-wrap: wrap;
+  }
+  .stockRow {
+    grid-template-columns: minmax(0, 1fr) minmax(52px, 0.65fr) minmax(0, auto);
+    gap: 8px 8px;
+  }
+  .stockMeta {
+    max-width: none;
+  }
+  .cardLabel {
+    overflow-wrap: break-word;
   }
 }

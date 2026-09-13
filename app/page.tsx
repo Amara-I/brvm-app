@@ -3,14 +3,21 @@
 // L'ancien contenu de ce fichier (dashboard `BrvmDashboardClient`) est
 // déplacé TEL QUEL vers `app/marche/page.tsx` — aucune modification du
 // composant dashboard lui-même (contrainte non-négociable).
+import type { Viewport } from "next";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { computeMarketSummaryStats, topScoredCompanies } from "@/lib/calc/market-summary-stats";
 import { EDUCATION_TERMS } from "@/lib/education/catalog";
 import { averageYearlySeries } from "@/lib/landing/price-series";
 import LandingPage from "@/components/landing/LandingPage";
 import LandingChrome from "@/components/landing/LandingChrome";
+import { BROWSER_CHROME_BG } from "@/lib/theme/browser-chrome";
 
 export const dynamic = "force-dynamic";
+
+export const viewport: Viewport = {
+  themeColor: BROWSER_CHROME_BG.landing,
+  viewportFit: "cover",
+};
 
 export const metadata = {
   title: "OuestBourse — Marchés, graphes et signaux pour l'Afrique",

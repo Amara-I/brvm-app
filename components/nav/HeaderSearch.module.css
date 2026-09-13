@@ -169,4 +169,12 @@
     width: 36px;
     padding: 0;
   }
+
+  .panel {
+    position: fixed;
+    left: max(16px, env(safe-area-inset-left, 0px));
+    right: max(16px, env(safe-area-inset-right, 0px));
+    width: auto;
+    top: calc(var(--app-header-height) + env(safe-area-inset-top, 0px) + 8px);
+  }
 }
