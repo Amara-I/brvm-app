@@ -1,27 +1,22 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// POST /api/auth/register — Création de compte (email/mot de passe), étape 7
+// POST /api/auth/register — Création de compte (email/mot de passe)
 // ═══════════════════════════════════════════════════════════════════════════
-// NextAuth.js (`CredentialsProvider`) ne fournit pas d'inscription : cette
-// route crée l'utilisateur (mot de passe haché via bcrypt), qui peut ensuite
-// se connecter via `POST /api/auth/callback/credentials` (flux standard
-// NextAuth) avec les mêmes identifiants.
+// NextAuth Credentials ne fournit pas d'inscription. Cette route crée
+// l'utilisateur (bcrypt), émet un jeton de confirmation et envoie l'email
+// si un fournisseur (Resend / SMTP) est configuré. La connexion reste
+// possible avant confirmation (soft gate + bandeau).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest } from "next/server";
-import bcrypt from "bcryptjs";
-import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { apiSuccess, apiError, apiValidationError } from "@/lib/api/response";
+import { hashPassword } from "@/lib/auth/password";
+import { registerSchema } from "@/lib/auth/schemas";
+import { issueAuthToken } from "@/lib/auth/tokens";
+import { buildAuthLink } from "@/lib/auth/app-url";
+import { isDevAuthPreviewEnabled, sendAuthEmail } from "@/lib/auth/email";
 
 export const dynamic = "force-dynamic";
-
-const registerSchema = z.object({
-  email: z.string().trim().email("Adresse email invalide"),
-  password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
-  name: z.string().trim().min(1).max(120).optional(),
-});
-
-const BCRYPT_SALT_ROUNDS = 12;
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -32,10 +27,31 @@ export async function POST(request: NextRequest) {
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return apiError("Un compte existe déjà avec cette adresse email", 409);
 
-  const passwordHash = await bcrypt.hash(parsed.data.password, BCRYPT_SALT_ROUNDS);
+  const passwordHash = await hashPassword(parsed.data.password);
   const user = await prisma.user.create({
     data: { email, passwordHash, name: parsed.data.name ?? null },
   });
 
-  return apiSuccess({ id: user.id, email: user.email, name: user.name }, { status: 201 });
+  const rawToken = await issueAuthToken(user.id, "EMAIL_VERIFY");
+  let verificationEmailSent = false;
+  if (rawToken) {
+    const mailed = await sendAuthEmail("verify", email, rawToken);
+    verificationEmailSent = mailed.ok && mailed.provider !== "log";
+    if (!mailed.ok) {
+      console.error("[auth] envoi email de confirmation échoué", mailed.error);
+    }
+  }
+
+  return apiSuccess(
+    {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      verificationEmailSent,
+      ...(isDevAuthPreviewEnabled() && rawToken
+        ? { devVerifyUrl: buildAuthLink("/verifier-email", rawToken) }
+        : {}),
+    },
+    { status: 201 }
+  );
 }
