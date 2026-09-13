@@ -39,3 +39,19 @@
 .alertsWrap {
   margin-top: 16px;
 }
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  color: var(--c-text);
+  font-size: 0.9rem;
+}
+
+.check input {
+  accent-color: var(--c-gold);
+} main
+.alertsWrap {
+  margin-top: 16px;
+}

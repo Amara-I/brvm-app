@@ -194,6 +194,7 @@ export default function ProfileClient({
         </form>
       </section>
 
+main
       {initial.isAdmin ? (
         <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
           <h2 className={profileStyles.sectionTitle}>Administration</h2>
