@@ -993,6 +993,39 @@ Flags : `INGESTION_ENABLE_HISTORY_BACKFILL`, `_SIKA_DAILY_HISTORY`,
 
 ---
 
+## 20. Étape 24 — Historique des indices (cron 500 + courbes vides)
+
+Prod (`/indices`, `/indices/BRVM_COMPOSITE`, `/indices/BRVM_30`) n'affichait
+qu'**1 point** (séance 2026-09-11) : le cron
+`/api/cron/index-enrichment` renvoyait **HTTP 500** avant tout GetHistos.
+
+Cause confirmée (runtime Vercel) : `persistIndexConstituents` →
+`marketIndexConstituent.deleteMany()` alors que
+`public.market_index_constituents` n'existe pas (`prisma migrate deploy`
+jamais exécuté sur Hobby). La composition tournait **avant** l'historique.
+
+Correctifs :
+- Historique GetHistos d'abord ; composition isolée (P2021 → `compositionError`,
+  pas de 500).
+- Fenêtre Sika sans date contemporaine : plus rejetée à ±5 % (un écart de
+  marché sur 12 mois n'est pas un rebase).
+- Repli slugs `BRVMC` / `BRVM30` si A–Z échoue.
+- Repli page BRVM 30 = avis n°191-2026 (30 titres, poids N/D).
+- `POST` = `GET` sur le cron ; `force=1` pour re-télécharger une série dense.
+- Build Vercel : `scripts/try-migrate-deploy.cjs` (no-op hors Vercel).
+
+Après merge : vérifier les logs build (`prisma migrate deploy`), puis
+
+```
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/index-enrichment?codes=BRVM_COMPOSITE,BRVM_30&budgetMs=240000"
+```
+
+Répéter jusqu'à `incomplete: false`. Sika live (13/09/2026) : BRVMC 555,48 et
+BRVM30 269,06 au 11/09/2026 — identiques à l'officiel.
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

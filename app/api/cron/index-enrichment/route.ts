@@ -7,7 +7,9 @@
 //   codes=BRVM_COMPOSITE,BRVM_30
 //   dailyFrom=2025-07-01
 //   noDaily=1 · noAnnual=1 · noMonthly=1 · compositionOnly=1 · historyOnly=1
-//   budgetMs=240000
+//   force=1 · budgetMs=240000
+//
+// POST = GET (certains outils n'envoient que POST).
 
 import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
@@ -17,7 +19,7 @@ import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-export async function GET(request: NextRequest) {
+async function handle(request: NextRequest) {
   if (!isCronAuthorized(request)) {
     return NextResponse.json({ ok: false, error: "Non autorisé" }, { status: 401 });
   }
@@ -39,6 +41,7 @@ export async function GET(request: NextRequest) {
       includeDaily: params.get("noDaily") !== "1" && !compositionOnly,
       dailyFrom: dailyFrom && /^\d{4}-\d{2}-\d{2}$/.test(dailyFrom) ? dailyFrom : undefined,
       timeBudgetMs: Number.isFinite(budgetMs) && budgetMs > 0 ? budgetMs : 240_000,
+      force: params.get("force") === "1",
     });
     return NextResponse.json({ ok: true, data: summary });
   } catch (err) {
@@ -50,4 +53,12 @@ export async function GET(request: NextRequest) {
     });
     return NextResponse.json({ ok: false, error: "Échec de l'enrichissement", details: message }, { status: 500 });
   }
+}
+
+export async function GET(request: NextRequest) {
+  return handle(request);
+}
+
+export async function POST(request: NextRequest) {
+  return handle(request);
 }

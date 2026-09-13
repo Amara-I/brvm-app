@@ -1,6 +1,7 @@
 // Types + helpers purs pour listes / composition d'indices (sans Prisma / React).
 
 import { dataSourceLabel } from "@/lib/api/data-source-label";
+import { BRVM_30_AVIS_191_2026 } from "@/lib/ingestion/brvm-index-composition";
 import {
   INDEX_FAMILY_LABELS,
   familySortRank,
@@ -64,6 +65,16 @@ export interface IndexPeerCompany {
   name: string;
   sector: string;
   lastPrice: number | null;
+}
+
+/** Repli page : avis BRVM 30 déjà documenté, sans attendre la table SQL. */
+export function brvm30AvisFallbackComposition(): StoredIndexComposition {
+  return {
+    tickers: BRVM_30_AVIS_191_2026.tickers.map((ticker) => ({ ticker, weight: null })),
+    asOf: BRVM_30_AVIS_191_2026.asOf,
+    note: `Avis ${BRVM_30_AVIS_191_2026.avis} — liste officielle (repli documenté). Pondérations individuelles N/D.`,
+    official: true,
+  };
 }
 
 export function compositionNote(

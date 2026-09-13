@@ -4,6 +4,7 @@
 //   npx ts-node scripts/run-index-enrichment.ts --codes=BRVM_COMPOSITE,BRVM_30
 //   npx ts-node scripts/run-index-enrichment.ts --daily-from=2025-07-01 --no-annual
 //   npx ts-node scripts/run-index-enrichment.ts --composition-only
+//   npx ts-node scripts/run-index-enrichment.ts --force
 //
 // Nécessite DATABASE_URL. Aucun niveau inventé : GetHistos Sika + avis BRVM.
 
@@ -30,6 +31,7 @@ function parseArgs(argv: string[]): IndexEnrichmentOptions {
     dailyFrom: dailyFrom && /^\d{4}-\d{2}-\d{2}$/.test(dailyFrom) ? dailyFrom : undefined,
     annualFromYear: Number.isFinite(annualFrom) && annualFrom >= 1990 ? Math.floor(annualFrom) : undefined,
     timeBudgetMs: Number.isFinite(budget) && budget > 0 ? budget : undefined,
+    force: flags.includes("--force"),
   };
 }
 
