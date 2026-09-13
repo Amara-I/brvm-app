@@ -1,17 +1,22 @@
 import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
+import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import PageHeader from "@/components/ui/PageHeader";
 import ProfileClient from "@/components/profile/ProfileClient";
+import NotificationPrefsForm from "@/components/notifications/NotificationPrefsForm";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { C } from "@/lib/theme/colors"; 
+  main
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Mon profil — OuestBourse",
-  description: "Gérez votre nom, votre email et votre mot de passe OuestBourse.",
+  description: "Gérez votre compte, votre mot de passe et vos préférences d’alertes OuestBourse.",
 };
 
 export default async function ProfilPage({
@@ -55,7 +60,7 @@ export default async function ProfilPage({
         <PageHeader
           kicker="Compte"
           title="Mon profil"
-          lead="Vos informations, la confirmation d’email et le mot de passe — uniquement pour ce compte."
+          lead="Vos informations, la confirmation d’email, le mot de passe et les réglages d’alertes."
         />
         <ProfileClient
           initial={{
@@ -70,6 +75,17 @@ export default async function ProfilPage({
           }}
           mailNotice={mailNotice}
         />
+
+        <p style={{ margin: "18px 0 0" }}>
+          <Link href="/notifications" style={{ color: C.gold, fontWeight: 700, fontSize: "0.84rem" }}>
+            Ouvrir le centre de notifications
+          </Link>
+        </p>
+
+        <div style={{ marginTop: 22 }}>
+          <NotificationPrefsForm />
+        </div> 
+        main
       </div>
     </AppHeader>
   );

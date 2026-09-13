@@ -15,6 +15,9 @@ describe("featureFromPath", () => {
     expect(featureFromPath("/marches/jse")).toBe("coming_soon_market");
     expect(featureFromPath("/calendrier-dividendes")).toBe("dividendes");
     expect(featureFromPath("/education/introduire")).toBe("education");
+    expect(featureFromPath("/notifications")).toBe("notifications");
+    expect(featureFromPath("/profil")).toBe("profil");
+    expect(featureFromPath("/reglages")).toBe("profil");
   });
 
   it("retombe sur other pour une route inconnue", () => {

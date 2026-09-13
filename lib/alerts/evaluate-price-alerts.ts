@@ -2,11 +2,22 @@
 
 import { PriceAlertDirection, PriceAlertStatus } from "@prisma/client";
 import { prisma } from "../prisma";
+import { priceCrossHits } from "../notifications/logic";
+
+export interface FiredPriceAlert {
+  id: string;
+  userId: string;
+  ticker: string;
+  direction: PriceAlertDirection;
+  targetPrice: number;
+  triggerPrice: number;
+}
 
 export interface PriceAlertEvalSummary {
   checked: number;
   triggered: number;
   alertIds: string[];
+  fired: FiredPriceAlert[];
 }
 
 /**
@@ -28,18 +39,25 @@ export async function evaluateActivePriceAlerts(options?: {
     where,
     select: {
       id: true,
+      userId: true,
       companyId: true,
+      ticker: true,
       direction: true,
       targetPrice: true,
     },
   });
 
-  const summary: PriceAlertEvalSummary = { checked: alerts.length, triggered: 0, alertIds: [] };
+  const summary: PriceAlertEvalSummary = {
+    checked: alerts.length,
+    triggered: 0,
+    alertIds: [],
+    fired: [],
+  };
   if (alerts.length === 0) return summary;
 
   const companyIds = [...new Set(alerts.map((a) => a.companyId))];
   const latest = await prisma.priceHistory.findMany({
-    where: { companyId: { in: companyIds }, isCanonical: true },
+    where: { companyId: { in: companyIds }, isCanonical: true, date: { lte: new Date() } },
     orderBy: [{ companyId: "asc" }, { date: "desc" }],
     distinct: ["companyId"],
     select: { companyId: true, closePrice: true },
@@ -50,9 +68,7 @@ export async function evaluateActivePriceAlerts(options?: {
     const price = priceByCompany.get(alert.companyId);
     if (price == null || !Number.isFinite(price)) continue;
     const target = Number(alert.targetPrice);
-    const hit =
-      alert.direction === PriceAlertDirection.ABOVE ? price >= target : price <= target;
-    if (!hit) continue;
+    if (!priceCrossHits(alert.direction, price, target)) continue;
 
     await prisma.priceAlert.update({
       where: { id: alert.id },
@@ -64,6 +80,14 @@ export async function evaluateActivePriceAlerts(options?: {
     });
     summary.triggered += 1;
     summary.alertIds.push(alert.id);
+    summary.fired.push({
+      id: alert.id,
+      userId: alert.userId,
+      ticker: alert.ticker,
+      direction: alert.direction,
+      targetPrice: target,
+      triggerPrice: price,
+    });
   }
 
   return summary;

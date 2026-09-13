@@ -7,7 +7,8 @@ import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
-import AccountMenu from "@/components/auth/AccountMenu";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import AccountMenu from "@/components/auth/AccountMenu"; main
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
@@ -110,6 +111,7 @@ export default function SidebarLayout({
 
         <div className={styles.topActions}>
           <HeaderSearch companies={searchCompanies} />
+          <NotificationBell isAuthenticated={Boolean(user)} />
           <ThemeToggle />
           {user ? (
             <AccountMenu user={user} />

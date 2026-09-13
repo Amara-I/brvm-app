@@ -252,6 +252,16 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
     }
   }
 
+  // Notifications : après persistance des cours/indices, jamais bloquant.
+  try {
+    const { evaluateAllAlerts } = await import("../notifications/evaluate-all");
+    await evaluateAllAlerts();
+  } catch (err) {
+    console.warn(
+      `[ingest→alerts] évaluation ignorée : ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   return {
     startedAt: startedAt.toISOString(),
     finishedAt: new Date().toISOString(),

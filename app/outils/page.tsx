@@ -84,6 +84,8 @@ export default async function OutilsPage({
                 { label: "Calendrier dividendes", state: "Disponible" as const, href: "/calendrier-dividendes" },
                 { label: "Export Excel", state: "Disponible" as const, href: "/api/export/excel" },
                 { label: "Alertes de seuil", state: "Disponible" as const, href: "/graphes" },
+                { label: "Centre de notifications", state: "Disponible" as const, href: "/notifications" },
+                { label: "Préférences d'alertes", state: "Disponible" as const, href: "/profil" },
                 { label: "Simulation rendements", state: "Disponible" as const, href: "/simulation" },
               ] as const
             ).map((cap) => (

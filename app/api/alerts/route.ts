@@ -8,6 +8,7 @@ import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { apiSuccess, apiError, apiValidationError } from "@/lib/api/response";
 import { privateCacheHeaders } from "@/lib/api/response";
 import { evaluateActivePriceAlerts } from "@/lib/alerts/evaluate-price-alerts";
+import { notifyFiredPriceAlerts } from "@/lib/notifications/evaluate-all";
 
 export const dynamic = "force-dynamic";
 
@@ -50,7 +51,8 @@ export async function GET(request: NextRequest) {
 
   const ticker = request.nextUrl.searchParams.get("ticker")?.trim().toUpperCase() ?? null;
   // Réévalue avant de lister (cours peut avoir bougé depuis le dernier cron).
-  await evaluateActivePriceAlerts(ticker ? { tickers: [ticker] } : undefined);
+  const evalResult = await evaluateActivePriceAlerts(ticker ? { tickers: [ticker] } : undefined);
+  await notifyFiredPriceAlerts(evalResult.fired).catch(() => undefined);
 
   const alerts = await prisma.priceAlert.findMany({
     where: {
@@ -95,7 +97,8 @@ export async function POST(request: NextRequest) {
   });
 
   // Si le seuil est déjà atteint au moment de la création, déclencher tout de suite.
-  await evaluateActivePriceAlerts({ tickers: [company.ticker] });
+  const evalResult = await evaluateActivePriceAlerts({ tickers: [company.ticker] });
+  await notifyFiredPriceAlerts(evalResult.fired).catch(() => undefined);
   const fresh = await prisma.priceAlert.findUnique({ where: { id: created.id } });
 
   return apiSuccess({ alert: serializeAlert(fresh ?? created) }, { status: 201 });

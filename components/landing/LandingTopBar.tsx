@@ -5,7 +5,10 @@ import Link from "next/link";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
-import AccountMenu from "@/components/auth/AccountMenu";
+import ThemeToggle from "@/components/theme/ThemeToggle";
+import NotificationBell from "@/components/notifications/NotificationBell";
+import AccountMenu from "@/components/auth/AccountMenu"; 
+  main
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import {
   BRAND_LOGO_HEIGHT,
@@ -45,6 +48,7 @@ export default function LandingTopBar({
             <div className={styles.topTheme}>
               <ThemeToggle />
             </div>
+            <NotificationBell isAuthenticated={Boolean(user)} />
             {user ? (
               <AccountMenu user={user} variant="landing" />
             ) : (
