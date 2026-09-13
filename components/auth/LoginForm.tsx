@@ -1,32 +1,46 @@
 "use client";
 
-// Formulaire de connexion — étape 10 (navigation complète).
-// Utilise `signIn("credentials", ...)` de `next-auth/react`, branché sur le
-// `CredentialsProvider` déjà configuré depuis l'étape 7
-// (`lib/auth/auth-options.ts`) — aucune nouvelle route API nécessaire.
-
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { C } from "@/lib/theme/colors";
+import PasswordField from "./PasswordField";
+import GoogleSignInButton from "./GoogleSignInButton";
+import styles from "./AuthForm.module.css";
 
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  background: C.bg,
-  border: `1px solid ${C.border}`,
-  borderRadius: 6,
-  padding: "10px 12px",
-  color: C.text,
-  fontSize: "0.9rem",
-  fontFamily: "inherit",
-  marginBottom: 14,
+const NEXTAUTH_ERRORS: Record<string, string> = {
+  CredentialsSignin: "Email ou mot de passe incorrect.",
+  OAuthAccountNotLinked:
+    "Un compte existe déjà avec cette adresse. Connectez-vous avec votre mot de passe, puis vous pourrez lier Google.",
+  OAuthSignin: "Impossible de démarrer la connexion Google.",
+  OAuthCallback: "La connexion Google a échoué. Réessayez.",
+  AccessDenied: "Connexion refusée.",
+  Configuration: "La connexion est temporairement indisponible.",
+  Default: "La connexion a échoué. Réessayez.",
 };
+
+function messageFromQuery(searchParams: URLSearchParams): { text: string; ok: boolean } | null {
+  if (searchParams.get("verified") === "1") {
+    return { ok: true, text: "Adresse email confirmée. Vous pouvez vous connecter." };
+  }
+  if (searchParams.get("reset") === "1") {
+    return { ok: true, text: "Mot de passe mis à jour. Connectez-vous avec le nouveau mot de passe." };
+  }
+  if (searchParams.get("registered") === "1") {
+    return { ok: true, text: "Compte créé. Connectez-vous pour continuer." };
+  }
+  const error = searchParams.get("error");
+  if (error) {
+    return { ok: false, text: NEXTAUTH_ERRORS[error] ?? NEXTAUTH_ERRORS.Default };
+  }
+  return null;
+}
 
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/portefeuille";
+  const queryMessage = useMemo(() => messageFromQuery(searchParams), [searchParams]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,71 +54,59 @@ export default function LoginForm() {
     const result = await signIn("credentials", { redirect: false, email, password });
     setLoading(false);
     if (result?.error) {
-      setError("Email ou mot de passe incorrect.");
+      setError(NEXTAUTH_ERRORS.CredentialsSignin);
       return;
     }
-    router.push(callbackUrl);
+    router.push(callbackUrl.startsWith("/") ? callbackUrl : "/portefeuille");
     router.refresh();
   }
 
+  const alert = error ? { ok: false, text: error } : queryMessage;
+
   return (
-    <form onSubmit={handleSubmit} noValidate>
-      <label htmlFor="email" style={{ display: "block", fontSize: "0.8rem", color: C.textDim, marginBottom: 6 }}>
-        Adresse email
-      </label>
-      <input
-        id="email"
-        type="email"
-        required
-        autoComplete="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        style={inputStyle}
-      />
+    <form className={styles.form} onSubmit={handleSubmit} noValidate>
+      <div className={styles.field}>
+        <label htmlFor="email" className={styles.label}>
+          Adresse email
+        </label>
+        <input
+          id="email"
+          className={styles.input}
+          type="email"
+          required
+          autoComplete="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </div>
 
-      <label htmlFor="password" style={{ display: "block", fontSize: "0.8rem", color: C.textDim, marginBottom: 6 }}>
-        Mot de passe
-      </label>
-      <input
+      <PasswordField
         id="password"
-        type="password"
-        required
-        autoComplete="current-password"
+        label="Mot de passe"
         value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        style={inputStyle}
+        onChange={setPassword}
+        extra={
+          <Link href="/mot-de-passe-oublie" className={styles.inlineLink}>
+            Mot de passe oublié ?
+          </Link>
+        }
       />
 
-      {error && (
-        <div role="alert" style={{ color: C.red, fontSize: "0.82rem", marginBottom: 14 }}>
-          {error}
+      {alert ? (
+        <div role="alert" className={`${styles.alert} ${alert.ok ? styles.alertOk : styles.alertError}`}>
+          {alert.text}
         </div>
-      )}
+      ) : null}
 
-      <button
-        type="submit"
-        disabled={loading}
-        style={{
-          width: "100%",
-          background: C.gold,
-          color: "#080B12",
-          border: "none",
-          borderRadius: 6,
-          padding: "11px 0",
-          fontWeight: 700,
-          fontSize: "0.9rem",
-          cursor: loading ? "not-allowed" : "pointer",
-          opacity: loading ? 0.7 : 1,
-        }}
-      >
+      <button type="submit" className={styles.submit} disabled={loading}>
         {loading ? "Connexion…" : "Se connecter"}
       </button>
 
-      <p style={{ textAlign: "center", fontSize: "0.82rem", color: C.textDim, marginTop: 18 }}>
+      <GoogleSignInButton callbackUrl={callbackUrl.startsWith("/") ? callbackUrl : "/portefeuille"} />
+
+      <p className={styles.footer}>
         Pas encore de compte ?{" "}
-        <Link href="/inscription" style={{ color: C.gold, textDecoration: "underline" }}>
-          Créer un compte
-        </Link>
+        <Link href="/inscription">Créer un compte</Link>
       </p>
     </form>
   );

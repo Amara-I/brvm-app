@@ -8,6 +8,11 @@ type Props = {
   className?: string;
 };
 
+function fallbackSignOut() {
+  const url = `/api/auth/signout?callbackUrl=${encodeURIComponent("/")}`;
+  window.location.assign(url);
+}
+
 export default function SignOutButton({ className }: Props) {
   const titleId = useId();
   const descId = useId();
@@ -27,9 +32,10 @@ export default function SignOutButton({ className }: Props) {
     if (busy) return;
     setBusy(true);
     try {
-      await signOut({ callbackUrl: "/" });
+      await signOut({ callbackUrl: "/", redirect: true });
+      window.setTimeout(fallbackSignOut, 1500);
     } catch {
-      setBusy(false);
+      fallbackSignOut();
     }
   }
 

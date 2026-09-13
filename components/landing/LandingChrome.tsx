@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import LandingTopBar from "./LandingTopBar";
+import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import styles from "./Landing.module.css";
 
 export default async function LandingChrome({ children }: { children: React.ReactNode }) {
@@ -20,10 +21,20 @@ export default async function LandingChrome({ children }: { children: React.Reac
         }))}
         user={
           user
-            ? { name: user.name, email: user.email, isAdmin: isAdminRoleOrEmail(user) }
+            ? {
+                name: user.name,
+                email: user.email,
+                isAdmin: isAdminRoleOrEmail(user),
+                emailVerified: user.emailVerified === true,
+              }
             : null
         }
       />
+      {user && user.emailVerified === false ? (
+        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 16px 0" }}>
+          <VerifyEmailBanner />
+        </div>
+      ) : null}
       {children}
     </div>
   );
