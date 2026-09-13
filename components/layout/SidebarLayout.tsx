@@ -48,8 +48,6 @@ export default function SidebarLayout({
     onNavigate: () => setMobileOpen(false),
   };
 
-  const homeHref = user ? "/portefeuille" : "/";
-
   return (
     <div className={styles.shell}>
       {mobileOpen ? (
@@ -63,7 +61,7 @@ export default function SidebarLayout({
 
       <div className={styles.logoWrap}>
         <Link
-          href={homeHref}
+          href="/"
           className={styles.logoLink}
           aria-label={`${BRAND_NAME} — accueil`}
           onClick={() => setMobileOpen(false)}
@@ -89,7 +87,7 @@ export default function SidebarLayout({
         >
           {mobileOpen ? "✕" : "☰"}
         </button>
-        <Link href={homeHref} className={styles.mobileLogo} aria-label={`${BRAND_NAME} — accueil`}>
+        <Link href="/" className={styles.mobileLogo} aria-label={`${BRAND_NAME} — accueil`}>
           <Image
             src={BRAND_LOGO_SRC}
             alt={BRAND_NAME}
