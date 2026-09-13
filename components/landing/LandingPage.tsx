@@ -164,6 +164,7 @@ export default function LandingPage({
     <div className={styles.page}>
       <section className={styles.hero}>
         <AfricaHeroBackdrop />
+        <div className={styles.heroShell}>
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
             <h1 className={styles.h1}>
@@ -194,10 +195,10 @@ export default function LandingPage({
 
             <div className={styles.ctaRow}>
               <Link href="/marche" className={styles.ctaPrimary}>
-                Explorer les marchés <IconArrow size={16} />
+                <IconSpark size={14} /> Explorer les marchés <IconArrow size={14} />
               </Link>
               <Link href="/graphes" className={styles.ctaSecondary}>
-                <IconChart size={16} /> Voir les graphes
+                <IconChart size={14} /> Voir les graphes
               </Link>
             </div>
 
@@ -216,14 +217,16 @@ export default function LandingPage({
 
           <div className={styles.heroRight}>
             <div className={`${styles.card} ${styles.cardPortfolio}`}>
-              <div className={styles.cardPortfolioHead}>
-                <div className={styles.cardLabel}>
-                  <span className={styles.liveDot} />
-                  Marché – Données en temps réel
+              <div className={styles.cardPortfolioMain}>
+                <div className={styles.cardPortfolioCopy}>
+                  <div className={styles.cardLabel}>
+                    <span className={styles.liveDot} />
+                    Marché – Données en temps réel
+                  </div>
+                  <div className={styles.cardValue}>{formatMdsFcfa(stats.totalMarketCapBnFcfa)}</div>
                 </div>
-                <LandingSparkline values={marketSeries} width={92} height={28} />
+                <LandingSparkline values={marketSeries} width={148} height={56} variant="hero" />
               </div>
-              <div className={styles.cardValue}>{formatMdsFcfa(stats.totalMarketCapBnFcfa)}</div>
               <div className={styles.cardMetrics}>
                 <div className={styles.metricCell}>
                   <strong className={styles.chipGreen}>
@@ -280,7 +283,7 @@ export default function LandingPage({
                         <span className={styles.stockTicker}>{co.ticker}</span>
                         <span className={styles.stockName}>{co.name || "N/D"}</span>
                       </span>
-                      <LandingSparkline values={seriesFromYearlyPrices(co.prices)} />
+                      <LandingSparkline values={seriesFromYearlyPrices(co.prices)} width={72} height={24} />
                       <span className={styles.stockMeta}>
                         <span
                           className={
@@ -352,6 +355,7 @@ export default function LandingPage({
               </div>
             </div>
           </div>
+        </div>
         </div>
       </section>
 
