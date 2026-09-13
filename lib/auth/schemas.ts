@@ -24,3 +24,19 @@ export const loginCredentialsSchema = z.object({
   email: z.string().trim().email("Adresse email invalide"),
   password: z.string().min(1, "Mot de passe requis"),
 });
+
+export const updateProfileSchema = z
+  .object({
+    name: z.string().trim().min(1).max(120).optional(),
+    email: z.string().trim().email("Adresse email invalide").optional(),
+  })
+  .refine((value) => value.name !== undefined || value.email !== undefined, {
+    message: "Aucun champ à mettre à jour",
+  });
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).optional(),
+  newPassword: z
+    .string()
+    .min(MIN_PASSWORD_LENGTH, `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères`),
+});

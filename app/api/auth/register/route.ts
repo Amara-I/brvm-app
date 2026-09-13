@@ -14,7 +14,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { registerSchema } from "@/lib/auth/schemas";
 import { issueAuthToken } from "@/lib/auth/tokens";
 import { buildAuthLink } from "@/lib/auth/app-url";
-import { isDevAuthPreviewEnabled, sendAuthEmail } from "@/lib/auth/email";
+import { isDevAuthPreviewEnabled, sendAuthEmail, userMessageForMailFailure } from "@/lib/auth/email";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
@@ -51,11 +51,15 @@ export async function POST(request: NextRequest) {
 
   const rawToken = await issueAuthToken(user.id, "EMAIL_VERIFY");
   let verificationEmailSent = false;
-  if (rawToken) {
+  let mailError: string | undefined;
+  if (!rawToken) {
+    mailError = "Impossible de générer le lien de confirmation. Réessayez depuis votre profil.";
+  } else {
     const mailed = await sendAuthEmail("verify", email, rawToken);
-    verificationEmailSent = mailed.ok && mailed.provider !== "log";
+    verificationEmailSent = mailed.ok;
     if (!mailed.ok) {
       console.error("[auth] envoi email de confirmation échoué", mailed.error);
+      mailError = userMessageForMailFailure(mailed);
     }
   }
 
@@ -65,6 +69,7 @@ export async function POST(request: NextRequest) {
       email: user.email,
       name: user.name,
       verificationEmailSent,
+      ...(mailError ? { mailError } : {}),
       ...(isDevAuthPreviewEnabled() && rawToken
         ? { devVerifyUrl: buildAuthLink("/verifier-email", rawToken) }
         : {}),

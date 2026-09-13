@@ -5,7 +5,13 @@ import { apiSuccess, apiError } from "@/lib/api/response";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { issueAuthToken } from "@/lib/auth/tokens";
 import { buildAuthLink } from "@/lib/auth/app-url";
-import { isDevAuthPreviewEnabled, sendAuthEmail } from "@/lib/auth/email";
+import {
+  isDevAuthPreviewEnabled,
+  isEmailConfigured,
+  MAIL_USER_MESSAGES,
+  sendAuthEmail,
+  userMessageForMailFailure,
+} from "@/lib/auth/email";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +35,10 @@ export async function POST() {
   if (!dbUser?.email) return apiError("Compte introuvable", 404);
   if (dbUser.emailVerified) return apiSuccess({ alreadyVerified: true });
 
+  if (!isEmailConfigured()) {
+    return apiError(MAIL_USER_MESSAGES.not_configured, 503);
+  }
+
   const rawToken = await issueAuthToken(user.id, "EMAIL_VERIFY");
   if (!rawToken) {
     return apiError("Impossible de générer un lien de confirmation pour le moment.", 503);
@@ -37,11 +47,11 @@ export async function POST() {
   const mailed = await sendAuthEmail("verify", dbUser.email, rawToken);
   if (!mailed.ok) {
     console.error("[auth] renvoi email de confirmation échoué", mailed.error);
-    return apiError("L'envoi de l'email a échoué. Réessayez dans quelques instants.", 502);
+    return apiError(userMessageForMailFailure(mailed), 502);
   }
 
   return apiSuccess({
-    sent: mailed.provider !== "log",
+    sent: true,
     ...(isDevAuthPreviewEnabled() ? { devVerifyUrl: buildAuthLink("/verifier-email", rawToken) } : {}),
   });
 }

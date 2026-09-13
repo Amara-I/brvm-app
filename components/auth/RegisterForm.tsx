@@ -16,11 +16,15 @@ export default function RegisterForm() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [mailWarning, setMailWarning] = useState<string | null>(null);
+  const [devVerifyUrl, setDevVerifyUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setMailWarning(null);
+    setDevVerifyUrl(null);
 
     if (password.length < MIN_PASSWORD_LENGTH) {
       setError(`Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`);
@@ -54,7 +58,15 @@ export default function RegisterForm() {
       router.push("/connexion?registered=1");
       return;
     }
-    router.push("/portefeuille?verify=sent");
+
+    const mailError = typeof json?.data?.mailError === "string" ? json.data.mailError : null;
+    if (mailError) {
+      setMailWarning(mailError);
+      if (typeof json?.data?.devVerifyUrl === "string") setDevVerifyUrl(json.data.devVerifyUrl);
+      return;
+    }
+
+    router.push("/profil?verify=sent");
     router.refresh();
   }
 
@@ -112,7 +124,24 @@ export default function RegisterForm() {
         </div>
       ) : null}
 
-      <button type="submit" className={styles.submit} disabled={loading}>
+      {mailWarning ? (
+        <div role="alert" className={`${styles.alert} ${styles.alertError}`}>
+          Compte créé, mais l&apos;email de confirmation n&apos;a pas pu être envoyé. {mailWarning}
+          {devVerifyUrl ? (
+            <>
+              {" "}
+              <Link href={devVerifyUrl}>Lien de développement</Link>
+            </>
+          ) : null}
+          <div style={{ marginTop: 10 }}>
+            <Link href="/profil" className={styles.inlineLink}>
+              Continuer vers mon profil
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      <button type="submit" className={styles.submit} disabled={loading || Boolean(mailWarning)}>
         {loading ? "Création du compte…" : "Créer mon compte"}
       </button>
 
