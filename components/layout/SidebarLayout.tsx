@@ -3,10 +3,12 @@
 import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import SignOutButton from "@/components/auth/SignOutButton";
+import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
@@ -28,7 +30,15 @@ export default function SidebarLayout({
   searchCompanies,
   user,
 }: Props) {
+  const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const hideVerifyBanner =
+    pathname === "/connexion" ||
+    pathname === "/inscription" ||
+    pathname === "/mot-de-passe-oublie" ||
+    pathname === "/reinitialiser-mot-de-passe" ||
+    pathname === "/verifier-email" ||
+    pathname === "/deconnexion";
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -128,7 +138,10 @@ export default function SidebarLayout({
 
       <div className={styles.main}>
         <div className={styles.mainInner}>
-          <div className={styles.pageColumn}>{children}</div>
+          <div className={styles.pageColumn}>
+            {user && user.emailVerified === false && !hideVerifyBanner ? <VerifyEmailBanner /> : null}
+            {children}
+          </div>
         </div>
       </div>
     </div>

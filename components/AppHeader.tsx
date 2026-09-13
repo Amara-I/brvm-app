@@ -21,7 +21,12 @@ export default async function AppHeader({ children }: { children?: React.ReactNo
       searchCompanies={searchIndex}
       user={
         user
-          ? { name: user.name, email: user.email, isAdmin: isAdminRoleOrEmail(user) }
+          ? {
+              name: user.name,
+              email: user.email,
+              isAdmin: isAdminRoleOrEmail(user),
+              emailVerified: user.emailVerified === true,
+            }
           : null
       }
     >
