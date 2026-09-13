@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import SignOutButton from "@/components/auth/SignOutButton";
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
@@ -109,6 +110,7 @@ export default function SidebarLayout({
 
         <div className={styles.topActions}>
           <HeaderSearch companies={searchCompanies} />
+          <NotificationBell isAuthenticated={Boolean(user)} />
           <ThemeToggle />
           {user ? (
             <>

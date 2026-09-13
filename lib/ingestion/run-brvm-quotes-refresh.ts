@@ -120,10 +120,10 @@ export async function runBrvmQuotesRefresh(
       },
     });
 
-    // Alertes de seuil : best-effort après mise à jour des cours.
+    // Alertes + centre de notifications : best-effort après mise à jour des cours.
     try {
-      const { evaluateActivePriceAlerts } = await import("../alerts/evaluate-price-alerts");
-      await evaluateActivePriceAlerts();
+      const { evaluateAllAlerts } = await import("../notifications/evaluate-all");
+      await evaluateAllAlerts();
     } catch (err) {
       console.error(
         "[quotes-refresh] Évaluation des alertes ignorée :",

@@ -120,7 +120,7 @@ export default function AnalyticsDashboard() {
         <p className={styles.note}>Chargement…</p>
       ) : null}
 
-      {data && data.totals.events === 0 ? (
+      {data && data.totals.events === 0 && data.notifications.created === 0 ? (
         <EmptyState
           title="Aucun événement pour cette période"
           body="Les clics et pages vues apparaîtront ici dès que le suivi est actif et que des visiteurs naviguent sur le site."
@@ -195,6 +195,39 @@ export default function AnalyticsDashboard() {
           <RankTable title="Pages / routes les plus visitées" rows={data.topPages} empty="N/D" />
           <RankTable title="Actions (onglets, plages, navigation)" rows={data.topActions} empty="N/D" />
         </>
+      ) : null}
+
+      {data ? (
+        <section className={styles.panel}>
+          <h2 className={styles.panelTitle}>Notifications</h2>
+          <div className={styles.kpis}>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Créées</p>
+              <p className={styles.kpiValue}>{fmt(data.notifications.created)}</p>
+            </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Ouvertes</p>
+              <p className={styles.kpiValue}>{fmt(data.notifications.opened)}</p>
+            </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Lues</p>
+              <p className={styles.kpiValue}>{fmt(data.notifications.read)}</p>
+            </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>Non lues</p>
+              <p className={styles.kpiValue}>{fmt(data.notifications.unread)}</p>
+            </div>
+            <div className={styles.kpi}>
+              <p className={styles.kpiLabel}>E-mails envoyés</p>
+              <p className={styles.kpiValue}>{fmt(data.notifications.emailed)}</p>
+            </div>
+          </div>
+          <RankTable
+            title="Types les plus fréquents"
+            rows={data.notifications.byType}
+            empty="Aucune notification sur la période."
+          />
+        </section>
       ) : null}
 
       <p className={styles.note}>

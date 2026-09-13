@@ -32,6 +32,8 @@ const patchHoldingSchema = z
       .refine((s) => !Number.isNaN(Date.parse(s)), "Date d'achat invalide")
       .optional(),
     notes: z.string().trim().max(500).optional(),
+    targetPrice: z.union([z.coerce.number().positive(), z.null()]).optional(),
+    stopPrice: z.union([z.coerce.number().positive(), z.null()]).optional(),
   })
   .refine((d) => !(d.quantitySold !== undefined && d.quantity !== undefined), {
     message: "Indiquez soit quantitySold (vente), soit quantity (correction), pas les deux",
@@ -58,7 +60,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { portfo
   const parsed = patchHoldingSchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);
 
-  const { quantitySold, sellPrice, sellDate, quantity, avgBuyPrice, buyHorizon, buyDate, notes } = parsed.data;
+  const { quantitySold, sellPrice, sellDate, quantity, avgBuyPrice, buyHorizon, buyDate, notes, targetPrice, stopPrice } =
+    parsed.data;
 
   if (quantitySold !== undefined) {
     const currentQty = Number(holding.quantity);
@@ -125,7 +128,14 @@ export async function PATCH(request: NextRequest, { params }: { params: { portfo
     });
   }
 
-  if (quantity !== undefined || avgBuyPrice !== undefined || buyHorizon !== undefined || buyDate !== undefined) {
+  if (
+    quantity !== undefined ||
+    avgBuyPrice !== undefined ||
+    buyHorizon !== undefined ||
+    buyDate !== undefined ||
+    targetPrice !== undefined ||
+    stopPrice !== undefined
+  ) {
     const resolvedBuyDate = buyDate ? new Date(buyDate) : undefined;
     const updated = await prisma.$transaction(async (tx) => {
       const row = await tx.portfolioHolding.update({
@@ -136,6 +146,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { portfo
           ...(buyHorizon !== undefined ? { buyHorizon } : {}),
           ...(resolvedBuyDate !== undefined ? { buyDate: resolvedBuyDate } : {}),
           ...(notes !== undefined ? { notes } : {}),
+          ...(targetPrice !== undefined ? { targetPrice } : {}),
+          ...(stopPrice !== undefined ? { stopPrice } : {}),
         },
       });
       if (resolvedBuyDate !== undefined) {
@@ -151,6 +163,8 @@ export async function PATCH(request: NextRequest, { params }: { params: { portfo
         avgBuyPrice: Number(updated.avgBuyPrice),
         buyHorizon: updated.buyHorizon,
         buyDate: updated.buyDate?.toISOString().slice(0, 10) ?? null,
+        targetPrice: updated.targetPrice != null ? Number(updated.targetPrice) : null,
+        stopPrice: updated.stopPrice != null ? Number(updated.stopPrice) : null,
       },
     });
   }

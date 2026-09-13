@@ -37,6 +37,7 @@ import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
 import ChartWorkbench from "@/components/charts/ChartWorkbench";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
+import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
 import styles from "./CompanySheet.module.css";
 
@@ -328,9 +329,13 @@ export default function CompanySheetClient({
           </div>
         </div>
         <div className={styles.heroActions}>
-          <button type="button" className={styles.btnGhost} disabled title="Bientôt">
-            ★ Suivre
-          </button>
+          <TickerAlertButton
+            isAuthenticated={isAuthenticated}
+            ticker={company.ticker}
+            lastClose={price > 0 ? price : null}
+            loginCallbackPath={`/actions/${company.ticker}`}
+            className={styles.btnGhost}
+          />
           <PortfolioTickerAction
             ticker={company.ticker}
             isAuthenticated={isAuthenticated}

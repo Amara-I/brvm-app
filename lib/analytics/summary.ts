@@ -3,6 +3,8 @@ import { getAnalyticsRetentionDays } from "./config";
 import { fillDailySeries, rankCounts, sinceDate, type CountRow, type DailyPoint } from "./aggregate";
 import { featureLabel } from "./features";
 import { purgeExpiredAnalyticsEvents } from "./persist";
+import { getNotificationAnalytics, type NotificationAnalytics } from "../notifications/analytics";
+import { isMissingDatabaseObject } from "../db/is-database-unavailable";
 
 export type AnalyticsSummary = {
   days: 7 | 30;
@@ -18,6 +20,7 @@ export type AnalyticsSummary = {
   topFeatures: CountRow[];
   topPages: CountRow[];
   topActions: CountRow[];
+  notifications: NotificationAnalytics;
 };
 
 function dayKeyFromUnknown(value: unknown): string | null {
@@ -117,5 +120,19 @@ export async function getAnalyticsSummary(days: 7 | 30, now = new Date()): Promi
     topFeatures,
     topPages,
     topActions,
+    notifications: await getNotificationAnalytics(days, now).catch((err) => {
+      if (isMissingDatabaseObject(err)) {
+        return {
+          created: 0,
+          read: 0,
+          opened: 0,
+          unread: 0,
+          emailed: 0,
+          byType: [],
+          daily: fillDailySeries({}, days, now).map((p) => ({ ...p, opened: 0 })),
+        };
+      }
+      throw err;
+    }),
   };
 }

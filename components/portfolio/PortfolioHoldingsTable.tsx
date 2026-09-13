@@ -143,6 +143,8 @@ export default function PortfolioHoldingsTable({
   const [qty, setQty] = useState("");
   const [pru, setPru] = useState("");
   const [horizon, setHorizon] = useState<"COURT" | "MOYEN" | "LONG">("MOYEN");
+  const [targetPrice, setTargetPrice] = useState("");
+  const [stopPrice, setStopPrice] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [buyDateBusyId, setBuyDateBusyId] = useState<string | null>(null);
@@ -289,6 +291,8 @@ export default function PortfolioHoldingsTable({
     setQty(String(h.quantity));
     setPru(String(h.avgBuyPrice));
     setHorizon(h.buyHorizon);
+    setTargetPrice(h.targetPrice != null ? String(h.targetPrice) : "");
+    setStopPrice(h.stopPrice != null ? String(h.stopPrice) : "");
     setError(null);
   }
 
@@ -308,6 +312,8 @@ export default function PortfolioHoldingsTable({
           quantity: Number(qty),
           avgBuyPrice: Number(pru),
           buyHorizon: horizon,
+          targetPrice: targetPrice.trim() ? Number(targetPrice) : null,
+          stopPrice: stopPrice.trim() ? Number(stopPrice) : null,
         }),
       });
       const json = await res.json().catch(() => null);
@@ -575,6 +581,36 @@ export default function PortfolioHoldingsTable({
                       <span className={styles.tickerCode}>{h.ticker}</span>
                       {h.name ? <span className={styles.tickerName}>{h.name}</span> : null}
                     </Link>
+                    {isEdit ? (
+                      <div className={styles.pnlCell} style={{ marginTop: 6 }}>
+                        <input
+                          type="number"
+                          min={1}
+                          className={styles.input}
+                          placeholder="Objectif FCFA"
+                          aria-label={`Objectif ${h.ticker}`}
+                          value={targetPrice}
+                          onChange={(e) => setTargetPrice(e.target.value)}
+                          disabled={busy}
+                        />
+                        <input
+                          type="number"
+                          min={1}
+                          className={styles.input}
+                          placeholder="Stop FCFA"
+                          aria-label={`Stop ${h.ticker}`}
+                          value={stopPrice}
+                          onChange={(e) => setStopPrice(e.target.value)}
+                          disabled={busy}
+                        />
+                      </div>
+                    ) : h.targetPrice != null || h.stopPrice != null ? (
+                      <span className={styles.tickerName}>
+                        {h.targetPrice != null ? `Obj. ${fmtAmt(h.targetPrice)}` : ""}
+                        {h.targetPrice != null && h.stopPrice != null ? " · " : ""}
+                        {h.stopPrice != null ? `Stop ${fmtAmt(h.stopPrice)}` : ""}
+                      </span>
+                    ) : null}
                   </td>
                   <td
                     className={styles.varChg}

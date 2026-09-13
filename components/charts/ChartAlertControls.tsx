@@ -38,8 +38,12 @@ export default function ChartAlertControls({
   const [alerts, setAlerts] = useState<PriceAlertDto[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [kind, setKind] = useState<"PRICE" | "DAILY" | "HORIZON" | "SIGNAL">("PRICE");
   const [direction, setDirection] = useState<AlertDirection>("ABOVE");
   const [target, setTarget] = useState("");
+  const [percent, setPercent] = useState("3");
+  const [horizon, setHorizon] = useState<"1S" | "1M">("1S");
+  const [signal, setSignal] = useState<"ACHAT FORT" | "ACHAT">("ACHAT FORT");
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -81,15 +85,35 @@ export default function ChartAlertControls({
 
   async function createAlert() {
     if (!isAuthenticated) return;
-    const value = Number(target.replace(",", "."));
-    if (!Number.isFinite(value) || value <= 0) {
-      setError("Indiquez un seuil de cours positif.");
-      return;
-    }
     setSaving(true);
     setError(null);
     setMessage(null);
     try {
+      if (kind !== "PRICE") {
+        const body =
+          kind === "DAILY"
+            ? { kind: "DAILY_MOVE", ticker, percent: Number(percent) }
+            : kind === "HORIZON"
+              ? { kind: "HORIZON_MOVE", ticker, percent: Number(percent), horizon }
+              : { kind: "SIGNAL_ENTRY", ticker, signal };
+        const res = await fetch("/api/alert-rules", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const json = await res.json().catch(() => null);
+        if (!res.ok || !json?.ok) {
+          setError(json?.error ?? "Création impossible.");
+          return;
+        }
+        setMessage("Règle créée — visible aussi dans Notifications.");
+        return;
+      }
+      const value = Number(target.replace(",", "."));
+      if (!Number.isFinite(value) || value <= 0) {
+        setError("Indiquez un seuil de cours positif.");
+        return;
+      }
       const res = await fetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -186,40 +210,97 @@ export default function ChartAlertControls({
           <p className={styles.analysisHint}>
             Seuil sur le dernier cours canonique de {ticker}
             {lastClose != null ? ` (actuel ${fmtPrice(lastClose)})` : ""}. Vérifié après chaque
-            actualisation BRVM.
+            actualisation BRVM. Collier typique ±7,5 % / séance.
           </p>
           <label className={styles.analysisLabel}>
-            Direction
+            Type
             <select
               className={styles.analysisInput}
-              value={direction}
-              onChange={(e) => setDirection(e.target.value as AlertDirection)}
+              value={kind}
+              onChange={(e) => setKind(e.target.value as typeof kind)}
             >
-              <option value="ABOVE">Cours ≥ seuil</option>
-              <option value="BELOW">Cours ≤ seuil</option>
+              <option value="PRICE">Cours ≥ / ≤ seuil FCFA</option>
+              <option value="DAILY">Variation du jour ≥ Y %</option>
+              <option value="HORIZON">Variation 1S / 1M ≥ Y %</option>
+              <option value="SIGNAL">Entrée ACHAT / ACHAT FORT</option>
             </select>
           </label>
-          <label className={styles.analysisLabel}>
-            Seuil (FCFA)
-            <input
-              className={styles.analysisInput}
-              type="number"
-              min={1}
-              step="any"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            />
-          </label>
-          <label className={styles.analysisLabel}>
-            Note (optionnel)
-            <input
-              className={styles.analysisInput}
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              maxLength={200}
-              placeholder="Ex. resistance 2024"
-            />
-          </label>
+          {kind === "PRICE" ? (
+            <>
+              <label className={styles.analysisLabel}>
+                Direction
+                <select
+                  className={styles.analysisInput}
+                  value={direction}
+                  onChange={(e) => setDirection(e.target.value as AlertDirection)}
+                >
+                  <option value="ABOVE">Cours ≥ seuil</option>
+                  <option value="BELOW">Cours ≤ seuil</option>
+                </select>
+              </label>
+              <label className={styles.analysisLabel}>
+                Seuil (FCFA)
+                <input
+                  className={styles.analysisInput}
+                  type="number"
+                  min={1}
+                  step="any"
+                  value={target}
+                  onChange={(e) => setTarget(e.target.value)}
+                />
+              </label>
+              <label className={styles.analysisLabel}>
+                Note (optionnel)
+                <input
+                  className={styles.analysisInput}
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  maxLength={200}
+                  placeholder="Ex. resistance 2024"
+                />
+              </label>
+            </>
+          ) : null}
+          {kind === "DAILY" || kind === "HORIZON" ? (
+            <label className={styles.analysisLabel}>
+              Seuil (%)
+              <input
+                className={styles.analysisInput}
+                type="number"
+                min={0.5}
+                max={10}
+                step="0.1"
+                value={percent}
+                onChange={(e) => setPercent(e.target.value)}
+              />
+            </label>
+          ) : null}
+          {kind === "HORIZON" ? (
+            <label className={styles.analysisLabel}>
+              Horizon
+              <select
+                className={styles.analysisInput}
+                value={horizon}
+                onChange={(e) => setHorizon(e.target.value as "1S" | "1M")}
+              >
+                <option value="1S">1 semaine</option>
+                <option value="1M">1 mois</option>
+              </select>
+            </label>
+          ) : null}
+          {kind === "SIGNAL" ? (
+            <label className={styles.analysisLabel}>
+              Signal
+              <select
+                className={styles.analysisInput}
+                value={signal}
+                onChange={(e) => setSignal(e.target.value as "ACHAT FORT" | "ACHAT")}
+              >
+                <option value="ACHAT FORT">ACHAT FORT</option>
+                <option value="ACHAT">ACHAT ou ACHAT FORT</option>
+              </select>
+            </label>
+          ) : null}
           <button
             type="button"
             className={styles.analysisSaveBtn}
