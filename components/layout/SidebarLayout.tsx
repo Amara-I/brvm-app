@@ -7,7 +7,7 @@ import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
-import SignOutButton from "@/components/auth/SignOutButton";
+import AccountMenu from "@/components/auth/AccountMenu";
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
@@ -38,7 +38,8 @@ export default function SidebarLayout({
     pathname === "/mot-de-passe-oublie" ||
     pathname === "/reinitialiser-mot-de-passe" ||
     pathname === "/verifier-email" ||
-    pathname === "/deconnexion";
+    pathname === "/deconnexion" ||
+    pathname === "/profil";
 
   useEffect(() => {
     if (!mobileOpen) return;
@@ -111,12 +112,7 @@ export default function SidebarLayout({
           <HeaderSearch companies={searchCompanies} />
           <ThemeToggle />
           {user ? (
-            <>
-              <p className={styles.userLine}>
-                Bonjour, <span className={styles.userName}>{user.name ?? user.email}</span>
-              </p>
-              <SignOutButton className={styles.authLink} />
-            </>
+            <AccountMenu user={user} />
           ) : (
             <>
               <Link href="/connexion" className={styles.authLink}>

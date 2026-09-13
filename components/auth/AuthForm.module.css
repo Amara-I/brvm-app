@@ -2,13 +2,16 @@
   width: 100%;
   max-width: 440px;
   margin: 0 auto;
-  padding: 24px 16px 48px;
+  padding: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
+    max(48px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   box-sizing: border-box;
 }
 
 .card {
   overflow: hidden;
   min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--c-gold) 22%, var(--c-border));
+  box-shadow: var(--shadow-md);
 }
 
 .form {
@@ -101,6 +104,13 @@
   font-size: 0.95rem;
   font-family: inherit;
   cursor: pointer;
+}
+
+.submit:focus-visible,
+.google:focus-visible,
+.input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--c-gold) 70%, transparent);
+  outline-offset: 2px;
 }
 
 .submit:disabled {

@@ -1,0 +1,121 @@
+.root {
+  position: relative;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  color: var(--c-text);
+  border-radius: 999px;
+  padding: 4px 10px 4px 4px;
+  font-family: inherit;
+  font-size: var(--fs-body-sm);
+  cursor: pointer;
+  line-height: 1.2;
+  max-width: 220px;
+}
+
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--c-gold) 50%, var(--c-border));
+}
+
+.avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--c-gold) 22%, var(--c-bg));
+  color: var(--c-gold);
+  font-weight: 800;
+  font-size: 0.72rem;
+  flex-shrink: 0;
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+.chevron {
+  color: var(--c-textdim);
+  font-size: 0.7rem;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 120;
+  min-width: 220px;
+  padding: 6px;
+  background: var(--c-panel);
+  border: 1px solid color-mix(in srgb, var(--c-gold) 28%, var(--c-border));
+  border-radius: 12px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+}
+
+.item,
+.itemButton {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--c-text);
+  text-decoration: none;
+  font-family: inherit;
+  font-size: 0.84rem;
+  padding: 9px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.item:hover,
+.itemButton:hover {
+  background: var(--c-selected-bg);
+}
+
+.danger {
+  color: var(--c-red);
+}
+
+.landingTrigger {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: transparent;
+  color: #f7f1e4;
+}
+
+.landingTrigger:hover,
+.landingTrigger[aria-expanded="true"] {
+  border-color: rgba(212, 168, 67, 0.45);
+}
+
+.landingMenu {
+  background: #12161d;
+  border-color: rgba(212, 168, 67, 0.28);
+}
+
+.landingMenu .item,
+.landingMenu .itemButton {
+  color: #f7f1e4;
+}
+
+@media (max-width: 860px) {
+  .label {
+    display: none;
+  }
+
+  .trigger {
+    padding: 3px;
+    border-radius: 999px;
+  }
+}
