@@ -33,15 +33,17 @@ export default async function ProfilPage({
   } | null = null;
 
   try {
-    dbUser = await prisma.user.findUnique({
-      where: { id: sessionUser.id },
-      select: { name: true, email: true, emailVerified: true, passwordHash: true, role: true },
-    });
+    if (sessionUser?.id) {
+      dbUser = await prisma.user.findUnique({
+        where: { id: sessionUser.id },
+        select: { name: true, email: true, emailVerified: true, passwordHash: true, role: true },
+      });
+    }
   } catch (error) {
     if (!isDatabaseUnavailable(error)) throw error;
   }
 
-  const email = dbUser?.email ?? sessionUser.email ?? "N/D";
+  const email = dbUser?.email ?? sessionUser?.email ?? "N/D";
   const mailNotice =
     searchParams.verify === "sent"
       ? "Un email de confirmation vient d’être demandé. Consultez votre boîte de réception."
@@ -57,12 +59,12 @@ export default async function ProfilPage({
         />
         <ProfileClient
           initial={{
-            name: dbUser?.name ?? sessionUser.name ?? null,
+            name: dbUser?.name ?? sessionUser?.name ?? null,
             email,
-            emailVerified: dbUser ? Boolean(dbUser.emailVerified) : sessionUser.emailVerified === true,
+            emailVerified: dbUser ? Boolean(dbUser.emailVerified) : sessionUser?.emailVerified === true,
             hasPassword: Boolean(dbUser?.passwordHash),
             isAdmin: isAdminRoleOrEmail({
-              role: dbUser?.role ?? sessionUser.role,
+              role: dbUser?.role ?? sessionUser?.role,
               email,
             }),
           }}
