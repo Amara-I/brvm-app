@@ -48,3 +48,7 @@
 .check input {
   accent-color: var(--c-gold);
 }
+
+.alertsWrap {
+  margin-top: 16px;
+}
