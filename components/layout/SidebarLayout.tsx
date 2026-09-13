@@ -10,7 +10,7 @@ import ThemeToggle from "@/components/theme/ThemeToggle";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
 import AccountMenu from "@/components/auth/AccountMenu";
- main
+  main
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";

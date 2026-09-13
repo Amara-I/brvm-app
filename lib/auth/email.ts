@@ -196,6 +196,25 @@ async function sendViaSmtp(
   }
 }
 
+export async function sendAppEmail(input: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<SendEmailResult> {
+  const from = getEmailFrom();
+  if (!hasEmailProvider()) {
+    return fail("not_configured", "Aucun fournisseur email");
+  }
+  if (!from) {
+    return fail("invalid_from", "EMAIL_FROM manquant ou invalide");
+  }
+  if (process.env.RESEND_API_KEY?.trim()) {
+    return sendViaResend(input.to, input.subject, input.html, input.text, from);
+  }
+  return sendViaSmtp(input.to, input.subject, input.html, input.text, from);
+}
+
 export async function sendAuthEmail(kind: AuthEmailKind, to: string, rawToken: string): Promise<SendEmailResult> {
   const { subject, text, html } = buildAuthEmail(kind, to, rawToken);
   const from = getEmailFrom();

@@ -107,8 +107,8 @@ export default function NotificationPrefsForm() {
             E-mail
             <span className={styles.hint}>
               {emailAvailable
-                ? "Envoi via Resend si une adresse est associée au compte"
-                : "Non configuré sur ce déploiement (RESEND_API_KEY + EMAIL_FROM) — l'in-app reste actif"}
+                ? "Envoi via Resend ou SMTP si une adresse est associée au compte"
+                : "Non configuré sur ce déploiement (Resend ou SMTP) — l'in-app reste actif"}
             </span>
           </span>
           <input
