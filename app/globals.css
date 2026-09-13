@@ -114,7 +114,29 @@
   color-scheme: dark;
 }
 
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  background-color: var(--c-bg);
+  overflow-x: clip;
+}
+
+html,
 body {
+  max-width: 100%;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100dvh;
   background: var(--c-bg);
   color: var(--c-text);
   font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -123,6 +145,25 @@ body {
   letter-spacing: var(--tracking-tight);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Landing : toile toujours sombre — html/body/main, pas une carte sur page blanche. */
+html:has(.ob-landing-root),
+html:has(.ob-landing-root) body,
+html:has(.ob-landing-root) #main-content,
+html[data-canvas="landing"],
+html[data-canvas="landing"] body,
+html[data-canvas="landing"] #main-content {
+  background-color: #05070b;
+}
+
+#main-content {
+  display: block;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background: inherit;
+  overflow-x: clip;
 }
 
 h1,

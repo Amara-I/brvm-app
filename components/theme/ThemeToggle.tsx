@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
+import { applyBrowserChromeColor, browserChromeColor } from "@/lib/theme/browser-chrome";
 import { IconMoon, IconSun } from "@/components/icons/HeaderIcons";
 
 type Theme = "light" | "dark";
@@ -20,6 +21,10 @@ export default function ThemeToggle() {
     const next: Theme = theme === "dark" ? "light" : "dark";
     setTheme(next);
     document.documentElement.setAttribute("data-theme", next);
+    const canvas = document.documentElement.getAttribute("data-canvas");
+    applyBrowserChromeColor(
+      browserChromeColor(next, canvas === "landing" ? "landing" : null)
+    );
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, next);
     } catch {

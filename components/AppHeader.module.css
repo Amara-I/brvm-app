@@ -5,8 +5,12 @@
   grid-template-areas:
     "brand topbar"
     "sidebar main";
-  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
   background: var(--c-bg);
+  overflow-x: clip;
 }
 
 .logoWrap {
@@ -99,11 +103,13 @@
 .mainInner {
   flex: 1;
   width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: stretch;
   padding: 20px 24px 40px;
   box-sizing: border-box;
+  overflow-x: clip;
 }
 
 .pageColumn {
@@ -193,7 +199,7 @@
 @media (max-width: 860px) {
   .shell {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--app-header-height) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "topbar"
       "main";
@@ -232,13 +238,16 @@
   }
 
   .topBar {
-    padding: 0 10px;
+    min-height: var(--app-header-height);
+    padding: env(safe-area-inset-top, 0px) max(16px, env(safe-area-inset-right, 0px)) 0
+      max(16px, env(safe-area-inset-left, 0px));
     gap: 8px;
     flex-wrap: nowrap;
   }
 
   .mainInner {
-    padding: 12px 14px 24px;
+    padding: 16px max(20px, env(safe-area-inset-right, 0px))
+      calc(28px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
   }
 
   .topActions {

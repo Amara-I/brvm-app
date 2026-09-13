@@ -2,6 +2,7 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import LandingTopBar from "./LandingTopBar";
+import LandingCanvas from "./LandingCanvas";
 import styles from "./Landing.module.css";
 
 export default async function LandingChrome({ children }: { children: React.ReactNode }) {
@@ -11,7 +12,8 @@ export default async function LandingChrome({ children }: { children: React.Reac
   ]);
 
   return (
-    <div className={styles.chrome}>
+    <div className={`${styles.chrome} ob-landing-root`}>
+      <LandingCanvas />
       <LandingTopBar
         searchCompanies={nav.companies.map((company) => ({
           ticker: company.ticker,
