@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
-
 import Link from "next/link";
- main
 import AppHeader from "@/components/AppHeader";
 import PageHeader from "@/components/ui/PageHeader";
 import ProfileClient from "@/components/profile/ProfileClient";
@@ -12,8 +10,6 @@ import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { C } from "@/lib/theme/colors";
-import profileStyles from "@/components/profile/Profile.module.css";
-main
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +81,7 @@ export default async function ProfilPage({
           </Link>
         </p>
 
-        <div className={profileStyles.alertsWrap} style={{ marginTop: 22 }}>
+        <div className={profileStyles.alertsWrap}>
           <NotificationPrefsForm />
         </div>
       </div>
