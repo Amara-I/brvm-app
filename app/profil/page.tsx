@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import PageHeader from "@/components/ui/PageHeader";
 import ProfileClient from "@/components/profile/ProfileClient";
@@ -8,12 +9,13 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { C } from "@/lib/theme/colors";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Mon profil — OuestBourse",
-  description: "Gérez votre compte, votre mot de passe et vos alertes OuestBourse.",
+  description: "Gérez votre compte, votre mot de passe et vos préférences d’alertes OuestBourse.",
 };
 
 export default async function ProfilPage({
@@ -72,7 +74,14 @@ export default async function ProfilPage({
           }}
           mailNotice={mailNotice}
         />
-        <div className={profileStyles.alertsWrap}>
+
+        <p style={{ margin: "18px 0 0" }}>
+          <Link href="/notifications" style={{ color: C.gold, fontWeight: 700, fontSize: "0.84rem" }}>
+            Ouvrir le centre de notifications
+          </Link>
+        </p>
+
+        <div className={profileStyles.alertsWrap} style={{ marginTop: 22 }}>
           <NotificationPrefsForm />
         </div>
       </div>
