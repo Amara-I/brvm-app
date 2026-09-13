@@ -129,6 +129,23 @@ async function sendViaSmtp(to: string, subject: string, html: string, text: stri
   return { ok: true, provider: "smtp" };
 }
 
+export async function sendAppEmail(input: {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}): Promise<SendEmailResult> {
+  if (process.env.RESEND_API_KEY?.trim()) {
+    return sendViaResend(input.to, input.subject, input.html, input.text);
+  }
+  if (process.env.EMAIL_SERVER?.trim() || process.env.EMAIL_SERVER_HOST?.trim()) {
+    return sendViaSmtp(input.to, input.subject, input.html, input.text);
+  }
+
+  console.info(`[email] ${input.subject} pour ${input.to} (aucun fournisseur configuré)`);
+  return { ok: true, provider: "log" };
+}
+
 export async function sendAuthEmail(kind: AuthEmailKind, to: string, rawToken: string): Promise<SendEmailResult> {
   const { subject, text, html } = buildAuthEmail(kind, to, rawToken);
   const link =
@@ -136,15 +153,11 @@ export async function sendAuthEmail(kind: AuthEmailKind, to: string, rawToken: s
       ? buildAuthLink("/verifier-email", rawToken)
       : buildAuthLink("/reinitialiser-mot-de-passe", rawToken);
 
-  if (process.env.RESEND_API_KEY?.trim()) {
-    return sendViaResend(to, subject, html, text);
+  if (!isEmailConfigured()) {
+    console.info(`[auth:email] ${kind} pour ${to} (aucun fournisseur configuré) — ${link}`);
+    return { ok: true, provider: "log" };
   }
-  if (process.env.EMAIL_SERVER?.trim() || process.env.EMAIL_SERVER_HOST?.trim()) {
-    return sendViaSmtp(to, subject, html, text);
-  }
-
-  console.info(`[auth:email] ${kind} pour ${to} (aucun fournisseur configuré) — ${link}`);
-  return { ok: true, provider: "log" };
+  return sendAppEmail({ to, subject, html, text });
 }
 
 export function isDevAuthPreviewEnabled(env: EnvMap = process.env): boolean {

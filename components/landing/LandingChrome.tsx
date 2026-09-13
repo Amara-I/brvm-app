@@ -4,7 +4,6 @@ import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import LandingTopBar from "./LandingTopBar";
 import LandingCanvas from "./LandingCanvas";
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
-  main
 import styles from "./Landing.module.css";
 
 export default async function LandingChrome({ children }: { children: React.ReactNode }) {

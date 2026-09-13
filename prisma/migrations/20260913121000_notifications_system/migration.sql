@@ -1,4 +1,5 @@
 -- Notifications in-app, règles d'alerte étendues, préférences, objectif/stop portefeuille.
+-- Horodatage après 20260913120000_auth_tokens (même date, conflit de merge main).
 
 CREATE TYPE "notification_type" AS ENUM ('PRIX', 'SIGNAUX', 'PORTEFEUILLE', 'INDICES', 'SYSTEME');
 CREATE TYPE "alert_rule_kind" AS ENUM ('DAILY_MOVE', 'HORIZON_MOVE', 'SIGNAL_ENTRY', 'INDEX_MOVE');
