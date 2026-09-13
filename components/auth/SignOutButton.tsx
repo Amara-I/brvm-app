@@ -13,8 +13,12 @@ type Props = {
   hideTrigger?: boolean;
 };
 
+function homeUrl(): string {
+  return `${window.location.origin}/`;
+}
+
 function fallbackSignOut() {
-  const url = `/api/auth/signout?callbackUrl=${encodeURIComponent("/")}`;
+  const url = `/api/auth/signout?callbackUrl=${encodeURIComponent(homeUrl())}`;
   window.location.assign(url);
 }
 
@@ -58,8 +62,7 @@ export default function SignOutButton({ className, open, onOpenChange, hideTrigg
     if (busy) return;
     setBusy(true);
     try {
-      await signOut({ callbackUrl: "/", redirect: true });
-      window.setTimeout(fallbackSignOut, 1500);
+      await signOut({ callbackUrl: homeUrl(), redirect: true });
     } catch {
       fallbackSignOut();
     }
