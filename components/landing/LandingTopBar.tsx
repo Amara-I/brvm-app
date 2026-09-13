@@ -6,7 +6,7 @@ import HeaderSearch from "@/components/nav/HeaderSearch";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import NotificationBell from "@/components/notifications/NotificationBell";
-import SignOutButton from "@/components/auth/SignOutButton";
+import AccountMenu from "@/components/auth/AccountMenu";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import {
   BRAND_LOGO_HEIGHT,
@@ -48,12 +48,7 @@ export default function LandingTopBar({
             </div>
             <NotificationBell isAuthenticated={Boolean(user)} />
             {user ? (
-              <>
-                <p className={styles.topGreeting}>
-                  Bonjour, <span>{user.name ?? user.email ?? "N/D"}</span>
-                </p>
-                <SignOutButton className={styles.topAuth} />
-              </>
+              <AccountMenu user={user} variant="landing" />
             ) : (
               <>
                 <Link href="/connexion" className={styles.topAuth}>

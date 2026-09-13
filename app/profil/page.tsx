@@ -1,54 +1,74 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import PageHeader from "@/components/ui/PageHeader";
+import ProfileClient from "@/components/profile/ProfileClient";
 import NotificationPrefsForm from "@/components/notifications/NotificationPrefsForm";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
-import { C } from "@/lib/theme/colors";
+import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
+import { prisma } from "@/lib/prisma";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Profil et alertes — OuestBourse",
-  description: "Compte, préférences de notification et canaux d'alerte OuestBourse.",
+  title: "Mon profil — OuestBourse",
+  description: "Gérez votre compte, votre mot de passe et vos alertes OuestBourse.",
 };
 
-export default async function ProfilPage() {
-  const user = await getCurrentUser();
-  if (!user?.id) {
+export default async function ProfilPage({
+  searchParams,
+}: {
+  searchParams: { verify?: string };
+}) {
+  const sessionUser = await getCurrentUser().catch(() => null);
+  if (!sessionUser?.id) {
     redirect("/connexion?callbackUrl=/profil");
   }
 
+  let dbUser: {
+    name: string | null;
+    email: string;
+    emailVerified: Date | null;
+    passwordHash: string | null;
+    role: string;
+  } | null = null;
+
+  try {
+    dbUser = await prisma.user.findUnique({
+      where: { id: sessionUser.id },
+      select: { name: true, email: true, emailVerified: true, passwordHash: true, role: true },
+    });
+  } catch (error) {
+    if (!isDatabaseUnavailable(error)) throw error;
+  }
+
+  const email = dbUser?.email ?? sessionUser.email ?? "N/D";
+  const mailNotice =
+    searchParams.verify === "sent"
+      ? "Un email de confirmation vient d’être demandé. Consultez votre boîte de réception."
+      : null;
+
   return (
     <AppHeader>
-      <div className="ob-page">
+      <div className="ob-page" style={{ paddingBottom: 32 }}>
         <PageHeader
           kicker="Compte"
-          title="Profil"
-          lead="Identité du compte et réglages des alertes (in-app, e-mail, heures calmes)."
+          title="Mon profil"
+          lead="Identité, confirmation d’email, mot de passe et préférences d’alertes — uniquement pour ce compte."
         />
-
-        <section
-          style={{
-            background: C.panel,
-            border: `1px solid ${C.border}`,
-            borderRadius: 14,
-            padding: "16px 18px",
-            marginBottom: 18,
+        <ProfileClient
+          initial={{
+            name: dbUser?.name ?? sessionUser.name ?? null,
+            email,
+            emailVerified: dbUser ? Boolean(dbUser.emailVerified) : sessionUser.emailVerified === true,
+            hasPassword: Boolean(dbUser?.passwordHash),
+            isAdmin: isAdminRoleOrEmail({
+              role: dbUser?.role ?? sessionUser.role,
+              email,
+            }),
           }}
-        >
-          <p style={{ margin: "0 0 4px", fontSize: "0.68rem", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.textDim }}>
-            Compte
-          </p>
-          <p style={{ margin: 0, fontSize: "1.05rem", fontWeight: 700, color: C.text }}>{user.name ?? "N/D"}</p>
-          <p style={{ margin: "4px 0 0", fontSize: "0.86rem", color: C.textDim }}>{user.email ?? "N/D"}</p>
-          <p style={{ margin: "12px 0 0" }}>
-            <Link href="/notifications" style={{ color: C.gold, fontWeight: 700, fontSize: "0.84rem" }}>
-              Ouvrir le centre de notifications
-            </Link>
-          </p>
-        </section>
-
+          mailNotice={mailNotice}
+        />
         <NotificationPrefsForm />
       </div>
     </AppHeader>

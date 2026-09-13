@@ -576,12 +576,10 @@ model User {
   portfolios Portfolio[]
   chartAnalyses ChartAnalysis[]
   priceAlerts   PriceAlert[]
-  cursor/notifications-system-b107
   alertRules    AlertRule[]
   notifications NotificationEvent[]
   notificationPreference NotificationPreference?
   authTokens    AuthToken[]
- main
 
   @@map("users")
 }
