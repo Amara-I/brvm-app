@@ -240,6 +240,22 @@
   font-size: 0.86rem;
 }
 
+.cta {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--c-gold);
+  color: #080b12;
+  font-size: 0.86rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.cta:hover {
+  opacity: 0.92;
+}
+
 .empty {
   color: var(--c-textdim);
   font-size: 0.88rem;

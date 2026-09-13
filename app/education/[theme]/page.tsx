@@ -53,6 +53,13 @@ export default function EducationThemePage({ params }: { params: { theme: string
           {terms.length > 1 ? "s" : ""} dans ce thème
           {category ? ` · catégorie ${category.title}` : ""}.
         </p>
+        {theme.slug === "taille-position" && (
+          <p style={{ margin: "0 0 18px" }}>
+            <Link href="/outils/taille-position?example=sogb" className={styles.cta}>
+              Ouvrir la calculette de taille de position
+            </Link>
+          </p>
+        )}
         <ul className={styles.termList}>
           {terms.map((t) => (
             <li key={t.slug}>

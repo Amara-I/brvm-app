@@ -1,0 +1,37 @@
+import { describe, expect, it } from "vitest";
+import {
+  EDUCATION_TERMS,
+  EDUCATION_THEMES,
+  getTermBySlug,
+  getThemeBySlug,
+  termsByTheme,
+} from "./catalog";
+
+describe("education catalog — taille de position", () => {
+  it("expose le thème et les 3 fiches", () => {
+    const theme = getThemeBySlug("taille-position");
+    expect(theme?.title).toBe("Taille de position");
+    expect(theme?.categorySlug).toBe("risques");
+
+    const terms = termsByTheme("taille-position");
+    expect(terms.map((t) => t.slug)).toEqual([
+      "taille-de-position",
+      "taux-perte-acceptable",
+      "stop-loss-brvm",
+    ]);
+  });
+
+  it("relie la fiche méthode à la calculette", () => {
+    const term = getTermBySlug("taille-de-position");
+    expect(term?.ctaHref).toBe("/outils/taille-position?example=sogb");
+    expect(term?.example).toMatch(/60 titres/);
+    expect(term?.details).toMatch(/Q = \(capital/);
+  });
+
+  it("conserve des slugs uniques", () => {
+    const slugs = EDUCATION_TERMS.map((t) => t.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+    const themeSlugs = EDUCATION_THEMES.map((t) => t.slug);
+    expect(new Set(themeSlugs).size).toBe(themeSlugs.length);
+  });
+});

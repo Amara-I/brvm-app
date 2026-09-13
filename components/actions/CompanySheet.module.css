@@ -514,6 +514,18 @@
   cursor: not-allowed;
 }
 
+.btnOutline {
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.btnOutline:hover {
+  border-color: var(--c-gold);
+  color: var(--c-gold);
+}
+
 .tabs {
   display: flex;
   flex-wrap: wrap;

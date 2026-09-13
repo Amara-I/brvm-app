@@ -13,16 +13,23 @@ export default function TickerAlertButton({
   lastClose,
   loginCallbackPath,
   className,
+  defaultTarget,
+  defaultDirection,
+  label,
 }: {
   isAuthenticated: boolean;
   ticker: string;
   lastClose: number | null;
   loginCallbackPath?: string;
   className?: string;
+  /** Seuil prérempli (ex. stop de la calculette). */
+  defaultTarget?: number | null;
+  defaultDirection?: "ABOVE" | "BELOW";
+  label?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind>("PRICE");
-  const [direction, setDirection] = useState<"ABOVE" | "BELOW">("ABOVE");
+  const [direction, setDirection] = useState<"ABOVE" | "BELOW">(defaultDirection ?? "ABOVE");
   const [target, setTarget] = useState("");
   const [percent, setPercent] = useState("3");
   const [horizon, setHorizon] = useState<"1S" | "1M">("1S");
@@ -32,8 +39,16 @@ export default function TickerAlertButton({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (defaultTarget != null && Number.isFinite(defaultTarget) && defaultTarget > 0) {
+      setTarget(String(Math.round(defaultTarget)));
+      return;
+    }
     if (lastClose != null && Number.isFinite(lastClose)) setTarget(String(Math.round(lastClose)));
-  }, [ticker, lastClose]);
+  }, [ticker, lastClose, defaultTarget]);
+
+  useEffect(() => {
+    if (defaultDirection) setDirection(defaultDirection);
+  }, [defaultDirection]);
 
   useEffect(() => {
     if (!open) return;
@@ -51,7 +66,7 @@ export default function TickerAlertButton({
         href={`/connexion?callbackUrl=${encodeURIComponent(callback)}`}
         className={className ?? styles.btn}
       >
-        Alerte
+        {label ?? "Alerte"}
       </Link>
     );
   }
@@ -109,7 +124,7 @@ export default function TickerAlertButton({
   return (
     <div className={styles.wrap}>
       <button type="button" className={className ?? styles.btn} onClick={() => setOpen(true)}>
-        Alerte
+        {label ?? "Alerte"}
       </button>
       {open ? (
         <div className={styles.overlay} role="presentation" onClick={() => setOpen(false)}>

@@ -52,6 +52,9 @@ export interface EducationTerm {
   sources?: EducationSource[];
   /** Ordre pédagogique dans le thème (plus petit = plus tôt). */
   sortOrder?: number;
+  /** Lien interne vers un outil (calculette, fiche…). */
+  ctaHref?: string;
+  ctaLabel?: string;
 }
 
 export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
@@ -77,7 +80,7 @@ export const EDUCATION_CATEGORIES: EducationCategory[] = [
   {
     slug: "risques",
     title: "Risques",
-    blurb: "Liquidité, volatilité et mesures pour lire le risque sans le sous-estimer.",
+    blurb: "Liquidité, volatilité, taille de position et mesures pour lire le risque sans le sous-estimer.",
     order: 3,
   },
   {
@@ -154,6 +157,13 @@ export const EDUCATION_THEMES: EducationTheme[] = [
     slug: "risques",
     title: "Mesures de risque",
     blurb: "Liquidité, volatilité, VaR, drawdown et lecture du risque.",
+    categorySlug: "risques",
+  },
+  {
+    slug: "taille-position",
+    title: "Taille de position",
+    blurb:
+      "Dimensionner une position BRVM selon un risque de perte acceptable, le cours d’entrée et le stop — formule, exemples et alerte.",
     categorySlug: "risques",
   },
   {
@@ -1594,6 +1604,57 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     resourceUrl: null,
     tip: "Les jours sans cotation peuvent laisser des paliers ; les cours manquants excluent temporairement une ligne du calcul.",
     source: "plateforme",
+  },
+  {
+    slug: "taille-de-position",
+    title: "Taille de position",
+    level: "debutant",
+    themeSlug: "taille-position",
+    sortOrder: 1,
+    definition:
+      "Quantité d’actions à acheter pour qu’une perte jusqu’au stop reste limitée à un pourcentage choisi du capital. Formule : Q = (capital × taux %) / (entrée − stop).",
+    example:
+      "Exemple pédagogique SOGB CI (SOGC) : capital 1 000 000 FCFA, taux 5 %, entrée 8 400 FCFA, stop 7 560 FCFA. Budget = 50 000 FCFA ; risque par titre = 840 FCFA ; Q = 50 000 / 840 ≈ 59,52 → 60 titres. Ouvrez /outils/taille-position pour recalculer avec vos chiffres.",
+    synonyms: ["Position sizing", "Dimensionnement", "Money management"],
+    resourceUrl: null,
+    tip: "Arrondir à l’entier le plus proche peut faire légèrement dépasser le budget (60 × 840 = 50 400 FCFA, soit 5,04 %). Ce n’est pas un conseil d’achat.",
+    source: "guide",
+    ctaHref: "/outils/taille-position?example=sogb",
+    ctaLabel: "Ouvrir la calculette (exemple SOGB)",
+  },
+  {
+    slug: "taux-perte-acceptable",
+    title: "Taux de perte acceptable",
+    level: "debutant",
+    themeSlug: "taille-position",
+    sortOrder: 2,
+    definition:
+      "Pourcentage du capital que vous acceptez de perdre sur un seul trade si le stop est touché. Il fixe le budget de risque : capital × taux %.",
+    example:
+      "Sur 1 000 000 FCFA, 5 % = 50 000 FCFA de perte max acceptée. À 3 %, le budget tombe à 30 000 FCFA : la quantité recommandée baisse d’autant. Repère courant pour un particulier BRVM : 3 à 5 % par position.",
+    synonyms: ["Risque par trade", "Budget de risque", "Risk per trade"],
+    resourceUrl: null,
+    tip: "Un taux trop élevé (au-delà de ~5–10 %) enchaîne les pertes rapides ; trop bas peut rendre toute position impossible sur un titre cher.",
+    source: "guide",
+    ctaHref: "/outils/taille-position",
+    ctaLabel: "Essayer avec mes chiffres",
+  },
+  {
+    slug: "stop-loss-brvm",
+    title: "Stop loss à la BRVM",
+    level: "intermediaire",
+    themeSlug: "taille-position",
+    sortOrder: 3,
+    definition:
+      "Niveau de cours sous l’entrée (à l’achat) à partir duquel vous acceptez de sortir pour limiter la perte. À la BRVM, il n’existe généralement pas d’ordre stop automatique chez l’intermédiaire : le stop est une règle personnelle, à surveiller.",
+    example:
+      "Entrée 8 400 FCFA, stop 7 560 FCFA (−10 %). Créez une alerte « cours ≤ 7 560 » depuis la calculette ou la fiche titre : l’alerte prévient, elle n’exécute aucun ordre. Passez ensuite par votre SGI.",
+    synonyms: ["Seuil de sortie", "Stop", "Ordre stop"],
+    resourceUrl: null,
+    tip: "Le stop doit être strictement inférieur à l’entrée pour un achat. Couplé à une alerte OuestBourse, il reste une discipline — pas un ordre de bourse.",
+    source: "guide",
+    ctaHref: "/outils/taille-position",
+    ctaLabel: "Calculer puis alerter au stop",
   },
 ];
 

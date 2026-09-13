@@ -502,6 +502,51 @@ export const ENRICHMENTS_PART3: Record<string, TermEnrichment> = {
     ],
   },
 
+  "taille-de-position": {
+    details:
+      "La taille de position répond à une question simple : « combien de titres puis-je acheter pour que, si le stop est touché, je ne perde pas plus que X % de mon capital ? »\n\nFormule : Q = (capital × taux %) / (entrée − stop). Étapes : (1) noter le capital disponible, (2) choisir un taux de perte acceptable (souvent 3–5 % pour un particulier BRVM), (3) fixer le prix d’entrée (cours réel en base, jamais inventé) et un stop sous ce cours, (4) calculer Q et arrondir à l’entier le plus proche.\n\nExemple pédagogique type SOGB CI (ticker SOGC) : 1 000 000 FCFA, 5 %, entrée 8 400, stop 7 560. Budget = 50 000 FCFA ; écart = 840 FCFA ; Q ≈ 59,52 → 60 titres. Montant investi = 60 × 8 400 = 504 000 FCFA. Perte si stop touché = 60 × 840 = 50 400 FCFA (5,04 % du capital), légèrement au-dessus du budget à cause de l’arrondi.\n\nSur la BRVM, il n’y a généralement pas d’ordre stop natif. La calculette OuestBourse (/outils/taille-position) charge le cours en base lorsqu’un ticker est choisi et propose une alerte au niveau du stop. Outil pédagogique — pas un conseil d’achat.",
+    sources: [
+      {
+        title: "Investopedia — Position Sizing",
+        url: "https://www.investopedia.com/terms/p/positionsizing.asp",
+      },
+      {
+        title: "BRVM — site officiel",
+        url: "https://www.brvm.org",
+      },
+    ],
+  },
+
+  "taux-perte-acceptable": {
+    details:
+      "Le taux de perte acceptable est le pourcentage du capital que vous acceptez de risquer sur une seule position. Il n’est pas le rendement espéré : c’est un plafond de douleur.\n\nBudget = capital × taux %. Exemple : 1 000 000 FCFA à 5 % → 50 000 FCFA ; à 3 % → 30 000 FCFA. Plus le taux est bas, moins vous achetez de titres pour le même écart entrée/stop.\n\nPour un particulier sur la BRVM (liquidité parfois faible, pas d’ordre stop automatique), 3 à 5 % par trade est un repère courant des tutoriaux de money management. Au-delà, une série de stops rapprochés entame vite le capital ; trop bas, un titre à 30 000 FCFA avec un stop large peut donner Q < 1.\n\nTestez vos chiffres dans la calculette gratuite /outils/taille-position, puis relisez liquidité et signal sur la fiche avant toute décision. Ce n’est pas un conseil personnalisé.",
+    sources: [
+      {
+        title: "Investopedia — Risk Management",
+        url: "https://www.investopedia.com/terms/r/riskmanagement.asp",
+      },
+      {
+        title: "Investopedia — Position Sizing",
+        url: "https://www.investopedia.com/terms/p/positionsizing.asp",
+      },
+    ],
+  },
+
+  "stop-loss-brvm": {
+    details:
+      "Un stop loss est le cours à partir duquel vous acceptez de sortir d’une position pour limiter la perte. Pour un achat (long), il doit être strictement inférieur au prix d’entrée — sinon la formule de taille de position n’a pas de sens.\n\nÀ la BRVM, les intermédiaires n’offrent généralement pas d’ordre stop automatique comparable aux marchés développés. Le stop est donc une règle personnelle : vous surveillez le seuil, puis vous passez un ordre via votre SGI si le niveau est atteint.\n\nOuestBourse permet de créer une alerte de cours « ≤ stop » (compte connecté) depuis la calculette ou la fiche titre. L’alerte prévient ; elle n’exécute aucun trade. Combinez-la avec la taille de position pour que la perte, si vous sortez au stop, reste proche du budget choisi.\n\nExemple pédagogique : entrée 8 400 FCFA, stop 7 560 FCFA (−10 %). Placez l’alerte à 7 560, pas un cours inventé. Vérifiez toujours le dernier cours officiel BRVM avant d’agir.",
+    sources: [
+      {
+        title: "Investopedia — Stop-Loss Order",
+        url: "https://www.investopedia.com/terms/s/stop-lossorder.asp",
+      },
+      {
+        title: "BRVM — site officiel",
+        url: "https://www.brvm.org",
+      },
+    ],
+  },
+
   "evolution-portefeuille": {
     details:
       "Le graphique d’évolution du portefeuille trace une NAV quotidienne estimée : somme des (quantité × cours canonique du jour) pour chaque ligne, à partir de la date d’achat la plus ancienne enregistrée.\n\nLes jours sans cotation réutilisent le dernier cours connu (palier). Les titres sans historique suffisant raccourcissent la courbe. Ce graphique montre la trajectoire agrégée — pas le détail PRU vs cours ligne par ligne.\n\nComplétez avec le tableau des positions pour le suivi micro (PRU, +/-value, conseil).",
