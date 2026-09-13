@@ -37,9 +37,6 @@ export default function ProfileClient({
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
 
-  const [alertsEnabled] = useState(false);
-  const [digestEnabled] = useState(false);
-
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
     setProfileError(null);
@@ -195,19 +192,6 @@ export default function ProfileClient({
             {savingPassword ? "Enregistrement…" : initial.hasPassword ? "Changer le mot de passe" : "Définir un mot de passe"}
           </button>
         </form>
-      </section>
-
-      <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
-        <h2 className={profileStyles.sectionTitle}>Notifications</h2>
-        <p className={profileStyles.meta}>Bientôt disponible — ces préférences ne sont pas encore enregistrées.</p>
-        <label className={profileStyles.check}>
-          <input type="checkbox" checked={alertsEnabled} disabled />
-          Alertes de cours (seuils)
-        </label>
-        <label className={profileStyles.check}>
-          <input type="checkbox" checked={digestEnabled} disabled />
-          Digest hebdomadaire du marché
-        </label>
       </section>
 
       {initial.isAdmin ? (

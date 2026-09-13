@@ -65,6 +65,12 @@ export default function AccountMenu({
           <Link href="/profil" role="menuitem" className={styles.item} onClick={() => setOpen(false)}>
             Mon profil
           </Link>
+          <Link href="/notifications" role="menuitem" className={styles.item} onClick={() => setOpen(false)}>
+            Notifications
+          </Link>
+          <Link href="/profil#alertes" role="menuitem" className={styles.item} onClick={() => setOpen(false)}>
+            Préférences d’alertes
+          </Link>
           {user.isAdmin ? (
             <Link
               href="/admin/analytics"
