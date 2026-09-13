@@ -1,0 +1,50 @@
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card {
+  min-width: 0;
+  border: 1px solid color-mix(in srgb, var(--c-gold) 18%, var(--c-border));
+}
+
+.sectionTitle {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  color: var(--c-text);
+}
+
+.meta {
+  margin: 0 0 16px;
+  color: var(--c-textdim);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.ok {
+  color: var(--c-green);
+}
+
+.warn {
+  color: var(--c-gold);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  color: var(--c-text);
+  font-size: 0.9rem;
+}
+
+.check input {
+  accent-color: var(--c-gold);
+}

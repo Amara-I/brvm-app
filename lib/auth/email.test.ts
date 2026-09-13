@@ -1,17 +1,44 @@
 import { describe, expect, it } from "vitest";
-import { buildAuthEmail, getEmailFrom, isDevAuthPreviewEnabled, isEmailConfigured } from "./email";
+import {
+  buildAuthEmail,
+  getEmailFrom,
+  hasEmailProvider,
+  isDevAuthPreviewEnabled,
+  isEmailConfigured,
+  parseEmailFrom,
+} from "./email";
 
 describe("email config", () => {
-  it("détecte Resend ou SMTP", () => {
+  it("exige un fournisseur ET un EMAIL_FROM valide", () => {
+    expect(hasEmailProvider({})).toBe(false);
     expect(isEmailConfigured({})).toBe(false);
-    expect(isEmailConfigured({ RESEND_API_KEY: "re_test" })).toBe(true);
-    expect(isEmailConfigured({ EMAIL_SERVER: "smtp://localhost:1025" })).toBe(true);
-    expect(isEmailConfigured({ EMAIL_SERVER_HOST: "smtp.exemple.com" })).toBe(true);
+    expect(isEmailConfigured({ RESEND_API_KEY: "re_test" })).toBe(false);
+    expect(
+      isEmailConfigured({
+        RESEND_API_KEY: "re_test",
+        EMAIL_FROM: "OuestBourse <noreply@ouestbourse.com>",
+      })
+    ).toBe(true);
+    expect(isEmailConfigured({ EMAIL_SERVER: "smtp://localhost:1025" })).toBe(false);
+    expect(
+      isEmailConfigured({
+        EMAIL_SERVER_HOST: "smtp.exemple.com",
+        EMAIL_FROM: "noreply@ouestbourse.com",
+      })
+    ).toBe(true);
   });
 
-  it("compose l'expéditeur", () => {
-    expect(getEmailFrom({ EMAIL_FROM: "OuestBourse <a@b.c>" })).toBe("OuestBourse <a@b.c>");
-    expect(getEmailFrom({})).toContain("OuestBourse");
+  it("parse et refuse les expéditeurs invalides", () => {
+    expect(parseEmailFrom("OuestBourse <pas-une-adresse>")).toBeNull();
+    expect(parseEmailFrom("OuestBourse <noreply@localhost>")).toBeNull();
+    expect(parseEmailFrom("noreply@example.com")).toBeNull();
+    expect(parseEmailFrom("OuestBourse <noreply@ouestbourse.com>")?.address).toBe(
+      "noreply@ouestbourse.com"
+    );
+    expect(getEmailFrom({ EMAIL_FROM: "OuestBourse <noreply@ouestbourse.com>" })).toBe(
+      "OuestBourse <noreply@ouestbourse.com>"
+    );
+    expect(getEmailFrom({})).toBeNull();
   });
 
   it("n'expose les liens de preview qu'hors production", () => {

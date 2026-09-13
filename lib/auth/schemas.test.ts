@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { forgotPasswordSchema, registerSchema, resetPasswordSchema } from "./schemas";
+import {
+  changePasswordSchema,
+  forgotPasswordSchema,
+  registerSchema,
+  resetPasswordSchema,
+  updateProfileSchema,
+} from "./schemas";
 
 describe("auth schemas", () => {
   it("accepte une inscription valide", () => {
@@ -27,5 +33,17 @@ describe("auth schemas", () => {
       true
     );
     expect(resetPasswordSchema.safeParse({ token: "court", password: "abcdefgh" }).success).toBe(false);
+  });
+});
+
+describe("profile schemas", () => {
+  it("exige au moins un champ profil", () => {
+    expect(updateProfileSchema.safeParse({}).success).toBe(false);
+    expect(updateProfileSchema.safeParse({ name: "Amara" }).success).toBe(true);
+  });
+
+  it("valide un nouveau mot de passe", () => {
+    expect(changePasswordSchema.safeParse({ newPassword: "abcdefgh" }).success).toBe(true);
+    expect(changePasswordSchema.safeParse({ newPassword: "123" }).success).toBe(false);
   });
 });
