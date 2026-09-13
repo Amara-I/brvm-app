@@ -22,6 +22,8 @@ export type EnrichedHoldingMetrics = HoldingMetrics & {
   /** Score composite calcMetrics (0–100), ou null si N/D. */
   analysisScore: number | null;
   advice: PortfolioAdvice;
+  targetPrice: number | null;
+  stopPrice: number | null;
 };
 
 export async function getUserPortfoliosWithMetrics(userId: string) {
@@ -79,6 +81,8 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
             companyId: h.companyId,
             ticker: h.company.ticker,
             quantity: Number(h.quantity),
+            targetPrice: h.targetPrice != null ? Number(h.targetPrice) : null,
+            stopPrice: h.stopPrice != null ? Number(h.stopPrice) : null,
           },
         ])
       );
@@ -101,6 +105,8 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
           buyHorizon,
           analysisScore: analysis?.score ?? null,
           advice,
+          targetPrice: meta?.targetPrice ?? null,
+          stopPrice: meta?.stopPrice ?? null,
         };
       });
 

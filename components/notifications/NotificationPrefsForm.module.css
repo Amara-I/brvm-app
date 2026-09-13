@@ -1,0 +1,98 @@
+.form {
+  display: grid;
+  gap: 16px;
+}
+
+.section {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  padding: 16px 18px;
+}
+
+.title {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.lead {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: var(--c-textdim);
+  line-height: 1.45;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--c-border-thin);
+}
+
+.row:first-of-type {
+  border-top: none;
+}
+
+.label {
+  font-size: 0.86rem;
+  color: var(--c-text);
+  font-weight: 600;
+}
+
+.hint {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--c-textdim);
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: var(--c-textdim);
+}
+
+.input {
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: inherit;
+}
+
+.save {
+  border: none;
+  background: var(--c-gold);
+  color: #1a1408;
+  font-weight: 800;
+  border-radius: 10px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.ok {
+  color: var(--c-green);
+  font-size: 0.8rem;
+  font-weight: 650;
+}
+
+.err {
+  color: var(--c-red);
+  font-size: 0.8rem;
+  font-weight: 650;
+}

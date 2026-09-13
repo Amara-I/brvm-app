@@ -125,6 +125,35 @@ enum PriceAlertStatus {
   @@map("price_alert_status")
 }
 
+/// Catégorie d'une notification in-app (filtres du centre : prix, signaux…).
+enum NotificationType {
+  PRIX
+  SIGNAUX
+  PORTEFEUILLE
+  INDICES
+  SYSTEME
+
+  @@map("notification_type")
+}
+
+/// Kind d'une règle d'alerte utilisateur (hors seuil PriceAlert historique).
+enum AlertRuleKind {
+  DAILY_MOVE
+  HORIZON_MOVE
+  SIGNAL_ENTRY
+  INDEX_MOVE
+
+  @@map("alert_rule_kind")
+}
+
+/// Fréquence d'envoi e-mail (l'in-app est toujours temps réel si le canal est actif).
+enum NotificationDeliveryMode {
+  REALTIME
+  DIGEST
+
+  @@map("notification_delivery_mode")
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // RÉFÉRENTIEL GÉOGRAPHIQUE & SECTORIEL
 // ─────────────────────────────────────────────────────────────────────────
@@ -212,6 +241,7 @@ model Company {
   portfolioTrades   PortfolioTrade[]
   newsArticles      NewsArticle[]
   priceAlerts       PriceAlert[]
+  alertRules        AlertRule[]
   documents         CompanyDocument[]
   events            CompanyEvent[]
 
@@ -537,6 +567,9 @@ model User {
   portfolios Portfolio[]
   chartAnalyses ChartAnalysis[]
   priceAlerts   PriceAlert[]
+  alertRules    AlertRule[]
+  notifications NotificationEvent[]
+  notificationPreference NotificationPreference?
 
   @@map("users")
 }
@@ -647,6 +680,10 @@ model PortfolioHolding {
   buyDate     DateTime?   @map("buy_date") @db.Date
   /// Horizon d'achat (court / moyen / long) — oriente le conseil Renforcer/Conserver/Sortir.
   buyHorizon  BuyHorizon  @default(MOYEN) @map("buy_horizon")
+  /// Objectif de cours optionnel (alerte portefeuille si le cours le franchit).
+  targetPrice Decimal?    @map("target_price") @db.Decimal(14, 2)
+  /// Stop optionnel (alerte portefeuille si le cours passe en dessous).
+  stopPrice   Decimal?    @map("stop_price") @db.Decimal(14, 2)
   notes       String?
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
@@ -704,6 +741,88 @@ model PriceAlert {
   @@index([ticker, status])
   @@index([companyId, status])
   @@map("price_alerts")
+}
+
+/// Règle d'alerte utilisateur (variation journalière, horizon, signal, indice).
+/// Les seuils de cours restent dans `PriceAlert` (API / graphes déjà en place).
+model AlertRule {
+  id          String        @id @default(cuid())
+  userId      String        @map("user_id")
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kind        AlertRuleKind
+  ticker      String?
+  companyId   String?       @map("company_id")
+  company     Company?      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  indexCode   String?       @map("index_code")
+  /// Paramètres typés côté code : { percent }, { percent, horizon }, { signal }.
+  params      Json
+  enabled     Boolean       @default(true)
+  lastFiredAt DateTime?     @map("last_fired_at")
+  /// Clé anti-spam, ex. "2026-09-13:SNTS:ACHAT_FORT" — max 1 notif / jour / ticker.
+  lastFireKey String?       @map("last_fire_key")
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+
+  events NotificationEvent[]
+
+  @@index([userId, kind, enabled])
+  @@index([ticker, enabled])
+  @@index([indexCode, enabled])
+  @@map("alert_rules")
+}
+
+/// Événement du centre de notifications (in-app, optionnellement e-mail).
+model NotificationEvent {
+  id           String           @id @default(cuid())
+  userId       String           @map("user_id")
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         NotificationType
+  title        String
+  body         String
+  href         String?
+  ticker       String?
+  indexCode    String?          @map("index_code")
+  readAt       DateTime?        @map("read_at")
+  openedAt     DateTime?        @map("opened_at")
+  emailSentAt  DateTime?        @map("email_sent_at")
+  emailError   String?          @map("email_error")
+  alertRuleId  String?          @map("alert_rule_id")
+  alertRule    AlertRule?       @relation(fields: [alertRuleId], references: [id], onDelete: SetNull)
+  priceAlertId String?          @map("price_alert_id")
+  payload      Json?
+  createdAt    DateTime         @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
+  @@index([type, createdAt])
+  @@index([priceAlertId])
+  @@map("notification_events")
+}
+
+/// Préférences de notification (une ligne par utilisateur, créée à la demande).
+model NotificationPreference {
+  userId           String                   @id @map("user_id")
+  user             User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  priceEnabled     Boolean                  @default(true) @map("price_enabled")
+  signalEnabled    Boolean                  @default(false) @map("signal_enabled")
+  portfolioEnabled Boolean                  @default(true) @map("portfolio_enabled")
+  indexEnabled     Boolean                  @default(false) @map("index_enabled")
+  systemEnabled    Boolean                  @default(true) @map("system_enabled")
+  channelInApp     Boolean                  @default(true) @map("channel_in_app")
+  channelEmail     Boolean                  @default(false) @map("channel_email")
+  deliveryMode     NotificationDeliveryMode @default(REALTIME) @map("delivery_mode")
+  /// Heure de début / fin (0–23) fuseau Africa/Abidjan — e-mail différé uniquement.
+  quietHoursStart  Int?                     @map("quiet_hours_start")
+  quietHoursEnd    Int?                     @map("quiet_hours_end")
+  sessionReminders Boolean                  @default(false) @map("session_reminders")
+  /// Seuil de variation journalière (%) pour une ligne de portefeuille.
+  portfolioMovePct Decimal                  @default(5) @map("portfolio_move_pct") @db.Decimal(6, 2)
+  /// Seuil de variation journalière (%) pour BRVM Composite / BRVM 30.
+  indexMovePct     Decimal                  @default(1.5) @map("index_move_pct") @db.Decimal(6, 2)
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+
+  @@map("notification_preferences")
 }
 
 // ─────────────────────────────────────────────────────────────────────────

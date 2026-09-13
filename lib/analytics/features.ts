@@ -20,6 +20,8 @@ export const ANALYTICS_FEATURES = [
   "inscription",
   "search",
   "mentions_legales",
+  "notifications",
+  "profil",
   "other",
 ] as const;
 export type AnalyticsFeature = (typeof ANALYTICS_FEATURES)[number];
@@ -43,6 +45,8 @@ export const FEATURE_LABELS: Record<AnalyticsFeature, string> = {
   inscription: "Inscription",
   search: "Recherche header",
   mentions_legales: "Mentions légales",
+  notifications: "Notifications",
+  profil: "Profil",
   other: "Autre",
 };
 
@@ -74,6 +78,8 @@ export function featureFromPath(path: string): AnalyticsFeature {
   if (path.startsWith("/connexion")) return "connexion";
   if (path.startsWith("/inscription")) return "inscription";
   if (path.startsWith("/mentions-legales")) return "mentions_legales";
+  if (path.startsWith("/notifications")) return "notifications";
+  if (path.startsWith("/profil") || path.startsWith("/reglages")) return "profil";
   return "other";
 }
 

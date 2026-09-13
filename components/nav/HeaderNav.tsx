@@ -217,6 +217,24 @@ export default function HeaderNav({
         onClick={close}
         sidebar={sidebar}
       />
+      {user ? (
+        <>
+          <NavLink
+            href="/notifications"
+            label="Notifications"
+            active={isActive("/notifications")}
+            onClick={close}
+            sidebar={sidebar}
+          />
+          <NavLink
+            href="/profil"
+            label="Profil"
+            active={isActive("/profil") || isActive("/reglages")}
+            onClick={close}
+            sidebar={sidebar}
+          />
+        </>
+      ) : null}
 
       {sidebar ? <p className={styles.navGroupLabel}>Marchés</p> : null}
       {sidebar ? (
