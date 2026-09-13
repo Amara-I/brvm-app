@@ -21,6 +21,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import { isAdminEmail } from "./admin-emails";
+import { resolveAuthRedirectUrl } from "./app-url";
 import { verifyPassword } from "./password";
 import { loginCredentialsSchema } from "./schemas";
 
@@ -129,14 +130,9 @@ export const authOptions: AuthOptions = {
       return session;
     },
     async redirect({ url, baseUrl }) {
-      if (url.startsWith("/")) return `${baseUrl}${url}`;
-      try {
-        if (new URL(url).origin === baseUrl) return url;
-      } catch {
-        // URL mal formée → accueil
-      }
-      // Déconnexion / retours inattendus : landing, jamais /portefeuille.
-      return baseUrl;
+      // NEXTAUTH_URL cassé (`https`, `NEXTAUTH_URL=https://…`) ne doit jamais
+      // devenir le Location de déconnexion (host littéral `nextauth_url=https`).
+      return resolveAuthRedirectUrl(url, baseUrl);
     },
   },
   secret: process.env.NEXTAUTH_SECRET,
