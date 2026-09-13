@@ -9,6 +9,7 @@ import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import { resolveIndexCatalog } from "@/lib/markets/index-catalog";
 import { computeIndexStats, type IndexHistoryPoint } from "@/lib/markets/index-stats";
 import {
+  brvm30AvisFallbackComposition,
   buildIndexComposition,
   sortIndexItems,
   toIndexListItem,
@@ -89,7 +90,7 @@ async function loadIndexDetailFromDb(code: string): Promise<MarketIndexDetail | 
   const stats = computeIndexStats(series);
   const catalog = resolveIndexCatalog(row.code, row.name);
   const nav = await getCompaniesNavIndex();
-  const storedComposition = await loadStoredComposition(row.id);
+  const storedComposition = (await loadStoredComposition(row.id)) ?? (row.code === "BRVM_30" ? brvm30AvisFallbackComposition() : null);
   const list = toIndexListItem(
     row.code,
     row.name,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  brvm30AvisFallbackComposition,
   buildIndexComposition,
   groupIndicesByFamily,
   sortIndexItems,
@@ -46,6 +47,17 @@ describe("buildIndexComposition", () => {
     expect(composition.constituents.map((c) => c.ticker)).toEqual(["SGBC", "SNTS"]);
     expect(composition.constituents.every((c) => c.weight == null)).toBe(true);
     expect(composition.note).toMatch(/Avis 191-2026/);
+  });
+
+  it("replie sur l'avis 191-2026 (30 titres, poids N/D)", () => {
+    const stored = brvm30AvisFallbackComposition();
+    expect(stored.official).toBe(true);
+    expect(stored.tickers).toHaveLength(30);
+    expect(stored.tickers.every((row) => row.weight == null)).toBe(true);
+    const composition = buildIndexComposition("official", undefined, companies, stored);
+    expect(composition.official).toBe(true);
+    expect(composition.constituents).toHaveLength(30);
+    expect(composition.constituents.find((c) => c.ticker === "SNTS")?.name).toBe("Sonatel");
   });
 });
 

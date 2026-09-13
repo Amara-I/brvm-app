@@ -207,4 +207,13 @@ describe("index GetHistos helpers", () => {
       ])
     ).toBe(true);
   });
+
+  it("n'écarte pas une fenêtre historique sans date contemporaine", () => {
+    expect(
+      indexHistoryCompatible({ date: "2026-09-11", value: 555.48 }, [
+        { date: "2025-03-31", value: 420.1 },
+        { date: "2025-06-30", value: 480.55 },
+      ])
+    ).toBe(true);
+  });
 });

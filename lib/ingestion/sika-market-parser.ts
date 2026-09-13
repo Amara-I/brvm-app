@@ -301,7 +301,7 @@ export function mapSikaHistosToIndexQuotes(
   return results;
 }
 
-/** Écart relatif entre le dernier point officiel et la série Sika (même date ou ±7 j). */
+/** Écart relatif entre le dernier point officiel et un point Sika contemporain. */
 export function indexHistoryCompatible(
   official: { date: string; value: number } | null,
   incoming: Array<{ date: string; value: number }>,
@@ -314,9 +314,13 @@ export function indexHistoryCompatible(
     const window = incoming
       .filter((p) => Math.abs(Date.parse(`${p.date}T00:00:00.000Z`) - Date.parse(`${official.date}T00:00:00.000Z`)) <= 7 * 86_400_000)
       .sort((a, b) => b.date.localeCompare(a.date));
-    probe = window[0] ?? incoming[incoming.length - 1] ?? null;
+    probe = window[0] ?? null;
   }
-  if (!probe || !(probe.value > 0)) return false;
+  // Fenêtre historique sans recouvrement (ex. journalier 2025 vs officiel 2026) :
+  // on n'utilise PAS le dernier point de la fenêtre — un écart de marché
+  // normal sur 12 mois dépasse 5 % et bloquait tout le backfill.
+  if (!probe) return true;
+  if (!(probe.value > 0)) return false;
   const delta = Math.abs(probe.value - official.value) / official.value;
   return delta * 100 <= maxDeltaPercent;
 }

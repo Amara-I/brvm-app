@@ -5,6 +5,7 @@
 
 import { IngestionStatus } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
+import { isMissingDatabaseObject } from "../db/is-database-unavailable";
 import { prisma } from "../prisma";
 import { COMPANIES_FULL } from "../../prisma/seed-data/companies-full";
 import { HEADLINE_INDEX_CODES } from "../markets/index-catalog";
@@ -23,6 +24,24 @@ const DAILY_CHUNK_DAYS = 89;
 const DEFAULT_ANNUAL_FROM = 1998;
 const DEFAULT_DAILY_MONTHS = 14;
 
+/** Slugs GetHistos stables si la page A–Z ne liste pas encore l'indice. */
+export const HEADLINE_SIKA_FALLBACKS: SikaIndexSymbol[] = [
+  { code: "BRVM_COMPOSITE", sikaSymbol: "BRVMC", label: "BRVM COMPOSITE" },
+  { code: "BRVM_30", sikaSymbol: "BRVM30", label: "BRVM 30" },
+];
+
+/** Au-delà, un rerun cron saute le GetHistos (sauf `force`). 80 ≈ 4 mois ouvrés. */
+export const MIN_CANONICAL_POINTS_TO_SKIP = 80;
+
+export function shouldSkipIndexHistory(canonicalCount: number, force = false): boolean {
+  return !force && canonicalCount >= MIN_CANONICAL_POINTS_TO_SKIP;
+}
+
+export function mergeSikaIndexSymbols(fetched: SikaIndexSymbol[]): SikaIndexSymbol[] {
+  const have = new Set(fetched.map((s) => s.code));
+  return [...fetched, ...HEADLINE_SIKA_FALLBACKS.filter((s) => !have.has(s.code))];
+}
+
 export interface IndexEnrichmentOptions {
   codes?: string[];
   includeHistory?: boolean;
@@ -33,6 +52,8 @@ export interface IndexEnrichmentOptions {
   dailyFrom?: string;
   annualFromYear?: number;
   timeBudgetMs?: number;
+  /** Re-télécharge même les séries déjà denses. */
+  force?: boolean;
   logger?: (msg: string) => void;
 }
 
@@ -58,6 +79,7 @@ export interface IndexEnrichmentSummary {
   codesAttempted: number;
   historyUpserted: number;
   incomplete: boolean;
+  compositionError: string | null;
   perCode: IndexEnrichmentCodeResult[];
 }
 
@@ -114,6 +136,22 @@ async function officialLastByCode(
   return map;
 }
 
+async function canonicalCountsByCode(db: PrismaClient): Promise<Map<string, number>> {
+  const indices = await db.marketIndex.findMany({ select: { id: true, code: true } });
+  const idToCode = new Map(indices.map((row) => [row.id, row.code]));
+  const counts = await db.marketIndexValue.groupBy({
+    by: ["marketIndexId"],
+    where: { isCanonical: true },
+    _count: { _all: true },
+  });
+  const map = new Map<string, number>();
+  for (const row of counts) {
+    const code = idToCode.get(row.marketIndexId);
+    if (code) map.set(code, row._count._all);
+  }
+  return map;
+}
+
 async function persistCompatible(
   db: PrismaClient,
   quotes: RawIndexQuote[],
@@ -158,6 +196,7 @@ export async function runIndexEnrichment(
     codesAttempted: 0,
     historyUpserted: 0,
     incomplete: false,
+    compositionError: null,
     perCode: [],
   };
 
@@ -172,7 +211,8 @@ export async function runIndexEnrichment(
     })
     .catch(() => null);
 
-  if (includeComposition) {
+  const persistComposition = async () => {
+    if (!includeComposition) return;
     const known = COMPANIES_FULL.map((c) => c.ticker);
     try {
       const fromDb = await db.company.findMany({ where: { isActive: true }, select: { ticker: true } });
@@ -180,48 +220,37 @@ export async function runIndexEnrichment(
     } catch {
       /* seed tickers suffisent */
     }
-    const result = await fetchBrvm30Composition(known);
-    if (result.ok && result.data.length > 0) {
-      const persisted = await persistIndexConstituents(db, result.data);
-      summary.compositionUpserted = persisted.upserted;
-      summary.compositionSource = result.data[0]?.note ?? "BRVM_OFFICIEL";
-      log(options.logger, `composition BRVM 30 : ${persisted.upserted} titres`);
-    } else if (!result.ok) {
-      log(options.logger, `composition : ${result.error}`);
+    try {
+      const result = await fetchBrvm30Composition(known);
+      if (result.ok && result.data.length > 0) {
+        const persisted = await persistIndexConstituents(db, result.data);
+        summary.compositionUpserted = persisted.upserted;
+        summary.compositionSource = result.data[0]?.note ?? "BRVM_OFFICIEL";
+        log(options.logger, `composition BRVM 30 : ${persisted.upserted} titres`);
+      } else if (!result.ok) {
+        summary.compositionError = result.error;
+        log(options.logger, `composition : ${result.error}`);
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      summary.compositionError = isMissingDatabaseObject(err)
+        ? "table market_index_constituents absente — prisma migrate deploy requis"
+        : message;
+      log(options.logger, `composition ignorée : ${summary.compositionError}`);
     }
-  }
+  };
 
-  if (!includeHistory) {
-    summary.finishedAt = new Date().toISOString();
-    summary.durationMs = Date.now() - started;
-    if (logRow) {
-      await db.ingestionLog
-        .update({
-          where: { id: logRow.id },
-          data: {
-            status: IngestionStatus.SUCCESS,
-            finishedAt: new Date(),
-            durationMs: summary.durationMs,
-            errors: { kind: LOG_KIND, summary } as object,
-          },
-        })
-        .catch(() => undefined);
-    }
-    return summary;
-  }
-
+  if (includeHistory) {
   let symbols: SikaIndexSymbol[] = [];
   try {
-    symbols = sortSymbols(await loadSikaIndexSymbols(), options.codes);
+    symbols = sortSymbols(mergeSikaIndexSymbols(await loadSikaIndexSymbols()), options.codes);
   } catch (err) {
-    log(options.logger, `A–Z indices : ${err instanceof Error ? err.message : String(err)}`);
-    summary.incomplete = true;
-    summary.finishedAt = new Date().toISOString();
-    summary.durationMs = Date.now() - started;
-    return summary;
+    log(options.logger, `A–Z indices : ${err instanceof Error ? err.message : String(err)} — repli Composite / BRVM 30`);
+    symbols = sortSymbols(HEADLINE_SIKA_FALLBACKS, options.codes);
   }
 
   const officialByCode = await officialLastByCode(db);
+  const canonicalCounts = await canonicalCountsByCode(db);
   const triedSlugs = new Set<string>();
 
   for (const symbol of symbols) {
@@ -245,6 +274,15 @@ export async function runIndexEnrichment(
     };
 
     try {
+      const already = canonicalCounts.get(symbol.code) ?? 0;
+      if (shouldSkipIndexHistory(already, options.force === true)) {
+        row.skippedReason = `historique déjà suffisant (${already} points)`;
+        summary.codesOk++;
+        log(options.logger, `${symbol.code} : ${row.skippedReason}`);
+        summary.perCode.push(row);
+        continue;
+      }
+
       const official = officialByCode.get(symbol.code) ?? null;
       const add = async (quotes: RawIndexQuote[]) => {
         const persisted = await persistCompatible(db, quotes, official);
@@ -296,7 +334,9 @@ export async function runIndexEnrichment(
 
       if (includeDaily) {
         let compatible = true;
-        for (const range of chunkDailyRanges(dailyFrom, toDate)) {
+        // Plus récent d'abord : un rebase se détecte sur la fenêtre contemporaine
+        // avant d'écrire d'éventuelles fenêtres plus anciennes.
+        for (const range of [...chunkDailyRanges(dailyFrom, toDate)].reverse()) {
           if (deadline && Date.now() >= deadline) {
             summary.incomplete = true;
             break;
@@ -333,6 +373,9 @@ export async function runIndexEnrichment(
     }
     summary.perCode.push(row);
   }
+  }
+
+  await persistComposition();
 
   summary.finishedAt = new Date().toISOString();
   summary.durationMs = Date.now() - started;
@@ -341,7 +384,10 @@ export async function runIndexEnrichment(
       .update({
         where: { id: logRow.id },
         data: {
-          status: summary.incomplete ? IngestionStatus.PARTIAL : IngestionStatus.SUCCESS,
+          status:
+            summary.incomplete || summary.compositionError
+              ? IngestionStatus.PARTIAL
+              : IngestionStatus.SUCCESS,
           finishedAt: new Date(),
           durationMs: summary.durationMs,
           errors: { kind: LOG_KIND, summary } as object,
