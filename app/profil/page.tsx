@@ -3,6 +3,7 @@ import AppHeader from "@/components/AppHeader";
 import PageHeader from "@/components/ui/PageHeader";
 import ProfileClient from "@/components/profile/ProfileClient";
 import NotificationPrefsForm from "@/components/notifications/NotificationPrefsForm";
+import profileStyles from "@/components/profile/Profile.module.css";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { prisma } from "@/lib/prisma";
@@ -71,7 +72,9 @@ export default async function ProfilPage({
           }}
           mailNotice={mailNotice}
         />
-        <NotificationPrefsForm />
+        <div className={profileStyles.alertsWrap}>
+          <NotificationPrefsForm />
+        </div>
       </div>
     </AppHeader>
   );
