@@ -42,7 +42,7 @@ export function sourcesOutranking(source: DataSourceCode): DataSourceCode[] {
 export interface DiscrepancyReport {
   ticker: string;
   date: string;
-  field: "close_price";
+  field: "close_price" | "close_price_collar";
   brvmValue: number | null;
   sikaValue: number | null;
   richValue: number | null;

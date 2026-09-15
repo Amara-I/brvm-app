@@ -9,6 +9,8 @@
 import type { HistoryBackfillOptions } from "./run-history-backfill";
 import {
   DEFAULT_MIN_DAILY_POINTS_PER_CHUNK,
+  defaultDailyFromOpt,
+  isRollingYearDailyFrom,
   parseIsoDateFlag,
 } from "./history-coverage";
 
@@ -31,11 +33,15 @@ export function parseHistoryBackfillSearchParams(
     ?.split(",")
     .map((t) => t.trim().toUpperCase())
     .filter(Boolean);
-  const dailyFromRaw = q.get("dailyFrom") ?? "auto";
+  const dailyFromRaw = q.get("dailyFrom") ?? defaultDailyFromOpt();
   const dailyFrom =
     dailyFromRaw === "off" || dailyFromRaw === "false"
       ? "off"
-      : parseIsoDateFlag(dailyFromRaw) ?? "auto";
+      : dailyFromRaw === "auto"
+        ? "auto"
+        : isRollingYearDailyFrom(dailyFromRaw)
+          ? "1Y"
+          : parseIsoDateFlag(dailyFromRaw) ?? defaultDailyFromOpt();
   const budgetMs = Number(q.get("budgetMs") ?? "240000");
   const maxTickers = q.get("maxTickers") ? Number(q.get("maxTickers")) : undefined;
   const maxDailyChunks = q.get("maxDailyChunks") ? Number(q.get("maxDailyChunks")) : undefined;
@@ -59,5 +65,6 @@ export function parseHistoryBackfillSearchParams(
     resume: q.get("noResume") !== "1",
     resumeAfterTicker: q.get("after")?.toUpperCase() || undefined,
     resumeInclusive: false,
+    includeSkipped: truthyParam(q.get("includeSkipped")),
   };
 }

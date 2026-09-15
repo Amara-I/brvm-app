@@ -51,6 +51,8 @@ export interface RawPriceQuote {
   changePercent?: number | null;
   /// Cours de la veille (FCFA) si publié à côté de la clôture.
   prevClose?: number | null;
+  /// Contourne le collier ±7,5 % (corporate action / correction manuelle).
+  collarOverride?: boolean;
 }
 
 /// Fondamentaux publiés sur la fiche société (PER + capitalisation).

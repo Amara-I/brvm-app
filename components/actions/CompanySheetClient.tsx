@@ -25,6 +25,10 @@ import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { rangeFilter, type ChartRange } from "@/lib/charts/indicators";
 import { downsampleLttb } from "@/lib/charts/downsample";
 import {
+  apiRangeForChartRange,
+  seriesCoversChartRange,
+} from "@/lib/charts/chart-window";
+import {
   chartRangeChangeLabel,
   computeWindowChange,
   formatWindowChangeAbs,
@@ -35,7 +39,7 @@ import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel"
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
-import ChartWorkbench from "@/components/charts/ChartWorkbench";
+import LazyChartWorkbench from "@/components/charts/LazyChartWorkbench";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
@@ -167,17 +171,20 @@ export default function CompanySheetClient({
   const [series, setSeries] = useState<ChartClosePoint[]>(payload.series);
   const [denseLoading, setDenseLoading] = useState(false);
 
-  // Densifie via l'API charts (Richbourse) si l'historique DB est trop annuel.
+  // Densifie via l'API charts (cache `chart_series` / repli live) selon la fenêtre,
+  // pas MAX systématique au premier paint.
   useEffect(() => {
     let cancelled = false;
     async function densify() {
-      if (payload.series.length >= 60) return;
+      const apiRange = apiRangeForChartRange(range);
+      if (seriesCoversChartRange(series, range, false) && series.length >= 30) return;
       setDenseLoading(true);
       try {
-        const res = await fetch(`/api/charts/${company.ticker}?range=MAX`);
+        const res = await fetch(`/api/charts/${company.ticker}?range=${encodeURIComponent(apiRange)}`);
         const json = await res.json();
-        if (!cancelled && json.ok && Array.isArray(json.data?.series) && json.data.series.length > series.length) {
-          setSeries(json.data.series as ChartClosePoint[]);
+        if (!cancelled && json.ok && Array.isArray(json.data?.series) && json.data.series.length > 0) {
+          const incoming = json.data.series as ChartClosePoint[];
+          setSeries((prev) => (incoming.length >= prev.length ? incoming : prev));
         }
       } catch {
         /* conserve la série serveur */
@@ -190,7 +197,7 @@ export default function CompanySheetClient({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company.ticker]);
+  }, [company.ticker, range]);
 
   const chartUniverse = useMemo(
     () =>
@@ -375,7 +382,7 @@ export default function CompanySheetClient({
 
       {tab === "charts" && (
         <div className={styles.chartWorkbenchWrap}>
-          <ChartWorkbench
+          <LazyChartWorkbench
             universe={chartUniverse}
             initialTicker={company.ticker}
             embedded

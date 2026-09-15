@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
@@ -44,6 +44,7 @@ export interface MarketBoardClientProps {
 }
 
 const COL_COUNT = 11;
+const PAGE_SIZE = 20;
 
 type MarketRow = CompanyFullDataset;
 
@@ -59,6 +60,7 @@ export default function MarketBoardClient({
   initialDayChanges = {},
 }: MarketBoardClientProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const pageKey = `ouestbourse:marche:${pathname}`;
 
   const [dataset, setDataset] = useState(initialData);
@@ -75,6 +77,7 @@ export default function MarketBoardClient({
   const [expanded, setExpanded] = usePersistedState<string | null>(`${pageKey}:expanded`, null);
   const [colSort, setColSort] = useState<ColumnSortState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [lastUpdate, setLastUpdate] = useState(() =>
     new Date(initialData.generatedAt).toLocaleDateString("fr-FR")
   );
@@ -233,6 +236,15 @@ export default function MarketBoardClient({
     [rows, marketColDefs, colSort]
   );
 
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [query, sectorFilter, sortBy, colSort]);
+
+  const pagedRows = useMemo(
+    () => displayRows.slice(0, visibleCount),
+    [displayRows, visibleCount]
+  );
+
   const totalMktCap = useMemo(() => companies.reduce((a, b) => a + (b.mktcap || 0), 0), [companies]);
   const indexPills = useMemo(() => {
     if (!marketSummary) return [];
@@ -351,7 +363,10 @@ export default function MarketBoardClient({
       <section className={styles.board} data-align-left>
         <div className={styles.boardHead}>
           <div>
-            <h2 className={styles.boardTitle}>Positions · {displayRows.length}</h2>
+            <h2 className={styles.boardTitle}>
+              Positions · {displayRows.length}
+              {displayRows.length > PAGE_SIZE ? ` (affichées ${pagedRows.length})` : ""}
+            </h2>
             <p className={styles.boardSub}>
               Données clés et éléments d&apos;analyse — cliquez une ligne pour déplier les indices.
               L&apos;aperçu suit le cours sur l&apos;horizon choisi ; les horizons courts affichent N/D
@@ -422,11 +437,15 @@ export default function MarketBoardClient({
               {displayRows.length === 0 ? (
                 <tr>
                   <td colSpan={COL_COUNT} className={styles.empty}>
-                    Aucune position ne correspond.
+                    {companies.length === 0 ? (
+                      <span className={styles.skeletonHint}>Chargement des positions…</span>
+                    ) : (
+                      "Aucune position ne correspond."
+                    )}
                   </td>
                 </tr>
               ) : (
-                displayRows.map((co) => {
+                pagedRows.map((co) => {
                   const m = metricsByTicker.get(co.ticker)!;
                   const spark = sparkByTicker.get(co.ticker)!;
                   const open = expanded === co.ticker;
@@ -469,7 +488,7 @@ export default function MarketBoardClient({
                         </td>
                         <td>
                           <div className={styles.sparkCell}>
-                            <MarketSparkline values={spark.values} width={200} height={52} />
+                            <MarketSparkline values={spark.values} width={140} height={36} />
                             <span className={styles.sparkChg} title="Variation début → fin sur l'horizon">
                               {chg == null ? (
                                 <span className="ob-nd">N/D</span>
@@ -506,7 +525,12 @@ export default function MarketBoardClient({
                       {open && (
                         <tr className={styles.detailRow}>
                           <td colSpan={COL_COUNT}>
-                            <ExpandedPanel company={co} metrics={m} currency={exchange.currency} />
+                            <ExpandedPanel
+                              company={co}
+                              metrics={m}
+                              currency={exchange.currency}
+                              onPrefetch={(href) => router.prefetch(href)}
+                            />
                           </td>
                         </tr>
                       )}
@@ -517,6 +541,17 @@ export default function MarketBoardClient({
             </tbody>
           </table>
         </div>
+        {visibleCount < displayRows.length ? (
+          <div className={styles.moreWrap}>
+            <button
+              type="button"
+              className={styles.moreBtn}
+              onClick={() => setVisibleCount((n) => Math.min(n + PAGE_SIZE, displayRows.length))}
+            >
+              Afficher la suite ({displayRows.length - visibleCount} restantes)
+            </button>
+          </div>
+        ) : null}
       </section>
 
       <ScoreExplainer />
@@ -528,10 +563,12 @@ function ExpandedPanel({
   company,
   metrics: m,
   currency,
+  onPrefetch,
 }: {
   company: CompanyFullDataset;
   metrics: ReturnType<typeof calcMetrics>;
   currency: string;
+  onPrefetch?: (href: string) => void;
 }) {
   const perf10 = m.perf10Percent === "N/D" ? null : parseFloat(m.perf10Percent);
   const vol = m.volatilityPercent === "N/D" ? null : parseFloat(m.volatilityPercent);
@@ -637,6 +674,8 @@ function ExpandedPanel({
           className={styles.primaryBtn}
           data-analytics-feature="company_sheet"
           data-analytics-action="from_marche"
+          onMouseEnter={() => onPrefetch?.(`/actions/${company.ticker}`)}
+          onFocus={() => onPrefetch?.(`/actions/${company.ticker}`)}
         >
           Détails société cotée
         </Link>
@@ -645,6 +684,8 @@ function ExpandedPanel({
           className={styles.secondaryBtn}
           data-analytics-feature="graphes"
           data-analytics-action="from_marche"
+          onMouseEnter={() => onPrefetch?.(`/graphes?ticker=${company.ticker}`)}
+          onFocus={() => onPrefetch?.(`/graphes?ticker=${company.ticker}`)}
         >
           Analyse graphique
         </Link>
