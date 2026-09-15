@@ -8,7 +8,7 @@ import {
 describe("isSikaNodataError", () => {
   it("détecte nodata dans le message GetHistos", () => {
     expect(isSikaNodataError("GetHistos NEIC.cc (0): nodata")).toBe(true);
-    expect(isSikaNodataError("NO DATA")).toBe(true);
+    expect(isSikaNodataError("GetHistos PRSC: NoData")).toBe(true);
     expect(isSikaNodataError("toolong")).toBe(false);
     expect(isSikaNodataError(null)).toBe(false);
   });
