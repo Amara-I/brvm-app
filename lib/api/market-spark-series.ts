@@ -2,37 +2,16 @@
 
 import { prisma } from "@/lib/prisma";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
+import { isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
+import { readCachedSparkSeriesByTicker } from "@/lib/charts/refresh-chart-series";
 
-/**
- * Toutes les clôtures canoniques non futures, par ticker.
- * Contrairement au dataset annuel (`prices[année]`), on conserve la vraie
- * date de cotation — indispensable pour les horizons courts et pour ne pas
- * dater l'année courante au 31/12 (futur) qui faisait disparaître le cours.
- */
-export async function getMarketSparkSeriesByTicker(): Promise<Record<string, ChartClosePoint[]>> {
-  const companies = await prisma.company.findMany({
-    where: { isActive: true },
-    select: { id: true, ticker: true },
-  });
-  if (companies.length === 0) return {};
-
+function sparkFromRows(
+  companies: Array<{ id: string; ticker: string }>,
+  rows: Array<{ companyId: string; date: Date; closePrice: unknown }>
+): Record<string, ChartClosePoint[]> {
   const idToTicker = new Map(companies.map((c) => [c.id, c.ticker]));
-  const now = new Date();
-
-  const rows = await prisma.priceHistory.findMany({
-    where: {
-      companyId: { in: companies.map((c) => c.id) },
-      isCanonical: true,
-      date: { lte: now },
-    },
-    orderBy: [{ companyId: "asc" }, { date: "asc" }],
-    select: { companyId: true, date: true, closePrice: true },
-  });
-
   const byTicker: Record<string, ChartClosePoint[]> = {};
   for (const c of companies) byTicker[c.ticker] = [];
-
-  // Déduplique par jour (garde le dernier close du jour).
   const lastIndexByKey = new Map<string, number>();
   for (const row of rows) {
     const ticker = idToTicker.get(row.companyId);
@@ -50,8 +29,48 @@ export async function getMarketSparkSeriesByTicker(): Promise<Record<string, Cha
       list.push({ time, value, volume: null });
     }
   }
-
   return byTicker;
+}
+
+/**
+ * Clôtures pour aperçus sparklines. Préfère `chart_series` SPARK (1 requête)
+ * ; repli : 3 ans de `price_history` (plus 20 ans de scan).
+ */
+export async function getMarketSparkSeriesByTicker(): Promise<Record<string, ChartClosePoint[]>> {
+  const companies = await prisma.company.findMany({
+    where: { isActive: true },
+    select: { id: true, ticker: true },
+  });
+  if (companies.length === 0) return {};
+
+  try {
+    const cached = await readCachedSparkSeriesByTicker(prisma);
+    if (cached && Object.keys(cached).length >= Math.min(8, companies.length)) {
+      const out: Record<string, ChartClosePoint[]> = {};
+      for (const c of companies) out[c.ticker] = cached[c.ticker] ?? [];
+      return out;
+    }
+  } catch (err) {
+    if (!isMissingDatabaseObject(err)) {
+      console.warn("[spark] cache:", err instanceof Error ? err.message : err);
+    }
+  }
+
+  const now = new Date();
+  const from = new Date(now);
+  from.setUTCFullYear(from.getUTCFullYear() - 3);
+
+  const rows = await prisma.priceHistory.findMany({
+    where: {
+      companyId: { in: companies.map((c) => c.id) },
+      isCanonical: true,
+      date: { lte: now, gte: from },
+    },
+    orderBy: [{ companyId: "asc" }, { date: "asc" }],
+    select: { companyId: true, date: true, closePrice: true },
+  });
+
+  return sparkFromRows(companies, rows);
 }
 
 /**
@@ -70,11 +89,14 @@ export async function getMarketDayChangeByTicker(): Promise<Record<string, numbe
   if (companies.length === 0) return out;
 
   const now = new Date();
+  const from = new Date(now);
+  from.setUTCDate(from.getUTCDate() - 21);
+
   const rows = await prisma.priceHistory.findMany({
     where: {
       companyId: { in: companies.map((c) => c.id) },
       isCanonical: true,
-      date: { lte: now },
+      date: { lte: now, gte: from },
     },
     orderBy: [{ companyId: "asc" }, { date: "desc" }],
     select: { companyId: true, date: true, closePrice: true, changePercent: true },

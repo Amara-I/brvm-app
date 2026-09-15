@@ -19,6 +19,16 @@ describe("parseHistoryBackfillSearchParams", () => {
     expect(parsed.maxDailyChunks).toBe(3);
   });
 
+  it("défaut dailyFrom = 1Y (politique couverture récente d'abord)", () => {
+    const parsed = parseHistoryBackfillSearchParams(new URLSearchParams());
+    expect(parsed.dailyFrom).toBe("1Y");
+  });
+
+  it("dailyFrom=auto conserve l'historique profond", () => {
+    const parsed = parseHistoryBackfillSearchParams(new URLSearchParams("dailyFrom=auto"));
+    expect(parsed.dailyFrom).toBe("auto");
+  });
+
   it("after reste exclusif (reprise manuelle ticker suivant)", () => {
     const q = new URLSearchParams("after=BICC");
     const parsed = parseHistoryBackfillSearchParams(q);

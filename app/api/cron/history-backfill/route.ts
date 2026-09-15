@@ -6,7 +6,7 @@
 //
 // Query :
 //   tickers=SNTS,SGBC     restreint le run
-//   dailyFrom=2015-01-01|auto|off
+//   dailyFrom=1Y|auto|YYYY-MM-DD|off   (défaut 1Y via INGESTION_DAILY_FROM)
 //   maxTickers=5
 //   after=SNTS            reprend APRÈS ce ticker (exclusif)
 //   noSheets=1 · noDaily=1 · noEvents=1 · noDocs=1 · noResume=1

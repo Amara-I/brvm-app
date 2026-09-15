@@ -8,6 +8,7 @@ import { dataSourceLabel } from "@/lib/api/data-source-label";
 import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import { resolveIndexCatalog } from "@/lib/markets/index-catalog";
 import { computeIndexStats, type IndexHistoryPoint } from "@/lib/markets/index-stats";
+import { readCachedChartSeries } from "@/lib/charts/refresh-chart-series";
 import {
   brvm30AvisFallbackComposition,
   buildIndexComposition,
@@ -64,26 +65,32 @@ async function loadIndexListFromDb(): Promise<MarketIndexListItem[]> {
 async function loadIndexDetailFromDb(code: string): Promise<MarketIndexDetail | null> {
   const row = await prisma.marketIndex.findUnique({
     where: { code: code.toUpperCase() },
-    include: {
-      values: {
-        where: { isCanonical: true },
-        orderBy: { date: "asc" },
-      },
-    },
   });
   if (!row) return null;
 
   const now = Date.now();
   const byDay = new Map<string, IndexHistoryPoint>();
-  for (const value of row.values) {
-    if (value.date.getTime() > now) continue;
-    const time = value.date.toISOString().slice(0, 10);
-    byDay.set(time, {
-      time,
-      value: Number(value.value),
-      volume: value.volume != null ? Number(value.volume) : null,
-      changePercent: value.changePercent != null ? Number(value.changePercent) : null,
+
+  const cached = await readCachedChartSeries(prisma, "INDEX", row.code, "MAX");
+  if (cached && cached.points.length > 0) {
+    for (const p of cached.points) {
+      byDay.set(p.time, { time: p.time, value: p.value, volume: p.volume ?? null, changePercent: null });
+    }
+  } else {
+    const values = await prisma.marketIndexValue.findMany({
+      where: { marketIndexId: row.id, isCanonical: true },
+      orderBy: { date: "asc" },
     });
+    for (const value of values) {
+      if (value.date.getTime() > now) continue;
+      const time = value.date.toISOString().slice(0, 10);
+      byDay.set(time, {
+        time,
+        value: Number(value.value),
+        volume: value.volume != null ? Number(value.volume) : null,
+        changePercent: value.changePercent != null ? Number(value.changePercent) : null,
+      });
+    }
   }
   const series = [...byDay.values()].sort((a, b) => a.time.localeCompare(b.time));
   const last = series[series.length - 1] ?? null;
@@ -99,13 +106,17 @@ async function loadIndexDetailFromDb(code: string): Promise<MarketIndexDetail | 
           value: last.value,
           changePercent: stats.sessionChangePercent,
           date: last.time,
-          source: row.values[row.values.length - 1]?.source ?? "BRVM_OFFICIEL",
+          source: "BRVM_OFFICIEL",
         }
       : null,
     series.length
   );
 
-  const lastCanonical = [...row.values].reverse().find((v) => v.date.getTime() <= now);
+  const lastCanonical = await prisma.marketIndexValue.findFirst({
+    where: { marketIndexId: row.id, isCanonical: true, date: { lte: new Date() } },
+    orderBy: { date: "desc" },
+    select: { source: true },
+  });
   if (lastCanonical) {
     list.source = lastCanonical.source;
     list.sourceLabel = dataSourceLabel(lastCanonical.source);

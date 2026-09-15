@@ -23,9 +23,9 @@ export interface HistoryBackfillFlags {
   enabled: boolean;
   /**
    * Journalier chunké (défaut true). `false` saute toutes les fenêtres
-   * GetHistos xperiod=0 — annual/monthly/sheets continuent, d'où des
-   * réponses cron `dailyChunksFetched: 0` sur des séries encore mensuelles
-   * (cas BICC). Override ops : `?forceDaily=1`.
+   * GetHistos xperiod=0 — annual/monthly/sheets continuent.
+   * La borne journalière par défaut est `INGESTION_DAILY_FROM=1Y` (pas 2006).
+   * Override ops : `?forceDaily=1` (toujours 1Y sauf `dailyFrom=auto`).
    */
   daily: boolean;
   /** Fiches SOCIETE : ISIN, PER, CA/RN, dividendes. */

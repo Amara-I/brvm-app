@@ -363,6 +363,23 @@ describe("resolveDailyFromIso / planDailyBackfill", () => {
     expect(plan.forceDaily).toBe(true);
   });
 
+  it("forceDaily + dailyFrom=1Y ne mouline pas 2006 (couverture 1 an d'abord)", () => {
+    const existing = annualLikeExisting(2006, 2026);
+    const plan = planDailyBackfill({
+      flagDaily: false,
+      forceDaily: true,
+      dailyFromOpt: "1Y",
+      firstSikaIso: "2006-12-31",
+      existing,
+      listedSinceIso: null,
+      todayIso: "2026-09-11",
+    });
+    expect(plan.includeDaily).toBe(true);
+    expect(plan.fromIso).toBe("2025-09-11");
+    expect(plan.gaps.length).toBeLessThan(10);
+    expect(plan.gaps.length).toBeGreaterThan(0);
+  });
+
   it("minDailyPoints=1 ne refetch que les fenêtres vides (années mensuelles sautées)", () => {
     const existing: ExistingPriceRef[] = [];
     for (let m = 1; m <= 9; m++) {

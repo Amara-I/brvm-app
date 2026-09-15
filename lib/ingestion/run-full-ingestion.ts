@@ -41,6 +41,7 @@ import { persistDiscrepancies, persistIndexQuotes, persistPriceQuotes } from "./
 import { toPrismaDataSource } from "./prisma-mappers";
 import { sendIngestionAlert } from "./alerts";
 import { runHistoryBackfill, type HistoryBackfillSummary } from "./run-history-backfill";
+import { refreshChartSeries, type RefreshChartSeriesSummary } from "../charts/refresh-chart-series";
 import type { ConnectorResult, DataSourceCode, MarketDataConnector, RawIndexQuote, RawPriceQuote } from "./types";
 
 export interface SourceRunSummary {
@@ -63,6 +64,7 @@ export interface FullIngestionSummary {
   unknownTickers: string[];
   historyBackfill?: HistoryBackfillSummary | null;
   indexEnrichment?: IndexEnrichmentSummary | null;
+  chartSeries?: RefreshChartSeriesSummary | null;
 }
 
 interface ConnectorEnabled {
@@ -252,6 +254,22 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
     }
   }
 
+  let chartSeries: RefreshChartSeriesSummary | null = null;
+  try {
+    const elapsed = Date.now() - startedAt.getTime();
+    const remaining = Math.min(40_000, Math.max(8_000, 270_000 - elapsed));
+    const touched = [...new Set(reconciledPrices.map((r) => r.ticker))];
+    chartSeries = await refreshChartSeries({
+      symbols: touched.length > 0 && touched.length <= 48 ? touched : undefined,
+      timeBudgetMs: remaining,
+      logger: (msg) => console.log(`[ingest→charts] ${msg}`),
+    });
+  } catch (err) {
+    console.warn(
+      `[ingest→charts] refresh ignoré : ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   // Notifications : après persistance des cours/indices, jamais bloquant.
   try {
     const { evaluateAllAlerts } = await import("../notifications/evaluate-all");
@@ -273,5 +291,6 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
     unknownTickers: priceResult.unknownTickers,
     historyBackfill,
     indexEnrichment,
+    chartSeries,
   };
 }

@@ -5,12 +5,9 @@
 //   1. Annuel GetHistos xperiod=365 depuis 1998 (la série réelle commence
 //      plus tard selon le titre — ex. SNTS 2006).
 //   2. Mensuel xperiod=30 depuis la première année réellement retournée.
-//   3. Journalier chunké ~89 j uniquement sur les fenêtres encore lacunaires
-//      (skip si déjà ≥ 35 clôtures BRVM/Sika, OU si un GetHistos réussi n'a
-//      plus aucune date nouvelle — Sika plafonne souvent ~28 pts / 89 j).
-//      forceDaily=1 ignore INGESTION_ENABLE_SIKA_DAILY_HISTORY=false.
-//      Fenêtres persistées une par une + plafond Hobby (défaut 8 / ticker).
-//      Reprise sur le MÊME ticker tant qu'il reste des gaps non saturés.
+//   3. Journalier chunké ~89 j — **1 an glissant d'abord** (`INGESTION_DAILY_FROM=1Y`,
+//      y compris sous forceDaily). `dailyFrom=auto` pour densifier depuis 2006.
+//      Skip tickers `skip_history_backfill` / HISTORY_SKIP_TICKERS (Sika nodata).
 //   4. Fiche SOCIETE (ISIN, CA/RN en Mds, PER, dividendes), events/news,
 //      documents BRVM via catalogue OuestBourse si la clé est configurée.
 //
@@ -40,6 +37,7 @@ import {
   persistCompanyProfiles,
   persistDividendRows,
   persistFinancialRatios,
+  persistHistorySkip,
   persistPriceQuotes,
 } from "./persist";
 import { reconcilePriceBatch } from "./reconciliation";
@@ -49,6 +47,7 @@ import {
   DEFAULT_MIN_DAILY_POINTS_PER_CHUNK,
   chunksNeedingFetch,
   coveredDailyDates,
+  defaultDailyFromOpt,
   earliestIsoFromQuotes,
   isDailyChunkSatisfiedBySource,
   maxDailyChunksThisRun,
@@ -63,14 +62,20 @@ import {
   type ExistingPriceRef,
   type SatisfiedDailyChunk,
 } from "./history-coverage";
+import {
+  isSikaNodataError,
+  shouldSkipHistoryTicker,
+  SIKA_NODATA_REASON,
+} from "./history-skip";
+import { isMissingDatabaseObject } from "../db/is-database-unavailable";
 
 const LOG_KIND = "HISTORY_BACKFILL";
 
 export interface HistoryBackfillOptions {
   tickers?: string[];
   annualFromYear?: number;
-  /** "auto" = première date annuelle/mensuelle réellement retournée par Sika. */
-  dailyFrom?: string | "auto" | "off";
+  /** "auto" = première date annuelle/mensuelle réellement retournée par Sika. "1Y" = rolling 365 j (défaut). */
+  dailyFrom?: string | "auto" | "off" | "1Y";
   includeAnnual?: boolean;
   includeMonthly?: boolean;
   includeDaily?: boolean;
@@ -89,6 +94,8 @@ export interface HistoryBackfillOptions {
   /** true = reprendre AU ticker (log incomplete) ; false = après (query `after`). */
   resumeInclusive?: boolean;
   maxTickers?: number;
+  /** true = inclure les tickers skip_history_backfill / HISTORY_SKIP_TICKERS. */
+  includeSkipped?: boolean;
   logger?: (msg: string) => void;
 }
 
@@ -108,6 +115,7 @@ export interface HistoryBackfillTickerResult {
   dailyGapsRemaining: number;
   existingPoints: number;
   dailySkipReason: string | null;
+  skipped: boolean;
   sheetsOk: boolean;
   events: number;
   news: number;
@@ -151,6 +159,43 @@ async function loadExistingPrices(db: PrismaClient, companyId: string): Promise<
     source: r.source as DataSourceCode,
     closePrice: Number(r.closePrice),
   }));
+}
+
+type BackfillCompanyRow = {
+  id: string;
+  ticker: string;
+  listedSince: Date | null;
+  skipHistoryBackfill?: boolean;
+  historySkipReason?: string | null;
+  historySkipUntil?: Date | null;
+};
+
+async function loadBackfillCompanies(
+  db: PrismaClient,
+  only: string[] | undefined
+): Promise<BackfillCompanyRow[]> {
+  const where = { isActive: true, ...(only?.length ? { ticker: { in: only } } : {}) };
+  try {
+    return await db.company.findMany({
+      where,
+      select: {
+        id: true,
+        ticker: true,
+        listedSince: true,
+        skipHistoryBackfill: true,
+        historySkipReason: true,
+        historySkipUntil: true,
+      },
+      orderBy: { ticker: "asc" },
+    });
+  } catch (err) {
+    if (!isMissingDatabaseObject(err)) throw err;
+    return await db.company.findMany({
+      where,
+      select: { id: true, ticker: true, listedSince: true },
+      orderBy: { ticker: "asc" },
+    });
+  }
 }
 
 async function persistSikaQuotes(
@@ -257,11 +302,7 @@ export async function runHistoryBackfill(
     options.includeDocuments !== false && flags.documents && isOuestbourseSupabaseConfigured();
 
   const only = options.tickers?.map((t) => t.toUpperCase()).filter(Boolean);
-  const companies = await db.company.findMany({
-    where: { isActive: true, ...(only?.length ? { ticker: { in: only } } : {}) },
-    select: { id: true, ticker: true, listedSince: true },
-    orderBy: { ticker: "asc" },
-  });
+  const companies = await loadBackfillCompanies(db, only);
   const companyIdByTicker = new Map(companies.map((c) => [c.ticker, c.id]));
 
   const cursor = await loadHistoryBackfillCursor(db);
@@ -289,7 +330,7 @@ export async function runHistoryBackfill(
     queue = queue.slice(0, options.maxTickers);
   }
 
-  const dailyFromOpt = options.dailyFrom;
+  const dailyFromOpt = options.dailyFrom ?? defaultDailyFromOpt();
   log(
     options,
     `→ Backfill historique Sika — ${queue.length} société(s)` +
@@ -336,6 +377,7 @@ export async function runHistoryBackfill(
         dailyGapsRemaining: 0,
         existingPoints: 0,
         dailySkipReason: null,
+        skipped: false,
         sheetsOk: false,
         events: 0,
         news: 0,
@@ -343,6 +385,15 @@ export async function runHistoryBackfill(
       };
 
       try {
+        const skip = shouldSkipHistoryTicker(co);
+        if (skip.skip && options.includeSkipped !== true) {
+          result.skipped = true;
+          result.dailySkipReason = skip.reason;
+          log(options, `  ${co.ticker}: skip historique (${skip.reason ?? "denylist"})`);
+          perTicker.push(result);
+          continue;
+        }
+
         let existing = await loadExistingPrices(db, co.id);
         let firstSikaIso: string | null = null;
 
@@ -361,10 +412,16 @@ export async function runHistoryBackfill(
           } else {
             result.error = annual.error;
             log(options, `  ${co.ticker}: annuel ✗ ${annual.error}`);
+            if (isSikaNodataError(annual.error)) {
+              await persistHistorySkip(db, co.id, SIKA_NODATA_REASON);
+              result.skipped = true;
+              result.dailySkipReason = SIKA_NODATA_REASON;
+              log(options, `  ${co.ticker}: marqué skip_history_backfill (${SIKA_NODATA_REASON})`);
+            }
           }
         }
 
-        if (includeMonthly) {
+        if (includeMonthly && !result.skipped) {
           const fromYear = firstSikaIso
             ? Number(firstSikaIso.slice(0, 4))
             : (options.annualFromYear ?? DEFAULT_ANNUAL_FROM_YEAR);
@@ -383,6 +440,7 @@ export async function runHistoryBackfill(
           }
         }
 
+        if (!result.skipped) {
         const plan = planDailyBackfill({
           flagDaily: flags.daily,
           forceDaily,
@@ -469,6 +527,7 @@ export async function runHistoryBackfill(
             incomplete = false;
             nextTicker = null;
           }
+        }
         }
 
         if (includeSheets) {
