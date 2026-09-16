@@ -1,7 +1,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // Middleware Next.js — rate limiting des routes API (étape 9, volet Sécurité)
 // ═══════════════════════════════════════════════════════════════════════════
-// S'applique à TOUTES les routes `/api/**`. Politique volontairement simple :
+// S'applique aux routes `/api/**` (sauf `GET /api/health`, sonde d'uptime
+// hors quota pour ne jamais 429 un monitor). Politique volontairement simple :
 //   - Routes d'authentification (`/api/auth/**`, y compris l'inscription) :
 //     limite stricte (10 req/min/IP) pour limiter le bruteforce de mots de
 //     passe et le spam d'inscriptions.
@@ -44,6 +45,14 @@ function rateLimitHeaders(result: RateLimitResult): Record<string, string> {
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // Sonde d'uptime (`GET /api/health`) : requête légère, pas de secrets.
+  // On la laisse hors quota pour qu'un monitor (UptimeRobot, cron) ne
+  // reçoive jamais un 429 même si l'IP est partagée.
+  if (pathname === "/api/health") {
+    return NextResponse.next();
+  }
+
   const isAuthRoute = pathname.startsWith("/api/auth/");
   const config = isAuthRoute ? AUTH_API_LIMIT : DEFAULT_API_LIMIT;
   const ip = getClientIp(request);
