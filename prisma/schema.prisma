@@ -59,6 +59,14 @@ enum IngestionStatus {
   @@map("ingestion_status")
 }
 
+/// Série précalculée : cours d'une société ou niveaux d'un indice.
+enum ChartSeriesKind {
+  COMPANY
+  INDEX
+
+  @@map("chart_series_kind")
+}
+
 /// Type de mouvement sur une position de portefeuille utilisateur.
 enum HoldingSide {
   ACHAT
@@ -239,6 +247,12 @@ model Company {
   /// Permet de désactiver une société (radiation, suspension) sans supprimer
   /// son historique de données.
   isActive    Boolean   @default(true) @map("is_active")
+  /// Skip GetHistos / densify (Sika `nodata`, fenêtre morte). Surchargeable
+  /// via HISTORY_SKIP_TICKERS / HISTORY_ALLOW_TICKERS (cf. history-skip.ts).
+  skipHistoryBackfill Boolean @default(false) @map("skip_history_backfill")
+  historySkipReason   String? @map("history_skip_reason")
+  /// Si renseigné, le skip n'est actif que jusqu'à cette date (UTC).
+  historySkipUntil    DateTime? @map("history_skip_until")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
@@ -253,6 +267,7 @@ model Company {
   alertRules        AlertRule[]
   documents         CompanyDocument[]
   events            CompanyEvent[]
+  chartSeries       ChartSeries[]
 
   @@index([sectorId])
   @@index([countryId])
@@ -341,6 +356,35 @@ model PriceHistory {
   @@index([companyId, date])
   @@index([date])
   @@map("price_history")
+}
+
+/// Série compacte précalculée pour les graphes / sparklines (évite de scanner
+/// `price_history` à chaque GET /api/charts ou aperçu marché).
+/// `rangeKey` : 1M | 3M | 6M | 1A | 5A | MAX | SPARK.
+model ChartSeries {
+  id          String          @id @default(cuid())
+  kind        ChartSeriesKind
+  /// Ticker société (SNTS) ou code d'indice (BRVM_COMPOSITE).
+  symbol      String
+  companyId   String?         @map("company_id")
+  company     Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rangeKey    String          @map("range_key")
+  /// Points `{ time, value, volume? }[]` — JSON compact, pas de duplication source.
+  points      Json
+  pointCount  Int             @map("point_count")
+  firstDate   DateTime?       @map("first_date") @db.Date
+  lastDate    DateTime?       @map("last_date") @db.Date
+  fingerprint String
+  /// Stats (lastClose, dayChange, yearlyCloses…) pour servir un GET charts
+  /// sans relire tout l'historique.
+  meta        Json?
+  builtAt     DateTime        @default(now()) @map("built_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
+
+  @@unique([kind, symbol, rangeKey], name: "uniq_chart_series_kind_symbol_range")
+  @@index([companyId])
+  @@index([kind, rangeKey])
+  @@map("chart_series")
 }
 
 /// Dividendes versés par année. Reprend `company.dividends[year]` du JSX.

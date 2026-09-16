@@ -309,6 +309,25 @@ export function parseIsoDateFlag(raw: string | undefined): string | null {
   return ISO_DAY_RE.test(raw) ? raw : null;
 }
 
+/** Politique 1Y-first : `INGESTION_DAILY_FROM=1Y` (défaut) avant l'historique profond (`auto`). */
+export function defaultDailyFromOpt(): string {
+  const raw = (process.env.INGESTION_DAILY_FROM ?? "1Y").trim();
+  return raw || "1Y";
+}
+
+export function isRollingYearDailyFrom(value: string | null | undefined): boolean {
+  if (!value) return false;
+  const v = value.trim().toUpperCase();
+  return v === "1Y" || v === "1A" || v === "1YEAR";
+}
+
+export function isoOneYearAgo(todayIso: string): string {
+  const d = new Date(`${todayIso.slice(0, 10)}T00:00:00.000Z`);
+  if (Number.isNaN(d.getTime())) return todayIso;
+  d.setUTCFullYear(d.getUTCFullYear() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 export function earliestIsoFromExisting(
   existing: ExistingPriceRef[],
   sources?: ReadonlyArray<DataSourceCode>
@@ -324,6 +343,8 @@ export function earliestIsoFromExisting(
  * Borne inférieure du journalier.
  *
  * - `dailyFrom=YYYY-MM-DD` : date explicite (pas de clamp listedSince).
+ * - `1Y` / `1A` : rolling 365 j (défaut env `INGESTION_DAILY_FROM`, y compris
+ *   sous `forceDaily` — évite de moudre 2006 avant la couverture récente).
  * - `auto` : plus tôt parmi la série Sika fraîchement tirée ET les Sika/BRVM
  *   déjà en base — on ne laisse PAS le mensuel (souvent ~60 derniers mois)
  *   écraser un annuel qui remonte à 2006.
@@ -332,17 +353,23 @@ export function earliestIsoFromExisting(
  *   collapserait la fenêtre sur des mois déjà densifiés par le cron horaire.
  */
 export function resolveDailyFromIso(opts: {
-  dailyFromOpt?: string | "auto" | "off";
+  dailyFromOpt?: string | "auto" | "off" | "1Y" | "1A";
   firstSikaIso?: string | null;
   existing: ExistingPriceRef[];
   listedSinceIso?: string | null;
   annualFromYear?: number;
-  /** Si true, `dailyFrom=off` est ignoré (on retombe sur auto). */
+  /** Si true, `dailyFrom=off` est ignoré (on retombe sur auto / 1Y). */
   forceDaily?: boolean;
+  todayIso?: string;
 }): string | null {
   const dailyFromOpt = opts.dailyFromOpt;
   if (!opts.forceDaily && (dailyFromOpt === "off" || dailyFromOpt === "false")) return null;
   if (isIsoDay(dailyFromOpt)) return dailyFromOpt;
+
+  const todayIso = opts.todayIso ?? new Date().toISOString().slice(0, 10);
+  if (isRollingYearDailyFrom(dailyFromOpt)) {
+    return isoOneYearAgo(todayIso);
+  }
 
   const earliestSikaOrBrvm = earliestIsoFromExisting(opts.existing, [
     "SIKAFINANCE",
@@ -388,7 +415,7 @@ export function planDailyBackfill(opts: {
   flagDaily: boolean;
   forceDaily?: boolean;
   includeDailyRequested?: boolean;
-  dailyFromOpt?: string | "auto" | "off";
+  dailyFromOpt?: string | "auto" | "off" | "1Y" | "1A";
   firstSikaIso?: string | null;
   existing: ExistingPriceRef[];
   listedSinceIso?: string | null;
@@ -400,7 +427,8 @@ export function planDailyBackfill(opts: {
 }): DailyBackfillPlan {
   const forceDaily = opts.forceDaily === true;
   const flagDaily = opts.flagDaily;
-  const requestedOff = opts.includeDailyRequested === false || opts.dailyFromOpt === "off";
+  const dailyFromOpt = opts.dailyFromOpt ?? defaultDailyFromOpt();
+  const requestedOff = opts.includeDailyRequested === false || dailyFromOpt === "off";
   const minDailyPoints = opts.minDailyPoints ?? DEFAULT_MIN_DAILY_POINTS_PER_CHUNK;
   const toIso = opts.todayIso ?? new Date().toISOString().slice(0, 10);
   const existingPoints = opts.existing.length;
@@ -429,7 +457,7 @@ export function planDailyBackfill(opts: {
   }
   if (!includeDaily) {
     // Toujours calculer les gaps pour le diagnostic ops, même si on ne fetch pas.
-    const fromIso = resolveDailyFromIso(opts);
+    const fromIso = resolveDailyFromIso({ ...opts, dailyFromOpt, todayIso: toIso });
     if (!fromIso) {
       return empty("flag_daily_disabled", null);
     }
@@ -450,7 +478,7 @@ export function planDailyBackfill(opts: {
     };
   }
 
-  const fromIso = resolveDailyFromIso(opts);
+  const fromIso = resolveDailyFromIso({ ...opts, dailyFromOpt, todayIso: toIso });
   if (!fromIso) {
     return empty("no_from_iso", null);
   }

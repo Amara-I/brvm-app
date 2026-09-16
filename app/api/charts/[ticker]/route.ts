@@ -43,6 +43,8 @@ import {
   mergeChartPointsPrefer,
   planChartDensify,
 } from "@/lib/charts/chart-densify-strategy";
+import { loadCompanyChartSeries } from "@/lib/charts/load-company-chart-series";
+import { refreshChartSeries } from "@/lib/charts/refresh-chart-series";
 
 export const dynamic = "force-dynamic";
 
@@ -60,42 +62,24 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   });
   if (!company) return apiNotFound(`Société "${ticker}"`);
 
-  const [prices, ratio] = await Promise.all([
-    prisma.priceHistory.findMany({
-      where: { companyId: company.id, isCanonical: true },
-      orderBy: { date: "asc" },
-      select: { date: true, closePrice: true, volume: true, source: true },
+  const [loaded, ratio, dividends] = await Promise.all([
+    loadCompanyChartSeries({
+      companyId: company.id,
+      ticker,
+      rangeParam: windowQuery.range,
     }),
     prisma.financialRatio.findFirst({
       where: { companyId: company.id, isCanonical: true },
       orderBy: { year: "desc" },
       select: { per: true, mktCap: true, year: true },
     }),
+    prisma.dividend.findMany({
+      where: { companyId: company.id, isCanonical: true },
+      select: { year: true, amount: true },
+    }),
   ]);
 
-  const dividends = await prisma.dividend.findMany({
-    where: { companyId: company.id, isCanonical: true },
-    select: { year: true, amount: true },
-  });
-
-  const now = Date.now();
-  // Plusieurs lignes canoniques peuvent partager le même jour calendaire
-  // (timestamps UTC différents) — on garde la dernière du jour.
-  const dbByDay = new Map<
-    string,
-    { time: string; value: number; volume: number | null; source: (typeof prices)[number]["source"] }
-  >();
-  for (const p of prices) {
-    if (p.date.getTime() > now) continue;
-    const time = p.date.toISOString().slice(0, 10);
-    dbByDay.set(time, {
-      time,
-      value: Number(p.closePrice),
-      volume: p.volume !== null ? Number(p.volume) : null,
-      source: p.source,
-    });
-  }
-  const dbSeries = [...dbByDay.values()].sort((a, b) => a.time.localeCompare(b.time));
+  const dbSeries = loaded.dbSeries;
 
   let series: ChartClosePoint[] = dbSeries.map(({ time, value, volume }) => ({
     time,
@@ -106,7 +90,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   let discrepanciesCount = 0;
   let densifySources: string[] = [];
 
-  if (!shouldSkipLiveDensify()) {
+  if (!loaded.fromCache && !shouldSkipLiveDensify()) {
     const fingerprint = chartDbFingerprint(series);
     const exactCache = getCachedDensifiedSeries(ticker, fingerprint);
     const softCache = exactCache ?? getAnyCachedDensifiedSeries(ticker);
@@ -265,10 +249,21 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   const yearsSet = new Set<number>();
   const pricesByYear: Record<number, number> = {};
   const dividendsByYear: Record<number, number> = {};
-  for (const p of series) {
-    const y = Number(p.time.slice(0, 4));
-    yearsSet.add(y);
-    pricesByYear[y] = p.value;
+  const yearlyFromMeta = loaded.meta?.yearlyCloses;
+  if (yearlyFromMeta && Object.keys(yearlyFromMeta).length > 0) {
+    for (const [year, close] of Object.entries(yearlyFromMeta)) {
+      const y = Number(year);
+      if (Number.isFinite(y) && close > 0) {
+        yearsSet.add(y);
+        pricesByYear[y] = close;
+      }
+    }
+  } else {
+    for (const p of series) {
+      const y = Number(p.time.slice(0, 4));
+      yearsSet.add(y);
+      pricesByYear[y] = p.value;
+    }
   }
   for (const d of dividends) {
     yearsSet.add(d.year);
@@ -286,21 +281,29 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   });
 
   const lastDb = dbSeries[dbSeries.length - 1] ?? null;
-  const dbSources = [...new Set(dbSeries.map((p) => p.source))];
-  const historyFirstDate = series[0]?.time ?? null;
-  const historyLastDate = series[series.length - 1]?.time ?? null;
-  const historyPoints = series.length;
+  const dbSources = [
+    ...new Set([
+      ...dbSeries.map((p) => p.source),
+      ...(loaded.meta?.sources ?? []),
+    ]),
+  ];
+  const historyFirstDate = loaded.meta?.historyFirstDate ?? series[0]?.time ?? null;
+  const historyLastDate = loaded.meta?.historyLastDate ?? series[series.length - 1]?.time ?? null;
+  const historyPoints = loaded.meta?.historyPoints ?? series.length;
   const windowed = applyChartSeriesWindow(series, windowQuery);
   const last = series[series.length - 1] ?? null;
   const prev = series.length >= 2 ? series[series.length - 2]! : null;
   const dayChange =
-    last && prev && prev.value > 0
+    loaded.meta?.dayChangePercent ??
+    (last && prev && prev.value > 0
       ? Math.round(((last.value - prev.value) / prev.value) * 10000) / 100
-      : null;
-  const dayChangeAbs = last && prev ? Math.round((last.value - prev.value) * 100) / 100 : null;
+      : null);
+  const dayChangeAbs =
+    loaded.meta?.dayChangeAbs ??
+    (last && prev ? Math.round((last.value - prev.value) * 100) / 100 : null);
 
-  let change1Y: number | null = null;
-  if (last) {
+  let change1Y: number | null = loaded.meta?.change1YPercent ?? null;
+  if (change1Y == null && last) {
     const target = new Date(last.time);
     target.setUTCFullYear(target.getUTCFullYear() - 1);
     const targetIso = target.toISOString().slice(0, 10);
@@ -323,6 +326,10 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     });
     lookback = sliced.points;
     lookbackExhausted = sliced.exhausted;
+  }
+
+  if (!loaded.fromCache) {
+    scheduleChartCacheFill(ticker);
   }
 
   return apiSuccess(
@@ -365,6 +372,10 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         seriesSources: dbSources,
         seriesEnriched:
           seriesSourceNote === "multi_source_merged" || dbSources.length > 1,
+        seriesCache: {
+          hit: loaded.fromCache,
+          rangeKey: loaded.cacheRangeKey,
+        },
         reconciliation: {
           thresholdPercent: DISCREPANCY_THRESHOLD_PERCENT,
           discrepanciesCount,
@@ -388,4 +399,12 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     },
     { headers: cacheHeaders(120) }
   );
+}
+
+function scheduleChartCacheFill(ticker: string): void {
+  void refreshChartSeries({
+    symbols: [ticker],
+    kinds: ["COMPANY"],
+    timeBudgetMs: 12_000,
+  }).catch(() => undefined);
 }

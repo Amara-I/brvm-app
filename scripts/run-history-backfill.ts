@@ -4,9 +4,10 @@
 // Usage :
 //   npm run history:sika-full
 //   npx ts-node scripts/run-history-backfill.ts SNTS SGBC
-//   npx ts-node scripts/run-history-backfill.ts --daily-from=2015-01-01
-//   npx ts-node scripts/run-history-backfill.ts --daily=off --no-events
+//   npx ts-node scripts/run-history-backfill.ts --daily-from=1Y   (défaut)
+//   npx ts-node scripts/run-history-backfill.ts --daily-from=auto  (profond, 2006+)
 //   npx ts-node scripts/run-history-backfill.ts --force-daily --max-tickers=1 BICC
+//   npx ts-node scripts/run-history-backfill.ts --include-skipped
 //   npx ts-node scripts/run-history-backfill.ts --min-daily-points=1 --max-daily-chunks=8
 //   npx ts-node scripts/run-history-backfill.ts --budget-ms=240000
 //
@@ -27,8 +28,9 @@ function parseArgs(argv: string[]): HistoryBackfillOptions {
   let dailyFrom: HistoryBackfillOptions["dailyFrom"];
   if (dailyRaw === "off" || dailyRaw === "false") dailyFrom = "off";
   else if (dailyRaw === "auto") dailyFrom = "auto";
+  else if (dailyRaw === "1Y" || dailyRaw === "1A" || dailyRaw === "1y") dailyFrom = "1Y";
   else if (dailyRaw && /^\d{4}-\d{2}-\d{2}$/.test(dailyRaw)) dailyFrom = dailyRaw;
-  else dailyFrom = "auto";
+  else dailyFrom = undefined;
 
   const budget = Number(get("--budget-ms"));
   const maxTickers = Number(get("--max-tickers"));
@@ -44,6 +46,7 @@ function parseArgs(argv: string[]): HistoryBackfillOptions {
     includeMonthly: !flags.includes("--no-monthly"),
     includeDaily: forceDaily || (dailyFrom !== "off" && !flags.includes("--no-daily")),
     forceDaily,
+    includeSkipped: flags.includes("--include-skipped"),
     minDailyPoints: Number.isFinite(minDailyPoints) && minDailyPoints >= 1 ? minDailyPoints : undefined,
     maxDailyChunks: Number.isFinite(maxDailyChunks) && maxDailyChunks >= 0 ? Math.floor(maxDailyChunks) : undefined,
     includeSheets: !flags.includes("--no-sheets"),

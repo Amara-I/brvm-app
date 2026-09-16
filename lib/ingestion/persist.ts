@@ -24,8 +24,10 @@ import type { PrismaClient } from "@prisma/client";
 import { toPrismaDataSource } from "./prisma-mappers";
 import type { DiscrepancyReport, ReconciledIndex, ReconciledPrice } from "./reconciliation";
 import { canElevateCanonical, sourcesOutranking, sourceOutranks } from "./reconciliation";
-import type { DataSourceCode } from "./types";
+import { filterCanonicalByCollar } from "./price-collar";
+import { isMissingDatabaseObject } from "../db/is-database-unavailable";
 import type {
+  DataSourceCode,
   RawCompanyDocument,
   RawCompanyEventItem,
   RawCompanyFundamentals,
@@ -88,6 +90,7 @@ export interface PersistPricesResult {
   upserted: number;
   markedCanonical: number;
   unknownTickers: string[];
+  collarRejected: number;
 }
 
 /// Upserte toutes les cotations brutes (`price_history`), puis marque la
@@ -139,8 +142,71 @@ export async function persistPriceQuotes(
     byTicker.set(r.ticker, arr);
   }
 
-  let markedCanonical = 0;
+  const previousByTicker = new Map<string, { date: string; closePrice: number }>();
   for (const [ticker, rows] of byTicker) {
+    const companyId = companyIdByTicker.get(ticker);
+    if (!companyId || rows.length === 0) continue;
+    const minDate = rows.reduce((m, r) => (r.date < m ? r.date : m), rows[0]!.date);
+    try {
+      const prev = await db.priceHistory.findFirst({
+        where: {
+          companyId,
+          isCanonical: true,
+          date: { lt: new Date(`${minDate}T00:00:00.000Z`) },
+        },
+        orderBy: { date: "desc" },
+        select: { date: true, closePrice: true },
+      });
+      if (prev) {
+        previousByTicker.set(ticker.toUpperCase(), {
+          date: prev.date.toISOString().slice(0, 10),
+          closePrice: Number(prev.closePrice),
+        });
+      }
+    } catch {
+      /* table absente / hors ligne — collier appliqué sans précédent DB */
+    }
+  }
+
+  const collar = filterCanonicalByCollar(reconciled, {
+    previousByTicker,
+    rawQuotes: allQuotes,
+  });
+  if (collar.rejected.length > 0) {
+    console.warn(
+      `[collar] ${collar.rejected.length} cours hors collier BRVM (~±7,5 %) — bruts conservés, non canoniques. Ex. ` +
+        collar.rejected
+          .slice(0, 4)
+          .map((r) => `${r.ticker} ${r.date}: ${r.previousClose}→${r.closePrice} (${r.deltaPercent}%)`)
+          .join(" | ")
+    );
+    const reports: DiscrepancyReport[] = collar.rejected.map((r) => ({
+      ticker: r.ticker,
+      date: r.date,
+      field: "close_price_collar",
+      brvmValue: r.resolvedSource === "BRVM_OFFICIEL" ? r.closePrice : r.previousClose,
+      sikaValue: r.resolvedSource === "SIKAFINANCE" ? r.closePrice : null,
+      richValue: r.resolvedSource === "RICHBOURSE" ? r.closePrice : null,
+      deltaPercent: Math.abs(r.deltaPercent),
+    }));
+    try {
+      await persistDiscrepancies(db, reports, companyIdByTicker, collar.accepted);
+    } catch (err) {
+      console.warn(
+        `[collar] journalisation data_discrepancies ignorée : ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+  }
+
+  const acceptedByTicker = new Map<string, ReconciledPrice[]>();
+  for (const r of collar.accepted) {
+    const arr = acceptedByTicker.get(r.ticker) ?? [];
+    arr.push(r);
+    acceptedByTicker.set(r.ticker, arr);
+  }
+
+  let markedCanonical = 0;
+  for (const [ticker, rows] of acceptedByTicker) {
     const companyId = companyIdByTicker.get(ticker);
     if (!companyId) continue;
 
@@ -187,7 +253,34 @@ export async function persistPriceQuotes(
     }
   }
 
-  return { upserted, markedCanonical, unknownTickers: [...unknownTickers] };
+  return {
+    upserted,
+    markedCanonical,
+    unknownTickers: [...unknownTickers],
+    collarRejected: collar.rejected.length,
+  };
+}
+
+export async function persistHistorySkip(
+  db: PrismaClient,
+  companyId: string,
+  reason: string,
+  until?: Date | null
+): Promise<boolean> {
+  try {
+    await db.company.update({
+      where: { id: companyId },
+      data: {
+        skipHistoryBackfill: true,
+        historySkipReason: reason,
+        historySkipUntil: until ?? null,
+      },
+    });
+    return true;
+  } catch (err) {
+    if (isMissingDatabaseObject(err)) return false;
+    throw err;
+  }
 }
 
 export interface PersistRatiosResult {

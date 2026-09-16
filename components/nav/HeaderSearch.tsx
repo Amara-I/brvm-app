@@ -121,7 +121,13 @@ export default function HeaderSearch({
             ) : (
               results.map((c) => (
                 <li key={c.ticker}>
-                  <button type="button" onClick={() => go(c.ticker)} className={styles.item}>
+                  <button
+                    type="button"
+                    onClick={() => go(c.ticker)}
+                    onMouseEnter={() => router.prefetch(`/actions/${c.ticker}`)}
+                    onFocus={() => router.prefetch(`/actions/${c.ticker}`)}
+                    className={styles.item}
+                  >
                     <span className={styles.ticker}>{c.ticker}</span>
                     <span> · {c.name}</span>
                     <div className={styles.sector}>{c.sector}</div>

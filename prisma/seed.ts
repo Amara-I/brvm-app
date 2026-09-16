@@ -41,6 +41,7 @@
 
 import { PrismaClient, DataSource } from "@prisma/client";
 import { COMPANIES_FULL, YEARS } from "./seed-data/companies-full";
+import { DEFAULT_SIKA_NODATA_TICKERS, SIKA_NODATA_REASON } from "../lib/ingestion/history-skip";
 
 const prisma = new PrismaClient();
 
@@ -133,10 +134,28 @@ async function main() {
     const countryId = countryIdByName.get(co.country)!;
     const sectorId = sectorIdByName.get(co.sector)!;
 
+    const skipNodata = DEFAULT_SIKA_NODATA_TICKERS.includes(co.ticker);
     const company = await prisma.company.upsert({
       where: { ticker: co.ticker },
-      update: { name: co.name, color: co.color, countryId, sectorId },
-      create: { ticker: co.ticker, name: co.name, color: co.color, countryId, sectorId },
+      update: {
+        name: co.name,
+        color: co.color,
+        countryId,
+        sectorId,
+        ...(skipNodata
+          ? { skipHistoryBackfill: true, historySkipReason: SIKA_NODATA_REASON }
+          : {}),
+      },
+      create: {
+        ticker: co.ticker,
+        name: co.name,
+        color: co.color,
+        countryId,
+        sectorId,
+        ...(skipNodata
+          ? { skipHistoryBackfill: true, historySkipReason: SIKA_NODATA_REASON }
+          : {}),
+      },
     });
 
     for (const year of YEARS) {

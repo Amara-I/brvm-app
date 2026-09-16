@@ -1,6 +1,6 @@
 // Page Graphes premium — étape 17 (lightweight-charts / TradingView OSS).
 import AppHeader from "@/components/AppHeader";
-import ChartWorkbench from "@/components/charts/ChartWorkbench";
+import ChartWorkbench from "@/components/charts/LazyChartWorkbench";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
