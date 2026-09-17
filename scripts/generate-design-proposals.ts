@@ -13,7 +13,7 @@ async function main() {
     );
   } else {
     console.log(`✔ ${result.written} fichier(s) dans docs/design-agent/proposals/`);
-    console.log("→ Relire /apercu-design puis valider ou rejeter chaque ID en chat.");
+    console.log("→ Relire docs/design-agent/proposals/ puis valider ou rejeter chaque ID en chat.");
   }
 }
 

@@ -94,7 +94,7 @@ export function formatProposalMarkdown(meta: DesignProposalMeta, body: {
 | Ranking | ${meta.rankingScore.toFixed(2)} |
 | Evidence | ${meta.evidenceStrength} |
 | Statut | pending |
-| Aperçu | [/apercu-design#${meta.id}](/apercu-design#${meta.id}) |
+| Fichier | \`docs/design-agent/proposals/${meta.id}.md\` |
 
 ## Evidence
 

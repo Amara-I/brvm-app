@@ -18,7 +18,7 @@ async function main() {
     console.log('\nℹ️  Agent désactivé (RESEARCH_AGENT_ENABLED != "true") — aucun appel réseau effectué.');
   } else if (summary.proposalsWritten > 0) {
     console.log(`\n✦ ${summary.proposalsWritten} proposition(s) → docs/design-agent/proposals/`);
-    console.log("→ Revue : /apercu-design");
+    console.log("→ Revue : docs/design-agent/proposals/");
   }
 }
 

@@ -1,5 +1,4 @@
 // Page "Outils" — étape 10 + agent DESIGN premium (étape 16).
-import Link from "next/link";
 import { ResearchCategory } from "@prisma/client";
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
@@ -126,28 +125,6 @@ export default async function OutilsPage({
         </div>
 
         <div style={panel()} data-align-left>
-          <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Aperçu propositions design</h2>
-          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
-            Avant / après des brouillons App Designer — rien n’est appliqué tant que vous n’approuvez pas.
-          </p>
-          <a
-            href="/apercu-design"
-            style={{
-              display: "inline-block",
-              background: C.blue,
-              color: "#fff",
-              fontWeight: 700,
-              borderRadius: 8,
-              padding: "8px 16px",
-              textDecoration: "none",
-              fontSize: "var(--fs-body-sm)",
-            }}
-          >
-            Voir les aperçus
-          </a>
-        </div>
-
-        <div style={panel()} data-align-left>
           <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>Taille de position</h2>
           <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
             Calculette de risque : quantité recommandée = (capital × taux %) / (entrée − stop). Cours chargé
@@ -218,11 +195,7 @@ export default async function OutilsPage({
           <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 4 }}>Agent design premium</h2>
           <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
             Veille quotidienne (cron 06:00 UTC ou <code style={{ color: C.silver }}>npm run research:run</code>).
-            Les propositions DESIGN/UX à trancher sont sur{" "}
-            <Link href="/apercu-design" style={{ color: C.gold }}>
-              /apercu-design
-            </Link>
-            . Rien n&apos;est appliqué automatiquement.
+            Rien n&apos;est appliqué automatiquement.
             {designCount > 0 ? ` ${designCount} suggestion(s) DESIGN en base.` : ""}
           </p>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
