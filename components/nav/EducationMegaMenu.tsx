@@ -1,8 +1,8 @@
 "use client";
 
-// Méga-menu Éducation — catégories + thèmes.
+// Méga-menu Éducation : clic sur le libellé ouvre/ferme le panneau.
+// "Voir tout" (et les liens internes) mènent au hub /education.
 
-import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { C } from "@/lib/theme/colors";
 import {
@@ -11,7 +11,9 @@ import {
   countTermsByCategory,
   themesByCategory,
 } from "@/lib/education/catalog";
+import MegaMenuTrigger from "./MegaMenuTrigger";
 import styles from "./MegaMenu.module.css";
+import { useMegaMenu } from "./useMegaMenu";
 
 const cssVars = {
   "--mm-border": C.border,
@@ -23,8 +25,6 @@ const cssVars = {
   "--mm-gold": C.gold,
 } as React.CSSProperties;
 
-const CLOSE_DELAY_MS = 160;
-
 export default function EducationMegaMenu({
   variant = "inline",
   onNavigate,
@@ -32,97 +32,32 @@ export default function EducationMegaMenu({
   variant?: "inline" | "sidebar";
   onNavigate?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const panelId = useId();
+  const { open, close, toggle, wrapperRef, triggerRef, panelId } = useMegaMenu();
   const total = EDUCATION_TERMS.length;
-
-  function clearCloseTimer() {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  }
-
-  function openMenu() {
-    clearCloseTimer();
-    setOpen(true);
-  }
-
-  function scheduleClose() {
-    clearCloseTimer();
-    closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
-  }
-
-  useEffect(() => () => clearCloseTimer(), []);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
   const isSidebar = variant === "sidebar";
   const wrapperClass = isSidebar ? `${styles.wrapper} ${styles.wrapperSidebar}` : styles.wrapper;
   const triggerClass = isSidebar ? `${styles.trigger} ${styles.triggerSidebar}` : styles.trigger;
   const panelClass = isSidebar ? `${styles.panel} ${styles.panelSidebar}` : styles.panel;
 
   function closeMenu() {
-    setOpen(false);
+    close();
     onNavigate?.();
   }
 
   return (
-    <div
-      className={wrapperClass}
-      style={cssVars}
-      onMouseEnter={isSidebar ? undefined : openMenu}
-      onMouseLeave={isSidebar ? undefined : scheduleClose}
-    >
-      {isSidebar ? (
-        <button
-          type="button"
-          className={triggerClass}
-          aria-haspopup="true"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => setOpen((v) => !v)}
-        >
-          Éducation
-          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
-            ▸
-          </span>
-        </button>
-      ) : (
-        <Link
-          href="/education"
-          className={triggerClass}
-          aria-haspopup="true"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onFocus={openMenu}
-          onClick={closeMenu}
-          data-analytics-feature="education"
-          data-analytics-action="nav"
-        >
-          Éducation
-          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
-            ▾
-          </span>
-        </Link>
-      )}
+    <div className={wrapperClass} ref={wrapperRef} style={cssVars}>
+      <MegaMenuTrigger
+        label="Éducation"
+        open={open}
+        panelId={panelId}
+        triggerRef={triggerRef}
+        onToggle={toggle}
+        className={triggerClass}
+        analyticsFeature="education"
+      />
 
       {open && (
-        <div
-          id={panelId}
-          role="menu"
-          className={panelClass}
-          onMouseEnter={isSidebar ? undefined : openMenu}
-          onMouseLeave={isSidebar ? undefined : scheduleClose}
-        >
+        <div id={panelId} role="region" aria-label="Éducation" className={panelClass}>
           <div className={styles.panelHeader}>
             <span className={styles.panelTitle}>
               Parcours par catégories — {total} fiches
@@ -158,7 +93,6 @@ export default function EducationMegaMenu({
                       key={theme.slug}
                       href={`/education/${theme.slug}`}
                       className={styles.companyRow}
-                      role="menuitem"
                       onClick={closeMenu}
                       data-analytics-feature="education"
                       data-analytics-action="mega_menu"

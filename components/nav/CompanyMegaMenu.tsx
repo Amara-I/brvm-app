@@ -1,12 +1,14 @@
 "use client";
 
-// Méga-menu "Sociétés cotées" : survol → vue par secteur ; clic → /societes-cotees.
+// Méga-menu "Sociétés cotées" : clic sur le libellé ouvre/ferme le panneau.
+// "Voir tout" (et les liens internes) mènent à la page complète.
 
-import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
 import { C } from "@/lib/theme/colors";
+import MegaMenuTrigger from "./MegaMenuTrigger";
 import styles from "./MegaMenu.module.css";
+import { useMegaMenu } from "./useMegaMenu";
 
 const cssVars = {
   "--mm-border": C.border,
@@ -17,8 +19,6 @@ const cssVars = {
   "--mm-bg": C.bg,
   "--mm-gold": C.gold,
 } as React.CSSProperties;
-
-const CLOSE_DELAY_MS = 160;
 
 export default function CompanyMegaMenu({
   groups,
@@ -31,100 +31,31 @@ export default function CompanyMegaMenu({
   variant?: "inline" | "sidebar";
   onNavigate?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const panelId = useId();
-
-  function clearCloseTimer() {
-    if (closeTimer.current) {
-      clearTimeout(closeTimer.current);
-      closeTimer.current = null;
-    }
-  }
-
-  function openMenu() {
-    clearCloseTimer();
-    setOpen(true);
-  }
-
-  function scheduleClose() {
-    clearCloseTimer();
-    closeTimer.current = setTimeout(() => setOpen(false), CLOSE_DELAY_MS);
-  }
-
-  useEffect(() => {
-    return () => clearCloseTimer();
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [open]);
-
+  const { open, close, toggle, wrapperRef, triggerRef, panelId } = useMegaMenu();
   const isSidebar = variant === "sidebar";
   const wrapperClass = isSidebar ? `${styles.wrapper} ${styles.wrapperSidebar}` : styles.wrapper;
   const triggerClass = isSidebar ? `${styles.trigger} ${styles.triggerSidebar}` : styles.trigger;
   const panelClass = isSidebar ? `${styles.panel} ${styles.panelSidebar}` : styles.panel;
 
   function closeMenu() {
-    setOpen(false);
+    close();
     onNavigate?.();
   }
 
   return (
-    <div
-      className={wrapperClass}
-      ref={wrapperRef}
-      style={cssVars}
-      onMouseEnter={isSidebar ? undefined : openMenu}
-      onMouseLeave={isSidebar ? undefined : scheduleClose}
-    >
-      {isSidebar ? (
-        <button
-          type="button"
-          className={triggerClass}
-          aria-haspopup="true"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => setOpen((v) => !v)}
-        >
-          Sociétés cotées
-          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
-            ▸
-          </span>
-        </button>
-      ) : (
-        <Link
-          href="/societes-cotees"
-          className={triggerClass}
-          aria-haspopup="true"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onFocus={openMenu}
-          onClick={() => setOpen(false)}
-          data-analytics-feature="societes_cotees"
-          data-analytics-action="nav"
-        >
-          Sociétés cotées
-          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
-            ▾
-          </span>
-        </Link>
-      )}
+    <div className={wrapperClass} ref={wrapperRef} style={cssVars}>
+      <MegaMenuTrigger
+        label="Sociétés cotées"
+        open={open}
+        panelId={panelId}
+        triggerRef={triggerRef}
+        onToggle={toggle}
+        className={triggerClass}
+        analyticsFeature="societes_cotees"
+      />
 
       {open && (
-        <div
-          id={panelId}
-          role="menu"
-          className={panelClass}
-          onMouseEnter={isSidebar ? undefined : openMenu}
-          onMouseLeave={isSidebar ? undefined : scheduleClose}
-        >
+        <div id={panelId} role="region" aria-label="Sociétés cotées" className={panelClass}>
           <div className={styles.panelHeader}>
             <span className={styles.panelTitle}>
               La cote — {totalCount} émetteur{totalCount > 1 ? "s" : ""}
@@ -151,7 +82,6 @@ export default function CompanyMegaMenu({
                     key={co.ticker}
                     href={`/actions/${co.ticker}`}
                     className={styles.companyRow}
-                    role="menuitem"
                     onClick={closeMenu}
                     data-analytics-feature="company_sheet"
                     data-analytics-action="mega_menu"
