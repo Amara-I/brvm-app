@@ -28,9 +28,9 @@ npm run design:proposals
 
 ## Revue
 
-- Page [`/apercu-design`](/apercu-design) : file d'attente + historique 18/08
-- Findings DB : boutons **Retenir** / **Rejeter** (compte connecté)
-- Fichiers Markdown : valider/rejeter en indiquant l'ID en chat
+- Propositions Markdown : `docs/design-agent/proposals/`
+- Findings DESIGN/UX : page `/outils` (filtre DESIGN)
+- Valider/rejeter en indiquant l'ID en chat
 
 ## Règles
 
