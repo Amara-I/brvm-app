@@ -36,10 +36,3 @@ export const chartSeriesQuerySchema = z.object({
   interval: z.enum(["1H", "1D", "1W", "1M"]).optional(),
 });
 export type ChartSeriesQuery = z.infer<typeof chartSeriesQuerySchema>;
-
-/// GET /api/research/findings — étape 10 (agent de recherche IA).
-export const researchFindingsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(50).default(20),
-  category: z.enum(["UX", "CONTENU", "FONCTIONNALITE", "CONCURRENCE"]).optional(),
-});

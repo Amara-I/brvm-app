@@ -1,64 +1,26 @@
-// Page "Outils" — étape 10 + agent DESIGN premium (étape 16).
-import { ResearchCategory } from "@prisma/client";
+// Page "Outils" — export, calculette de position, calendrier.
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
 import { SECTION_TITLE, PANEL_TEXT } from "@/lib/theme/typography";
-import { prisma } from "@/lib/prisma";
 import PageHeader from "@/components/ui/PageHeader";
-import EmptyState from "@/components/ui/EmptyState";
-
-export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Outils — OuestBourse",
-  description: "Export de données, alertes et suggestions d'amélioration issues de la veille automatisée OuestBourse.",
-};
-
-const CATEGORY_LABELS: Record<string, string> = {
-  DESIGN: "✦ Design premium",
-  UX: "Expérience utilisateur",
-  CONTENU: "Contenu & actualités",
-  FONCTIONNALITE: "Fonctionnalité",
-  CONCURRENCE: "Veille concurrentielle",
+  description: "Export Excel, calculette de position et calendrier des dividendes BRVM.",
 };
 
 function panel(): React.CSSProperties {
   return { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 16 };
 }
 
-export default async function OutilsPage({
-  searchParams,
-}: {
-  searchParams?: { cat?: string };
-}) {
-  const catRaw = searchParams?.cat?.toUpperCase();
-  const catFilter =
-    catRaw && catRaw !== "TOUS" && (Object.values(ResearchCategory) as string[]).includes(catRaw)
-      ? (catRaw as ResearchCategory)
-      : undefined;
-  let findings: Awaited<ReturnType<typeof prisma.researchFinding.findMany>> = [];
-  let designCount = 0;
-  try {
-    findings = await prisma.researchFinding.findMany({
-      where: catFilter ? { category: catFilter } : undefined,
-      orderBy: { discoveredAt: "desc" },
-      take: 40,
-    });
-    designCount = await prisma.researchFinding.count({ where: { category: ResearchCategory.DESIGN } });
-  } catch {
-    findings = [];
-    designCount = 0;
-  }
-
-  const filters = ["TOUS", "DESIGN", "UX", "FONCTIONNALITE", "CONCURRENCE", "CONTENU"] as const;
-
+export default function OutilsPage() {
   return (
     <AppHeader>
       <div className="ob-page">
         <PageHeader
           kicker="Plateforme"
           title="Outils"
-          lead="Export de données et veille automatisée pour perfectionner la plateforme (design premium inclus)."
+          lead="Export de données, calculette de position et calendrier des dividendes."
         />
 
         <div style={panel()} data-align-left>
@@ -189,73 +151,6 @@ export default async function OutilsPage({
           >
             Télécharger le fichier Excel
           </a>
-        </div>
-
-        <div style={panel()} data-align-left>
-          <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 4 }}>Agent design premium</h2>
-          <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>
-            Veille quotidienne (cron 06:00 UTC ou <code style={{ color: C.silver }}>npm run research:run</code>).
-            Rien n&apos;est appliqué automatiquement.
-            {designCount > 0 ? ` ${designCount} suggestion(s) DESIGN en base.` : ""}
-          </p>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
-            {filters.map((f) => {
-              const active = (catRaw ?? "TOUS") === f;
-              return (
-                <a
-                  key={f}
-                  href={f === "TOUS" ? "/outils" : `/outils?cat=${f}`}
-                  style={{
-                    textDecoration: "none",
-                    borderRadius: 999,
-                    padding: "6px 12px",
-                    fontSize: "var(--fs-body-xs)",
-                    fontWeight: active ? 700 : 400,
-                    background: active ? C.gold : C.bg,
-                    color: active ? "#080B12" : C.text,
-                    border: `1px solid ${active ? C.gold : C.border}`,
-                  }}
-                >
-                  {f === "TOUS" ? "Toutes" : CATEGORY_LABELS[f] ?? f}
-                </a>
-              );
-            })}
-          </div>
-
-          {findings.length === 0 ? (
-            <EmptyState
-              title="Aucune suggestion pour l’instant"
-              body="Activez RESEARCH_AGENT_ENABLED, puis lancez npm run research:run. Avec une clé SerpAPI ou le fallback Google News RSS."
-            />
-          ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {findings.map((f) => (
-                <a
-                  key={f.id}
-                  href={f.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: "block",
-                    background: C.bg,
-                    border: `1px solid ${C.border}`,
-                    borderRadius: 10,
-                    padding: 12,
-                    textDecoration: "none",
-                  }}
-                >
-                  <div style={{ color: C.textDim, fontSize: "var(--fs-body-xs)", marginBottom: 4 }}>
-                    {CATEGORY_LABELS[f.category] ?? f.category} · {f.status} ·{" "}
-                    {new Date(f.discoveredAt).toLocaleDateString("fr-FR")}
-                  </div>
-                  <div style={{ color: C.text, fontSize: "var(--fs-body-sm)", fontWeight: 700 }}>{f.title}</div>
-                  {f.summary && (
-                    <div style={{ color: C.textDim, fontSize: "var(--fs-body-xs)", marginTop: 2 }}>{f.summary}</div>
-                  )}
-                </a>
-              ))}
-            </div>
-          )}
         </div>
 
         <div style={panel()} data-align-left>
