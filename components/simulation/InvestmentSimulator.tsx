@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   ResponsiveContainer,
   AreaChart,
@@ -18,6 +19,12 @@ import {
   simulateInvestmentScenarios,
   type ContributionFrequency,
 } from "@/lib/calc/simulate-investment";
+import { usePortfolioTypeLens } from "@/lib/portfolio/use-portfolio-type-lens";
+import {
+  PORTFOLIO_TYPE_META,
+  type PortfolioTypeId,
+} from "@/lib/portfolio/types";
+import PortfolioTypeLens from "@/components/portfolio/PortfolioTypeLens";
 import styles from "./InvestmentSimulator.module.css";
 
 function fmtFcfa(n: number): string {
@@ -35,7 +42,13 @@ const FREQ_OPTIONS: Array<{ value: ContributionFrequency; label: string }> = [
   { value: "annuel", label: "Annuel" },
 ];
 
-export default function InvestmentSimulator() {
+export default function InvestmentSimulator({
+  savedPortfolioType = null,
+  isAuthenticated = false,
+}: {
+  savedPortfolioType?: PortfolioTypeId | null;
+  isAuthenticated?: boolean;
+}) {
   const [initial, setInitial] = usePersistedState("ouestbourse:sim:initial", "1000000");
   const [contribution, setContribution] = usePersistedState("ouestbourse:sim:contrib", "50000");
   const [frequency, setFrequency] = usePersistedState<ContributionFrequency>(
@@ -46,6 +59,21 @@ export default function InvestmentSimulator() {
   const [rate, setRate] = usePersistedState("ouestbourse:sim:rate", "8");
   const [fees, setFees] = usePersistedState("ouestbourse:sim:fees", "0.5");
   const [spread, setSpread] = useState("3");
+  const { value: portfolioType, setValue: setPortfolioTypeRaw } =
+    usePortfolioTypeLens(savedPortfolioType);
+  const sim = portfolioType ? PORTFOLIO_TYPE_META[portfolioType].simulation : null;
+
+  function applyType(next: PortfolioTypeId | null) {
+    setPortfolioTypeRaw(next);
+    if (!next) return;
+    const d = PORTFOLIO_TYPE_META[next].simulation;
+    setYears(d.years);
+    setRate(d.rate);
+    setFees(d.fees);
+    setSpread(d.spread);
+    setContribution(d.contribution);
+    setFrequency(d.frequency);
+  }
 
   const scenarios = useMemo(() => {
     const input = {
@@ -81,6 +109,14 @@ export default function InvestmentSimulator() {
           aria-label="Paramètres de simulation"
         >
           <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 14 }}>Paramètres</h2>
+
+          <PortfolioTypeLens
+            value={portfolioType}
+            onChange={applyType}
+            savedType={savedPortfolioType}
+            isAuthenticated={isAuthenticated}
+            compact
+          />
 
           <label className={styles.label}>
             Capital initial (FCFA)
@@ -130,7 +166,7 @@ export default function InvestmentSimulator() {
           </label>
 
           <label className={styles.label}>
-            Rendement annuel attendu (%)
+            {sim?.rateLabel ?? "Rendement annuel attendu (%)"}
             <input
               className={styles.input}
               inputMode="decimal"
@@ -159,6 +195,15 @@ export default function InvestmentSimulator() {
             />
           </label>
 
+          {sim ? (
+            <p className={styles.riskBox} role="note">
+              <strong>{sim.riskTitle}.</strong> {sim.riskBody}{" "}
+              <Link href={PORTFOLIO_TYPE_META[portfolioType!].educationHref}>
+                Fiche {PORTFOLIO_TYPE_META[portfolioType!].label}
+              </Link>
+            </p>
+          ) : null}
+
           <p className={styles.hint} style={PANEL_TEXT}>
             Rendement effectif utilisé :{" "}
             <strong style={{ color: C.text }}>{central.effectiveAnnualRate} %</strong> / an
@@ -178,7 +223,7 @@ export default function InvestmentSimulator() {
               <span className={styles.kpiValue}>{fmtFcfa(central.totalContributed)}</span>
             </div>
             <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Gain estimé</span>
+              <span className={styles.kpiLabel}>{sim?.gainLabel ?? "Gain estimé"}</span>
               <span
                 className={styles.kpiValue}
                 style={{ color: central.totalGain >= 0 ? C.green : C.red }}

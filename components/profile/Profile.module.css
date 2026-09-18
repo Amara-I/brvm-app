@@ -40,6 +40,10 @@
   margin-top: 16px;
 }
 
+.full {
+  grid-column: 1 / -1;
+}
+
 .check {
   display: flex;
   align-items: center;
@@ -51,7 +55,4 @@
 
 .check input {
   accent-color: var(--c-gold);
-} main
-.alertsWrap {
-  margin-top: 16px;
 }

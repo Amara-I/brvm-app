@@ -49,10 +49,13 @@ import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
 import EducationTermLink from "@/components/education/EducationTermLink";
 import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
+import PortfolioTypeLens from "@/components/portfolio/PortfolioTypeLens";
 import {
   OVERVIEW_KEY_TERM_SLUGS,
   educationSlugForRiskPillar,
 } from "@/lib/education/analysis-terms";
+import { usePortfolioTypeLens } from "@/lib/portfolio/use-portfolio-type-lens";
+import { PORTFOLIO_TYPE_META, type PortfolioTypeId } from "@/lib/portfolio/types";
 import {
   COMPANY_SHEET_TABS,
   normalizeSheetTab,
@@ -157,11 +160,13 @@ export default function CompanySheetClient({
   payload,
   isAuthenticated = false,
   initialTab,
+  savedPortfolioType = null,
 }: {
   payload: CompanySheetPayload;
   isAuthenticated?: boolean;
   /** Onglet initial (ex. ?tab=charts depuis le sélecteur de ticker du graphe). */
   initialTab?: TabKey;
+  savedPortfolioType?: PortfolioTypeId | null;
 }) {
   const {
     company,
@@ -201,6 +206,13 @@ export default function CompanySheetClient({
   const [docsRefreshing, setDocsRefreshing] = useState(false);
   const [docsRefreshNote, setDocsRefreshNote] = useState<string | null>(null);
   const [docFilter, setDocFilter] = useState<"all" | "results">("all");
+  const { value: portfolioType, setValue: setPortfolioType } =
+    usePortfolioTypeLens(savedPortfolioType);
+  const typeMeta = portfolioType ? PORTFOLIO_TYPE_META[portfolioType] : null;
+  const overviewTermSlugs = [
+    ...(typeMeta?.analysis.emphasisSlugs ?? ["cadre-quatre-portefeuilles-brvm"]),
+    ...OVERVIEW_KEY_TERM_SLUGS,
+  ].filter((slug, i, arr) => arr.indexOf(slug) === i);
 
   // Densifie via l'API charts (cache `chart_series` / repli live) selon la fenêtre,
   // pas MAX systématique au premier paint.
@@ -441,6 +453,13 @@ export default function CompanySheetClient({
         </div>
       </header>
 
+      <PortfolioTypeLens
+        value={portfolioType}
+        onChange={setPortfolioType}
+        savedType={savedPortfolioType}
+        isAuthenticated={isAuthenticated}
+      />
+
       <div className={styles.tabs} role="tablist" aria-label="Sections de la fiche">
         {TABS.map((t) => (
           <button
@@ -669,7 +688,7 @@ export default function CompanySheetClient({
                     </span>
                   </div>
                   <ul className={styles.keyTerms}>
-                    {OVERVIEW_KEY_TERM_SLUGS.map((slug) => (
+                    {overviewTermSlugs.map((slug) => (
                       <li key={slug}>
                         <EducationTermLink slug={slug} />
                       </li>
@@ -1149,6 +1168,14 @@ export default function CompanySheetClient({
                   <EducationTermLink slug="confiance-du-signal">Confiance</EducationTermLink> {metrics.confidence}
                 </div>
                 <p className={styles.signalText}>{metrics.signalSummary}</p>
+                {typeMeta ? (
+                  <p className={styles.sideNote} style={{ marginTop: 8 }}>
+                    {typeMeta.analysis.lead}.{" "}
+                    <EducationTermLink slug={typeMeta.educationSlug}>
+                      Fiche {typeMeta.label}
+                    </EducationTermLink>
+                  </p>
+                ) : null}
               </div>
               <ul className={styles.pillarList} style={{ marginTop: 12 }}>
                 <li>

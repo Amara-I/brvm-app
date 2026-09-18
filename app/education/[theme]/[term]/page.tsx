@@ -4,6 +4,7 @@ import AppHeader from "@/components/AppHeader";
 import EducationIllustration from "@/components/education/EducationIllustration";
 import EducationBackLink from "@/components/education/EducationBackLink";
 import SiteFooter from "@/components/layout/SiteFooter";
+import EducationMarkdown from "@/components/education/EducationMarkdown";
 import {
   EDUCATION_LEVEL_LABELS,
   EDUCATION_TERMS,
@@ -70,11 +71,7 @@ export default function EducationTermPage({
             <>
               <p className={styles.sectionLabel}>En détail</p>
               <div className={styles.sectionBody}>
-                {term.details.split("\n\n").map((para) => (
-                  <p key={para.slice(0, 48)} style={{ margin: "0 0 10px" }}>
-                    {para}
-                  </p>
-                ))}
+                <EducationMarkdown source={term.details} />
               </div>
             </>
           )}

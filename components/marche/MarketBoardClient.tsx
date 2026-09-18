@@ -36,6 +36,9 @@ import { trackFeature } from "@/components/analytics/track-client";
 import EducationTermLink from "@/components/education/EducationTermLink";
 import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
 import { educationSlugForRiskPillar } from "@/lib/education/analysis-terms";
+import PortfolioTypeLens from "@/components/portfolio/PortfolioTypeLens";
+import { usePortfolioTypeLens } from "@/lib/portfolio/use-portfolio-type-lens";
+import { PORTFOLIO_TYPE_META, type PortfolioTypeId } from "@/lib/portfolio/types";
 
 export interface MarketBoardClientProps {
   initialData: CompaniesFullDataset;
@@ -44,6 +47,8 @@ export interface MarketBoardClientProps {
   initialSparkSeries?: Record<string, ChartClosePoint[]>;
   /** Variation journalière officielle (BRVM) par ticker. */
   initialDayChanges?: Record<string, number | null>;
+  savedPortfolioType?: PortfolioTypeId | null;
+  isAuthenticated?: boolean;
 }
 
 const COL_COUNT = 11;
@@ -61,6 +66,8 @@ export default function MarketBoardClient({
   initialMarketSummary = null,
   initialSparkSeries = {},
   initialDayChanges = {},
+  savedPortfolioType = null,
+  isAuthenticated = false,
 }: MarketBoardClientProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -84,6 +91,9 @@ export default function MarketBoardClient({
   const [lastUpdate, setLastUpdate] = useState(() =>
     new Date(initialData.generatedAt).toLocaleDateString("fr-FR")
   );
+  const { value: portfolioType, setValue: setPortfolioType } =
+    usePortfolioTypeLens(savedPortfolioType);
+  const typeMeta = portfolioType ? PORTFOLIO_TYPE_META[portfolioType] : null;
 
   const exchange = getExchange(DEFAULT_EXCHANGE_CODE);
   const companies = dataset.companies;
@@ -363,6 +373,13 @@ export default function MarketBoardClient({
         region={exchange.region}
       />
 
+      <PortfolioTypeLens
+        value={portfolioType}
+        onChange={setPortfolioType}
+        savedType={savedPortfolioType}
+        isAuthenticated={isAuthenticated}
+      />
+
       <section className={styles.board} data-align-left>
         <div className={styles.boardHead}>
           <div>
@@ -532,6 +549,7 @@ export default function MarketBoardClient({
                               company={co}
                               metrics={m}
                               currency={exchange.currency}
+                              portfolioType={portfolioType}
                               onPrefetch={(href) => router.prefetch(href)}
                             />
                           </td>
@@ -566,11 +584,13 @@ function ExpandedPanel({
   company,
   metrics: m,
   currency,
+  portfolioType,
   onPrefetch,
 }: {
   company: CompanyFullDataset;
   metrics: ReturnType<typeof calcMetrics>;
   currency: string;
+  portfolioType: PortfolioTypeId | null;
   onPrefetch?: (href: string) => void;
 }) {
   const perf10 = m.perf10Percent === "N/D" ? null : parseFloat(m.perf10Percent);
@@ -638,6 +658,15 @@ function ExpandedPanel({
   return (
     <div className={styles.detail} onClick={(e) => e.stopPropagation()}>
       <p className={styles.detailSummary}>{m.signalSummary}</p>
+      {portfolioType ? (
+        <p className={styles.detailSummary} style={{ color: C.textDim, fontSize: "0.78rem" }}>
+          {PORTFOLIO_TYPE_META[portfolioType].analysis.lead} — les chiffres ci-dessous ne sont pas
+          recalculés.{" "}
+          <EducationTermLink slug={PORTFOLIO_TYPE_META[portfolioType].educationSlug}>
+            Fiche {PORTFOLIO_TYPE_META[portfolioType].label}
+          </EducationTermLink>
+        </p>
+      ) : null}
       <p className={styles.detailSummary} style={{ color: C.textDim, fontSize: "0.78rem" }}>
         {m.riskAnalysis.summary}
       </p>

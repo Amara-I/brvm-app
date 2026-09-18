@@ -1,0 +1,94 @@
+.prompt {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px dashed var(--c-gold);
+  background: var(--c-selected-bg);
+  color: var(--c-text);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+}
+
+@media (min-width: 720px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 12px 14px 12px 36px;
+  border-radius: 12px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  cursor: pointer;
+  position: relative;
+  min-width: 0;
+}
+
+.cardOn {
+  border-color: var(--c-gold);
+  background: var(--c-selected-bg);
+}
+
+.radio {
+  position: absolute;
+  left: 12px;
+  top: 14px;
+  accent-color: var(--c-gold);
+}
+
+.label {
+  font-weight: 700;
+  color: var(--c-text);
+  font-size: 0.95rem;
+}
+
+.meta {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--c-gold);
+}
+
+.blurb {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--c-textdim);
+}
+
+.edu {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--c-blue);
+  text-decoration: none;
+}
+
+.edu:hover {
+  text-decoration: underline;
+}
+
+.foot {
+  margin: 12px 0 0;
+  font-size: 0.8rem;
+  color: var(--c-textdim);
+}
+
+.foot a {
+  color: var(--c-gold);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.foot a:hover {
+  text-decoration: underline;
+}

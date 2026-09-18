@@ -7,6 +7,8 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import PasswordField from "@/components/auth/PasswordField";
 import styles from "@/components/auth/AuthForm.module.css";
 import profileStyles from "./Profile.module.css";
+import PortfolioTypePicker from "./PortfolioTypePicker";
+import { parsePortfolioType, type PortfolioTypeId } from "@/lib/portfolio/types";
 
 export type ProfilePayload = {
   name: string | null;
@@ -14,6 +16,7 @@ export type ProfilePayload = {
   emailVerified: boolean;
   hasPassword: boolean;
   isAdmin: boolean;
+  portfolioType: PortfolioTypeId | null;
 };
 
 export default function ProfileClient({
@@ -36,6 +39,12 @@ export default function ProfileClient({
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [portfolioType, setPortfolioType] = useState<PortfolioTypeId | null>(
+    initial.portfolioType
+  );
+  const [typeMsg, setTypeMsg] = useState<string | null>(null);
+  const [typeError, setTypeError] = useState<string | null>(null);
+  const [savingType, setSavingType] = useState(false);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -92,8 +101,57 @@ export default function ProfileClient({
     setConfirmPassword("");
   }
 
+  async function savePortfolioType(e: React.FormEvent) {
+    e.preventDefault();
+    setTypeError(null);
+    setTypeMsg(null);
+    if (!portfolioType) {
+      setTypeError("Choisissez un type parmi les quatre cadres.");
+      return;
+    }
+    setSavingType(true);
+    const res = await fetch("/api/auth/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ portfolioType }),
+    });
+    const json = await res.json().catch(() => null);
+    setSavingType(false);
+    if (!res.ok) {
+      setTypeError(json?.error ?? "L’enregistrement du type a échoué.");
+      return;
+    }
+    setPortfolioType(parsePortfolioType(json?.data?.portfolioType) ?? portfolioType);
+    setTypeMsg("Type de portefeuille enregistré. Analyses et Simulations s’en serviront comme lecture par défaut.");
+    router.refresh();
+  }
+
   return (
     <div className={profileStyles.grid}>
+      <section className={`ob-card ob-card-pad ${profileStyles.card} ${profileStyles.full}`}>
+        <h2 className={profileStyles.sectionTitle}>Type de portefeuille</h2>
+        <p className={profileStyles.meta}>
+          Cadre pédagogique principal (Croissance, Rente, Trading, Croissance Max). Il oriente les
+          rappels sur les fiches, le marché et les simulations — sans modifier les scores calculés.
+        </p>
+        <form className={styles.form} onSubmit={(e) => void savePortfolioType(e)}>
+          <PortfolioTypePicker value={portfolioType} onChange={setPortfolioType} />
+          {typeError ? (
+            <div role="alert" className={`${styles.alert} ${styles.alertError}`}>
+              {typeError}
+            </div>
+          ) : null}
+          {typeMsg ? (
+            <div role="status" className={`${styles.alert} ${styles.alertOk}`}>
+              {typeMsg}
+            </div>
+          ) : null}
+          <button type="submit" className={styles.submit} disabled={savingType || !portfolioType}>
+            {savingType ? "Enregistrement…" : "Enregistrer le type"}
+          </button>
+        </form>
+      </section>
+
       <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
         <h2 className={profileStyles.sectionTitle}>Identité</h2>
         <p className={profileStyles.meta}>
