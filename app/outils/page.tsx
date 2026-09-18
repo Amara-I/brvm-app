@@ -63,10 +63,14 @@ export default function OutilsPage() {
                   border: `1px solid ${C.border}`,
                   background: C.bg,
                   fontSize: "var(--fs-body-sm)",
+                  minWidth: 0,
                 }}
               >
                 {cap.href && cap.state === "Disponible" ? (
-                  <a href={cap.href} style={{ color: C.text, textDecoration: "none", fontWeight: 600 }}>
+                  <a
+                    href={cap.href}
+                    style={{ color: C.text, textDecoration: "none", fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}
+                  >
                     {cap.label}
                   </a>
                 ) : (
@@ -76,8 +80,9 @@ export default function OutilsPage() {
                   style={{
                     color: cap.state === "Disponible" ? C.green : C.textDim,
                     fontWeight: 700,
-                    fontSize: "var(--fs-body-xs)",
-                  }}
+                  flexShrink: 0,
+                  whiteSpace: "nowrap" as const,
+                }}
                 >
                   {cap.state}
                 </span>

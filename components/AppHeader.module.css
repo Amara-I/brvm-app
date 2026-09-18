@@ -114,9 +114,11 @@
 
 .pageColumn {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
   margin: 0;
   text-align: start;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 /* Tableaux, formulaires et blocs de données : alignement à gauche pour la lecture. */
@@ -246,8 +248,8 @@
   }
 
   .mainInner {
-    padding: 16px max(20px, env(safe-area-inset-right, 0px))
-      calc(28px + env(safe-area-inset-bottom, 0px)) max(20px, env(safe-area-inset-left, 0px));
+    padding: 14px max(12px, env(safe-area-inset-right, 0px))
+      calc(28px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
   }
 
   .topActions {

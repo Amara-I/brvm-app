@@ -145,6 +145,7 @@ body {
   letter-spacing: var(--tracking-tight);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-wrap: break-word;
 }
 
 /* Landing : toile toujours sombre — html/body/main, pas une carte sur page blanche. */

@@ -33,6 +33,11 @@ import SignalBadge from "@/components/ui/SignalBadge";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import { trackFeature } from "@/components/analytics/track-client";
+import EducationTermLink from "@/components/education/EducationTermLink";
+import {
+  educationSlugForAnalysisLabel,
+  educationSlugForRiskPillar,
+} from "@/lib/education/analysis-terms";
 
 export interface MarketBoardClientProps {
   initialData: CompaniesFullDataset;
@@ -639,23 +644,32 @@ function ExpandedPanel({
         {m.riskAnalysis.summary}
       </p>
       <div className={styles.detailGrid}>
-        {cards.map((c) => (
-          <div key={c.label} className={styles.detailCard}>
-            <div className={styles.detailLabel}>{c.label}</div>
-            <div className={styles.detailValue} style={c.color ? { color: c.color } : undefined}>
-              {c.value}
+        {cards.map((c) => {
+          const slug = educationSlugForAnalysisLabel(c.label);
+          return (
+            <div key={c.label} className={styles.detailCard}>
+              <div className={styles.detailLabel}>
+                {slug ? <EducationTermLink slug={slug}>{c.label}</EducationTermLink> : c.label}
+              </div>
+              <div className={styles.detailValue} style={c.color ? { color: c.color } : undefined} title={c.value}>
+                {c.value}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {m.riskAnalysis.pillars.length > 0 && (
         <ul className={styles.reasonList}>
-          {m.riskAnalysis.pillars.map((p) => (
-            <li key={p.key}>
-              <span aria-hidden="true">●</span> {p.label} :{" "}
-              {p.score == null ? "N/D" : `${p.score}/100`} — {p.note}
-            </li>
-          ))}
+          {m.riskAnalysis.pillars.map((p) => {
+            const slug = educationSlugForRiskPillar(p.key);
+            return (
+              <li key={p.key}>
+                <span aria-hidden="true">●</span>{" "}
+                {slug ? <EducationTermLink slug={slug}>{p.label}</EducationTermLink> : p.label} :{" "}
+                {p.score == null ? "N/D" : `${p.score}/100`} — {p.note}
+              </li>
+            );
+          })}
         </ul>
       )}
       {m.signalReasons?.length > 0 && (
@@ -709,18 +723,29 @@ function ScoreExplainer() {
       </p>
       <ol className={styles.scoreList}>
         <li>
-          <strong>Technique multi-horizons (40 %)</strong> — court ~1 an, moyen ~5 ans, long ~10 ans +
-          valorisation.
+          <strong>
+            <EducationTermLink slug="score-technique">Technique multi-horizons</EducationTermLink> (40 %)
+          </strong>{" "}
+          — court ~1 an, moyen ~5 ans, long ~10 ans + valorisation.
         </li>
         <li>
-          <strong>Fondamental (40 %)</strong> — rendement et régularité des dividendes, PER.
+          <strong>
+            <EducationTermLink slug="score-fondamental">Fondamental</EducationTermLink> (40 %)
+          </strong>{" "}
+          — rendement et régularité des dividendes, PER.
         </li>
         <li>
-          <strong>Risque inversé (20 %)</strong> — plus le score de risque est bas, plus la contribution
-          est favorable (VaR / drawdown / cap. / secteur quand disponibles).
+          <strong>
+            <EducationTermLink slug="gestion-du-risque">Risque inversé</EducationTermLink> (20 %)
+          </strong>{" "}
+          — plus le score de risque est bas, plus la contribution est favorable (VaR / drawdown / cap. /
+          secteur quand disponibles).
         </li>
         <li>
-          <strong>Confiance</strong> — historique court : les signaux extrêmes sont plafonnés.
+          <strong>
+            <EducationTermLink slug="confiance-du-signal">Confiance</EducationTermLink>
+          </strong>{" "}
+          — historique court : les signaux extrêmes sont plafonnés.
         </li>
       </ol>
       <p className={styles.scoreBoxNote}>

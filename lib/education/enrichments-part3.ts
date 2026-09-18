@@ -547,6 +547,70 @@ export const ENRICHMENTS_PART3: Record<string, TermEnrichment> = {
     ],
   },
 
+  "gestion-du-risque": {
+    details:
+      "La « Gestion du risque » sur une fiche OuestBourse n’est pas un bouton vendre / acheter. C’est une lecture pédagogique en trois couches.\n\n1) Score 0–100 — plus le chiffre est haut, plus le titre est jugé risqué (perte potentielle, pas « mauvaise affaire »). Les paliers affichés : Très faible (< 20), Faible (< 40), Modéré (< 60), Élevé (< 80), Très élevé. Un Modéré (ex. 42/100) dit : le risque est réel mais pas extrême ; un Très élevé invite à réduire la taille, pas à ignorer le titre par automatisme.\n\n2) Quatre piliers, pondérés puis renormalisés si un pilier est N/D : marché (~35 %, volatilité / drawdown / VaR), liquidité (~25 %, cap. et volumes), fondamental (~25 %, PER, dividendes, profondeur d’historique), opérationnel (~15 %, sensibilité sectorielle). Un N/D n’est jamais remplacé par un zéro inventé : son poids est redistribué sur les piliers mesurables.\n\n3) Mesures de queue — drawdown max (pire repli déjà observé), VaR 95/99 % (perte rarement dépassée sur l’historique), CVaR 95 % (sévérité au-delà de la VaR). Elles n’apparaissent que si la série de clôtures est assez longue ; sinon N/D, et la confiance du signal baisse souvent.\n\nComment l’utiliser concrètement : (a) lisez le score avec le signal et sa confiance — un ACHAT à risque élevé et confiance faible n’a pas le même poids qu’un ACHAT à risque faible ; (b) ouvrez la calculette de taille de position : capital × taux de perte acceptable / (entrée − stop) ; (c) sur la BRVM, la liquidité « mince » peut empêcher de sortir au stop théorique — gardez une marge.\n\nCe n’est ni un rating crédit, ni un ordre stop automatique (rares à la BRVM), ni un conseil personnalisé. Vérifiez BRVM.org, les états financiers et votre SGI.",
+    sources: [
+      {
+        title: "Investopedia — Risk Management",
+        url: "https://www.investopedia.com/terms/r/riskmanagement.asp",
+      },
+      {
+        title: "Investopedia — Position Sizing",
+        url: "https://www.investopedia.com/terms/p/positionsizing.asp",
+      },
+      {
+        title: "BRVM — site officiel",
+        url: "https://www.brvm.org",
+      },
+    ],
+  },
+
+  "risque-de-marche": {
+    details:
+      "Le risque de marché, dans le score OuestBourse, décrit le comportement du prix : à quel point les clôtures ont déjà varié, chuté depuis un sommet (drawdown) ou produit des pertes quotidiennes rares mais sévères (VaR / CVaR).\n\nIl ne dit pas si l’émetteur est solide : un titre très liquide d’un champion sectoriel peut avoir un risque de marché élevé après une année agitée. Inversement, un titre peu volatil peut cacher un risque de liquidité (difficile à vendre sans écarter le cours).\n\nSur la BRVM, les séries courtes ou lacunaires rendent VaR et CVaR souvent N/D. Dans ce cas, le pilier s’appuie davantage sur la volatilité annuelle déjà calculée, ou reste partiel. C’est volontaire : mieux vaut un N/D qu’une VaR inventée sur 10 points.",
+    sources: [
+      {
+        title: "Investopedia — Market Risk",
+        url: "https://www.investopedia.com/terms/m/marketrisk.asp",
+      },
+      {
+        title: "Investopedia — Volatility",
+        url: "https://www.investopedia.com/terms/v/volatility.asp",
+      },
+    ],
+  },
+
+  "risque-fondamental": {
+    details:
+      "Le risque fondamental du panneau OuestBourse est un proxy de « qualité de l’information et de la valorisation observable » : PER extrême ou manquant, dividendes irréguliers, historique trop court. Il ne remplace pas la lecture des comptes (bilan, hors-bilan, notes annexes).\n\nUn PER bas peut signaler une décote ou un risque élevé déjà dans le prix. Un PER N/D alourdit ce pilier et rend le score fondamental plus prudent — OuestBourse ne comble jamais le trou par un multiple sectoriel silencieux côté UI (N/D reste N/D).\n\nCroisez ce pilier avec la santé financière (/10), le rendement du dividende et les documents de l’émetteur. Une belle histoire de croissance sans chiffres publiés reste un risque fondamental, même si le graphique est haussier.",
+    sources: [
+      {
+        title: "Investopedia — Fundamental Analysis",
+        url: "https://www.investopedia.com/terms/f/fundamentalanalysis.asp",
+      },
+      {
+        title: "BRVM — informations financières",
+        url: "https://www.brvm.org/fr/informations-financieres",
+      },
+    ],
+  },
+
+  "risque-operationnel": {
+    details:
+      "Le risque opérationnel affiché est une sensibilité de métier, pas une note de contrôle interne ni un rating AMF-UMOA. Les secteurs cycliques (énergie, industrie, conso. discrétionnaire, agriculture) partent plus haut ; télécoms et services publics plus bas.\n\nC’est le pilier le moins lourd (~15 %) : il évite de traiter toutes les valeurs BRVM comme interchangeables, sans prétendre connaître la gouvernance d’un émetteur. Deux banques du même secteur peuvent diverger fortement sur marché et liquidité.\n\nLimite honnête : le secteur en base suit la classification BRVM / seed. Un changement d’activité réel n’apparaît qu’après mise à jour des métadonnées. Ne pas confondre ce proxy avec le risque opérationnel réglementaire (fraude, SI, process).",
+    sources: [
+      {
+        title: "Investopedia — Operational Risk",
+        url: "https://www.investopedia.com/terms/o/operational-risk.asp",
+      },
+      {
+        title: "BRVM — site officiel",
+        url: "https://www.brvm.org",
+      },
+    ],
+  },
+
   "evolution-portefeuille": {
     details:
       "Le graphique d’évolution du portefeuille trace une NAV quotidienne estimée : somme des (quantité × cours canonique du jour) pour chaque ligne, à partir de la date d’achat la plus ancienne enregistrée.\n\nLes jours sans cotation réutilisent le dernier cours connu (palier). Les titres sans historique suffisant raccourcissent la courbe. Ce graphique montre la trajectoire agrégée — pas le détail PRU vs cours ligne par ligne.\n\nComplétez avec le tableau des positions pour le suivi micro (PRU, +/-value, conseil).",

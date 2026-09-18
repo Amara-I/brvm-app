@@ -55,6 +55,8 @@ export interface EducationTerm {
   /** Lien interne vers un outil (calculette, fiche…). */
   ctaHref?: string;
   ctaLabel?: string;
+  /** Fiches à proposer en bas de page (« Pour aller plus loin »). */
+  relatedSlugs?: string[];
 }
 
 export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
@@ -301,7 +303,8 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "example": "Certaines valeurs BRVM « minces » (peu d'échanges) affichent encore N/D sur volumes — la liquidité reste un critère de risque.",
     "synonyms": [
       "Négociabilité",
-      "Profondeur du marché"
+      "Profondeur du marché",
+      "Risque de liquidité"
     ],
     "resourceUrl": "https://www.brvm.org",
     "tip": "La liquidité peut varier fortement selon les séances et les valeurs.",
@@ -391,11 +394,13 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "example": "Le détenteur d’une action BRVM supporte le risque de baisse du cours, de liquidité et de crédit de l’émetteur.",
     "synonyms": [
       "Incertitude",
-      "Exposition"
+      "Exposition",
+      "Risque d'investissement"
     ],
     "resourceUrl": "https://www.amf-umoa.org",
-    "tip": "Un rendement potentiel doit toujours être lu avec les risques associés.",
-    "source": "guide"
+    "tip": "Un rendement potentiel doit toujours être lu avec les risques associés. Sur OuestBourse, le panneau « Gestion du risque » de la fiche titre détaille score, piliers et mesures (volatilité, VaR, drawdown).",
+    "source": "guide",
+    relatedSlugs: ["gestion-du-risque", "volatilite", "liquidite", "taille-de-position"],
   },
   {
     "slug": "chiffre-d-affaires",
@@ -1615,12 +1620,13 @@ export const EDUCATION_TERMS: EducationTerm[] = [
       "Quantité d’actions à acheter pour qu’une perte jusqu’au stop reste limitée à un pourcentage choisi du capital. Formule : Q = (capital × taux %) / (entrée − stop).",
     example:
       "Exemple pédagogique SOGB CI (SOGC) : capital 1 000 000 FCFA, taux 5 %, entrée 8 400 FCFA, stop 7 560 FCFA. Budget = 50 000 FCFA ; risque par titre = 840 FCFA ; Q = 50 000 / 840 ≈ 59,52 → 60 titres. Ouvrez /outils/taille-position pour recalculer avec vos chiffres.",
-    synonyms: ["Position sizing", "Dimensionnement", "Money management"],
+    synonyms: ["Position sizing", "Dimensionnement", "Money management", "Sizing"],
     resourceUrl: null,
     tip: "Arrondir à l’entier le plus proche peut faire légèrement dépasser le budget (60 × 840 = 50 400 FCFA, soit 5,04 %). Ce n’est pas un conseil d’achat.",
     source: "guide",
     ctaHref: "/outils/taille-position?example=sogb",
     ctaLabel: "Ouvrir la calculette (exemple SOGB)",
+    relatedSlugs: ["gestion-du-risque", "taux-perte-acceptable", "stop-loss-brvm"],
   },
   {
     slug: "taux-perte-acceptable",
@@ -1655,6 +1661,87 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     source: "guide",
     ctaHref: "/outils/taille-position",
     ctaLabel: "Calculer puis alerter au stop",
+    relatedSlugs: ["taille-de-position", "taux-perte-acceptable", "gestion-du-risque"],
+  },
+  {
+    slug: "gestion-du-risque",
+    title: "Gestion du risque",
+    level: "debutant",
+    themeSlug: "risques",
+    sortOrder: 1,
+    definition:
+      "Lecture d’ensemble du risque d’un titre BRVM : un score 0–100 (plus haut = plus risqué), un libellé (Très faible → Très élevé) et quatre piliers (marché, liquidité, fondamental, opérationnel). Ce n’est pas un conseil d’achat ni un ordre de sortie — c’est une grille pour dimensionner, comparer et ne pas sous-estimer la perte possible.",
+    example:
+      "Sur la fiche société, le panneau « Gestion du risque » affiche par exemple 42/100 · Modéré, puis les piliers et, si la série de clôtures est assez longue, le drawdown max et la VaR. Reliez ce score à la calculette de taille de position : un titre plus risqué invite un taux de perte plus bas ou un stop plus proche.",
+    synonyms: [
+      "Risk management",
+      "Pilotage du risque",
+      "Score de risque",
+      "Panneau risque",
+    ],
+    resourceUrl: null,
+    tip: "Score élevé ≠ « vendre tout de suite ». Il dit : la perte potentielle (volatilité, illiquidité, fondamentaux fragiles, secteur cyclique) est plus forte — réduisez la taille, élargissez l’horizon, ou exigez plus de marge de sécurité.",
+    source: "plateforme",
+    ctaHref: "/outils/taille-position",
+    ctaLabel: "Dimensionner une position (calculette)",
+    relatedSlugs: [
+      "risque",
+      "risque-de-marche",
+      "liquidite",
+      "risque-fondamental",
+      "risque-operationnel",
+      "taille-de-position",
+      "drawdown-maximal",
+      "var-value-at-risk",
+    ],
+  },
+  {
+    slug: "risque-de-marche",
+    title: "Risque de marché",
+    level: "intermediaire",
+    themeSlug: "risques",
+    sortOrder: 2,
+    definition:
+      "Pilier du score de risque OuestBourse : amplitude des variations de cours (volatilité historique, drawdown, VaR / CVaR quand la série est assez dense). Il mesure combien le prix a déjà « malmené » l’actionnaire, pas le risque de faillite de l’émetteur.",
+    example:
+      "Dans Gestion du risque, la ligne « marché » (souvent le poids le plus élevé, ~35 %) monte si les clôtures oscillent fort ou si le pire repli historique est profond. Une valeur calme avec historique long restera plus bas sur ce pilier.",
+    synonyms: ["Risque de prix", "Market risk", "Volatilité de marché"],
+    resourceUrl: null,
+    tip: "Sans assez de clôtures, le pilier peut rester partiel (N/D sur VaR) : la confiance du signal baisse souvent en parallèle.",
+    source: "plateforme",
+    relatedSlugs: ["gestion-du-risque", "volatilite", "drawdown-maximal", "var-value-at-risk", "cvar-expected-shortfall"],
+  },
+  {
+    slug: "risque-fondamental",
+    title: "Risque fondamental",
+    level: "intermediaire",
+    themeSlug: "risques",
+    sortOrder: 3,
+    definition:
+      "Pilier du score de risque lié à la qualité d’information et aux multiples disponibles : PER extrême ou absent, dividendes irréguliers, historique comptable court. Un titre « bon marché » en apparence peut rester risqué si les données sont trop minces.",
+    example:
+      "Sur la fiche, un PER N/D ou un historique de dividendes lacunaire alourdit ce pilier et rend le score fondamental plus prudent. Ce n’est pas un audit des comptes — seulement ce que la base OuestBourse peut mesurer sans inventer de chiffre.",
+    synonyms: ["Risque de valorisation", "Qualité des données"],
+    resourceUrl: null,
+    tip: "N/D n’est pas un zéro : c’est une information. Plusieurs N/D d’affilée = analyse moins robuste, pas un « bon plan caché ».",
+    source: "plateforme",
+    relatedSlugs: ["gestion-du-risque", "per-price-earnings-ratio", "score-fondamental", "donnee-n-d", "confiance-du-signal"],
+  },
+  {
+    slug: "risque-operationnel",
+    title: "Risque opérationnel",
+    level: "intermediaire",
+    themeSlug: "risques",
+    sortOrder: 4,
+    definition:
+      "Pilier sectoriel du score de risque : sensibilité du métier (énergie, industrie, conso. discrétionnaire vs télécoms ou services publics). Proxy pédagogique — pas une note de gouvernance ni un rating crédit.",
+    example:
+      "Une valeur Énergie ou Agriculture part avec un risque opérationnel plus élevé qu’un titre Télécoms ou Services publics, toutes choses égales par ailleurs. Le poids de ce pilier (~15 %) reste inférieur au risque de marché.",
+    synonyms: ["Risque sectoriel", "Risque d’activité"],
+    resourceUrl: null,
+    tip: "Deux titres du même secteur peuvent diverger fortement sur marché et liquidité : lisez toujours les quatre piliers, pas seulement celui-ci.",
+    source: "plateforme",
+    relatedSlugs: ["gestion-du-risque", "sante-financiere", "limites-de-l-analyse"],
   },
 ];
 
@@ -1716,6 +1803,7 @@ export function countTermsByCategory(categorySlug: string): number {
   return EDUCATION_TERMS.filter((t) => slugs.has(t.themeSlug)).length;
 }
 
+/** @deprecated Préférer `rankEducationSearch` / `searchEducationTerms` dans `lib/education/search.ts`. */
 export function searchEducationTerms(query: string): EducationTerm[] {
   const q = query.trim().toLowerCase();
   if (!q) return [];

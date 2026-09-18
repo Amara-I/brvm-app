@@ -334,6 +334,7 @@
   min-width: 0;
   margin: 0;
   overflow: hidden;
+  overflow-wrap: break-word;
   backdrop-filter: blur(18px);
 }
 
