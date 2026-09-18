@@ -18,6 +18,7 @@ import { C } from "@/lib/theme/colors";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
 import type { CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
+import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
 import {
   applyColumnSort,
   type ColumnFilterDef,
@@ -326,7 +327,9 @@ export default function CompanyComparisonPanel({
               ] as const
             ).map((row) => (
               <tr key={row.l}>
-                <td style={{ color: C.textDim, fontWeight: 600 }}>{row.l}</td>
+                <td style={{ color: C.textDim, fontWeight: 600 }}>
+                  <LinkedAnalysisLabel text={row.l} />
+                </td>
                 {compSelected.map((t) => {
                   const m = metricsByTicker.get(t);
                   const raw = m ? row.fn(m) : "N/D";
@@ -371,7 +374,9 @@ export default function CompanyComparisonPanel({
             ) : (
               filteredMetricRows.map((row) => (
                 <tr key={row.l}>
-                  <td style={{ color: C.textDim, fontWeight: 600 }}>{row.l}</td>
+                  <td style={{ color: C.textDim, fontWeight: 600 }}>
+                    <LinkedAnalysisLabel text={row.l} />
+                  </td>
                   {compSelected.map((t) => (
                     <td
                       key={t}

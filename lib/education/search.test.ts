@@ -32,6 +32,11 @@ describe("searchEducationTerms", () => {
     expect(ranked[0]?.slug).toBe("per-price-earnings-ratio");
   });
 
+  it("matche « cours actuel » via alias", () => {
+    const ranked = rankEducationSearch("cours actuel");
+    expect(ranked[0]?.slug).toBe("cours");
+  });
+
   it("matche sizing → taille de position", () => {
     const ranked = rankEducationSearch("sizing");
     expect(ranked.some((t) => t.slug === "taille-de-position")).toBe(true);

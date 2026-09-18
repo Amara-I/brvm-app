@@ -19,6 +19,11 @@ function truncateTip(text: string, max = 220): string {
   return `${t.slice(0, max - 1).trim()}…`;
 }
 
+function canHoverFinePointer(): boolean {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
+  return window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+}
+
 /** Lien vers la fiche Éducation : survol = définition courte, clic = page exhaustive. */
 export default function EducationTermLink({ slug, children, className, style }: Props) {
   const term = getTermBySlug(slug);
@@ -40,12 +45,23 @@ export default function EducationTermLink({ slug, children, className, style }: 
     setCoords({ top, left });
   }, []);
 
-  const show = useCallback(() => {
+  const showHover = useCallback(() => {
+    if (!canHoverFinePointer()) return;
+    place();
+    setOpen(true);
+  }, [place]);
+
+  const showFocus = useCallback(() => {
     place();
     setOpen(true);
   }, [place]);
 
   const hide = useCallback(() => setOpen(false), []);
+
+  const onNavigate = useCallback((e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.stopPropagation();
+    hide();
+  }, [hide]);
 
   if (!term) return <>{children ?? slug}</>;
 
@@ -56,9 +72,9 @@ export default function EducationTermLink({ slug, children, className, style }: 
     <span
       ref={wrapRef}
       className={styles.wrap}
-      onMouseEnter={show}
+      onMouseEnter={showHover}
       onMouseLeave={hide}
-      onFocus={show}
+      onFocus={showFocus}
       onBlur={hide}
     >
       <Link
@@ -66,6 +82,7 @@ export default function EducationTermLink({ slug, children, className, style }: 
         className={`${styles.link} ${className ?? ""}`.trim()}
         style={style}
         aria-describedby={open ? tipId : undefined}
+        onClick={onNavigate}
       >
         {children ?? term.title}
       </Link>

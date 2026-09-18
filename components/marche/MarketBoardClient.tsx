@@ -34,10 +34,8 @@ import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import { trackFeature } from "@/components/analytics/track-client";
 import EducationTermLink from "@/components/education/EducationTermLink";
-import {
-  educationSlugForAnalysisLabel,
-  educationSlugForRiskPillar,
-} from "@/lib/education/analysis-terms";
+import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
+import { educationSlugForRiskPillar } from "@/lib/education/analysis-terms";
 
 export interface MarketBoardClientProps {
   initialData: CompaniesFullDataset;
@@ -645,11 +643,10 @@ function ExpandedPanel({
       </p>
       <div className={styles.detailGrid}>
         {cards.map((c) => {
-          const slug = educationSlugForAnalysisLabel(c.label);
           return (
             <div key={c.label} className={styles.detailCard}>
               <div className={styles.detailLabel}>
-                {slug ? <EducationTermLink slug={slug}>{c.label}</EducationTermLink> : c.label}
+                <LinkedAnalysisLabel text={c.label} />
               </div>
               <div className={styles.detailValue} style={c.color ? { color: c.color } : undefined} title={c.value}>
                 {c.value}

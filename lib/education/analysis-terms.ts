@@ -11,19 +11,42 @@ export const OVERVIEW_KEY_TERM_SLUGS = [
   "taille-de-position",
 ] as const;
 
+/**
+ * Rangée KPI du panneau expansible /marche (labels visibles, dans l’ordre).
+ * Chaque libellé doit correspondre à une fiche Éducation (hover + clic).
+ */
+export const MARKET_EXPANDED_KPI_LABELS = [
+  "Cours actuel",
+  "Cap. boursière",
+  "Perf. 5 ans",
+  "Perf. 10 ans",
+  "Rendement div.",
+  "PER",
+  "Volatilité",
+  "Risque (volatilité)",
+  "Gestion du risque",
+  "Horizons C/M/L",
+  "Confiance",
+  "Score / Signal",
+] as const;
+
 const EXACT_LABEL_SLUGS: Record<string, string> = {
+  Cours: "cours",
+  "Cours actuel": "cours",
   "Perf. 5 ans": "horizons-c-m-l",
   "Rend. div.": "rendement-du-dividende",
   Risque: "risque",
   Confiance: "confiance-du-signal",
   "Cap. boursière": "capitalisation-boursiere",
+  "Capitalisation totale": "capitalisation-boursiere",
   "Perf. 10 ans": "horizons-c-m-l",
   "Rendement div.": "rendement-du-dividende",
   PER: "per-price-earnings-ratio",
   Volatilité: "volatilite",
-  "Risque (volatilité)": "volatilite",
+  "Risque (volatilité)": "risque",
   "Gestion du risque": "gestion-du-risque",
   "Horizons C/M/L": "horizons-c-m-l",
+  Score: "score-composite",
   "Score / Signal": "signal-ouestbourse",
   "Santé financière": "sante-financiere",
   Signal: "signal-ouestbourse",
@@ -57,6 +80,14 @@ const EXACT_LABEL_SLUGS: Record<string, string> = {
   opérationnel: "risque-operationnel",
 };
 
+/** Retire unités entre parenthèses pour « Cours actuel (FCFA) », « Perf. 5 ans (%) », etc. */
+export function normalizeAnalysisLabel(label: string): string {
+  return label
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/\s*\((?:FCFA|%|\/100)\)\s*$/i, "");
+}
+
 const RISK_PILLAR_SLUGS: Record<string, string> = {
   marche: "risque-de-marche",
   liquidite: "liquidite",
@@ -67,7 +98,13 @@ const RISK_PILLAR_SLUGS: Record<string, string> = {
 export function educationSlugForAnalysisLabel(label: string): string | null {
   const trimmed = label.trim();
   if (EXACT_LABEL_SLUGS[trimmed]) return EXACT_LABEL_SLUGS[trimmed]!;
-  if (trimmed.startsWith("Cours de clôture")) return "cours";
+  const normalized = normalizeAnalysisLabel(trimmed);
+  if (normalized !== trimmed && EXACT_LABEL_SLUGS[normalized]) {
+    return EXACT_LABEL_SLUGS[normalized]!;
+  }
+  if (trimmed.startsWith("Cours de clôture") || normalized.startsWith("Cours de clôture")) {
+    return "cours";
+  }
   const lower = trimmed.toLowerCase();
   if (lower.startsWith("drawdown")) return "drawdown-maximal";
   if (lower.startsWith("var 95") || lower.startsWith("var 99")) return "var-value-at-risk";
