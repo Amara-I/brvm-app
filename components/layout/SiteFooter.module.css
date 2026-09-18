@@ -1,19 +1,30 @@
 .footer {
+  /* Inset card: full 1px frame must stay inside the padded main column.
+     Parent `.mainInner` uses overflow-x: clip — without min-width: 0 /
+     max-width: 100% / minmax(0, 1fr), the 5-col grid’s min-content width
+     overflows and the right border (and padding) is sliced off. */
   margin-top: 48px;
   width: 100%;
-  border-top: 1px solid var(--c-border);
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
   background: var(--c-panel);
   color: var(--c-text);
   text-align: start;
+  overflow-x: hidden;
 }
 
 .inner {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0;
-  padding: 36px 0 24px;
+  padding: 36px clamp(20px, 2.8vw, 32px) 24px;
   display: grid;
-  grid-template-columns: 1.4fr repeat(4, 1fr);
+  grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr));
   gap: 24px;
   text-align: left;
 }
@@ -31,6 +42,8 @@
   font-size: var(--fs-body-sm);
   line-height: 1.55;
   margin: 0;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .colTitle {
@@ -42,6 +55,10 @@
   margin: 0 0 10px;
 }
 
+.inner > * {
+  min-width: 0;
+}
+
 .link,
 .soon {
   display: block;
@@ -49,6 +66,7 @@
   color: var(--c-text);
   text-decoration: none;
   margin-bottom: 8px;
+  overflow-wrap: break-word;
 }
 
 .link:hover {
@@ -73,9 +91,11 @@
 
 .bottom {
   width: 100%;
-  max-width: none;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0;
-  padding: 14px 0 28px;
+  padding: 14px clamp(20px, 2.8vw, 32px) 20px;
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -86,26 +106,31 @@
   text-align: left;
 }
 
+.bottom span {
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+
 @media (max-width: 860px) {
   .inner {
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
 
   .bottom {
-    padding-left: 0;
-    padding-right: 0;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
   }
 }
 
 @media (max-width: 900px) {
   .inner {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (max-width: 520px) {
   .inner {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
