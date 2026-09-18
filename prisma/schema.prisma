@@ -93,6 +93,17 @@ enum UserRole {
   @@map("user_role")
 }
 
+/// Type de portefeuille pédagogique (Croissance, Rente, Trading, Croissance Max).
+/// Préférence utilisateur uniquement — n'altère pas les cours ni les signaux.
+enum PortfolioType {
+  CROISSANCE
+  RENTE
+  TRADING
+  CROISSANCE_MAX
+
+  @@map("portfolio_type")
+}
+
 /// Jetons one-shot pour confirmation d'email et réinitialisation de mot de passe.
 /// Stockés hachés (SHA-256) — le secret brut n'existe que dans le lien email.
 enum AuthTokenType {
@@ -612,6 +623,8 @@ model User {
   image         String?
   role          UserRole  @default(USER)
   emailVerified DateTime? @map("email_verified")
+  /// Type de portefeuille préféré (Profil). Surmontable à tout moment sur les fiches d'analyse.
+  preferredPortfolioType PortfolioType? @map("preferred_portfolio_type")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 

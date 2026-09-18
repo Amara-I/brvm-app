@@ -40,6 +40,9 @@ describe("profile schemas", () => {
   it("exige au moins un champ profil", () => {
     expect(updateProfileSchema.safeParse({}).success).toBe(false);
     expect(updateProfileSchema.safeParse({ name: "Amara" }).success).toBe(true);
+    expect(updateProfileSchema.safeParse({ preferredPortfolioType: "RENTE" }).success).toBe(true);
+    expect(updateProfileSchema.safeParse({ preferredPortfolioType: "NOPE" }).success).toBe(false);
+    expect(updateProfileSchema.safeParse({ preferredPortfolioType: null }).success).toBe(true);
   });
 
   it("valide un nouveau mot de passe", () => {

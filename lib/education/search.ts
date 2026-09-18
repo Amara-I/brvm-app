@@ -45,6 +45,13 @@ export const EDUCATION_SEARCH_ALIASES: Record<string, string[]> = {
   conserver: ["signal-ouestbourse"],
   alleger: ["signal-ouestbourse"],
   "allégér": ["signal-ouestbourse"],
+  "types de portefeuille": ["types-de-portefeuille"],
+  "portefeuille croissance": ["portefeuille-croissance"],
+  "portefeuille rente": ["portefeuille-rente"],
+  "portefeuille trading": ["portefeuille-trading"],
+  "croissance max": ["portefeuille-croissance-max"],
+  "swing trading": ["portefeuille-trading"],
+  "actions a dividendes": ["portefeuille-rente"],
   "sante financiere": ["sante-financiere"],
   "santé financière": ["sante-financiere"],
   pru: ["pru"],
@@ -200,7 +207,16 @@ export function rankEducationSearch(query: string): EducationSearchHit[] {
 }
 
 export function educationSearchSuggestions(): string[] {
-  return ["PER", "RSI", "dividende", "gestion du risque", "taille de position", "signal", "VaR"];
+  return [
+    "PER",
+    "RSI",
+    "dividende",
+    "gestion du risque",
+    "taille de position",
+    "types de portefeuille",
+    "signal",
+    "VaR",
+  ];
 }
 
 export function searchHitMeta(term: EducationTerm): { themeTitle: string; categoryTitle: string } {

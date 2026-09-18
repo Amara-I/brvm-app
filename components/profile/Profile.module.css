@@ -51,7 +51,64 @@
 
 .check input {
   accent-color: var(--c-gold);
-} main
+}
+
+.typeGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+@media (min-width: 640px) {
+  .typeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.typeCard,
+.typeCardOn {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  text-align: left;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.typeCard {
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.typeCardOn {
+  border: 1px solid var(--c-green);
+  background: var(--c-selected-bg);
+  color: var(--c-text);
+}
+
+.typeCard strong,
+.typeCardOn strong {
+  font-size: 0.95rem;
+}
+
+.typeCard span,
+.typeCardOn span {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--c-textdim);
+}
+
+.typeCard:disabled,
+.typeCardOn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
 .alertsWrap {
   margin-top: 16px;
 }

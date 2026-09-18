@@ -5,6 +5,7 @@ import SiteFooter from "@/components/layout/SiteFooter";
 import CompanySheetClient from "@/components/actions/CompanySheetClient";
 import { getCompanySheetPayload } from "@/lib/api/company-sheet-dataset";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
+import { getPreferredPortfolioType } from "@/lib/auth/preferred-portfolio-type";
 import { normalizeSheetTab } from "@/lib/ui/company-sheet-tabs";
 
 export const dynamic = "force-dynamic";
@@ -26,9 +27,10 @@ export default async function CompanyActionPage({
   searchParams,
 }: PageProps & { searchParams?: { tab?: string } }) {
   const ticker = params.ticker.toUpperCase();
-  const [payload, userId] = await Promise.all([
+  const [payload, userId, preferredPortfolioType] = await Promise.all([
     getCompanySheetPayload(ticker),
     getCurrentUserId().catch(() => null),
+    getPreferredPortfolioType().catch(() => null),
   ]);
   if (!payload) notFound();
 
@@ -40,6 +42,7 @@ export default async function CompanyActionPage({
         payload={payload}
         isAuthenticated={Boolean(userId)}
         initialTab={initialTab}
+        preferredPortfolioType={preferredPortfolioType}
       />
       <SiteFooter />
     </AppHeader>

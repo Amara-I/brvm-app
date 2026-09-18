@@ -18,6 +18,13 @@ import {
   simulateInvestmentScenarios,
   type ContributionFrequency,
 } from "@/lib/calc/simulate-investment";
+import {
+  getPortfolioTypeDef,
+  type PortfolioTypeId,
+} from "@/lib/portfolio-types";
+import { usePortfolioType } from "@/lib/portfolio-types/use-portfolio-type";
+import PortfolioTypeSelector from "@/components/portfolio-types/PortfolioTypeSelector";
+import Link from "next/link";
 import styles from "./InvestmentSimulator.module.css";
 
 function fmtFcfa(n: number): string {
@@ -35,7 +42,14 @@ const FREQ_OPTIONS: Array<{ value: ContributionFrequency; label: string }> = [
   { value: "annuel", label: "Annuel" },
 ];
 
-export default function InvestmentSimulator() {
+export default function InvestmentSimulator({
+  preferredPortfolioType = null,
+}: {
+  preferredPortfolioType?: PortfolioTypeId | null;
+}) {
+  const { type, setType, profileDefault, isOverride, resetToProfile } =
+    usePortfolioType(preferredPortfolioType);
+  const def = getPortfolioTypeDef(type);
   const [initial, setInitial] = usePersistedState("ouestbourse:sim:initial", "1000000");
   const [contribution, setContribution] = usePersistedState("ouestbourse:sim:contrib", "50000");
   const [frequency, setFrequency] = usePersistedState<ContributionFrequency>(
@@ -74,6 +88,50 @@ export default function InvestmentSimulator() {
 
   return (
     <div className={styles.wrap} data-align-left>
+      <PortfolioTypeSelector
+        value={type}
+        onChange={setType}
+        profileDefault={profileDefault}
+        isOverride={isOverride}
+        onResetToProfile={resetToProfile}
+        idPrefix="sim"
+      />
+      <aside className={styles.perspective} aria-live="polite">
+        <p className={styles.perspectiveKicker}>
+          {def.label} · {def.horizon} · risque {def.risk}
+        </p>
+        <p className={styles.perspectiveLead}>{def.simulationLead}</p>
+        <ul className={styles.perspectiveList}>
+          {def.simulationHints.map((h) => (
+            <li key={h.slice(0, 36)}>{h}</li>
+          ))}
+        </ul>
+        <div className={styles.alloc}>
+          {def.allocation.map((row) => (
+            <div key={row.component} className={styles.allocRow}>
+              <span>{row.component}</span>
+              <strong>{row.allocation}</strong>
+            </div>
+          ))}
+        </div>
+        <p className={styles.allocNote}>{def.allocationNote}</p>
+        <p className={styles.suggestNote}>{def.simulationSuggest.note}</p>
+        <button
+          type="button"
+          className={styles.applyBtn}
+          onClick={() => {
+            setYears(def.simulationSuggest.years);
+            setFees(def.simulationSuggest.fees);
+            setSpread(def.simulationSuggest.spread);
+          }}
+        >
+          Appliquer les paramètres pédagogiques (durée, frais, écart)
+        </button>
+        <p className={styles.perspectiveFoot}>
+          Les rendements saisis restent les vôtres — aucun taux n’est inventé.{" "}
+          <Link href={def.educationHref}>Guide {def.label}</Link>
+        </p>
+      </aside>
       <div className={styles.grid}>
         <form
           className={styles.form}

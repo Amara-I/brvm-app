@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import EducationIllustration from "@/components/education/EducationIllustration";
 import EducationBackLink from "@/components/education/EducationBackLink";
+import EducationArticleBlocks from "@/components/education/EducationArticleBlocks";
 import SiteFooter from "@/components/layout/SiteFooter";
 import {
   EDUCATION_LEVEL_LABELS,
@@ -66,7 +67,12 @@ export default function EducationTermPage({
           <p className={styles.sectionLabel}>Définition</p>
           <p className={styles.sectionBody}>{term.definition}</p>
 
-          {term.details && (
+          {term.blocks && term.blocks.length > 0 ? (
+            <>
+              <p className={styles.sectionLabel}>En détail</p>
+              <EducationArticleBlocks blocks={term.blocks} />
+            </>
+          ) : term.details ? (
             <>
               <p className={styles.sectionLabel}>En détail</p>
               <div className={styles.sectionBody}>
@@ -77,7 +83,7 @@ export default function EducationTermPage({
                 ))}
               </div>
             </>
-          )}
+          ) : null}
 
           {term.illustration && (
             <>

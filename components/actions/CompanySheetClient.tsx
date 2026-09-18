@@ -54,6 +54,15 @@ import {
   educationSlugForRiskPillar,
 } from "@/lib/education/analysis-terms";
 import {
+  frameCompanyForPortfolioType,
+  keyTermSlugsForType,
+  overviewScorecardForType,
+  type PortfolioTypeId,
+} from "@/lib/portfolio-types";
+import { usePortfolioType } from "@/lib/portfolio-types/use-portfolio-type";
+import PortfolioTypeSelector from "@/components/portfolio-types/PortfolioTypeSelector";
+import PortfolioTypePerspective from "@/components/portfolio-types/PortfolioTypePerspective";
+import {
   COMPANY_SHEET_TABS,
   normalizeSheetTab,
   type CompanySheetTabKey,
@@ -157,11 +166,14 @@ export default function CompanySheetClient({
   payload,
   isAuthenticated = false,
   initialTab,
+  preferredPortfolioType = null,
 }: {
   payload: CompanySheetPayload;
   isAuthenticated?: boolean;
   /** Onglet initial (ex. ?tab=charts depuis le sélecteur de ticker du graphe). */
   initialTab?: TabKey;
+  /** Préférence Profil — surmontable ici sans retourner au profil. */
+  preferredPortfolioType?: PortfolioTypeId | null;
 }) {
   const {
     company,
@@ -184,6 +196,13 @@ export default function CompanySheetClient({
   } = payload;
   const [tab, setTab] = usePersistedState<string>(`ouestbourse:sheet:${company.ticker}:tab`, "overview");
   const resolvedTab = normalizeSheetTab(tab);
+  const {
+    type: portfolioType,
+    setType: setPortfolioType,
+    profileDefault,
+    isOverride,
+    resetToProfile,
+  } = usePortfolioType(preferredPortfolioType);
 
   useEffect(() => {
     if (tab !== resolvedTab) setTab(resolvedTab);
@@ -369,6 +388,22 @@ export default function CompanySheetClient({
       })
     : "N/D";
 
+  const analysisPerspective = useMemo(
+    () =>
+      frameCompanyForPortfolioType({
+        type: portfolioType,
+        ticker: company.ticker,
+        name: company.name,
+        metrics,
+      }),
+    [portfolioType, company.ticker, company.name, metrics]
+  );
+  const scorecardCells = useMemo(
+    () => overviewScorecardForType(portfolioType, metrics),
+    [portfolioType, metrics]
+  );
+  const keyTermSlugs = keyTermSlugsForType(portfolioType);
+
   return (
     <div className={styles.page}>
       <div className={styles.breadcrumb}>
@@ -441,6 +476,15 @@ export default function CompanySheetClient({
         </div>
       </header>
 
+      <PortfolioTypeSelector
+        value={portfolioType}
+        onChange={setPortfolioType}
+        profileDefault={profileDefault}
+        isOverride={isOverride}
+        onResetToProfile={resetToProfile}
+        idPrefix={`sheet-${company.ticker}`}
+      />
+
       <div className={styles.tabs} role="tablist" aria-label="Sections de la fiche">
         {TABS.map((t) => (
           <button
@@ -473,6 +517,7 @@ export default function CompanySheetClient({
       {resolvedTab === "overview" && (
         <div className={styles.layout}>
           <div className={styles.mainCol}>
+            <PortfolioTypePerspective perspective={analysisPerspective} />
             {/* Cours + aperçu (vue d'ensemble) — graphes détaillés = onglet Graphes */}
             <section className={styles.card}>
               <div className={styles.cardHead}>
@@ -585,58 +630,7 @@ export default function CompanySheetClient({
                     <span className={styles.cardMeta}>critères de décision — métriques réelles ou N/D</span>
                   </div>
                   <div className={styles.scoreGrid}>
-                    {(
-                      [
-                        {
-                          k: "Perf. 5 ans",
-                          v:
-                            metrics.perf5Percent === "N/D"
-                              ? "N/D"
-                              : `${parseFloat(metrics.perf5Percent) > 0 ? "+" : ""}${metrics.perf5Percent}%`,
-                          tone:
-                            metrics.perf5Percent === "N/D"
-                              ? "neutral"
-                              : parseFloat(metrics.perf5Percent) >= 0
-                                ? "good"
-                                : "bad",
-                        },
-                        {
-                          k: "Rend. div.",
-                          v:
-                            metrics.dividendYieldPercent === "N/D" ||
-                            metrics.dividendYieldPercent === ""
-                              ? "N/D"
-                              : `${metrics.dividendYieldPercent}%`,
-                          tone:
-                            metrics.dividendYieldPercent === "N/D" ||
-                            metrics.dividendYieldPercent === ""
-                              ? "neutral"
-                              : "good",
-                        },
-                        {
-                          k: "Risque",
-                          v: metrics.riskLevel,
-                          tone:
-                            metrics.riskLevel === "Faible"
-                              ? "good"
-                              : metrics.riskLevel === "Moyen"
-                                ? "warn"
-                                : metrics.riskLevel === "N/D"
-                                  ? "neutral"
-                                  : "bad",
-                        },
-                        {
-                          k: "Confiance",
-                          v: metrics.confidence,
-                          tone:
-                            metrics.confidence === "Élevée"
-                              ? "good"
-                              : metrics.confidence === "Moyenne"
-                                ? "warn"
-                                : "neutral",
-                        },
-                      ] as const
-                    ).map((cell) => (
+                    {scorecardCells.map((cell) => (
                       <div key={cell.k} className={styles.scoreCell}>
                         <span className={styles.scoreKey}>
                           <LinkedAnalysisLabel text={cell.k} />
@@ -669,7 +663,7 @@ export default function CompanySheetClient({
                     </span>
                   </div>
                   <ul className={styles.keyTerms}>
-                    {OVERVIEW_KEY_TERM_SLUGS.map((slug) => (
+                    {(keyTermSlugs.length > 0 ? keyTermSlugs : OVERVIEW_KEY_TERM_SLUGS).map((slug) => (
                       <li key={slug}>
                         <EducationTermLink slug={slug} />
                       </li>
@@ -1270,11 +1264,17 @@ export default function CompanySheetClient({
       )}
 
       {resolvedTab === "projection" && (
-        <CompanyProjectionPanel company={company} years={payload.years} metrics={metrics} />
+        <>
+          <PortfolioTypePerspective perspective={analysisPerspective} compact />
+          <CompanyProjectionPanel company={company} years={payload.years} metrics={metrics} />
+        </>
       )}
 
       {resolvedTab === "comparison" && (
-        <CompanyComparisonPanel company={company} companies={peers} years={payload.years} />
+        <>
+          <PortfolioTypePerspective perspective={analysisPerspective} compact />
+          <CompanyComparisonPanel company={company} companies={peers} years={payload.years} />
+        </>
       )}
 
       {resolvedTab === "societe" && (

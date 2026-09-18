@@ -7,6 +7,11 @@ import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import PasswordField from "@/components/auth/PasswordField";
 import styles from "@/components/auth/AuthForm.module.css";
 import profileStyles from "./Profile.module.css";
+import {
+  PORTFOLIO_TYPE_LIST,
+  writeStoredPortfolioType,
+  type PortfolioTypeId,
+} from "@/lib/portfolio-types";
 
 export type ProfilePayload = {
   name: string | null;
@@ -14,6 +19,7 @@ export type ProfilePayload = {
   emailVerified: boolean;
   hasPassword: boolean;
   isAdmin: boolean;
+  preferredPortfolioType: PortfolioTypeId | null;
 };
 
 export default function ProfileClient({
@@ -36,6 +42,12 @@ export default function ProfileClient({
   const [passwordMsg, setPasswordMsg] = useState<string | null>(null);
   const [passwordError, setPasswordError] = useState<string | null>(null);
   const [savingPassword, setSavingPassword] = useState(false);
+  const [portfolioType, setPortfolioType] = useState<PortfolioTypeId | null>(
+    initial.preferredPortfolioType
+  );
+  const [typeMsg, setTypeMsg] = useState<string | null>(null);
+  const [typeError, setTypeError] = useState<string | null>(null);
+  const [savingType, setSavingType] = useState(false);
 
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault();
@@ -60,6 +72,27 @@ export default function ProfileClient({
         ? "Profil mis à jour. Un email de confirmation a été envoyé à la nouvelle adresse."
         : "Profil mis à jour.");
     }
+    router.refresh();
+  }
+
+  async function savePortfolioType(next: PortfolioTypeId) {
+    setTypeError(null);
+    setTypeMsg(null);
+    setSavingType(true);
+    setPortfolioType(next);
+    writeStoredPortfolioType(next);
+    const res = await fetch("/api/auth/profile", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preferredPortfolioType: next }),
+    });
+    const json = await res.json().catch(() => null);
+    setSavingType(false);
+    if (!res.ok) {
+      setTypeError(json?.error ?? "La préférence n’a pas pu être enregistrée.");
+      return;
+    }
+    setTypeMsg("Type de portefeuille préféré enregistré. Vous pouvez toujours le changer sur une fiche d’analyse.");
     router.refresh();
   }
 
@@ -143,6 +176,49 @@ export default function ProfileClient({
             {savingProfile ? "Enregistrement…" : "Enregistrer le profil"}
           </button>
         </form>
+      </section>
+
+      <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
+        <h2 className={profileStyles.sectionTitle}>Type de portefeuille préféré</h2>
+        <p className={profileStyles.meta}>
+          Valeur par défaut pour les fiches d’analyse et les simulations. Sur une fiche société,
+          vous pouvez changer d’angle à tout moment sans revenir ici.{" "}
+          <Link href="/education/types-de-portefeuille" className={styles.inlineLink}>
+            Lire les types de portefeuille
+          </Link>
+        </p>
+        <div className={profileStyles.typeGrid} role="radiogroup" aria-label="Type de portefeuille préféré">
+          {PORTFOLIO_TYPE_LIST.map((d) => {
+            const selected = portfolioType === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                className={selected ? profileStyles.typeCardOn : profileStyles.typeCard}
+                disabled={savingType}
+                onClick={() => void savePortfolioType(d.id)}
+              >
+                <strong>{d.label}</strong>
+                <span>
+                  {d.horizon} · risque {d.risk}
+                </span>
+                <span>{d.tagline}</span>
+              </button>
+            );
+          })}
+        </div>
+        {typeError ? (
+          <div role="alert" className={`${styles.alert} ${styles.alertError}`}>
+            {typeError}
+          </div>
+        ) : null}
+        {typeMsg ? (
+          <div role="status" className={`${styles.alert} ${styles.alertOk}`}>
+            {typeMsg}
+          </div>
+        ) : null}
       </section>
 
       <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
