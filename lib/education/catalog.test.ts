@@ -44,4 +44,11 @@ describe("education catalog — taille de position", () => {
     expect(getTermBySlug("risque-fondamental")?.title).toBe("Risque fondamental");
     expect(getTermBySlug("risque-operationnel")?.title).toBe("Risque opérationnel");
   });
+
+  it("expose le thème Types de portefeuille et 6 fiches", () => {
+    const theme = getThemeBySlug("types-de-portefeuille");
+    expect(theme?.categorySlug).toBe("analyse");
+    expect(termsByTheme("types-de-portefeuille").map((t) => t.slug)).toContain("portefeuille-croissance");
+    expect(getTermBySlug("portefeuille-rente")?.blocks?.some((b) => b.type === "formula")).toBe(true);
+  });
 });

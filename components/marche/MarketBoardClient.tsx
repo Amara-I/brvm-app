@@ -36,6 +36,10 @@ import { trackFeature } from "@/components/analytics/track-client";
 import EducationTermLink from "@/components/education/EducationTermLink";
 import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
 import { educationSlugForRiskPillar } from "@/lib/education/analysis-terms";
+import { frameCompanyForPortfolioType, type PortfolioTypeId } from "@/lib/portfolio-types";
+import { usePortfolioType } from "@/lib/portfolio-types/use-portfolio-type";
+import PortfolioTypeSelector from "@/components/portfolio-types/PortfolioTypeSelector";
+import PortfolioTypePerspective from "@/components/portfolio-types/PortfolioTypePerspective";
 
 export interface MarketBoardClientProps {
   initialData: CompaniesFullDataset;
@@ -44,6 +48,7 @@ export interface MarketBoardClientProps {
   initialSparkSeries?: Record<string, ChartClosePoint[]>;
   /** Variation journalière officielle (BRVM) par ticker. */
   initialDayChanges?: Record<string, number | null>;
+  preferredPortfolioType?: PortfolioTypeId | null;
 }
 
 const COL_COUNT = 11;
@@ -61,6 +66,7 @@ export default function MarketBoardClient({
   initialMarketSummary = null,
   initialSparkSeries = {},
   initialDayChanges = {},
+  preferredPortfolioType = null,
 }: MarketBoardClientProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -77,6 +83,13 @@ export default function MarketBoardClient({
     "score"
   );
   const [horizon, setHorizon] = usePersistedState<MarketHorizon>(`${pageKey}:horizon`, "1A");
+  const {
+    type: portfolioType,
+    setType: setPortfolioType,
+    profileDefault,
+    isOverride,
+    resetToProfile,
+  } = usePortfolioType(preferredPortfolioType);
   const [expanded, setExpanded] = usePersistedState<string | null>(`${pageKey}:expanded`, null);
   const [colSort, setColSort] = useState<ColumnSortState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -411,6 +424,15 @@ export default function MarketBoardClient({
             </select>
           </div>
         </div>
+        <PortfolioTypeSelector
+          value={portfolioType}
+          onChange={setPortfolioType}
+          profileDefault={profileDefault}
+          isOverride={isOverride}
+          onResetToProfile={resetToProfile}
+          compact
+          idPrefix="marche"
+        />
 
         <div className={styles.tableWrap}>
           <table className={styles.table}>
@@ -532,6 +554,7 @@ export default function MarketBoardClient({
                               company={co}
                               metrics={m}
                               currency={exchange.currency}
+                              portfolioType={portfolioType}
                               onPrefetch={(href) => router.prefetch(href)}
                             />
                           </td>
@@ -566,11 +589,13 @@ function ExpandedPanel({
   company,
   metrics: m,
   currency,
+  portfolioType,
   onPrefetch,
 }: {
   company: CompanyFullDataset;
   metrics: ReturnType<typeof calcMetrics>;
   currency: string;
+  portfolioType: PortfolioTypeId;
   onPrefetch?: (href: string) => void;
 }) {
   const perf10 = m.perf10Percent === "N/D" ? null : parseFloat(m.perf10Percent);
@@ -637,6 +662,15 @@ function ExpandedPanel({
 
   return (
     <div className={styles.detail} onClick={(e) => e.stopPropagation()}>
+      <PortfolioTypePerspective
+        perspective={frameCompanyForPortfolioType({
+          type: portfolioType,
+          ticker: company.ticker,
+          name: company.name,
+          metrics: m,
+        })}
+        compact
+      />
       <p className={styles.detailSummary}>{m.signalSummary}</p>
       <p className={styles.detailSummary} style={{ color: C.textDim, fontSize: "0.78rem" }}>
         {m.riskAnalysis.summary}

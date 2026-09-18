@@ -418,3 +418,155 @@
     font-size: 1.35rem;
   }
 }
+
+.articleBlocks {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 8px 0 4px;
+}
+
+.articleH2 {
+  margin: 10px 0 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+
+.articleH3 {
+  margin: 4px 0 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.articleList {
+  margin: 0;
+  padding-left: 1.2rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+  color: var(--c-text);
+}
+
+.articleList li {
+  margin: 0 0 6px;
+}
+
+.formulaBox {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px dashed var(--c-gold);
+  background: var(--c-bg);
+}
+
+.formulaLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-textdim);
+  margin-bottom: 6px;
+}
+
+.formulaText {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--c-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.calloutInfo,
+.calloutWarn,
+.calloutTip {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.calloutInfo {
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.calloutWarn {
+  border: 1px solid var(--c-red);
+  background: var(--c-red-soft);
+  color: var(--c-text);
+}
+
+.calloutTip {
+  border: 1px solid var(--c-gold);
+  background: var(--c-selected-bg);
+  color: var(--c-text);
+}
+
+.tableWrap {
+  margin: 0;
+  min-width: 0;
+}
+
+.tableCaption,
+.tableFoot {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--c-textdim);
+}
+
+.tableFoot {
+  margin: 6px 0 0;
+}
+
+.tableScroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-bg);
+}
+
+.articleTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  min-width: 28rem;
+}
+
+.articleTable th,
+.articleTable td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--c-border);
+  vertical-align: top;
+  color: var(--c-text);
+}
+
+.articleTable th {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--c-textdim);
+  background: var(--c-panel);
+}
+
+.articleTable tr:last-child td {
+  border-bottom: none;
+}
+
+.hubCompare {
+  margin: 0 0 22px;
+}
+
+.hubCards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: 12px;
+  margin: 0 0 22px;
+}

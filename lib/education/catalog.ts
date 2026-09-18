@@ -3,6 +3,10 @@
 // Orientation : guides BRVM + enrichissements produit.
 
 import { TERM_ENRICHMENTS } from "./term-enrichments";
+import {
+  PORTFOLIO_TYPE_ARTICLE_BLOCKS,
+  type EducationContentBlock,
+} from "./portfolio-type-articles";
 
 export type EducationLevel = "debutant" | "intermediaire" | "avance";
 
@@ -57,6 +61,8 @@ export interface EducationTerm {
   ctaLabel?: string;
   /** Fiches à proposer en bas de page (« Pour aller plus loin »). */
   relatedSlugs?: string[];
+  /** Corps long (tableaux, listes, formules) — Types de portefeuille, etc. */
+  blocks?: EducationContentBlock[];
 }
 
 export const EDUCATION_LEVEL_LABELS: Record<EducationLevel, string> = {
@@ -153,6 +159,13 @@ export const EDUCATION_THEMES: EducationTheme[] = [
     slug: "strategies",
     title: "Stratégies",
     blurb: "Portefeuille, levier et postures d'investissement.",
+    categorySlug: "analyse",
+  },
+  {
+    slug: "types-de-portefeuille",
+    title: "Types de portefeuille",
+    blurb:
+      "Croissance, Rente, Trading et Croissance Max : objectifs, grilles de sélection, allocations pédagogiques et règles communes BRVM.",
     categorySlug: "analyse",
   },
   {
@@ -385,7 +398,8 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     ],
     "resourceUrl": "https://www.amf-umoa.org",
     "tip": "La diversification réduit le risque spécifique mais n’élimine pas le risque de marché.",
-    "source": "guide"
+    "source": "guide",
+    relatedSlugs: ["types-de-portefeuille", "portefeuille-croissance", "portefeuille-rente", "portefeuille-trading"],
   },
   {
     "slug": "risque",
@@ -1752,17 +1766,163 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     source: "plateforme",
     relatedSlugs: ["gestion-du-risque", "sante-financiere", "limites-de-l-analyse"],
   },
+  {
+    slug: "types-de-portefeuille",
+    title: "Types de portefeuille",
+    level: "debutant",
+    themeSlug: "types-de-portefeuille",
+    sortOrder: 1,
+    definition:
+      "Quatre postures pédagogiques pour un compte-titres BRVM : Croissance, Rente, Trading et Croissance Max. L’objectif n’est pas la performance maximale à n’importe quel prix, mais la meilleure croissance possible par rapport au risque, aux frais, au temps disponible et à la liquidité.",
+    example:
+      "Sur une fiche société, le sélecteur Croissance | Rente | Trading | Croissance Max change les critères mis en avant (fondamentaux, dividende, liquidité / sizing, poches) sans modifier le cours ni le signal OuestBourse.",
+    synonyms: ["Cadre des quatre portefeuilles", "Stratégies de portefeuille BRVM"],
+    resourceUrl: "https://www.brvm.org",
+    tip: "Le marché BRVM fonctionne au comptant : liquidités avant un achat, titres avant une vente. Les frais, surtout en trading, font partie de la stratégie.",
+    source: "guide",
+    relatedSlugs: [
+      "portefeuille-croissance",
+      "portefeuille-rente",
+      "portefeuille-trading",
+      "portefeuille-croissance-max",
+      "portefeuille-regles-communes",
+      "portefeuille",
+    ],
+    ctaHref: "/profil",
+    ctaLabel: "Définir le type préféré dans Profil",
+  },
+  {
+    slug: "portefeuille-croissance",
+    title: "Portefeuille Croissance",
+    level: "intermediaire",
+    themeSlug: "types-de-portefeuille",
+    sortOrder: 2,
+    definition:
+      "Portefeuille qui investit surtout dans des sociétés capables d’augmenter durablement chiffre d’affaires, bénéfices, marges, part de marché et flux de trésorerie. Objectif : valorisation du capital sur au moins cinq ans. Le dividende est secondaire si les bénéfices sont réinvestis efficacement.",
+    example:
+      "Sur la fiche d’un titre, l’angle Croissance met en avant la perf. 5 ans, le score fondamental et le score long terme — et rappelle qu’une hausse de cours n’est pas, à elle seule, une thèse de croissance.",
+    synonyms: ["Actions de croissance", "Valorisation du capital"],
+    resourceUrl: "https://www.brvm.org",
+    tip: "Le compartiment Croissance de la BRVM ne suffit pas à sélectionner un titre : il faut l’analyse financière. Achat progressif indicatif : 30 % / 30 % / 40 %.",
+    source: "guide",
+    relatedSlugs: [
+      "types-de-portefeuille",
+      "chiffre-d-affaires",
+      "per-price-earnings-ratio",
+      "score-fondamental",
+      "portefeuille-regles-communes",
+    ],
+    ctaHref: "/screener",
+    ctaLabel: "Ouvrir le screener",
+  },
+  {
+    slug: "portefeuille-rente",
+    title: "Portefeuille Rente",
+    level: "intermediaire",
+    themeSlug: "types-de-portefeuille",
+    sortOrder: 3,
+    definition:
+      "Portefeuille visant des revenus réguliers via dividendes, coupons d’obligations et éventuellement trésorerie ou OPCVM adaptés. Priorité à la stabilité et à la durabilité des revenus, pas à la plus-value rapide.",
+    example:
+      "L’angle Rente d’une fiche insiste sur le rendement du dividende affiché et sa qualité (régularité, cash, dette) plutôt que sur le taux le plus élevé du screener.",
+    synonyms: ["Portefeuille de revenus", "Actions à dividendes", "Coupons"],
+    resourceUrl: "https://www.brvm.org",
+    tip: "Distinguer rendement courant (revenus / valeur actuelle) et rendement total (revenus + variation de capital). Un haut coupon ne compense pas forcément une baisse de capital.",
+    source: "guide",
+    relatedSlugs: [
+      "types-de-portefeuille",
+      "rendement-du-dividende",
+      "dividende",
+      "portefeuille-regles-communes",
+    ],
+    ctaHref: "/screener",
+    ctaLabel: "Screener dividendes",
+  },
+  {
+    slug: "portefeuille-trading",
+    title: "Portefeuille Trading",
+    level: "avance",
+    themeSlug: "types-de-portefeuille",
+    sortOrder: 4,
+    definition:
+      "Portefeuille qui cherche à profiter des variations de prix à court ou moyen terme (tendances, volumes, supports/résistances, annonces, liquidité). Activité à risque élevé : à la BRVM, certaines valeurs sont peu liquides.",
+    example:
+      "Avant un ordre fictif pédagogique : entrée, invalidation, objectif, durée max et taille calculée pour risquer au plus 0,5 % à 1 % du capital — voir la calculette taille de position.",
+    synonyms: ["Swing trading", "Position trading", "Trading BRVM"],
+    resourceUrl: "https://www.brvm.org",
+    tip: "Intégrer courtage, commissions BRVM/DCBR, taxes, fourchette et risque d’exécution. Le trading ne devrait généralement pas représenter tout le patrimoine investi.",
+    source: "guide",
+    relatedSlugs: [
+      "types-de-portefeuille",
+      "taille-de-position",
+      "liquidite",
+      "gestion-du-risque",
+      "portefeuille-regles-communes",
+    ],
+    ctaHref: "/outils/taille-position",
+    ctaLabel: "Calculette taille de position",
+  },
+  {
+    slug: "portefeuille-croissance-max",
+    title: "Portefeuille Croissance Max",
+    level: "avance",
+    themeSlug: "types-de-portefeuille",
+    sortOrder: 5,
+    definition:
+      "Combinaison organisée de trois moteurs — croissance, dividendes, trading — plus une poche de liquidités. L’objectif n’est pas le maximum de risque, mais une croissance optimisée grâce à des règles distinctes par poche.",
+    example:
+      "Modèle équilibré pédagogique : 50 % croissance, 25 % rente, 15 % trading, 10 % liquidités. Une ligne de trading qui baisse ne bascule pas automatiquement en « investissement long terme ».",
+    synonyms: ["Portefeuille multi-poches", "Croissance optimisée"],
+    resourceUrl: "https://www.brvm.org",
+    tip: "Rééquilibrer tous les six mois ou une fois par an. Mesurer le rendement net après frais, y compris les liquidités non investies, et comparer au BRVM Composite ou au BRVM-30.",
+    source: "guide",
+    relatedSlugs: [
+      "types-de-portefeuille",
+      "portefeuille-croissance",
+      "portefeuille-rente",
+      "portefeuille-trading",
+      "portefeuille-regles-communes",
+    ],
+    ctaHref: "/simulation",
+    ctaLabel: "Simulation (perspective poches)",
+  },
+  {
+    slug: "portefeuille-regles-communes",
+    title: "Règles communes aux quatre portefeuilles",
+    level: "debutant",
+    themeSlug: "types-de-portefeuille",
+    sortOrder: 6,
+    definition:
+      "Règles partagées : diversification raisonnable (sans se disperser), ne pas investir l’épargne de court terme, ne pas acheter sur recommandation seule, et tenir un journal d’opérations — surtout en trading.",
+    example:
+      "Avant un achat : pourquoi ce titre, quel scénario, quel risque l’invalide, dans quelles conditions vendre. Une dizaine à une quinzaine de lignes bien suivies vaut souvent mieux que des dizaines de positions mal suivies.",
+    synonyms: ["Journal de portefeuille", "Diversification BRVM", "Règles d’investissement"],
+    resourceUrl: "https://www.brvm.org",
+    tip: "La BRVM recommande d’investir une épargne dont on n’a pas besoin au quotidien et de diversifier sans se disperser.",
+    source: "guide",
+    relatedSlugs: [
+      "types-de-portefeuille",
+      "portefeuille",
+      "taille-de-position",
+      "gestion-du-risque",
+    ],
+    ctaHref: "/education/types-de-portefeuille",
+    ctaLabel: "Retour au thème Types de portefeuille",
+  },
 ];
 
 /** Fusionne le terme catalogue avec les détails / sources enrichis (si présents). */
 export function applyTermEnrichment(term: EducationTerm): EducationTerm {
   const extra = TERM_ENRICHMENTS[term.slug];
-  if (!extra) return term;
-  return {
-    ...term,
-    details: term.details ?? extra.details,
-    sources: term.sources && term.sources.length > 0 ? term.sources : extra.sources,
-  };
+  const blocks = term.blocks ?? PORTFOLIO_TYPE_ARTICLE_BLOCKS[term.slug];
+  const merged: EducationTerm = extra
+    ? {
+        ...term,
+        details: term.details ?? extra.details,
+        sources: term.sources && term.sources.length > 0 ? term.sources : extra.sources,
+      }
+    : term;
+  return blocks ? { ...merged, blocks } : merged;
 }
 
 export function getAllEducationTerms(): EducationTerm[] {

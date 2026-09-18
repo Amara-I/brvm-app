@@ -8,6 +8,7 @@ import {
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import MarketBoardClient from "@/components/marche/MarketBoardClient";
+import { getPreferredPortfolioType } from "@/lib/auth/preferred-portfolio-type";
 
 export const dynamic = "force-dynamic";
 
@@ -18,11 +19,12 @@ export const metadata = {
 };
 
 export default async function MarchePage() {
-  const [dataset, marketSummary, sparkSeries, dayChanges] = await Promise.all([
+  const [dataset, marketSummary, sparkSeries, dayChanges, preferredPortfolioType] = await Promise.all([
     getCompaniesFullDataset(),
     getMarketSummarySnapshot().catch(() => null),
     getMarketSparkSeriesByTicker().catch(() => ({})),
     getMarketDayChangeByTicker().catch(() => ({})),
+    getPreferredPortfolioType().catch(() => null),
   ]);
   return (
     <AppHeader>
@@ -31,6 +33,7 @@ export default async function MarchePage() {
         initialMarketSummary={marketSummary}
         initialSparkSeries={sparkSeries}
         initialDayChanges={dayChanges}
+        preferredPortfolioType={preferredPortfolioType}
       />
       <SiteFooter />
     </AppHeader>

@@ -1,0 +1,96 @@
+.wrap {
+  margin: 0 0 14px;
+  padding: 12px 14px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-panel);
+  min-width: 0;
+}
+
+.wrapCompact {
+  margin: 0 0 10px;
+  padding: 10px 12px 8px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 14px;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+
+.label {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-textdim);
+}
+
+.eduLink {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--c-gold);
+  text-decoration: none;
+}
+
+.eduLink:hover {
+  text-decoration: underline;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip,
+.chipOn {
+  font-family: inherit;
+  font-size: 0.82rem;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid var(--c-border);
+}
+
+.chip {
+  background: var(--c-bg);
+  color: var(--c-text);
+}
+
+.chipOn {
+  background: var(--c-green);
+  color: #fff;
+  border-color: var(--c-green);
+  font-weight: 700;
+}
+
+.meta {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--c-textdim);
+}
+
+.reset {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 700;
+  color: var(--c-gold);
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+@media (max-width: 560px) {
+  .chip,
+  .chipOn {
+    font-size: 0.78rem;
+    padding: 6px 10px;
+  }
+}

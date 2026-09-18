@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { MIN_PASSWORD_LENGTH } from "./password";
+import { PORTFOLIO_TYPE_IDS } from "@/lib/portfolio-types";
 
 export const registerSchema = z.object({
   email: z.string().trim().email("Adresse email invalide"),
@@ -29,10 +30,17 @@ export const updateProfileSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     email: z.string().trim().email("Adresse email invalide").optional(),
+    preferredPortfolioType: z.enum(PORTFOLIO_TYPE_IDS).nullable().optional(),
   })
-  .refine((value) => value.name !== undefined || value.email !== undefined, {
-    message: "Aucun champ à mettre à jour",
-  });
+  .refine(
+    (value) =>
+      value.name !== undefined ||
+      value.email !== undefined ||
+      value.preferredPortfolioType !== undefined,
+    {
+      message: "Aucun champ à mettre à jour",
+    }
+  );
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).optional(),

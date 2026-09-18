@@ -12,6 +12,7 @@ import {
 } from "@/lib/auth/email";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
+import { parsePortfolioType } from "@/lib/portfolio-types";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,15 @@ export async function GET() {
   try {
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { id: true, email: true, name: true, emailVerified: true, passwordHash: true, role: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        emailVerified: true,
+        passwordHash: true,
+        role: true,
+        preferredPortfolioType: true,
+      },
     });
     if (!dbUser) return apiError("Compte introuvable", 404);
 
@@ -34,6 +43,7 @@ export async function GET() {
         emailVerified: Boolean(dbUser.emailVerified),
         hasPassword: Boolean(dbUser.passwordHash),
         isAdmin: isAdminRoleOrEmail({ role: dbUser.role, email: dbUser.email }),
+        preferredPortfolioType: parsePortfolioType(dbUser.preferredPortfolioType),
       },
       { headers: privateCacheHeaders() }
     );
@@ -75,8 +85,11 @@ export async function PATCH(request: NextRequest) {
         ...(emailChanged && nextEmail
           ? { email: nextEmail, emailVerified: null }
           : {}),
+        ...(parsed.data.preferredPortfolioType !== undefined
+          ? { preferredPortfolioType: parsed.data.preferredPortfolioType }
+          : {}),
       },
-      select: { id: true, email: true, name: true, emailVerified: true },
+      select: { id: true, email: true, name: true, emailVerified: true, preferredPortfolioType: true },
     });
 
     let mailError: string | undefined;
@@ -99,6 +112,7 @@ export async function PATCH(request: NextRequest) {
       email: updated.email,
       name: updated.name,
       emailVerified: Boolean(updated.emailVerified),
+      preferredPortfolioType: parsePortfolioType(updated.preferredPortfolioType),
       ...(mailError ? { mailError } : {}),
       ...(devVerifyUrl ? { devVerifyUrl } : {}),
     });
