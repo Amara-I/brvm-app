@@ -44,9 +44,9 @@ import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction"
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
 import EducationTermLink from "@/components/education/EducationTermLink";
+import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
 import {
   OVERVIEW_KEY_TERM_SLUGS,
-  educationSlugForAnalysisLabel,
   educationSlugForRiskPillar,
 } from "@/lib/education/analysis-terms";
 import styles from "./CompanySheet.module.css";
@@ -136,12 +136,6 @@ function websiteLabel(raw: string | null | undefined): string {
   } catch {
     return s.replace(/^https?:\/\//i, "").replace(/\/$/, "");
   }
-}
-
-function LinkedAnalysisLabel({ text }: { text: string }) {
-  const slug = educationSlugForAnalysisLabel(text);
-  if (!slug) return <>{text}</>;
-  return <EducationTermLink slug={slug}>{text}</EducationTermLink>;
 }
 
 export default function CompanySheetClient({

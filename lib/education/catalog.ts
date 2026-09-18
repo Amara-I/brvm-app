@@ -284,11 +284,12 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "title": "Cours",
     "level": "debutant",
     "themeSlug": "marche",
-    "definition": "Prix auquel un titre s’échange à un instant ou à une séance donnée.",
+    "definition": "Prix auquel un titre s’échange à un instant ou à une séance donnée. Le « cours actuel » affiché sur OuestBourse est la dernière clôture canonique (souvent BRVM officiel).",
     "example": "Sur /marche et chaque fiche société, le cours affiché est le dernier cours canonique (souvent BRVM officiel après ingestion).",
     "synonyms": [
       "Prix",
-      "Cotations"
+      "Cotations",
+      "Cours actuel"
     ],
     "resourceUrl": "https://www.brvm.org/fr/cours",
     "tip": "Un cours affiché n’est pas nécessairement le prix auquel un ordre sera exécuté.",
@@ -319,7 +320,8 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "example": "Le score de risque OuestBourse utilise la volatilité historique des clôtures quand la série est assez dense.",
     "synonyms": [
       "Variabilité",
-      "Fluctuation"
+      "Fluctuation",
+      "Volatilité historique"
     ],
     "resourceUrl": "https://www.amf-umoa.org",
     "tip": "Volatilité élevée signifie incertitude plus grande, pas automatiquement rendement supérieur.",
@@ -390,12 +392,13 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "title": "Risque",
     "level": "debutant",
     "themeSlug": "risques",
-    "definition": "Possibilité qu’un résultat réel diffère du résultat attendu, y compris une perte.",
+    "definition": "Possibilité qu’un résultat réel diffère du résultat attendu, y compris une perte. Sur /marche, « Risque (volatilité) » classe le titre (Faible / Moyen / Élevé) d’après la volatilité historique des clôtures — distinct du score « Gestion du risque ».",
     "example": "Le détenteur d’une action BRVM supporte le risque de baisse du cours, de liquidité et de crédit de l’émetteur.",
     "synonyms": [
       "Incertitude",
       "Exposition",
-      "Risque d'investissement"
+      "Risque d'investissement",
+      "Risque (volatilité)"
     ],
     "resourceUrl": "https://www.amf-umoa.org",
     "tip": "Un rendement potentiel doit toujours être lu avec les risques associés. Sur OuestBourse, le panneau « Gestion du risque » de la fiche titre détaille score, piliers et mesures (volatilité, VaR, drawdown).",
@@ -532,7 +535,9 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "example": "Colonne rendement du screener et métrique clé du score fondamental (plafonnée pour éviter les extrêmes).",
     "synonyms": [
       "Dividend yield",
-      "Taux de distribution au prix"
+      "Taux de distribution au prix",
+      "Rendement div.",
+      "Rend. div."
     ],
     "resourceUrl": "https://www.brvm.org",
     "tip": "Un rendement élevé peut refléter une baisse du cours ou un dividende non récurrent.",
@@ -654,7 +659,8 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "example": "Affichée en Mds FCFA sur les fiches ; 0 en base = N/D à l'écran (jamais inventé).",
     "synonyms": [
       "Market cap",
-      "Valeur de marché"
+      "Valeur de marché",
+      "Cap. boursière"
     ],
     "resourceUrl": "https://www.brvm.org/fr/entreprises-cotees",
     "tip": "Elle évolue avec le cours et ne mesure pas directement la valeur intrinsèque.",
@@ -922,7 +928,10 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     "definition": "Trois sous-scores 0–100 : court terme (performance récente + indicateurs techniques), moyen terme (ex. perf. 5 ans), long terme (ex. perf. 10 ans ou span disponible).",
     "example": "Sur la fiche société, la sidebar Signal détaille Court / Moyen / Long à côté des scores technique et fondamental.",
     "synonyms": [
-      "Multi-horizons"
+      "Multi-horizons",
+      "Perf. 5 ans",
+      "Perf. 10 ans",
+      "Horizons C/M/L"
     ],
     "resourceUrl": null,
     "tip": "Un bon score long terme n'efface pas un risque de liquidité court terme sur la BRVM.",

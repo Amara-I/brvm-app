@@ -391,6 +391,7 @@
   color: var(--c-textdim);
   margin-bottom: 0.15rem;
   overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .detailValue {

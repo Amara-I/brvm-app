@@ -1,17 +1,18 @@
 .wrap {
   position: relative;
-  display: inline;
+  display: inline-block;
   min-width: 0;
   max-width: 100%;
+  vertical-align: baseline;
 }
 
 .link {
   color: inherit;
   text-decoration: underline;
   text-decoration-style: dotted;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-  text-decoration-color: color-mix(in srgb, var(--c-green) 55%, var(--c-border));
+  text-decoration-thickness: from-font;
+  text-underline-offset: 0.18em;
+  text-decoration-color: color-mix(in srgb, var(--c-green) 70%, var(--c-textdim));
   overflow-wrap: anywhere;
   cursor: help;
 }
