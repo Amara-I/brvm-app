@@ -34,6 +34,12 @@ export interface HistoryBackfillFlags {
   eventsNews: boolean;
   /** Documents BRVM via catalogue OuestBourse (si clé configurée). */
   documents: boolean;
+  /**
+   * Enchaîner un refresh documents/résultats borné après le cron quotidien
+   * (REST OuestBourse, pas de scrape). Défaut true — désactiver si le cron
+   * 300 s est saturé : `INGESTION_DOCUMENTS_ON_CRON=false`.
+   */
+  documentsOnDailyCron: boolean;
   /** Enchaîner un backfill borné après le cron d'ingestion quotidien (défaut false). */
   onDailyCron: boolean;
 }
@@ -78,6 +84,7 @@ export function getHistoryBackfillFlags(): HistoryBackfillFlags {
     sheets: envFlag("INGESTION_ENABLE_SIKA_SHEETS", true),
     eventsNews: envFlag("INGESTION_ENABLE_SIKA_EVENTS", true),
     documents: envFlag("INGESTION_ENABLE_OB_DOCUMENTS", true),
+    documentsOnDailyCron: envFlag("INGESTION_DOCUMENTS_ON_CRON", true),
     // Désactivé par défaut : le cron Hobby (300 s) est déjà saturé par
     // BRVM + Sika A–Z + Richbourse. Activer uniquement si on accepte un
     // rattrapage incrémental (reprise ticker par ticker).

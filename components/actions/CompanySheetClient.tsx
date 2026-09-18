@@ -49,6 +49,11 @@ import {
   educationSlugForAnalysisLabel,
   educationSlugForRiskPillar,
 } from "@/lib/education/analysis-terms";
+import {
+  COMPANY_SHEET_TABS,
+  normalizeSheetTab,
+  type CompanySheetTabKey,
+} from "@/lib/ui/company-sheet-tabs";
 import styles from "./CompanySheet.module.css";
 
 const DATA_SOURCE_LABELS: Record<string, string> = {
@@ -59,30 +64,9 @@ const DATA_SOURCE_LABELS: Record<string, string> = {
   MANUEL: "Saisie manuelle",
 };
 
-type TabKey =
-  | "overview"
-  | "charts"
-  | "projection"
-  | "comparison"
-  | "financials"
-  | "interims"
-  | "dividends"
-  | "societe"
-  | "actualites"
-  | "documents";
+type TabKey = CompanySheetTabKey;
 
-const TABS: Array<{ key: TabKey; label: string }> = [
-  { key: "overview", label: "Vue d'ensemble" },
-  { key: "charts", label: "Graphes" },
-  { key: "projection", label: "🔮 Projection future" },
-  { key: "comparison", label: "⚖️ Comparaison" },
-  { key: "financials", label: "Données financières" },
-  { key: "interims", label: "Interims" },
-  { key: "dividends", label: "Dividendes" },
-  { key: "societe", label: "Société" },
-  { key: "actualites", label: "Actualités" },
-  { key: "documents", label: "Documents" },
-];
+const TABS = COMPANY_SHEET_TABS;
 
 const RANGES: Array<{ key: ChartRange; label: string }> = [
   { key: "1M", label: "1M" },
@@ -160,7 +144,6 @@ export default function CompanySheetClient({
     metrics,
     health,
     performance,
-    keyRows,
     sessionDate,
     dayChangePercent,
     dayChangeAbs,
@@ -168,20 +151,32 @@ export default function CompanySheetClient({
     description,
     listedSince,
     profileMeta,
-    documents,
+    documents: initialDocuments,
     events,
     news,
     dividendSchedule,
-    incomeStatement,
+    incomeStatement: initialIncomeStatement,
+    keyRows: initialKeyRows,
   } = payload;
-  const [tab, setTab] = usePersistedState<TabKey>(`ouestbourse:sheet:${company.ticker}:tab`, "overview");
+  const [tab, setTab] = usePersistedState<string>(`ouestbourse:sheet:${company.ticker}:tab`, "overview");
+  const resolvedTab = normalizeSheetTab(tab);
 
   useEffect(() => {
-    if (initialTab) setTab(initialTab);
+    if (tab !== resolvedTab) setTab(resolvedTab);
+  }, [tab, resolvedTab, setTab]);
+
+  useEffect(() => {
+    if (initialTab) setTab(normalizeSheetTab(initialTab));
   }, [initialTab, setTab]);
   const [range, setRange] = usePersistedState<ChartRange>(`ouestbourse:sheet:${company.ticker}:range`, "1A");
   const [series, setSeries] = useState<ChartClosePoint[]>(payload.series);
   const [denseLoading, setDenseLoading] = useState(false);
+  const [documents, setDocuments] = useState(initialDocuments);
+  const [incomeStatement, setIncomeStatement] = useState(initialIncomeStatement);
+  const [keyRows, setKeyRows] = useState(initialKeyRows);
+  const [docsRefreshing, setDocsRefreshing] = useState(false);
+  const [docsRefreshNote, setDocsRefreshNote] = useState<string | null>(null);
+  const [docFilter, setDocFilter] = useState<"all" | "results">("all");
 
   // Densifie via l'API charts (cache `chart_series` / repli live) selon la fenêtre,
   // pas MAX systématique au premier paint.
@@ -293,6 +288,54 @@ export default function CompanySheetClient({
 
   const paidYears = dividendChart.length;
   const lastDiv = dividendChart[dividendChart.length - 1];
+  const visibleDocuments = useMemo(
+    () => (docFilter === "results" ? documents.filter((d) => d.kind === "results") : documents),
+    [documents, docFilter]
+  );
+  const resultsDocCount = useMemo(
+    () => documents.filter((d) => d.kind === "results").length,
+    [documents]
+  );
+
+  async function refreshDocuments() {
+    if (docsRefreshing) return;
+    setDocsRefreshing(true);
+    setDocsRefreshNote(null);
+    try {
+      const res = await fetch(`/api/companies/${encodeURIComponent(company.ticker)}/refresh-documents`, {
+        method: "POST",
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (!res.ok || !json.ok) {
+        setDocsRefreshNote(json.error ?? "Échec de l'actualisation (N/D).");
+        return;
+      }
+      if (Array.isArray(json.data?.documents)) setDocuments(json.data.documents);
+      if (Array.isArray(json.data?.incomeStatement)) setIncomeStatement(json.data.incomeStatement);
+      if (Array.isArray(json.data?.keyRows)) setKeyRows(json.data.keyRows);
+      const ing = json.data?.ingestion;
+      if (ing?.skipped) {
+        setDocsRefreshNote(ing.skipReason ?? "Actualisation récente — données rechargées depuis la base.");
+      } else {
+        const src = ing?.source === "OUESTBOURSE" ? "OuestBourse (PDF BRVM.org)" : "source N/D";
+        setDocsRefreshNote(
+          `Catalogue actualisé via ${src}` +
+            (typeof ing?.documentsUpserted === "number" ? ` · ${ing.documentsUpserted} document(s)` : "") +
+            (typeof ing?.resultsDocuments === "number" ? ` · ${ing.resultsDocuments} résultat(s)` : "") +
+            (typeof ing?.fundamentalsUpserted === "number" && ing.fundamentalsUpserted > 0
+              ? ` · ${ing.fundamentalsUpserted} compte(s)`
+              : "") +
+            "."
+        );
+      }
+      trackFeature("company_sheet", "refresh-documents");
+    } catch {
+      setDocsRefreshNote("Échec de l'actualisation (N/D).");
+    } finally {
+      setDocsRefreshing(false);
+    }
+  }
 
   const sessionLabel = sessionDate
     ? new Date(`${sessionDate}T12:00:00Z`).toLocaleDateString("fr-FR", {
@@ -380,8 +423,8 @@ export default function CompanySheetClient({
             key={t.key}
             type="button"
             role="tab"
-            aria-selected={tab === t.key}
-            className={tab === t.key ? styles.tabActive : styles.tab}
+            aria-selected={resolvedTab === t.key}
+            className={resolvedTab === t.key ? styles.tabActive : styles.tab}
             onClick={() => {
               setTab(t.key);
               trackFeature("company_sheet", `tab:${t.key}`);
@@ -392,7 +435,7 @@ export default function CompanySheetClient({
         ))}
       </div>
 
-      {tab === "charts" && (
+      {resolvedTab === "charts" && (
         <div className={styles.chartWorkbenchWrap}>
           <LazyChartWorkbench
             universe={chartUniverse}
@@ -403,7 +446,7 @@ export default function CompanySheetClient({
         </div>
       )}
 
-      {tab === "overview" && (
+      {resolvedTab === "overview" && (
         <div className={styles.layout}>
           <div className={styles.mainCol}>
             {/* Cours + aperçu (vue d'ensemble) — graphes détaillés = onglet Graphes */}
@@ -681,147 +724,136 @@ export default function CompanySheetClient({
                   />
                 </section>
 
-                <section className={styles.card}>
-                  <div className={styles.cardHead}>
-                    <h2 className={styles.cardTitle}>Interims</h2>
-                    <span className={styles.cardMeta}>cumuls depuis janvier · même période un an plus tôt</span>
-                  </div>
-                  <p className={styles.empty}>
-                    Interims détaillés (PNB, résultat net trimestriel) non encore collectés pour cette valeur — N/D.
-                  </p>
-                </section>
-
-                <section className={styles.card}>
-                  <div className={styles.cardHead}>
-                    <h2 className={styles.cardTitle}>Historique des dividendes</h2>
-                    <span className={styles.cardMeta}>FCFA net / action · rendement %</span>
-                  </div>
-                  {dividendChart.length > 0 ? (
-                    <>
-                      <p className={styles.divSummary}>
-                        {paidYears} exercice{paidYears > 1 ? "s" : ""} payé{paidYears > 1 ? "s" : ""}
-                        {lastDiv
-                          ? ` · dernier ${lastDiv.amount.toLocaleString("fr-FR")} FCFA — exercice ${lastDiv.year}${
-                              lastDiv.yieldPct != null
-                                ? ` · rendement ${String(lastDiv.yieldPct).replace(".", ",")} %`
-                                : ""
-                            }`
-                          : ""}
-                      </p>
-                      <div className={styles.chartBox}>
-                        <ResponsiveContainer width="100%" height={220}>
-                          <ComposedChart data={dividendChart} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                            <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
-                            <XAxis dataKey="year" stroke={C.textDim} fontSize={11} />
-                            <YAxis
-                              yAxisId="div"
-                              stroke={C.textDim}
-                              fontSize={11}
-                              width={48}
-                              tickFormatter={(v) => Math.round(Number(v)).toLocaleString("fr-FR")}
-                            />
-                            <YAxis
-                              yAxisId="yield"
-                              orientation="right"
-                              stroke={C.textDim}
-                              fontSize={11}
-                              width={40}
-                              tickFormatter={(v) => `${String(v).replace(".", ",")}%`}
-                            />
-                            <Tooltip
-                              contentStyle={{
-                                background: C.panel,
-                                border: `1px solid ${C.border}`,
-                                borderRadius: 8,
-                                fontSize: "0.72rem",
-                              }}
-                              formatter={(value, name) => {
-                                if (name === "yieldPct" || name === "Rendement") {
-                                  if (value == null || !Number.isFinite(Number(value))) {
-                                    return ["N/D", "Rendement"];
+                <div className={styles.financeSplit}>
+                  <section className={styles.card}>
+                    <div className={styles.cardHead}>
+                      <h2 className={styles.cardTitle}>Dividendes</h2>
+                      <span className={styles.cardMeta}>FCFA net / action</span>
+                    </div>
+                    {dividendChart.length > 0 ? (
+                      <>
+                        <p className={styles.divSummary}>
+                          {paidYears} exercice{paidYears > 1 ? "s" : ""} payé{paidYears > 1 ? "s" : ""}
+                          {lastDiv
+                            ? ` · dernier ${lastDiv.amount.toLocaleString("fr-FR")} FCFA (${lastDiv.year})${
+                                lastDiv.yieldPct != null
+                                  ? ` · ${String(lastDiv.yieldPct).replace(".", ",")} %`
+                                  : ""
+                              }`
+                            : ""}
+                        </p>
+                        <div className={styles.chartBox}>
+                          <ResponsiveContainer width="100%" height={168}>
+                            <ComposedChart data={dividendChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                              <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
+                              <XAxis dataKey="year" stroke={C.textDim} fontSize={11} />
+                              <YAxis
+                                yAxisId="div"
+                                stroke={C.textDim}
+                                fontSize={11}
+                                width={44}
+                                tickFormatter={(v) => Math.round(Number(v)).toLocaleString("fr-FR")}
+                              />
+                              <YAxis
+                                yAxisId="yield"
+                                orientation="right"
+                                stroke={C.textDim}
+                                fontSize={11}
+                                width={36}
+                                tickFormatter={(v) => `${String(v).replace(".", ",")}%`}
+                              />
+                              <Tooltip
+                                contentStyle={{
+                                  background: C.panel,
+                                  border: `1px solid ${C.border}`,
+                                  borderRadius: 8,
+                                  fontSize: "0.72rem",
+                                }}
+                                formatter={(value, name) => {
+                                  if (name === "yieldPct" || name === "Rendement") {
+                                    if (value == null || !Number.isFinite(Number(value))) {
+                                      return ["N/D", "Rendement"];
+                                    }
+                                    return [
+                                      `${Number(value).toLocaleString("fr-FR", {
+                                        maximumFractionDigits: 2,
+                                      })} %`,
+                                      "Rendement",
+                                    ];
                                   }
-                                  return [
-                                    `${Number(value).toLocaleString("fr-FR", {
-                                      maximumFractionDigits: 2,
-                                    })} %`,
-                                    "Rendement",
-                                  ];
+                                  return [`${Number(value).toLocaleString("fr-FR")} FCFA`, "Dividende"];
+                                }}
+                                labelFormatter={(y) => `Exercice ${y}`}
+                              />
+                              <Legend
+                                wrapperStyle={{ fontSize: "0.65rem", paddingTop: 2 }}
+                                iconSize={8}
+                                formatter={(value) =>
+                                  value === "amount" || value === "Dividende" ? "Dividende" : "Rendement"
                                 }
-                                return [
-                                  `${Number(value).toLocaleString("fr-FR")} FCFA`,
-                                  "Dividende",
-                                ];
-                              }}
-                              labelFormatter={(y) => `Exercice ${y}`}
-                            />
-                            <Legend
-                              wrapperStyle={{ fontSize: "0.65rem", paddingTop: 4 }}
-                              iconSize={8}
-                              formatter={(value) =>
-                                value === "amount" || value === "Dividende"
-                                  ? "Dividende"
-                                  : "Rendement"
-                              }
-                            />
-                            <Bar
-                              yAxisId="div"
-                              dataKey="amount"
-                              name="Dividende"
-                              fill={C.gold}
-                              radius={[4, 4, 0, 0]}
-                            />
-                            <Line
-                              yAxisId="yield"
-                              type="monotone"
-                              dataKey="yieldPct"
-                              name="Rendement"
-                              stroke={C.blue}
-                              strokeWidth={2}
-                              dot={{ r: 3 }}
-                              connectNulls
-                            />
-                          </ComposedChart>
-                        </ResponsiveContainer>
+                              />
+                              <Bar
+                                yAxisId="div"
+                                dataKey="amount"
+                                name="Dividende"
+                                fill={C.gold}
+                                radius={[4, 4, 0, 0]}
+                              />
+                              <Line
+                                yAxisId="yield"
+                                type="monotone"
+                                dataKey="yieldPct"
+                                name="Rendement"
+                                stroke={C.blue}
+                                strokeWidth={2}
+                                dot={{ r: 2 }}
+                                connectNulls
+                              />
+                            </ComposedChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </>
+                    ) : (
+                      <p className={styles.empty}>Aucun dividende renseigné (N/D).</p>
+                    )}
+                    {dividendSchedule.length > 0 ? (
+                      <div className={styles.tableWrap}>
+                        <FilterableSheetTable
+                          columns={[
+                            { key: "year", label: "Exercice", getValue: (r) => r.year },
+                            { key: "amount", label: "Montant", getValue: (r) => r.amount },
+                            { key: "exDate", label: "Détachement", getValue: (r) => r.exDate ?? "" },
+                            { key: "paymentDate", label: "Paiement", getValue: (r) => r.paymentDate ?? "" },
+                          ]}
+                          rows={dividendSchedule.map((d) => ({
+                            year: String(d.year),
+                            amount: `${d.amount.toLocaleString("fr-FR")} FCFA`,
+                            exDate: fmtDivDate(d.exDate),
+                            paymentDate: fmtDivDate(d.paymentDate),
+                          }))}
+                        />
                       </div>
-                      <div className={styles.chartLegendBox}>
-                        <h3 className={styles.chartLegendTitle}>Légende des courbes</h3>
-                        <p className={styles.chartLegendLine}>
-                          <span className={styles.legendSwatch} style={{ background: C.gold }} aria-hidden />
-                          <span>
-                            <strong>Dividende :</strong> montant net versé par action au titre de
-                            l&apos;exercice (FCFA).
-                          </span>
-                        </p>
-                        <p className={styles.chartLegendLine}>
-                          <span className={styles.legendSwatch} style={{ background: C.blue }} aria-hidden />
-                          <span>
-                            <strong>Rendement :</strong> dividende ÷ cours de clôture de l&apos;année
-                            (en %). Affiche N/D si le cours de l&apos;exercice est indisponible.
-                          </span>
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <p className={styles.empty}>Aucun dividende renseigné (N/D).</p>
-                  )}
-                </section>
+                    ) : null}
+                    <Link href="/calendrier-dividendes" className={styles.inlineLink}>
+                      Calendrier des dividendes →
+                    </Link>
+                  </section>
 
-                <section className={styles.card}>
-                  <div className={styles.cardHead}>
-                    <h2 className={styles.cardTitle}>Chiffre d&apos;affaires et résultats</h2>
-                    <span className={styles.cardMeta}>Md FCFA · CA ou PNB · comptes annuels</span>
-                  </div>
-                  {incomeChart.length > 0 ? (
-                    <>
+                  <section className={styles.card}>
+                    <div className={styles.cardHead}>
+                      <h2 className={styles.cardTitle}>Chiffre d&apos;affaires et résultats</h2>
+                      <span className={styles.cardMeta}>Md FCFA · CA ou PNB · annuel</span>
+                    </div>
+                    {incomeChart.length > 0 ? (
                       <div className={styles.chartBox}>
-                        <ResponsiveContainer width="100%" height={240}>
-                          <LineChart data={incomeChart} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart data={incomeChart} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                             <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
                             <XAxis dataKey="year" stroke={C.textDim} fontSize={11} />
                             <YAxis
                               stroke={C.textDim}
                               fontSize={11}
-                              width={48}
+                              width={44}
                               tickFormatter={(v) =>
                                 Math.abs(Number(v)) >= 100
                                   ? `${Math.round(Number(v))}`
@@ -833,7 +865,7 @@ export default function CompanySheetClient({
                                 background: C.panel,
                                 border: `1px solid ${C.border}`,
                                 borderRadius: 8,
-                                fontSize: "0.78rem",
+                                fontSize: "0.72rem",
                               }}
                               formatter={(value, name) => {
                                 const label =
@@ -857,11 +889,11 @@ export default function CompanySheetClient({
                               labelFormatter={(y) => `Exercice ${y}`}
                             />
                             <Legend
-                              wrapperStyle={{ fontSize: "0.65rem", paddingTop: 4 }}
+                              wrapperStyle={{ fontSize: "0.65rem", paddingTop: 2 }}
                               iconSize={8}
                               formatter={(value) =>
                                 value === "ca"
-                                  ? "Chiffre d'affaires"
+                                  ? "CA / PNB"
                                   : value === "resultatNet"
                                     ? "Résultat net"
                                     : value === "resultatExploitation"
@@ -875,7 +907,7 @@ export default function CompanySheetClient({
                               name="ca"
                               stroke={C.gold}
                               strokeWidth={2}
-                              dot={{ r: 3 }}
+                              dot={{ r: 2 }}
                               connectNulls
                             />
                             <Line
@@ -884,7 +916,7 @@ export default function CompanySheetClient({
                               name="resultatExploitation"
                               stroke={C.blue}
                               strokeWidth={2}
-                              dot={{ r: 3 }}
+                              dot={{ r: 2 }}
                               connectNulls
                             />
                             <Line
@@ -893,43 +925,34 @@ export default function CompanySheetClient({
                               name="resultatNet"
                               stroke={C.green}
                               strokeWidth={2}
-                              dot={{ r: 3 }}
+                              dot={{ r: 2 }}
                               connectNulls
                             />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
-                      <div className={styles.chartLegendBox}>
-                        <h3 className={styles.chartLegendTitle}>Légende des courbes</h3>
-                        <p className={styles.chartLegendLine}>
-                          <span className={styles.legendSwatch} style={{ background: C.gold }} aria-hidden />
-                          <span>
-                            <strong>Chiffre d&apos;affaires :</strong> montant total des ventes / prestations
-                            sur l&apos;exercice, ou Produit Net Bancaire (PNB) pour les banques (en milliards de FCFA).
-                          </span>
-                        </p>
-                        <p className={styles.chartLegendLine}>
-                          <span className={styles.legendSwatch} style={{ background: C.blue }} aria-hidden />
-                          <span>
-                            <strong>Résultat d&apos;exploitation :</strong> profit (ou perte) lié à l&apos;activité
-                            courante, avant intérêts et impôts.
-                          </span>
-                        </p>
-                        <p className={styles.chartLegendLine}>
-                          <span className={styles.legendSwatch} style={{ background: C.green }} aria-hidden />
-                          <span>
-                            <strong>Résultat net :</strong> bénéfice (ou perte) final de l&apos;exercice, après
-                            toutes charges, intérêts et impôts.
-                          </span>
-                        </p>
-                      </div>
-                    </>
-                  ) : (
-                    <p className={styles.empty}>
-                      Comptes annuels (CA, résultat net, résultat d&apos;exploitation) non encore disponibles pour
-                      cette valeur — N/D.
-                    </p>
-                  )}
+                    ) : (
+                      <p className={styles.empty}>
+                        Comptes annuels (CA, résultat net, résultat d&apos;exploitation) non encore disponibles —
+                        N/D.
+                      </p>
+                    )}
+                    <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("documents")}>
+                      Publications de résultats →
+                    </button>
+                  </section>
+                </div>
+
+                <section className={styles.card}>
+                  <div className={styles.cardHead}>
+                    <h2 className={styles.cardTitle}>Interims</h2>
+                    <span className={styles.cardMeta}>trimestriel / semestriel · PNB, résultat net</span>
+                  </div>
+                  <p className={styles.empty}>
+                    Aucun interim structuré en base pour {company.ticker} (N/D). Les publications
+                    intermédiaires ne sont pas encore collectées de façon homogène — les rapports officiels
+                    restent dans l&apos;onglet Documents (filtre Résultats).
+                  </p>
                 </section>
           </div>
 
@@ -1209,85 +1232,15 @@ export default function CompanySheetClient({
         </div>
       )}
 
-      {tab === "projection" && (
+      {resolvedTab === "projection" && (
         <CompanyProjectionPanel company={company} years={payload.years} metrics={metrics} />
       )}
 
-      {tab === "comparison" && (
+      {resolvedTab === "comparison" && (
         <CompanyComparisonPanel company={company} companies={peers} years={payload.years} />
       )}
 
-      {tab === "financials" && (
-        <section className={styles.card}>
-          <h2 className={styles.cardTitle}>Données financières</h2>
-          <FilterableSheetTable
-            columns={[
-              {
-                key: "label",
-                label: "Indicateur",
-                getValue: (r) => r.label,
-                render: (r) => <LinkedAnalysisLabel text={r.label} />,
-              },
-              { key: "current", label: "Récent", getValue: (r) => r.current },
-              { key: "previous", label: "Précédent", getValue: (r) => r.previous },
-              { key: "variation", label: "Variation", getValue: (r) => r.variation },
-            ]}
-            rows={[
-              ...keyRows.map((r) => ({
-                label: r.label,
-                current: r.current,
-                previous: r.previous,
-                variation: r.variation,
-              })),
-              {
-                label: "Produit net / résultat net / bilan",
-                current: "N/D — comptes détaillés non encore ingérés",
-                previous: "N/D",
-                variation: "N/D",
-              },
-            ]}
-          />
-        </section>
-      )}
-
-      {tab === "interims" && (
-        <section className={styles.card}>
-          <h2 className={styles.cardTitle}>Interims</h2>
-          <p className={styles.empty}>
-            Aucun interim structuré en base pour {company.ticker} (N/D). Les publications BRVM seront branchées
-            ultérieurement.
-          </p>
-        </section>
-      )}
-
-      {tab === "dividends" && (
-        <section className={styles.card}>
-          <div className={styles.cardHead}>
-            <h2 className={styles.cardTitle}>Dividendes</h2>
-            <span className={styles.cardMeta}>FCFA net par action</span>
-          </div>
-          {dividendSchedule.length > 0 ? (
-            <FilterableSheetTable
-              columns={[
-                { key: "year", label: "Exercice", getValue: (r) => r.year },
-                { key: "amount", label: "Montant", getValue: (r) => r.amount },
-                { key: "exDate", label: "Détachement", getValue: (r) => r.exDate ?? "" },
-                { key: "paymentDate", label: "Paiement", getValue: (r) => r.paymentDate ?? "" },
-              ]}
-              rows={dividendSchedule.map((d) => ({
-                year: String(d.year),
-                amount: `${d.amount.toLocaleString("fr-FR")} FCFA`,
-                exDate: fmtDivDate(d.exDate),
-                paymentDate: fmtDivDate(d.paymentDate),
-              }))}
-            />
-          ) : (
-            <p className={styles.empty}>Aucun dividende (N/D).</p>
-          )}
-        </section>
-      )}
-
-      {tab === "societe" && (
+      {resolvedTab === "societe" && (
         <>
           <section className={styles.card}>
             <h2 className={styles.cardTitle}>Société</h2>
@@ -1434,7 +1387,7 @@ export default function CompanySheetClient({
         </>
       )}
 
-      {tab === "actualites" && (
+      {resolvedTab === "actualites" && (
         <section className={styles.card}>
           <h2 className={styles.cardTitle}>Actualités</h2>
           {news.length === 0 ? (
@@ -1475,13 +1428,47 @@ export default function CompanySheetClient({
         </section>
       )}
 
-      {tab === "documents" && (
+      {resolvedTab === "documents" && (
         <section className={styles.card}>
-          <h2 className={styles.cardTitle}>Documents déposés</h2>
-          {documents.length === 0 ? (
-            <p className={styles.empty}>Aucun document pour l&apos;instant (N/D).</p>
+          <div className={styles.cardHead}>
+            <h2 className={styles.cardTitle}>Documents déposés</h2>
+            <span className={styles.cardMeta}>PDF BRVM.org · catalogue OuestBourse</span>
+          </div>
+          <div className={styles.docToolbar}>
+            <div className={styles.docFilters} role="group" aria-label="Filtrer les documents">
+              <button
+                type="button"
+                className={docFilter === "all" ? styles.docChipActive : styles.docChip}
+                onClick={() => setDocFilter("all")}
+              >
+                Tous ({documents.length})
+              </button>
+              <button
+                type="button"
+                className={docFilter === "results" ? styles.docChipActive : styles.docChip}
+                onClick={() => setDocFilter("results")}
+              >
+                Résultats ({resultsDocCount})
+              </button>
+            </div>
+            <button
+              type="button"
+              className={styles.btnOutline}
+              onClick={() => void refreshDocuments()}
+              disabled={docsRefreshing}
+            >
+              {docsRefreshing ? "Actualisation…" : "Actualiser les documents"}
+            </button>
+          </div>
+          {docsRefreshNote ? <p className={styles.docNote}>{docsRefreshNote}</p> : null}
+          {visibleDocuments.length === 0 ? (
+            <p className={styles.empty}>
+              {documents.length === 0
+                ? "Aucun document pour l'instant (N/D). Actualisez pour tirer le catalogue BRVM via OuestBourse — aucun PDF n'est inventé."
+                : "Aucune publication de résultats dans le catalogue actuel (N/D)."}
+            </p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div className={styles.tableWrap}>
               <table className={styles.docsTable}>
                 <thead>
                   <tr>
@@ -1492,10 +1479,10 @@ export default function CompanySheetClient({
                   </tr>
                 </thead>
                 <tbody>
-                  {documents.map((d) => {
+                  {visibleDocuments.map((d) => {
                     const label = d.filename || d.title || d.url;
                     return (
-                      <tr key={d.id}>
+                      <tr key={d.id} className={d.kind === "results" ? styles.docResultRow : undefined}>
                         <td>{d.publishedAt ?? "N/D"}</td>
                         <td>{d.docType ?? "N/D"}</td>
                         <td>{d.periodLabel ?? "N/D"}</td>
@@ -1503,6 +1490,9 @@ export default function CompanySheetClient({
                           <a href={d.url} target="_blank" rel="noopener noreferrer">
                             {label}
                           </a>
+                          {d.kind === "results" ? (
+                            <span className={styles.docBadge}>Résultats</span>
+                          ) : null}
                         </td>
                       </tr>
                     );

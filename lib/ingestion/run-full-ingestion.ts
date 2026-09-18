@@ -41,6 +41,7 @@ import { persistDiscrepancies, persistIndexQuotes, persistPriceQuotes } from "./
 import { toPrismaDataSource } from "./prisma-mappers";
 import { sendIngestionAlert } from "./alerts";
 import { runHistoryBackfill, type HistoryBackfillSummary } from "./run-history-backfill";
+import { runDocumentRefresh, type DocumentRefreshSummary } from "./run-document-refresh";
 import { refreshChartSeries, type RefreshChartSeriesSummary } from "../charts/refresh-chart-series";
 import type { ConnectorResult, DataSourceCode, MarketDataConnector, RawIndexQuote, RawPriceQuote } from "./types";
 
@@ -64,6 +65,7 @@ export interface FullIngestionSummary {
   unknownTickers: string[];
   historyBackfill?: HistoryBackfillSummary | null;
   indexEnrichment?: IndexEnrichmentSummary | null;
+  documentRefresh?: DocumentRefreshSummary | null;
   chartSeries?: RefreshChartSeriesSummary | null;
 }
 
@@ -254,6 +256,27 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
     }
   }
 
+  let documentRefresh: DocumentRefreshSummary | null = null;
+  const historyFlags = getHistoryBackfillFlags();
+  if (historyFlags.documentsOnDailyCron) {
+    const elapsed = Date.now() - startedAt.getTime();
+    const remaining = Math.min(50_000, Math.max(0, 270_000 - elapsed - 40_000));
+    if (remaining >= 12_000) {
+      try {
+        documentRefresh = await runDocumentRefresh({
+          timeBudgetMs: remaining,
+          resume: true,
+          maxTickers: 8,
+          logger: (msg) => console.log(`[ingest→docs] ${msg}`),
+        });
+      } catch (err) {
+        console.warn(
+          `[ingest→docs] actualisation ignorée : ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+  }
+
   let chartSeries: RefreshChartSeriesSummary | null = null;
   try {
     const elapsed = Date.now() - startedAt.getTime();
@@ -291,6 +314,7 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
     unknownTickers: priceResult.unknownTickers,
     historyBackfill,
     indexEnrichment,
+    documentRefresh,
     chartSeries,
   };
 }

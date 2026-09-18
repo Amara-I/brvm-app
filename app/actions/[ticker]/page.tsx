@@ -5,6 +5,7 @@ import SiteFooter from "@/components/layout/SiteFooter";
 import CompanySheetClient from "@/components/actions/CompanySheetClient";
 import { getCompanySheetPayload } from "@/lib/api/company-sheet-dataset";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
+import { normalizeSheetTab } from "@/lib/ui/company-sheet-tabs";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export default async function CompanyActionPage({
   ]);
   if (!payload) notFound();
 
-  const initialTab = searchParams?.tab === "charts" ? ("charts" as const) : undefined;
+  const initialTab = searchParams?.tab ? normalizeSheetTab(searchParams.tab) : undefined;
 
   return (
     <AppHeader>

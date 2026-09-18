@@ -38,6 +38,7 @@
     "enrich:company-meta": "ts-node scripts/enrich-company-sheet-meta.ts",
     "enrich:company-details": "ts-node scripts/enrich-ob-company-details.ts",
     "enrich:fundamentals-docs": "ts-node scripts/enrich-fundamentals-from-documents.ts",
+    "docs:refresh": "ts-node scripts/refresh-documents.ts",
     "research:run": "ts-node scripts/run-research-cli.ts",
     "design:proposals": "ts-node scripts/generate-design-proposals.ts",
     "test": "vitest run"
