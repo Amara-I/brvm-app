@@ -20,7 +20,11 @@ import {
 } from "recharts";
 import { C } from "@/lib/theme/colors";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
-import type { CompanySheetPayload } from "@/lib/api/company-sheet-dataset";
+import type {
+  CompanyEventRow,
+  CompanyNewsRow,
+  CompanySheetPayload,
+} from "@/lib/api/company-sheet-dataset";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { rangeFilter, type ChartRange } from "@/lib/charts/indicators";
 import { downsampleLttb } from "@/lib/charts/downsample";
@@ -84,16 +88,43 @@ function fmtNum(n: number): string {
   return Math.round(n).toLocaleString("fr-FR");
 }
 
-function fmtDivDate(iso: string | null | undefined): string {
-  if (!iso) return "N/D";
-  const [y, m, d] = iso.split("-").map(Number);
-  if (!y || !m || !d) return "N/D";
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("fr-FR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
+function EventsFeed({ events }: { events: CompanyEventRow[] }) {
+  if (events.length === 0) {
+    return <p className={styles.empty}>Aucun événement corporate pour l&apos;instant (N/D).</p>;
+  }
+  return (
+    <ul className={styles.metaList}>
+      {events.map((ev) => (
+        <li key={ev.id}>
+          <time dateTime={ev.eventDate}>
+            {ev.endDate ? `${ev.eventDate} → ${ev.endDate}` : ev.eventDate}
+          </time>
+          <span>
+            {ev.title}
+            {ev.comment ? ` — ${ev.comment}` : ""}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function NewsFeed({ news }: { news: CompanyNewsRow[] }) {
+  if (news.length === 0) {
+    return <p className={styles.empty}>Aucune actualité pour l&apos;instant (N/D).</p>;
+  }
+  return (
+    <ul className={styles.metaList}>
+      {news.map((n) => (
+        <li key={n.id}>
+          <time dateTime={n.publishedAt}>{n.publishedAt.slice(0, 10)}</time>
+          <a href={n.url} target="_blank" rel="noopener noreferrer">
+            {n.title}
+          </a>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 /** Introduction en bourse style BRVM : « 2 oct. 1998 ». */
@@ -148,7 +179,6 @@ export default function CompanySheetClient({
     documents: initialDocuments,
     events,
     news,
-    dividendSchedule,
     incomeStatement: initialIncomeStatement,
     keyRows: initialKeyRows,
   } = payload;
@@ -810,24 +840,6 @@ export default function CompanySheetClient({
                     ) : (
                       <p className={styles.empty}>Aucun dividende renseigné (N/D).</p>
                     )}
-                    {dividendSchedule.length > 0 ? (
-                      <div className={styles.tableWrap}>
-                        <FilterableSheetTable
-                          columns={[
-                            { key: "year", label: "Exercice", getValue: (r) => r.year },
-                            { key: "amount", label: "Montant", getValue: (r) => r.amount },
-                            { key: "exDate", label: "Détachement", getValue: (r) => r.exDate ?? "" },
-                            { key: "paymentDate", label: "Paiement", getValue: (r) => r.paymentDate ?? "" },
-                          ]}
-                          rows={dividendSchedule.map((d) => ({
-                            year: String(d.year),
-                            amount: `${d.amount.toLocaleString("fr-FR")} FCFA`,
-                            exDate: fmtDivDate(d.exDate),
-                            paymentDate: fmtDivDate(d.paymentDate),
-                          }))}
-                        />
-                      </div>
-                    ) : null}
                     <Link href="/calendrier-dividendes" className={styles.inlineLink}>
                       Calendrier des dividendes →
                     </Link>
@@ -933,6 +945,37 @@ export default function CompanySheetClient({
                     )}
                     <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("documents")}>
                       Publications de résultats →
+                    </button>
+                  </section>
+                </div>
+
+                <div className={styles.eventsNewsSplit}>
+                  <section className={styles.card}>
+                    <div className={styles.cardHead}>
+                      <h2 className={styles.cardTitle}>Événements</h2>
+                      <span className={styles.cardMeta}>agenda corporate</span>
+                    </div>
+                    <EventsFeed events={events} />
+                    <button
+                      type="button"
+                      className={styles.inlineLinkBtn}
+                      onClick={() => setTab("actualites")}
+                    >
+                      Tous les événements →
+                    </button>
+                  </section>
+                  <section className={styles.card}>
+                    <div className={styles.cardHead}>
+                      <h2 className={styles.cardTitle}>Actualités</h2>
+                      <span className={styles.cardMeta}>fil valeur</span>
+                    </div>
+                    <NewsFeed news={news} />
+                    <button
+                      type="button"
+                      className={styles.inlineLinkBtn}
+                      onClick={() => setTab("actualites")}
+                    >
+                      Toutes les actualités →
                     </button>
                   </section>
                 </div>
@@ -1382,44 +1425,22 @@ export default function CompanySheetClient({
       )}
 
       {resolvedTab === "actualites" && (
-        <section className={styles.card}>
-          <h2 className={styles.cardTitle}>Actualités</h2>
-          {news.length === 0 ? (
-            <p className={styles.empty}>Aucune actualité pour l&apos;instant (N/D).</p>
-          ) : (
-            <ul className={styles.metaList}>
-              {news.map((n) => (
-                <li key={n.id}>
-                  <time dateTime={n.publishedAt}>{n.publishedAt.slice(0, 10)}</time>
-                  <a href={n.url} target="_blank" rel="noopener noreferrer">
-                    {n.title}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <h3 className={styles.profileDescTitle} style={{ marginTop: 22 }}>
-            Événements
-          </h3>
-          {events.length === 0 ? (
-            <p className={styles.empty}>Aucun événement corporate pour l&apos;instant (N/D).</p>
-          ) : (
-            <ul className={styles.metaList}>
-              {events.map((ev) => (
-                <li key={ev.id}>
-                  <time dateTime={ev.eventDate}>
-                    {ev.endDate ? `${ev.eventDate} → ${ev.endDate}` : ev.eventDate}
-                  </time>
-                  <span>
-                    {ev.title}
-                    {ev.comment ? ` — ${ev.comment}` : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <div className={styles.eventsNewsSplit}>
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Événements</h2>
+              <span className={styles.cardMeta}>agenda corporate</span>
+            </div>
+            <EventsFeed events={events} />
+          </section>
+          <section className={styles.card}>
+            <div className={styles.cardHead}>
+              <h2 className={styles.cardTitle}>Actualités</h2>
+              <span className={styles.cardMeta}>fil valeur</span>
+            </div>
+            <NewsFeed news={news} />
+          </section>
+        </div>
       )}
 
       {resolvedTab === "documents" && (

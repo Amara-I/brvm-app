@@ -387,11 +387,12 @@
 
 .metaList li {
   display: grid;
-  grid-template-columns: 7.5rem 1fr;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
   gap: 10px;
   padding: 8px 0;
   border-bottom: 1px solid var(--c-border);
   font-size: 0.85rem;
+  min-width: 0;
 }
 
 .metaList time {
@@ -399,9 +400,12 @@
   font-variant-numeric: tabular-nums;
 }
 
-.metaList a {
+.metaList a,
+.metaList span {
   color: var(--c-text);
   text-decoration: none;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .metaList a:hover {
@@ -1070,11 +1074,40 @@
   margin-bottom: 24px;
 }
 
-.financeSplit {
+.financeSplit,
+.eventsNewsSplit {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 14px;
   min-width: 0;
+}
+
+.financeSplit > .card + .card,
+.eventsNewsSplit > .card + .card {
+  margin-top: 0;
+}
+
+.eventsNewsSplit > .card {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.eventsNewsSplit .metaList {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.eventsNewsSplit .metaList li {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+}
+
+.eventsNewsSplit .metaList time {
+  font-size: 0.75rem;
 }
 
 .tableWrap {
@@ -1152,8 +1185,14 @@
   }
 
   .layout,
-  .financeSplit {
+  .financeSplit,
+  .eventsNewsSplit {
     grid-template-columns: 1fr;
+  }
+
+  .eventsNewsSplit .metaList {
+    max-height: none;
+    overflow: visible;
   }
 
   .perfGrid {
