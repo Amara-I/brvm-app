@@ -3,6 +3,7 @@
 // Orientation : guides BRVM + enrichissements produit.
 
 import { TERM_ENRICHMENTS } from "./term-enrichments";
+import { PORTFOLIO_TYPE_EDUCATION_TERMS } from "./portfolio-type-articles";
 
 export type EducationLevel = "debutant" | "intermediaire" | "avance";
 
@@ -153,6 +154,13 @@ export const EDUCATION_THEMES: EducationTheme[] = [
     slug: "strategies",
     title: "Stratégies",
     blurb: "Portefeuille, levier et postures d'investissement.",
+    categorySlug: "analyse",
+  },
+  {
+    slug: "types-de-portefeuille",
+    title: "Types de portefeuille",
+    blurb:
+      "Quatre cadres pédagogiques BRVM : Croissance, Rente, Trading et Croissance Max — horizon, risque, règles et rééquilibrage.",
     categorySlug: "analyse",
   },
   {
@@ -1752,6 +1760,7 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     source: "plateforme",
     relatedSlugs: ["gestion-du-risque", "sante-financiere", "limites-de-l-analyse"],
   },
+  ...PORTFOLIO_TYPE_EDUCATION_TERMS,
 ];
 
 /** Fusionne le terme catalogue avec les détails / sources enrichis (si présents). */

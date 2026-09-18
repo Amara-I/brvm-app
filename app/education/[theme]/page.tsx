@@ -2,14 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
-import { C } from "@/lib/theme/colors";
 import {
   EDUCATION_LEVEL_LABELS,
   EDUCATION_THEMES,
   getCategoryForTheme,
+  getTermBySlug,
   getThemeBySlug,
   termsByTheme,
 } from "@/lib/education/catalog";
+import { PORTFOLIO_TYPE_LIST } from "@/lib/portfolio/types";
 import styles from "@/components/education/Education.module.css";
 
 export function generateStaticParams() {
@@ -59,6 +60,22 @@ export default function EducationThemePage({ params }: { params: { theme: string
               Ouvrir la calculette de taille de position
             </Link>
           </p>
+        )}
+        {theme.slug === "types-de-portefeuille" && (
+          <div className={styles.typeHub} aria-label="Les quatre types">
+            {PORTFOLIO_TYPE_LIST.map((t) => {
+              const term = getTermBySlug(t.educationSlug);
+              return (
+                <Link key={t.id} href={t.educationHref} className={styles.typeCard}>
+                  <p className={styles.typeCardLabel}>{t.label}</p>
+                  <p className={styles.typeCardMeta}>
+                    {t.horizon} · risque {t.risk}
+                  </p>
+                  <p className={styles.typeCardBlurb}>{term?.definition ?? t.shortBlurb}</p>
+                </Link>
+              );
+            })}
+          </div>
         )}
         <ul className={styles.termList}>
           {terms.map((t) => (

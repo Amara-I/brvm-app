@@ -28,11 +28,43 @@ describe("education catalog — taille de position", () => {
     expect(term?.details).toMatch(/Q = \(capital/);
   });
 
+  it("relie les fiches types de portefeuille à des slugs existants", () => {
+    const slugs = new Set(EDUCATION_TERMS.map((t) => t.slug));
+    for (const term of termsByTheme("types-de-portefeuille")) {
+      for (const rel of term.relatedSlugs ?? []) {
+        expect(slugs.has(rel), `${term.slug} → ${rel}`).toBe(true);
+      }
+    }
+  });
+
   it("conserve des slugs uniques", () => {
     const slugs = EDUCATION_TERMS.map((t) => t.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
     const themeSlugs = EDUCATION_THEMES.map((t) => t.slug);
     expect(new Set(themeSlugs).size).toBe(themeSlugs.length);
+  });
+
+  it("expose le thème Types de portefeuille et six fiches", () => {
+    const theme = getThemeBySlug("types-de-portefeuille");
+    expect(theme?.title).toBe("Types de portefeuille");
+    expect(theme?.categorySlug).toBe("analyse");
+    const slugs = termsByTheme("types-de-portefeuille").map((t) => t.slug);
+    expect(slugs).toEqual([
+      "cadre-quatre-portefeuilles-brvm",
+      "portefeuille-croissance",
+      "portefeuille-rente",
+      "portefeuille-trading",
+      "portefeuille-croissance-max",
+      "croissance-max-structure-reequilibrage",
+    ]);
+    const croissance = getTermBySlug("portefeuille-croissance");
+    expect(croissance?.details).toMatch(/compartiment Croissance/i);
+    expect(croissance?.details).toMatch(/30 %/);
+    const trading = getTermBySlug("portefeuille-trading");
+    expect(trading?.details).toMatch(/BRVM-30/);
+    expect(trading?.details).toMatch(/\\\\frac|frac/);
+    const rente = getTermBySlug("portefeuille-rente");
+    expect(rente?.details).toMatch(/Rendement courant/);
   });
 
   it("explique la gestion du risque (fiche + piliers)", () => {

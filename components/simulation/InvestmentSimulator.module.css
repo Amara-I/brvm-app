@@ -43,6 +43,31 @@
   margin: 8px 0 0;
 }
 
+.riskBox {
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--c-border);
+  background: var(--c-bg);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--c-text-dim, var(--c-textDim));
+}
+
+.riskBox strong {
+  color: var(--c-text);
+}
+
+.riskBox a {
+  color: var(--c-gold);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.riskBox a:hover {
+  text-decoration: underline;
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));

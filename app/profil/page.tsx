@@ -9,13 +9,14 @@ import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { parsePortfolioType, type PortfolioTypeId } from "@/lib/portfolio/types";
 import { C } from "@/lib/theme/colors";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Mon profil — OuestBourse",
-  description: "Gérez votre compte, votre mot de passe et vos alertes OuestBourse.",
+  description: "Gérez votre compte, votre type de portefeuille et vos alertes OuestBourse.",
 };
 
 export default async function ProfilPage({
@@ -34,14 +35,28 @@ export default async function ProfilPage({
     emailVerified: Date | null;
     passwordHash: string | null;
     role: string;
+    portfolioType: PortfolioTypeId | null;
   } | null = null;
 
   try {
     if (sessionUser?.id) {
-      dbUser = await prisma.user.findUnique({
+      const row = await prisma.user.findUnique({
         where: { id: sessionUser.id },
-        select: { name: true, email: true, emailVerified: true, passwordHash: true, role: true },
+        select: {
+          name: true,
+          email: true,
+          emailVerified: true,
+          passwordHash: true,
+          role: true,
+          portfolioType: true,
+        },
       });
+      if (row) {
+        dbUser = {
+          ...row,
+          portfolioType: parsePortfolioType(row.portfolioType),
+        };
+      }
     }
   } catch (error) {
     if (!isDatabaseUnavailable(error)) throw error;
@@ -59,7 +74,7 @@ export default async function ProfilPage({
         <PageHeader
           kicker="Compte"
           title="Mon profil"
-          lead="Identité, confirmation d’email, mot de passe et préférences d’alertes — uniquement pour ce compte."
+          lead="Identité, type de portefeuille pédagogique, confirmation d’email, mot de passe et préférences d’alertes — uniquement pour ce compte."
         />
         <ProfileClient
           initial={{
@@ -71,6 +86,7 @@ export default async function ProfilPage({
               role: dbUser?.role ?? sessionUser?.role,
               email,
             }),
+            portfolioType: dbUser?.portfolioType ?? null,
           }}
           mailNotice={mailNotice}
         />

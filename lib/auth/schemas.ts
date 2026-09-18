@@ -29,10 +29,18 @@ export const updateProfileSchema = z
   .object({
     name: z.string().trim().min(1).max(120).optional(),
     email: z.string().trim().email("Adresse email invalide").optional(),
+    portfolioType: z
+      .enum(["CROISSANCE", "RENTE", "TRADING", "CROISSANCE_MAX"])
+      .nullable()
+      .optional(),
   })
-  .refine((value) => value.name !== undefined || value.email !== undefined, {
-    message: "Aucun champ à mettre à jour",
-  });
+  .refine(
+    (value) =>
+      value.name !== undefined || value.email !== undefined || value.portfolioType !== undefined,
+    {
+      message: "Aucun champ à mettre à jour",
+    }
+  );
 
 export const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).optional(),

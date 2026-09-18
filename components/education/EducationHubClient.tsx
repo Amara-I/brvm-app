@@ -103,7 +103,7 @@ export default function EducationHubClient() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Ex. PER, RSI, gestion du risque, dividende…"
+          placeholder="Ex. PER, RSI, types de portefeuille, dividende…"
           autoComplete="off"
           role="combobox"
           aria-autocomplete="list"

@@ -1,0 +1,82 @@
+.box {
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+}
+
+.compact {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--c-textdim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.select {
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--c-text);
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+
+.lead {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.body {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: var(--c-textdim);
+}
+
+.body a,
+.links a {
+  color: var(--c-gold);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.body a:hover,
+.links a:hover {
+  text-decoration: underline;
+}
+
+.warn {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--c-red) 35%, var(--c-border));
+  background: var(--c-red-soft, var(--c-bg));
+  color: var(--c-text);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.links {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--c-textdim);
+}

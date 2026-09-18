@@ -37,6 +37,11 @@ describe("searchEducationTerms", () => {
     expect(ranked[0]?.slug).toBe("cours");
   });
 
+  it("matche « types de portefeuille » via alias", () => {
+    const ranked = rankEducationSearch("types de portefeuille");
+    expect(ranked[0]?.slug).toBe("cadre-quatre-portefeuilles-brvm");
+  });
+
   it("matche sizing → taille de position", () => {
     const ranked = rankEducationSearch("sizing");
     expect(ranked.some((t) => t.slug === "taille-de-position")).toBe(true);

@@ -37,9 +37,10 @@ describe("auth schemas", () => {
 });
 
 describe("profile schemas", () => {
-  it("exige au moins un champ profil", () => {
-    expect(updateProfileSchema.safeParse({}).success).toBe(false);
-    expect(updateProfileSchema.safeParse({ name: "Amara" }).success).toBe(true);
+  it("accepte le type de portefeuille seul (y compris null pour effacer)", () => {
+    expect(updateProfileSchema.safeParse({ portfolioType: "CROISSANCE" }).success).toBe(true);
+    expect(updateProfileSchema.safeParse({ portfolioType: null }).success).toBe(true);
+    expect(updateProfileSchema.safeParse({ portfolioType: "GROWTH" }).success).toBe(false);
   });
 
   it("valide un nouveau mot de passe", () => {

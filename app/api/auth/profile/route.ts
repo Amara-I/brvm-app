@@ -22,7 +22,7 @@ export async function GET() {
   try {
     const dbUser = await prisma.user.findUnique({
       where: { id: user.id },
-      select: { id: true, email: true, name: true, emailVerified: true, passwordHash: true, role: true },
+      select: { id: true, email: true, name: true, emailVerified: true, passwordHash: true, role: true, portfolioType: true },
     });
     if (!dbUser) return apiError("Compte introuvable", 404);
 
@@ -34,6 +34,7 @@ export async function GET() {
         emailVerified: Boolean(dbUser.emailVerified),
         hasPassword: Boolean(dbUser.passwordHash),
         isAdmin: isAdminRoleOrEmail({ role: dbUser.role, email: dbUser.email }),
+        portfolioType: dbUser.portfolioType ?? null,
       },
       { headers: privateCacheHeaders() }
     );
@@ -72,11 +73,14 @@ export async function PATCH(request: NextRequest) {
       where: { id: user.id },
       data: {
         ...(parsed.data.name !== undefined ? { name: parsed.data.name } : {}),
+        ...(parsed.data.portfolioType !== undefined
+          ? { portfolioType: parsed.data.portfolioType }
+          : {}),
         ...(emailChanged && nextEmail
           ? { email: nextEmail, emailVerified: null }
           : {}),
       },
-      select: { id: true, email: true, name: true, emailVerified: true },
+      select: { id: true, email: true, name: true, emailVerified: true, portfolioType: true },
     });
 
     let mailError: string | undefined;
@@ -99,6 +103,7 @@ export async function PATCH(request: NextRequest) {
       email: updated.email,
       name: updated.name,
       emailVerified: Boolean(updated.emailVerified),
+      portfolioType: updated.portfolioType ?? null,
       ...(mailError ? { mailError } : {}),
       ...(devVerifyUrl ? { devVerifyUrl } : {}),
     });
