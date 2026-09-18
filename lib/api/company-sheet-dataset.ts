@@ -14,6 +14,7 @@ import {
   fetchOuestbourseFinancialsAnnual,
   isOuestbourseSupabaseConfigured,
 } from "@/lib/ingestion/connectors/ouestbourse_supabase";
+import { companyDocumentKind, type CompanyDocumentKind } from "@/lib/ingestion/document-kinds";
 
 function mdFromFcfa(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v) || v === 0) return null;
@@ -173,6 +174,8 @@ export interface CompanyDocumentRow {
   periodLabel: string | null;
   publishedAt: string | null;
   sourceName: string;
+  /** Publication de résultats / états financiers (filtre onglet Documents). */
+  kind: CompanyDocumentKind;
 }
 
 export interface CompanyEventRow {
@@ -352,6 +355,58 @@ function buildKeyRows(
   return rows;
 }
 
+function fmtMd(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "N/D";
+  return `${n.toLocaleString("fr-FR")} Md`;
+}
+
+function incomeStatementKeyRows(income: AnnualIncomePoint[]): SheetKeyRow[] {
+  if (income.length === 0) {
+    return [
+      {
+        label: "Chiffre d'affaires",
+        current: "N/D",
+        previous: "N/D",
+        variation: "N/D",
+      },
+      {
+        label: "Résultat d'exploitation",
+        current: "N/D",
+        previous: "N/D",
+        variation: "N/D",
+      },
+      {
+        label: "Résultat net",
+        current: "N/D",
+        previous: "N/D",
+        variation: "N/D",
+      },
+    ];
+  }
+  const last = income[income.length - 1]!;
+  const prev = income.length >= 2 ? income[income.length - 2]! : null;
+  return [
+    {
+      label: `Chiffre d'affaires (${last.year})`,
+      current: fmtMd(last.revenue),
+      previous: fmtMd(prev?.revenue),
+      variation: fmtVariation(prev?.revenue, last.revenue),
+    },
+    {
+      label: "Résultat d'exploitation",
+      current: fmtMd(last.operatingIncome),
+      previous: fmtMd(prev?.operatingIncome),
+      variation: fmtVariation(prev?.operatingIncome, last.operatingIncome),
+    },
+    {
+      label: "Résultat net",
+      current: fmtMd(last.netIncome),
+      previous: fmtMd(prev?.netIncome),
+      variation: fmtVariation(prev?.netIncome, last.netIncome),
+    },
+  ];
+}
+
 export async function getCompanySheetPayload(ticker: string): Promise<CompanySheetPayload | null> {
   const t = ticker.toUpperCase();
   const dataset = await getCompaniesFullDataset();
@@ -475,7 +530,7 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     health,
     series,
     performance: computeSheetPerformance(series),
-    keyRows: buildKeyRows(company, dataset.years, metrics, avgDailyVolume),
+    keyRows: [...buildKeyRows(company, dataset.years, metrics, avgDailyVolume), ...incomeStatementKeyRows(incomeStatement)],
     sessionDate: last?.time ?? null,
     dayChangePercent,
     dayChangeAbs,
@@ -503,6 +558,12 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
       periodLabel: d.periodLabel,
       publishedAt: d.publishedAt ? d.publishedAt.toISOString().slice(0, 10) : null,
       sourceName: d.sourceName,
+      kind: companyDocumentKind({
+        docType: d.docType,
+        title: d.title,
+        filename: d.filename,
+        periodLabel: d.periodLabel,
+      }),
     })),
     events: eventRows.map((e) => ({
       id: e.id,

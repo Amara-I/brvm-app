@@ -1237,7 +1237,7 @@ export const EDUCATION_TERMS: EducationTerm[] = [
     definition:
       "Enchaînement recommandé : (1) contexte marché et liquidité, (2) fondamentaux et dividendes, (3) valorisation, (4) lecture technique sur /graphes, (5) croisement avec le signal OuestBourse et sa confiance.",
     example:
-      "Exemple pédagogique : fiche société → onglet Indicateurs / Dividendes → /graphes (RSI, MACD, SMA) → signal final et raisons ▲/▼.",
+      "Exemple pédagogique : fiche société → Vue d'ensemble → /graphes (RSI, MACD, SMA) → signal final et raisons ▲/▼.",
     synonyms: ["Méthode d’analyse", "Checklist"],
     resourceUrl: null,
     tip: "Ne sautez pas la liquidité : un indicateur technique sur un titre rarement échangé peut être trompeur.",

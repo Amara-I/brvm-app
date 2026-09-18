@@ -201,7 +201,7 @@ export const ENRICHMENTS_PART3: Record<string, TermEnrichment> = {
 
   "parcours-d-analyse": {
     details:
-      "Parcours recommandé : (1) contexte marché et liquidité, (2) fondamentaux et dividendes, (3) valorisation, (4) lecture technique sur /graphes, (5) croisement avec le signal OuestBourse et sa confiance.\n\nExemple pédagogique : fiche société → Indicateurs / Dividendes → graphes (RSI, MACD, SMA) → signal final et raisons ▲/▼. Ne sautez pas la liquidité : un indicateur sur un titre rarement échangé peut tromper.\n\nCe parcours structure l’apprentissage ; il n’impose pas d’ordre d’achat. Adaptez les étapes à votre horizon et à la qualité des données (N/D, confiance).",
+      "Parcours recommandé : (1) contexte marché et liquidité, (2) fondamentaux et dividendes, (3) valorisation, (4) lecture technique sur /graphes, (5) croisement avec le signal OuestBourse et sa confiance.\n\nExemple pédagogique : fiche société → Vue d'ensemble → graphes (RSI, MACD, SMA) → signal final et raisons ▲/▼. Ne sautez pas la liquidité : un indicateur sur un titre rarement échangé peut tromper.\n\nCe parcours structure l’apprentissage ; il n’impose pas d’ordre d’achat. Adaptez les étapes à votre horizon et à la qualité des données (N/D, confiance).",
     sources: [
       {
         title: "Investopedia — How to Analyze a Stock",

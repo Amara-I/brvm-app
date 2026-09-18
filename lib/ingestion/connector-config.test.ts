@@ -12,6 +12,8 @@ describe("getConnectorFeatureFlags", () => {
     "INGESTION_ENABLE_HISTORY_BACKFILL",
     "INGESTION_ENABLE_SIKA_DAILY_HISTORY",
     "INGESTION_HISTORY_BACKFILL_ON_CRON",
+    "INGESTION_DOCUMENTS_ON_CRON",
+    "INGESTION_ENABLE_OB_DOCUMENTS",
   ];
 
   afterEach(() => {
@@ -35,5 +37,13 @@ describe("getConnectorFeatureFlags", () => {
     expect(flags.enabled).toBe(true);
     expect(flags.daily).toBe(true);
     expect(flags.onDailyCron).toBe(false);
+  });
+
+  it("enchaîne le refresh documents après le cron quotidien par défaut", () => {
+    delete process.env.INGESTION_DOCUMENTS_ON_CRON;
+    delete process.env.INGESTION_ENABLE_OB_DOCUMENTS;
+    const flags = getHistoryBackfillFlags();
+    expect(flags.documents).toBe(true);
+    expect(flags.documentsOnDailyCron).toBe(true);
   });
 });
