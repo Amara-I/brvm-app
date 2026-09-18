@@ -1,13 +1,36 @@
 const SCROLL_PREFIX = "ouestbourse:scroll:";
+export const SCROLL_ROOT_SELECTOR = "[data-scroll-root]";
 
 export function pageScrollKey(pathname: string, search = ""): string {
   return `${pathname}${search ? `?${search}` : ""}`;
 }
 
+export function getScrollContainer(): HTMLElement | null {
+  if (typeof document === "undefined") return null;
+  return document.querySelector(SCROLL_ROOT_SELECTOR);
+}
+
+export function getScrollY(): number {
+  if (typeof window === "undefined") return 0;
+  const el = getScrollContainer();
+  if (el) return el.scrollTop;
+  return window.scrollY;
+}
+
+export function setScrollY(y: number): void {
+  if (typeof window === "undefined") return;
+  const el = getScrollContainer();
+  if (el) {
+    el.scrollTop = y;
+    return;
+  }
+  window.scrollTo({ top: y, left: 0, behavior: "auto" });
+}
+
 export function saveScrollPosition(key: string): void {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem(SCROLL_PREFIX + key, String(window.scrollY));
+    sessionStorage.setItem(SCROLL_PREFIX + key, String(getScrollY()));
   } catch {
     // sessionStorage indisponible (mode privé, quota…)
   }
@@ -30,7 +53,7 @@ export function restoreScrollPosition(key: string): void {
   const y = readScrollPosition(key);
   if (y == null) return;
 
-  const apply = () => window.scrollTo({ top: y, left: 0, behavior: "auto" });
+  const apply = () => setScrollY(y);
 
   apply();
   requestAnimationFrame(apply);
@@ -42,10 +65,10 @@ export function restoreScrollPosition(key: string): void {
 
 /** Exécute une action async sans perdre la position de scroll. */
 export async function preserveScrollDuring(fn: () => Promise<void>): Promise<void> {
-  const y = typeof window !== "undefined" ? window.scrollY : 0;
+  const y = typeof window !== "undefined" ? getScrollY() : 0;
   await fn();
   if (typeof window === "undefined") return;
-  const restore = () => window.scrollTo({ top: y, left: 0, behavior: "auto" });
+  const restore = () => setScrollY(y);
   restore();
   requestAnimationFrame(restore);
   window.setTimeout(restore, 0);
@@ -56,4 +79,10 @@ export function isBrowserReload(): boolean {
   if (typeof window === "undefined") return false;
   const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
   return nav?.type === "reload";
+}
+
+export function isBackForwardNavigation(): boolean {
+  if (typeof window === "undefined") return false;
+  const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+  return nav?.type === "back_forward";
 }

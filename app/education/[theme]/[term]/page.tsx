@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import EducationIllustration from "@/components/education/EducationIllustration";
+import EducationBackLink from "@/components/education/EducationBackLink";
 import SiteFooter from "@/components/layout/SiteFooter";
-import { C } from "@/lib/theme/colors";
 import {
   EDUCATION_LEVEL_LABELS,
   EDUCATION_TERMS,
@@ -142,6 +142,27 @@ export default function EducationTermPage({
               </a>
             </>
           ) : null}
+          {term.relatedSlugs && term.relatedSlugs.length > 0 ? (
+            <>
+              <p className={styles.sectionLabel}>Pour aller plus loin</p>
+              <ul className={styles.relatedList}>
+                {term.relatedSlugs.map((rel) => {
+                  const other = getTermBySlug(rel);
+                  if (!other) return null;
+                  return (
+                    <li key={rel}>
+                      <Link
+                        href={`/education/${other.themeSlug}/${other.slug}`}
+                        className={styles.relatedChip}
+                      >
+                        {other.title}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
+          ) : null}
         </article>
 
         <p className={styles.disclaimer} style={{ marginTop: 18 }}>
@@ -149,11 +170,10 @@ export default function EducationTermPage({
           d&apos;un professionnel agréé.
         </p>
 
-        <p style={{ marginTop: 12 }}>
-          <Link href={`/education/${theme.slug}`} style={{ color: C.blue, fontSize: "0.88rem" }}>
-            ← Retour au thème {theme.title}
-          </Link>
-        </p>
+        <EducationBackLink
+          fallbackHref={`/education/${theme.slug}`}
+          fallbackLabel={`Retour au thème ${theme.title}`}
+        />
       </div>
       <SiteFooter />
     </AppHeader>

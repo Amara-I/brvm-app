@@ -4,6 +4,8 @@
   margin: 0 auto;
   padding: 0 0 2.5rem;
   text-align: start;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .board {
@@ -194,7 +196,8 @@
 }
 
 .search {
-  min-width: 12rem;
+  min-width: 0;
+  width: min(16rem, 100%);
 }
 
 .tableWrap {
@@ -377,6 +380,8 @@
   border-bottom: 1px solid var(--c-border);
   border-radius: 0;
   padding: 0.45rem 0.15rem 0.55rem;
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .detailLabel {
@@ -385,6 +390,7 @@
   letter-spacing: normal;
   color: var(--c-textdim);
   margin-bottom: 0.15rem;
+  overflow-wrap: break-word;
 }
 
 .detailValue {
@@ -392,6 +398,7 @@
   font-weight: 700;
   color: var(--c-text);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
 .reasonList {
@@ -400,6 +407,7 @@
   font-size: 0.78rem;
   color: var(--c-text-dim);
   line-height: 1.45;
+  overflow-wrap: break-word;
 }
 
 .detailLinks {
