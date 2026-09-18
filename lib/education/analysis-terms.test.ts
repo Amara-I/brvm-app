@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { getTermBySlug } from "./catalog";
 import {
@@ -25,6 +26,16 @@ describe("educationSlugForAnalysisLabel", () => {
       const slug = educationSlugForAnalysisLabel(label);
       expect(slug, label).toBeTruthy();
       expect(getTermBySlug(slug!), label).toBeTruthy();
+    }
+  });
+
+  it("garde les libellés KPI du panneau /marche alignés sur le mapping", () => {
+    const src = readFileSync(
+      new URL("../../components/marche/MarketBoardClient.tsx", import.meta.url),
+      "utf8"
+    );
+    for (const label of MARKET_EXPANDED_KPI_LABELS) {
+      expect(src, label).toContain(`label: "${label}"`);
     }
   });
 
