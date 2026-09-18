@@ -135,7 +135,7 @@ export default function SidebarLayout({
         </div>
       </aside>
 
-      <div className={styles.main}>
+      <div className={styles.main} data-scroll-root>
         <div className={styles.mainInner}>
           <div className={styles.pageColumn}>
             {user && user.emailVerified === false && !hideVerifyBanner ? <VerifyEmailBanner /> : null}

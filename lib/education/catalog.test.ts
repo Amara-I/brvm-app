@@ -34,4 +34,14 @@ describe("education catalog — taille de position", () => {
     const themeSlugs = EDUCATION_THEMES.map((t) => t.slug);
     expect(new Set(themeSlugs).size).toBe(themeSlugs.length);
   });
+
+  it("explique la gestion du risque (fiche + piliers)", () => {
+    const term = getTermBySlug("gestion-du-risque");
+    expect(term?.themeSlug).toBe("risques");
+    expect(term?.definition).toMatch(/score 0–100/i);
+    expect(term?.relatedSlugs).toContain("taille-de-position");
+    expect(getTermBySlug("risque-de-marche")?.title).toBe("Risque de marché");
+    expect(getTermBySlug("risque-fondamental")?.title).toBe("Risque fondamental");
+    expect(getTermBySlug("risque-operationnel")?.title).toBe("Risque opérationnel");
+  });
 });

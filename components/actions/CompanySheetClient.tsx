@@ -43,6 +43,12 @@ import LazyChartWorkbench from "@/components/charts/LazyChartWorkbench";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
+import EducationTermLink from "@/components/education/EducationTermLink";
+import {
+  OVERVIEW_KEY_TERM_SLUGS,
+  educationSlugForAnalysisLabel,
+  educationSlugForRiskPillar,
+} from "@/lib/education/analysis-terms";
 import styles from "./CompanySheet.module.css";
 
 const DATA_SOURCE_LABELS: Record<string, string> = {
@@ -130,6 +136,12 @@ function websiteLabel(raw: string | null | undefined): string {
   } catch {
     return s.replace(/^https?:\/\//i, "").replace(/\/$/, "");
   }
+}
+
+function LinkedAnalysisLabel({ text }: { text: string }) {
+  const slug = educationSlugForAnalysisLabel(text);
+  if (!slug) return <>{text}</>;
+  return <EducationTermLink slug={slug}>{text}</EducationTermLink>;
 }
 
 export default function CompanySheetClient({
@@ -559,7 +571,9 @@ export default function CompanySheetClient({
                       ] as const
                     ).map((cell) => (
                       <div key={cell.k} className={styles.scoreCell}>
-                        <span className={styles.scoreKey}>{cell.k}</span>
+                        <span className={styles.scoreKey}>
+                          <LinkedAnalysisLabel text={cell.k} />
+                        </span>
                         <span
                           className={
                             cell.tone === "good"
@@ -576,6 +590,24 @@ export default function CompanySheetClient({
                       </div>
                     ))}
                   </div>
+                </section>
+
+                <section className={styles.card} aria-labelledby="key-terms-title">
+                  <div className={styles.cardHead}>
+                    <h2 id="key-terms-title" className={styles.cardTitle}>
+                      Termes clés
+                    </h2>
+                    <span className={styles.cardMeta}>
+                      survol : définition courte · clic : fiche Éducation
+                    </span>
+                  </div>
+                  <ul className={styles.keyTerms}>
+                    {OVERVIEW_KEY_TERM_SLUGS.map((slug) => (
+                      <li key={slug}>
+                        <EducationTermLink slug={slug} />
+                      </li>
+                    ))}
+                  </ul>
                 </section>
 
                 <section className={styles.card}>
@@ -613,7 +645,12 @@ export default function CompanySheetClient({
                   </div>
                   <FilterableSheetTable
                     columns={[
-                      { key: "label", label: "Indicateur", getValue: (r) => r.label },
+                      {
+                        key: "label",
+                        label: "Indicateur",
+                        getValue: (r) => r.label,
+                        render: (r) => <LinkedAnalysisLabel text={r.label} />,
+                      },
                       { key: "current", label: "Récent", getValue: (r) => r.current },
                       { key: "previous", label: "Précédent", getValue: (r) => r.previous },
                       {
@@ -898,7 +935,9 @@ export default function CompanySheetClient({
 
           <aside className={styles.sideCol}>
             <section className={styles.sideCard}>
-              <h3 className={styles.sideTitle}>Santé financière</h3>
+              <h3 className={styles.sideTitle}>
+                <EducationTermLink slug="sante-financiere">Santé financière</EducationTermLink>
+              </h3>
               <div className={styles.healthScore}>
                 <span className={styles.healthBig}>{health.overall.toFixed(1).replace(".", ",")} / 10</span>
                 <span className={styles.healthPill} style={{ color: C.green }}>
@@ -911,7 +950,9 @@ export default function CompanySheetClient({
               <ul className={styles.pillarList}>
                 {health.pillars.map((p) => (
                   <li key={p.key}>
-                    <span>{p.label}</span>
+                    <span>
+                      <LinkedAnalysisLabel text={p.label} />
+                    </span>
                     <strong>{p.score.toFixed(1).replace(".", ",")}</strong>
                   </li>
                 ))}
@@ -920,7 +961,9 @@ export default function CompanySheetClient({
             </section>
 
             <section className={styles.sideCard}>
-              <h3 className={styles.sideTitle}>Gestion du risque</h3>
+              <h3 className={styles.sideTitle}>
+                <EducationTermLink slug="gestion-du-risque">Gestion du risque</EducationTermLink>
+              </h3>
               <div className={styles.healthScore}>
                 <span className={styles.healthBig}>{metrics.riskAnalysis.riskScore}/100</span>
                 <span
@@ -952,31 +995,63 @@ export default function CompanySheetClient({
                 />
               </div>
               <ul className={styles.pillarList}>
-                {metrics.riskAnalysis.pillars.map((p) => (
-                  <li key={p.key}>
-                    <span>{p.label.replace(/^Risque de /i, "").replace(/^Risque /i, "")}</span>
-                    <strong>{p.score == null ? "N/D" : p.score}</strong>
-                  </li>
-                ))}
+                {metrics.riskAnalysis.pillars.map((p) => {
+                  const slug = educationSlugForRiskPillar(p.key);
+                  const label = p.label.replace(/^Risque de /i, "").replace(/^Risque /i, "");
+                  return (
+                    <li key={p.key}>
+                      <span>
+                        {slug ? <EducationTermLink slug={slug}>{label}</EducationTermLink> : label}
+                      </span>
+                      <strong>{p.score == null ? "N/D" : p.score}</strong>
+                    </li>
+                  );
+                })}
               </ul>
               <p className={styles.sideNote}>{metrics.riskAnalysis.summary}</p>
               {(metrics.riskAnalysis.maxDrawdownPercent != null ||
                 metrics.riskAnalysis.var95Percent != null) && (
-                <p className={styles.sideNote}>
-                  {metrics.riskAnalysis.maxDrawdownPercent != null
-                    ? `Drawdown max : ${String(metrics.riskAnalysis.maxDrawdownPercent).replace(".", ",")} %`
-                    : "Drawdown max : N/D"}
-                  {" · "}
-                  {metrics.riskAnalysis.var95Percent != null
-                    ? `VaR 95 % : ${String(metrics.riskAnalysis.var95Percent).replace(".", ",")} %`
-                    : "VaR 95 % : N/D"}
-                  {metrics.riskAnalysis.var99Percent != null
-                    ? ` · VaR 99 % : ${String(metrics.riskAnalysis.var99Percent).replace(".", ",")} %`
-                    : ""}
-                  {metrics.riskAnalysis.cvar95Percent != null
-                    ? ` · CVaR 95 % : ${String(metrics.riskAnalysis.cvar95Percent).replace(".", ",")} %`
-                    : ""}
-                </p>
+              <p className={styles.sideNote}>
+                {metrics.riskAnalysis.maxDrawdownPercent != null ? (
+                  <>
+                    <EducationTermLink slug="drawdown-maximal">Drawdown max</EducationTermLink>
+                    {" : "}
+                    {String(metrics.riskAnalysis.maxDrawdownPercent).replace(".", ",")} %
+                  </>
+                ) : (
+                  <>
+                    <EducationTermLink slug="drawdown-maximal">Drawdown max</EducationTermLink> : N/D
+                  </>
+                )}
+                {" · "}
+                {metrics.riskAnalysis.var95Percent != null ? (
+                  <>
+                    <EducationTermLink slug="var-value-at-risk">VaR 95 %</EducationTermLink>
+                    {" : "}
+                    {String(metrics.riskAnalysis.var95Percent).replace(".", ",")} %
+                  </>
+                ) : (
+                  <>
+                    <EducationTermLink slug="var-value-at-risk">VaR 95 %</EducationTermLink> : N/D
+                  </>
+                )}
+                {metrics.riskAnalysis.var99Percent != null ? (
+                  <>
+                    {" · "}
+                    <EducationTermLink slug="var-value-at-risk">VaR 99 %</EducationTermLink>
+                    {" : "}
+                    {String(metrics.riskAnalysis.var99Percent).replace(".", ",")} %
+                  </>
+                ) : null}
+                {metrics.riskAnalysis.cvar95Percent != null ? (
+                  <>
+                    {" · "}
+                    <EducationTermLink slug="cvar-expected-shortfall">CVaR 95 %</EducationTermLink>
+                    {" : "}
+                    {String(metrics.riskAnalysis.cvar95Percent).replace(".", ",")} %
+                  </>
+                ) : null}
+              </p>
               )}
             </section>
 
@@ -1004,48 +1079,85 @@ export default function CompanySheetClient({
             </section>
 
             <section className={styles.sideCard}>
-              <h3 className={styles.sideTitle}>Signal</h3>
+              <h3 className={styles.sideTitle}>
+                <EducationTermLink slug="signal-ouestbourse">Signal</EducationTermLink>
+              </h3>
               <div className={styles.signalBox} style={{ borderColor: metrics.signal.color }}>
                 <div style={{ color: metrics.signal.color, fontWeight: 800 }}>{metrics.signal.label}</div>
                 <div className={styles.sideNote}>
-                  Score {metrics.score}/100 · Confiance {metrics.confidence}
+                  <EducationTermLink slug="score-composite">Score</EducationTermLink> {metrics.score}/100 ·{" "}
+                  <EducationTermLink slug="confiance-du-signal">Confiance</EducationTermLink> {metrics.confidence}
                 </div>
                 <p className={styles.signalText}>{metrics.signalSummary}</p>
               </div>
               <ul className={styles.pillarList} style={{ marginTop: 12 }}>
                 <li>
-                  <span>Court terme</span>
+                  <span>
+                    <LinkedAnalysisLabel text="Court terme" />
+                  </span>
                   <strong>{metrics.horizonScores.court}</strong>
                 </li>
                 <li>
-                  <span>Moyen terme</span>
+                  <span>
+                    <LinkedAnalysisLabel text="Moyen terme" />
+                  </span>
                   <strong>{metrics.horizonScores.moyen}</strong>
                 </li>
                 <li>
-                  <span>Long terme</span>
+                  <span>
+                    <LinkedAnalysisLabel text="Long terme" />
+                  </span>
                   <strong>{metrics.horizonScores.long}</strong>
                 </li>
                 <li>
-                  <span>Technique</span>
+                  <span>
+                    <LinkedAnalysisLabel text="Technique" />
+                  </span>
                   <strong>{metrics.technicalScore}</strong>
                 </li>
                 <li>
-                  <span>Fondamental</span>
+                  <span>
+                    <LinkedAnalysisLabel text="Fondamental" />
+                  </span>
                   <strong>{metrics.fundamentalScore}</strong>
                 </li>
                 <li>
-                  <span>Sectoriel</span>
+                  <span>
+                    <LinkedAnalysisLabel text="Sectoriel" />
+                  </span>
                   <strong>{metrics.sectorScore}</strong>
                 </li>
               </ul>
               {metrics.technical.available ? (
                 <p className={styles.sideNote}>
-                  RSI(14) : {metrics.technical.rsi14 ?? "N/D"}
-                  {metrics.technical.macd
-                    ? ` · MACD hist. ${metrics.technical.macd.histogram}`
-                    : " · MACD N/D"}
-                  {metrics.technical.sma10 != null ? ` · SMA10 ${metrics.technical.sma10}` : ""}
-                  {metrics.technical.sma20 != null ? ` · SMA20 ${metrics.technical.sma20}` : ""}
+                  <EducationTermLink slug="rsi">RSI(14)</EducationTermLink>
+                  {" : "}
+                  {metrics.technical.rsi14 ?? "N/D"}
+                  {metrics.technical.macd ? (
+                    <>
+                      {" · "}
+                      <EducationTermLink slug="macd">MACD</EducationTermLink>
+                      {" hist. "}
+                      {metrics.technical.macd.histogram}
+                    </>
+                  ) : (
+                    <>
+                      {" · "}
+                      <EducationTermLink slug="macd">MACD</EducationTermLink> N/D
+                    </>
+                  )}
+                  {metrics.technical.sma10 != null ? (
+                    <>
+                      {" · "}
+                      <EducationTermLink slug="moyenne-mobile">SMA10</EducationTermLink> {metrics.technical.sma10}
+                    </>
+                  ) : null}
+                  {metrics.technical.sma20 != null ? (
+                    <>
+                      {" · "}
+                      <EducationTermLink slug="moyenne-mobile">SMA20</EducationTermLink> {metrics.technical.sma20}
+                    </>
+                  ) : null}
                 </p>
               ) : (
                 <p className={styles.sideNote}>Indicateurs techniques : N/D (série trop courte).</p>
@@ -1110,7 +1222,12 @@ export default function CompanySheetClient({
           <h2 className={styles.cardTitle}>Données financières</h2>
           <FilterableSheetTable
             columns={[
-              { key: "label", label: "Indicateur", getValue: (r) => r.label },
+              {
+                key: "label",
+                label: "Indicateur",
+                getValue: (r) => r.label,
+                render: (r) => <LinkedAnalysisLabel text={r.label} />,
+              },
               { key: "current", label: "Récent", getValue: (r) => r.current },
               { key: "previous", label: "Précédent", getValue: (r) => r.previous },
               { key: "variation", label: "Variation", getValue: (r) => r.variation },
