@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyChartSeriesWindow,
+  chartWindowFingerprint,
   parseChartRangeParam,
   parseIsoDateParam,
   seriesCoversChartRange,
@@ -99,6 +100,17 @@ describe("seriesCoversChartRange", () => {
     expect(seriesCoversChartRange(oneY, "5A", false)).toBe(false);
     expect(seriesCoversChartRange(oneY, "MAX", false)).toBe(false);
     expect(seriesCoversChartRange(dense, "MAX", true)).toBe(true);
+  });
+});
+
+describe("chartWindowFingerprint", () => {
+  it("aligne la fenêtre 1A d'un historique long et de sa tranche", () => {
+    const full = dense;
+    const oneY = applyChartSeriesWindow(full, { range: "1A" }).series;
+    const withOlder = [...daily("2020-01-01", 80), ...full];
+    expect(chartWindowFingerprint(full, "1A")).toBe(chartWindowFingerprint(oneY, "1A"));
+    expect(chartWindowFingerprint(withOlder, "1A")).toBe(chartWindowFingerprint(full, "1A"));
+    expect(chartWindowFingerprint(full, "1A")).not.toBe(chartWindowFingerprint(full, "5A"));
   });
 });
 

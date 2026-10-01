@@ -4,7 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { getCompaniesFullDataset, type CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
 import { computeFinancialHealth, type FinancialHealth } from "@/lib/calc/financial-health";
-import { dedupeChartPointsByDay, type ChartClosePoint } from "@/lib/charts/indicators";
+import type { ChartClosePoint } from "@/lib/charts/indicators";
+import { loadCompanyChartSeries } from "@/lib/charts/load-company-chart-series";
 import { computeAverageDailyVolume } from "@/lib/charts/chart-indicators";
 import {
   loadEnrichedDividendsForCompany,
@@ -120,6 +121,10 @@ export interface CompanySheetPayload {
   metrics: CalcMetricsResult;
   health: FinancialHealth;
   series: ChartClosePoint[];
+  /** Série lue dans `chart_series` (même base que le graphe détaillé). */
+  seriesFromChartCache: boolean;
+  /** `chart_series` présent mais en retard sur la dernière clôture canonique. */
+  seriesCacheStale: boolean;
   performance: SheetPerformance;
   keyRows: SheetKeyRow[];
   sessionDate: string | null;
@@ -429,6 +434,14 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     dbCompany = null;
   }
 
+  const chartLoad = dbCompany
+    ? loadCompanyChartSeries({
+        companyId: dbCompany.id,
+        ticker: t,
+        rangeParam: "MAX",
+      })
+    : null;
+
   const [docRows, eventRows, newsRows] = dbCompany
     ? await Promise.all([
         prisma.companyDocument.findMany({
@@ -451,36 +464,19 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     : [[], [], []];
 
   let series: ChartClosePoint[] = [];
+  let seriesFromChartCache = false;
+  let seriesCacheStale = false;
   let officialDayChangePercent: number | null = null;
-  if (dbCompany) {
-    const since = new Date();
-    since.setUTCFullYear(since.getUTCFullYear() - 8);
-    const rows = await prisma.priceHistory.findMany({
-      where: {
-        companyId: dbCompany.id,
-        isCanonical: true,
-        date: { gte: since, lte: new Date() },
-      },
-      orderBy: { date: "asc" },
-      select: { date: true, closePrice: true, volume: true, changePercent: true },
-    });
-    const now = Date.now();
-    series = dedupeChartPointsByDay(
-      rows
-        .filter((r) => r.date.getTime() <= now)
-        .map((r) => ({
-          time: r.date.toISOString().slice(0, 10),
-          value: Number(r.closePrice),
-          volume: r.volume != null ? Number(r.volume) : null,
-        }))
-    );
-    const latestWithVar = [...rows].reverse().find((r) => r.changePercent != null);
-    if (latestWithVar?.changePercent != null) {
-      officialDayChangePercent = Math.round(Number(latestWithVar.changePercent) * 100) / 100;
-    }
+  if (chartLoad) {
+    // Même chargeur que GET /api/charts : `chart_series` d'abord, sinon clôtures canoniques.
+    const loaded = await chartLoad;
+    series = loaded.series;
+    seriesFromChartCache = loaded.fromCache && loaded.series.length >= 2;
+    seriesCacheStale = loaded.stale;
+    officialDayChangePercent = loaded.officialDayChangePercent;
   }
 
-  // Repli : points annuels du dataset
+  // Repli : points annuels du dataset (pas une série `chart_series`).
   if (series.length < 2) {
     series = dataset.years
       .filter((y) => (company.prices[y] ?? 0) > 0)
@@ -489,6 +485,8 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
         value: company.prices[y]!,
         volume: null,
       }));
+    seriesFromChartCache = false;
+    seriesCacheStale = false;
   }
 
   const metrics = calcMetrics({
@@ -529,6 +527,8 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     metrics,
     health,
     series,
+    seriesFromChartCache,
+    seriesCacheStale,
     performance: computeSheetPerformance(series),
     keyRows: [...buildKeyRows(company, dataset.years, metrics, avgDailyVolume), ...incomeStatementKeyRows(incomeStatement)],
     sessionDate: last?.time ?? null,

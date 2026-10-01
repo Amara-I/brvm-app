@@ -28,10 +28,8 @@ import type {
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { rangeFilter, type ChartRange } from "@/lib/charts/indicators";
 import { downsampleLttb } from "@/lib/charts/downsample";
-import {
-  apiRangeForChartRange,
-  seriesCoversChartRange,
-} from "@/lib/charts/chart-window";
+import { companyChartApiPath, lastPointAsOf } from "@/lib/charts/chart-window";
+import { chartDisplayNeedsRefresh } from "@/lib/charts/chart-series-cache";
 import {
   chartRangeChangeLabel,
   computeWindowChange,
@@ -43,7 +41,7 @@ import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel"
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
-import LazyChartWorkbench from "@/components/charts/LazyChartWorkbench";
+import LazyChartWorkbench, { prefetchChartWorkbench } from "@/components/charts/LazyChartWorkbench";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
@@ -180,6 +178,9 @@ export default function CompanySheetClient({
     peers,
     metrics,
     health,
+    series: initialSeries,
+    seriesFromChartCache,
+    seriesCacheStale,
     performance,
     sessionDate,
     dayChangePercent,
@@ -212,7 +213,7 @@ export default function CompanySheetClient({
     if (initialTab) setTab(normalizeSheetTab(initialTab));
   }, [initialTab, setTab]);
   const [range, setRange] = usePersistedState<ChartRange>(`ouestbourse:sheet:${company.ticker}:range`, "1A");
-  const [series, setSeries] = useState<ChartClosePoint[]>(payload.series);
+  const [series, setSeries] = useState<ChartClosePoint[]>(initialSeries);
   const [denseLoading, setDenseLoading] = useState(false);
   const [documents, setDocuments] = useState(initialDocuments);
   const [incomeStatement, setIncomeStatement] = useState(initialIncomeStatement);
@@ -221,20 +222,24 @@ export default function CompanySheetClient({
   const [docsRefreshNote, setDocsRefreshNote] = useState<string | null>(null);
   const [docFilter, setDocFilter] = useState<"all" | "results">("all");
 
-  // Densifie via l'API charts (cache `chart_series` / repli live) selon la fenêtre,
-  // pas MAX systématique au premier paint.
+  // Cache `chart_series` chaud : la série SSR est déjà la base d'affichage.
+  // Manquant ou périmé : compléter en arrière-plan (densify / tip), sans bloquer le premier paint.
   useEffect(() => {
+    if (!chartDisplayNeedsRefresh(seriesFromChartCache, seriesCacheStale)) return;
     let cancelled = false;
-    async function densify() {
-      const apiRange = apiRangeForChartRange(range);
-      if (seriesCoversChartRange(series, range, false) && series.length >= 30) return;
+    async function refreshDisplaySeries() {
       setDenseLoading(true);
       try {
-        const res = await fetch(`/api/charts/${company.ticker}?range=${encodeURIComponent(apiRange)}`);
+        const res = await fetch(companyChartApiPath(company.ticker, "MAX", "1D"));
         const json = await res.json();
         if (!cancelled && json.ok && Array.isArray(json.data?.series) && json.data.series.length > 0) {
           const incoming = json.data.series as ChartClosePoint[];
-          setSeries((prev) => (incoming.length >= prev.length ? incoming : prev));
+          setSeries((prev) => {
+            if (incoming.length > prev.length) return incoming;
+            const prevLast = prev[prev.length - 1]?.time ?? "";
+            const nextLast = incoming[incoming.length - 1]?.time ?? "";
+            return nextLast > prevLast ? incoming : prev;
+          });
         }
       } catch {
         /* conserve la série serveur */
@@ -242,12 +247,17 @@ export default function CompanySheetClient({
         if (!cancelled) setDenseLoading(false);
       }
     }
-    void densify();
+    void refreshDisplaySeries();
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [company.ticker, range]);
+  }, [company.ticker, seriesFromChartCache, seriesCacheStale]);
+
+  useEffect(() => {
+    prefetchChartWorkbench();
+    if (chartDisplayNeedsRefresh(seriesFromChartCache, seriesCacheStale)) return;
+    void fetch(companyChartApiPath(company.ticker, "1A", "1D"));
+  }, [company.ticker, seriesFromChartCache, seriesCacheStale]);
 
   const chartUniverse = useMemo(
     () =>
@@ -276,7 +286,10 @@ export default function CompanySheetClient({
       .sort((a, b) => a.name.localeCompare(b.name, "fr"));
   }, [peers, company.sector, company.ticker]);
 
-  const rangedSeries = useMemo(() => rangeFilter(series, range), [series, range]);
+  const rangedSeries = useMemo(
+    () => rangeFilter(series, range, lastPointAsOf(series)),
+    [series, range]
+  );
   const rangeChange = useMemo(() => computeWindowChange(rangedSeries), [rangedSeries]);
   const chartSeries = useMemo(() => downsampleLttb(rangedSeries, 360), [rangedSeries]);
   const last = rangedSeries[rangedSeries.length - 1] ?? series[series.length - 1];
@@ -493,7 +506,14 @@ export default function CompanySheetClient({
             role="tab"
             aria-selected={resolvedTab === t.key}
             className={resolvedTab === t.key ? styles.tabActive : styles.tab}
+            onMouseEnter={() => {
+              if (t.key === "charts") prefetchChartWorkbench();
+            }}
+            onFocus={() => {
+              if (t.key === "charts") prefetchChartWorkbench();
+            }}
             onClick={() => {
+              if (t.key === "charts") prefetchChartWorkbench();
               setTab(t.key);
               trackFeature("company_sheet", `tab:${t.key}`);
             }}
@@ -510,6 +530,8 @@ export default function CompanySheetClient({
             initialTicker={company.ticker}
             embedded
             isAuthenticated={isAuthenticated}
+            initialSeries={series}
+            initialSeriesComplete={seriesFromChartCache && !seriesCacheStale}
           />
         </div>
       )}

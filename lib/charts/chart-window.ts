@@ -91,6 +91,20 @@ export function lastPointAsOf(points: ChartClosePoint[], fallback = new Date()):
   return Number.isNaN(parsed.getTime()) ? fallback : parsed;
 }
 
+/** Empreinte de la fenêtre visible — même points ⇒ même courbe, quel que soit le padding. */
+export function chartWindowFingerprint(points: ChartClosePoint[], range: ChartRange): string {
+  const windowed = rangeFilter(points, range, lastPointAsOf(points));
+  const first = windowed[0];
+  const last = windowed[windowed.length - 1];
+  if (!first || !last) return "0";
+  return `${windowed.length}:${first.time}:${last.time}:${last.value}`;
+}
+
+/** URL GET /api/charts — partagée par le prefetch fiche et le workbench. */
+export function companyChartApiPath(ticker: string, range: string, interval = "1D"): string {
+  return `/api/charts/${encodeURIComponent(ticker)}?range=${encodeURIComponent(range)}&interval=${encodeURIComponent(interval)}`;
+}
+
 export interface ChartWindowQuery {
   range?: string | null;
   from?: string | null;

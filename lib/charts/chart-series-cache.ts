@@ -164,3 +164,20 @@ export function fingerprintForSeries(points: ChartClosePoint[]): string {
 export function isChartSeriesRangeKey(value: string): value is ChartSeriesRangeKey {
   return (CHART_SERIES_RANGE_KEYS as readonly string[]).includes(value);
 }
+
+/**
+ * Le cache est en retard si une clôture canonique plus récente existe.
+ * Dates égales (week-end, séance pas encore ouverte) → pas périmé.
+ */
+export function isChartSeriesStale(
+  cacheLastDate: string | null | undefined,
+  latestCanonicalDate: string | null | undefined
+): boolean {
+  if (!cacheLastDate || !latestCanonicalDate) return false;
+  return latestCanonicalDate > cacheLastDate;
+}
+
+/** Relancer un fetch / une densification seulement si le cache manque ou est périmé. */
+export function chartDisplayNeedsRefresh(fromCache: boolean, stale: boolean): boolean {
+  return !fromCache || stale;
+}

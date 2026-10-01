@@ -11,14 +11,24 @@ import {
   type ChartSeriesRangeKey,
 } from "./chart-series-cache";
 import { chartRangeCutoffIso, parseChartRangeParam, DEFAULT_CHART_RANGE } from "./chart-window";
+import { isChartSeriesStale } from "./chart-series-cache";
 import { readCachedChartSeries } from "./refresh-chart-series";
 
 export interface LoadedCompanyChartSeries {
   series: ChartClosePoint[];
   dbSeries: Array<ChartClosePoint & { source: string }>;
   fromCache: boolean;
+  /** Vrai seulement si le cache existe et qu'une clôture canonique est plus récente. */
+  stale: boolean;
+  /** Variation officielle (`change_percent`) de la dernière clôture canonique. */
+  officialDayChangePercent: number | null;
   cacheRangeKey: ChartSeriesRangeKey;
   meta: ChartSeriesMetaPayload | null;
+}
+
+interface LatestCanonicalClose {
+  date: string;
+  changePercent: number | null;
 }
 
 function toDbSeries(
@@ -69,6 +79,37 @@ async function loadLiveCanonical(opts: {
   };
 }
 
+async function readLatestCanonicalClose(companyId: string): Promise<LatestCanonicalClose | null> {
+  try {
+    const row = await prisma.priceHistory.findFirst({
+      where: { companyId, isCanonical: true, date: { lte: new Date() } },
+      orderBy: { date: "desc" },
+      select: { date: true, changePercent: true },
+    });
+    if (!row) return null;
+    return {
+      date: row.date.toISOString().slice(0, 10),
+      changePercent:
+        row.changePercent != null ? Math.round(Number(row.changePercent) * 100) / 100 : null,
+    };
+  } catch (err) {
+    if (isMissingDatabaseObject(err)) return null;
+    throw err;
+  }
+}
+
+function withFreshness(
+  base: Omit<LoadedCompanyChartSeries, "stale" | "officialDayChangePercent">,
+  latest: LatestCanonicalClose | null
+): LoadedCompanyChartSeries {
+  const last = base.series[base.series.length - 1]?.time ?? null;
+  return {
+    ...base,
+    stale: base.fromCache && isChartSeriesStale(last, latest?.date ?? null),
+    officialDayChangePercent: latest?.changePercent ?? null,
+  };
+}
+
 export async function loadCompanyChartSeries(opts: {
   companyId: string;
   ticker: string;
@@ -77,50 +118,66 @@ export async function loadCompanyChartSeries(opts: {
   const parsed = parseChartRangeParam(opts.rangeParam ?? undefined) ?? DEFAULT_CHART_RANGE;
   const cacheRangeKey = cacheRangeKeyForQuery(parsed);
 
-  const cached = await readCachedChartSeries(prisma, "COMPANY", opts.ticker, cacheRangeKey);
+  const [cached, latest] = await Promise.all([
+    readCachedChartSeries(prisma, "COMPANY", opts.ticker, cacheRangeKey),
+    readLatestCanonicalClose(opts.companyId),
+  ]);
+
   if (cached && cached.points.length > 0) {
     const sources = cached.meta?.sources ?? [];
-    return {
-      series: cached.points,
-      dbSeries: toDbSeries(cached.points, sources),
-      fromCache: true,
-      cacheRangeKey,
-      meta: cached.meta,
-    };
+    return withFreshness(
+      {
+        series: cached.points,
+        dbSeries: toDbSeries(cached.points, sources),
+        fromCache: true,
+        cacheRangeKey,
+        meta: cached.meta,
+      },
+      latest
+    );
   }
 
   if (cacheRangeKey !== "MAX") {
     const maxCached = await readCachedChartSeries(prisma, "COMPANY", opts.ticker, "MAX");
     if (maxCached && maxCached.points.length > 0) {
       const sources = maxCached.meta?.sources ?? [];
-      return {
-        series: maxCached.points,
-        dbSeries: toDbSeries(maxCached.points, sources),
-        fromCache: true,
-        cacheRangeKey: "MAX",
-        meta: maxCached.meta,
-      };
+      return withFreshness(
+        {
+          series: maxCached.points,
+          dbSeries: toDbSeries(maxCached.points, sources),
+          fromCache: true,
+          cacheRangeKey: "MAX",
+          meta: maxCached.meta,
+        },
+        latest
+      );
     }
   }
 
   try {
     const live = await loadLiveCanonical({ companyId: opts.companyId, rangeKey: cacheRangeKey });
-    return {
-      series: live.points,
-      dbSeries: live.dbSeries,
-      fromCache: false,
-      cacheRangeKey,
-      meta: null,
-    };
-  } catch (err) {
-    if (isMissingDatabaseObject(err)) {
-      return {
-        series: [],
-        dbSeries: [],
+    return withFreshness(
+      {
+        series: live.points,
+        dbSeries: live.dbSeries,
         fromCache: false,
         cacheRangeKey,
         meta: null,
-      };
+      },
+      latest
+    );
+  } catch (err) {
+    if (isMissingDatabaseObject(err)) {
+      return withFreshness(
+        {
+          series: [],
+          dbSeries: [],
+          fromCache: false,
+          cacheRangeKey,
+          meta: null,
+        },
+        latest
+      );
     }
     throw err;
   }

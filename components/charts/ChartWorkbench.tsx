@@ -12,6 +12,8 @@ import {
 } from "@/lib/charts/indicators";
 import {
   apiRangeForChartRange,
+  chartWindowFingerprint,
+  companyChartApiPath,
   lastPointAsOf,
   seriesCoversChartRange,
   seriesCoversIntervalLookback,
@@ -147,6 +149,51 @@ interface ChartApiPayload {
     riskTier: string;
     riskScore: number;
   };
+  /** Série déjà peinte (fiche) — remplacée quand l'API renvoie une fenêtre différente. */
+  provisional?: boolean;
+}
+
+function buildProvisionalPayload(
+  ticker: string,
+  series: ChartClosePoint[],
+  item: ChartUniverseItem | undefined,
+  historyComplete: boolean
+): ChartApiPayload {
+  const last = series[series.length - 1] ?? null;
+  const prev = series.length >= 2 ? series[series.length - 2]! : null;
+  const dayChangePercent =
+    last && prev && prev.value > 0
+      ? Math.round(((last.value - prev.value) / prev.value) * 10000) / 100
+      : null;
+  const dayChangeAbs = last && prev ? Math.round((last.value - prev.value) * 100) / 100 : null;
+  return {
+    ticker,
+    name: item?.name ?? ticker,
+    color: item?.color ?? "#1f8f4e",
+    country: "",
+    countryFlag: item?.countryFlag ?? "",
+    sector: item?.sector ?? "",
+    series,
+    lookback: [],
+    provisional: true,
+    fundamentals: { per: null, mktCapMds: null, dividendYieldPercent: null },
+    stats: {
+      lastClose: last?.value ?? null,
+      lastDate: last?.time ?? null,
+      firstDate: series[0]?.time ?? null,
+      points: series.length,
+      dayChangePercent,
+      dayChangeAbs,
+      change1YPercent: null,
+      lastVolume: last?.volume ?? null,
+      source: null,
+      historyPoints: historyComplete ? series.length : undefined,
+      historyFirstDate: series[0]?.time ?? null,
+      historyLastDate: last?.time ?? null,
+      range: historyComplete ? "MAX" : undefined,
+      lookbackExhausted: historyComplete ? true : undefined,
+    },
+  };
 }
 
 const RANGES: Array<{ key: ChartRange; label: string }> = [
@@ -197,6 +244,8 @@ export default function ChartWorkbench({
   initialTicker,
   embedded = false,
   isAuthenticated = false,
+  initialSeries,
+  initialSeriesComplete = false,
 }: {
   universe: ChartUniverseItem[];
   initialTicker: string;
@@ -204,6 +253,10 @@ export default function ChartWorkbench({
   embedded?: boolean;
   /** Compte actif — active la sauvegarde cloud des analyses. */
   isAuthenticated?: boolean;
+  /** Série déjà chargée (fiche) — premier paint sans attendre /api/charts. */
+  initialSeries?: ChartClosePoint[];
+  /** Vrai quand `initialSeries` est le MAX `chart_series` à jour (couvre toutes les plages). */
+  initialSeriesComplete?: boolean;
 }) {
   const router = useRouter();
   const [ticker, setTicker] = useState(initialTicker);
@@ -238,9 +291,13 @@ export default function ChartWorkbench({
   const [percentScale, setPercentScale] = useState(false);
   const [logScale, setLogScale] = useState(false);
   const [compare, setCompare] = useState<string[]>([]);
-  const [payload, setPayload] = useState<ChartApiPayload | null>(null);
+  const [payload, setPayload] = useState<ChartApiPayload | null>(() => {
+    if (!initialSeries || initialSeries.length === 0) return null;
+    const item = universe.find((u) => u.ticker === initialTicker);
+    return buildProvisionalPayload(initialTicker, initialSeries, item, initialSeriesComplete);
+  });
   const [compareData, setCompareData] = useState<Record<string, ChartClosePoint[]>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!(initialSeries && initialSeries.length > 0));
   const [error, setError] = useState<string | null>(null);
   const [ohlcLegend, setOhlcLegend] = useState<string | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
@@ -303,36 +360,45 @@ export default function ChartWorkbench({
 
   const payloadRef = useRef<ChartApiPayload | null>(null);
   payloadRef.current = payload;
+  const loadSeq = useRef(0);
 
   const loadTicker = useCallback(async (t: string, viewRange: ChartRange, viewInterval: CandleInterval) => {
     const apiRange = apiRangeForChartRange(viewRange);
     const current = payloadRef.current;
-    if (current?.ticker === t) {
-      const combined = [...(current.lookback ?? []), ...current.series];
-      const complete =
-        current.stats.range === "MAX" ||
+    const combined =
+      current?.ticker === t ? [...(current.lookback ?? []), ...current.series] : [];
+    const complete =
+      current?.ticker === t &&
+      (current.stats.range === "MAX" ||
         (typeof current.stats.historyPoints === "number" &&
-          current.stats.historyPoints <= combined.length);
-      const rangeOk = seriesCoversChartRange(combined, apiRange, complete);
-      const lookbackOk = seriesCoversIntervalLookback({
+          current.stats.historyPoints <= combined.length));
+    const rangeOk =
+      current?.ticker === t && seriesCoversChartRange(combined, apiRange, Boolean(complete));
+    const lookbackOk =
+      current?.ticker === t &&
+      seriesCoversIntervalLookback({
         points: combined,
         range: apiRange,
         interval: viewInterval,
-        historyComplete: complete,
+        historyComplete: Boolean(complete),
         lookbackExhausted: current.stats.lookbackExhausted === true,
       });
-      if (rangeOk && lookbackOk) {
-        return;
-      }
+    // Série API déjà suffisante : pas de second aller-retour.
+    // Une série provisoire (fiche) reste affichée, mais on complète fondamentaux / analyse.
+    if (current?.ticker === t && !current.provisional && rangeOk && lookbackOk) {
+      return;
     }
-    setLoading(true);
+    const seq = ++loadSeq.current;
+    const paintReady = combined.length > 0;
+    if (!paintReady) {
+      if (current && current.ticker !== t) setPayload(null);
+      setLoading(true);
+    }
     setError(null);
     try {
       // Sans `cache: "no-store"` : le navigateur peut réutiliser la réponse
-      // (Cache-Control s-maxage côté API) au lieu de relancer Sika/Rich.
-      const res = await fetch(
-        `/api/charts/${t}?range=${encodeURIComponent(apiRange)}&interval=${encodeURIComponent(viewInterval)}`
-      );
+      // (max-age du prefetch fiche) au lieu de relancer Sika/Rich.
+      const res = await fetch(companyChartApiPath(t, apiRange, viewInterval));
       const text = await res.text();
       let json: { ok?: boolean; error?: string; data?: unknown } = {};
       try {
@@ -340,13 +406,26 @@ export default function ChartWorkbench({
       } catch {
         throw new Error("Série indisponible — N/D");
       }
+      if (loadSeq.current !== seq) return;
       if (!json.ok) throw new Error(json.error ?? "Série indisponible — N/D");
-      setPayload(json.data as ChartApiPayload);
+      const next = json.data as ChartApiPayload;
+      setPayload((prev) => {
+        if (!prev || prev.ticker !== next.ticker) return next;
+        const prevPoints = [...(prev.lookback ?? []), ...prev.series];
+        const nextPoints = [...(next.lookback ?? []), ...next.series];
+        if (chartWindowFingerprint(prevPoints, viewRange) === chartWindowFingerprint(nextPoints, viewRange)) {
+          return { ...next, series: prev.series, lookback: prev.lookback };
+        }
+        return next;
+      });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setPayload(null);
+      if (loadSeq.current !== seq) return;
+      if (!paintReady) {
+        setError(e instanceof Error ? e.message : String(e));
+        setPayload(null);
+      }
     } finally {
-      setLoading(false);
+      if (loadSeq.current === seq) setLoading(false);
     }
   }, []);
 
@@ -362,9 +441,7 @@ export default function ChartWorkbench({
       await Promise.all(
         compare.map(async (t) => {
           try {
-            const res = await fetch(
-              `/api/charts/${t}?range=${encodeURIComponent(apiRange)}&interval=${encodeURIComponent(interval)}`
-            );
+            const res = await fetch(companyChartApiPath(t, apiRange, interval));
             const json = await res.json();
             if (json.ok) {
               const data = json.data as ChartApiPayload;
@@ -384,16 +461,18 @@ export default function ChartWorkbench({
     };
   }, [compare, range, interval]);
 
+  const payloadSeries = payload?.series;
+  const payloadLookback = payload?.lookback;
   const historySeries = useMemo(
-    () => (payload ? [...(payload.lookback ?? []), ...payload.series] : []),
-    [payload]
+    () => (payloadSeries ? [...(payloadLookback ?? []), ...payloadSeries] : []),
+    [payloadSeries, payloadLookback]
   );
 
   /** Fenêtre visible (cours bruts) — même `rangeFilter` + asOf que le graphique. */
   const windowSeries = useMemo(() => {
-    if (!payload) return [];
+    if (historySeries.length === 0) return [];
     return rangeFilter(historySeries, range, lastPointAsOf(historySeries));
-  }, [payload, historySeries, range]);
+  }, [historySeries, range]);
 
   const mainSeries = windowSeries;
 
@@ -1011,14 +1090,7 @@ export default function ChartWorkbench({
           <div className={styles.legendBar}>{ohlcLegend ?? defaultLegend ?? "—"}</div>
           {intervalNote && <div className={styles.intervalNote}>{intervalNote}</div>}
           <div className={styles.chartShell}>
-            {loading ? (
-              <div className={styles.empty}>Chargement du graphique…</div>
-            ) : error ? (
-              <div className={styles.empty} role="status">
-                <strong style={{ color: "var(--tv-text)" }}>Série indisponible</strong>
-                <span>N/D — les cours n’ont pas pu être chargés pour ce ticker.</span>
-              </div>
-            ) : (
+            {payload ? (
               <TradingChart
                 ticker={ticker}
                 series={mainSeries}
@@ -1049,6 +1121,13 @@ export default function ChartWorkbench({
                   setIndicatorsWithUndo((prev) => ({ ...prev, [key]: false }))
                 }
               />
+            ) : loading ? (
+              <div className={styles.empty}>Chargement du graphique…</div>
+            ) : (
+              <div className={styles.empty} role="status">
+                <strong style={{ color: "var(--tv-text)" }}>Série indisponible</strong>
+                <span>{error ?? "N/D — les cours n’ont pas pu être chargés pour ce ticker."}</span>
+              </div>
             )}
           </div>
           <div className={styles.footerNote}>
