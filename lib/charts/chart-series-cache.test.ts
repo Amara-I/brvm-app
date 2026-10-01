@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   cacheRangeKeyForQuery,
+  chartDisplayNeedsRefresh,
   fromCompactPoints,
+  isChartSeriesStale,
   sliceForCacheRange,
   toCompactPoints,
   buildChartSeriesMeta,
@@ -50,6 +52,20 @@ describe("chart-series-cache", () => {
     const spark = sliceForCacheRange(pts(500), "SPARK");
     expect(spark.length).toBeLessThan(200);
     expect(spark.length).toBeGreaterThan(10);
+  });
+
+  it("périme le cache seulement si une clôture canonique est plus récente", () => {
+    expect(isChartSeriesStale("2026-09-11", "2026-09-12")).toBe(true);
+    expect(isChartSeriesStale("2026-09-12", "2026-09-12")).toBe(false);
+    expect(isChartSeriesStale("2026-09-12", "2026-09-11")).toBe(false);
+    expect(isChartSeriesStale("2026-09-12", null)).toBe(false);
+    expect(isChartSeriesStale(null, "2026-09-12")).toBe(false);
+  });
+
+  it("ne relance pas l'affichage quand chart_series est chaud", () => {
+    expect(chartDisplayNeedsRefresh(true, false)).toBe(false);
+    expect(chartDisplayNeedsRefresh(true, true)).toBe(true);
+    expect(chartDisplayNeedsRefresh(false, false)).toBe(true);
   });
 
   it("meta expose lastClose et yearlyCloses", () => {

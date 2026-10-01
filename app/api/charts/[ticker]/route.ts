@@ -7,7 +7,7 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiNotFound, apiValidationError, cacheHeaders } from "@/lib/api/response";
+import { apiSuccess, apiNotFound, apiValidationError } from "@/lib/api/response";
 import { chartSeriesQuerySchema } from "@/lib/api/query-schemas";
 import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
 import {
@@ -40,13 +40,31 @@ import {
   CHART_DENSIFY_TIMEOUT_MS,
 } from "@/lib/charts/chart-densify-cache";
 import {
+  addCalendarDays,
   mergeChartPointsPrefer,
   planChartDensify,
+  todayIsoUtc,
 } from "@/lib/charts/chart-densify-strategy";
 import { loadCompanyChartSeries } from "@/lib/charts/load-company-chart-series";
 import { refreshChartSeries } from "@/lib/charts/refresh-chart-series";
 
 export const dynamic = "force-dynamic";
+
+/** Complète uniquement les séances après le dernier point — ne réécrit pas l'historique. */
+async function appendSikaTip(ticker: string, series: ChartClosePoint[]): Promise<ChartClosePoint[]> {
+  const last = series[series.length - 1]?.time;
+  if (!last || last >= todayIsoUtc()) return series;
+  const tipPromise = fetchSikafinanceCloseSeries(ticker, {
+    dailyFromIso: addCalendarDays(last, -3),
+    includeAnnual: false,
+  }).then((tip) => (tip.length > 0 ? mergeChartPointsPrefer(series, tip) : series));
+  const raced = await withTimeout(tipPromise, CHART_DENSIFY_TIMEOUT_MS);
+  if (!raced.ok) {
+    console.warn(`[charts] ${ticker}: tip périmé abandonné après ${CHART_DENSIFY_TIMEOUT_MS}ms`);
+    return series;
+  }
+  return raced.value;
+}
 
 export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
   const ticker = params.ticker.toUpperCase();
@@ -235,6 +253,14 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         }
       }
     }
+  } else if (loaded.fromCache && loaded.stale && !shouldSkipLiveDensify()) {
+    // Cache chaud mais en retard : seulement le tip, la courbe historique reste `chart_series`.
+    const tipped = await appendSikaTip(ticker, series);
+    if (tipped.length > series.length) {
+      series = tipped;
+      seriesSourceNote = "multi_source_merged";
+      if (!densifySources.includes("SIKAFINANCE")) densifySources = [...densifySources, "SIKAFINANCE"];
+    }
   }
 
   // Même sans densification : un point seed aberrant peut créer le même artefact.
@@ -328,7 +354,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     lookbackExhausted = sliced.exhausted;
   }
 
-  if (!loaded.fromCache) {
+  if (!loaded.fromCache || loaded.stale) {
     scheduleChartCacheFill(ticker);
   }
 
@@ -375,6 +401,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         seriesCache: {
           hit: loaded.fromCache,
           rangeKey: loaded.cacheRangeKey,
+          stale: loaded.stale,
         },
         reconciliation: {
           thresholdPercent: DISCREPANCY_THRESHOLD_PERCENT,
@@ -397,7 +424,12 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         riskScore: metrics.riskAnalysis.riskScore,
       },
     },
-    { headers: cacheHeaders(120) }
+    {
+      // max-age : le navigateur réutilise le prefetch de la fiche (premier paint du workbench).
+      headers: {
+        "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=240",
+      },
+    }
   );
 }
 

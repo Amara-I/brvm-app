@@ -11,4 +11,10 @@ const ChartWorkbench = dynamic(() => import("./ChartWorkbench"), {
   ),
 });
 
+/** Démarre le téléchargement du chunk workbench (fiche société, avant l'onglet Graphes). */
+export function prefetchChartWorkbench(): void {
+  if (typeof window === "undefined") return;
+  void import("./ChartWorkbench");
+}
+
 export default ChartWorkbench;
