@@ -45,6 +45,16 @@ describe("rangeFilter", () => {
     expect(filtered.length).toBeLessThanOrEqual(2);
     expect(filtered[filtered.length - 1]?.time).toBe("2026-08-10");
   });
+
+  it("conserve une clôture unique (série courte, ex. introduction)", () => {
+    const one: ChartClosePoint[] = [{ time: "2026-09-15", value: 6750 }];
+    expect(rangeFilter(one, "MAX")).toEqual(one);
+    expect(rangeFilter(one, "1A", new Date("2026-09-15T00:00:00.000Z"))).toEqual(one);
+    expect(rangeFilter(one, "1J", new Date("2026-09-15T00:00:00.000Z"))).toEqual(one);
+    const candles = closesToCandles(one);
+    expect(candles).toHaveLength(1);
+    expect(candles[0]?.close).toBe(6750);
+  });
 });
 
 describe("dedupeChartPointsByDay", () => {
