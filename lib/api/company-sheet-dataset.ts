@@ -6,6 +6,7 @@ import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
 import { computeFinancialHealth, type FinancialHealth } from "@/lib/calc/financial-health";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { loadCompanyChartSeries } from "@/lib/charts/load-company-chart-series";
+import { seriesWithAnnualFallback } from "@/lib/charts/sparse-series";
 import { computeAverageDailyVolume } from "@/lib/charts/chart-indicators";
 import {
   loadEnrichedDividendsForCompany,
@@ -471,20 +472,26 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     // Même chargeur que GET /api/charts : `chart_series` d'abord, sinon clôtures canoniques.
     const loaded = await chartLoad;
     series = loaded.series;
-    seriesFromChartCache = loaded.fromCache && loaded.series.length >= 2;
+    // Une seule clôture en cache est déjà affichable (IPO / titre illiquide).
+    seriesFromChartCache = loaded.fromCache && loaded.series.length >= 1;
     seriesCacheStale = loaded.stale;
     officialDayChangePercent = loaded.officialDayChangePercent;
   }
 
-  // Repli : points annuels du dataset (pas une série `chart_series`).
-  if (series.length < 2) {
-    series = dataset.years
-      .filter((y) => (company.prices[y] ?? 0) > 0)
-      .map((y) => ({
-        time: `${y}-12-31`,
-        value: company.prices[y]!,
-        volume: null,
-      }));
+  // Repli annuel seulement s'il n'y a aucun cours (cache + canonique vides).
+  // Une série courte ne doit pas être remplacée par un 31/12 qui masquerait
+  // la séance réelle, ni jetée parce qu'elle a moins de 2 points.
+  if (series.length === 0) {
+    series = seriesWithAnnualFallback(
+      series,
+      dataset.years
+        .filter((y) => (company.prices[y] ?? 0) > 0)
+        .map((y) => ({
+          time: `${y}-12-31`,
+          value: company.prices[y]!,
+          volume: null,
+        }))
+    );
     seriesFromChartCache = false;
     seriesCacheStale = false;
   }

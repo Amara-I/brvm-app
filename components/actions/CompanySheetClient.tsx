@@ -30,6 +30,7 @@ import { rangeFilter, type ChartRange } from "@/lib/charts/indicators";
 import { downsampleLttb } from "@/lib/charts/downsample";
 import { companyChartApiPath, lastPointAsOf } from "@/lib/charts/chart-window";
 import { chartDisplayNeedsRefresh } from "@/lib/charts/chart-series-cache";
+import { flatPriceBounds } from "@/lib/charts/sparse-series";
 import {
   chartRangeChangeLabel,
   computeWindowChange,
@@ -292,6 +293,11 @@ export default function CompanySheetClient({
   );
   const rangeChange = useMemo(() => computeWindowChange(rangedSeries), [rangedSeries]);
   const chartSeries = useMemo(() => downsampleLttb(rangedSeries, 360), [rangedSeries]);
+  const chartYDomain = useMemo(() => {
+    const bounds = flatPriceBounds(chartSeries.map((p) => p.value));
+    return bounds ? ([bounds.min, bounds.max] as [number, number]) : (["auto", "auto"] as ["auto", "auto"]);
+  }, [chartSeries]);
+  const shortChart = chartSeries.length > 0 && chartSeries.length <= 12;
   const last = rangedSeries[rangedSeries.length - 1] ?? series[series.length - 1];
   const prev = rangedSeries.length >= 2 ? rangedSeries[rangedSeries.length - 2] : null;
   const price = metrics.currentPrice || last?.value || 0;
@@ -611,9 +617,14 @@ export default function CompanySheetClient({
                 </span>
               </div>
               <div className={styles.chartBox}>
-                {chartSeries.length > 1 ? (
+                {chartSeries.length >= 1 ? (
                   <ResponsiveContainer width="100%" height={280}>
-                    <AreaChart data={chartSeries.map((p) => ({ ...p, label: p.time.slice(0, 7) }))}>
+                    <AreaChart
+                      data={chartSeries.map((p) => ({
+                        ...p,
+                        label: shortChart ? formatListingDate(p.time) : p.time.slice(0, 7),
+                      }))}
+                    >
                       <defs>
                         <linearGradient id="sheetGreen" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="0%" stopColor={C.green} stopOpacity={0.35} />
@@ -621,8 +632,8 @@ export default function CompanySheetClient({
                         </linearGradient>
                       </defs>
                       <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
-                      <XAxis dataKey="label" stroke={C.textDim} fontSize={11} minTickGap={40} />
-                      <YAxis stroke={C.textDim} fontSize={11} domain={["auto", "auto"]} width={64} />
+                      <XAxis dataKey="label" stroke={C.textDim} fontSize={11} minTickGap={shortChart ? 16 : 40} />
+                      <YAxis stroke={C.textDim} fontSize={11} domain={chartYDomain} width={64} />
                       <Tooltip
                         contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8 }}
                         labelStyle={{ color: C.text }}
@@ -634,6 +645,11 @@ export default function CompanySheetClient({
                         stroke={C.green}
                         fill="url(#sheetGreen)"
                         strokeWidth={2}
+                        dot={
+                          shortChart
+                            ? { r: 4, strokeWidth: 0, fill: C.green }
+                            : false
+                        }
                       />
                     </AreaChart>
                   </ResponsiveContainer>
