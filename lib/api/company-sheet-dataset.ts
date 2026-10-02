@@ -472,8 +472,9 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     // Même chargeur que GET /api/charts : `chart_series` d'abord, sinon clôtures canoniques.
     const loaded = await chartLoad;
     series = loaded.series;
-    // Une seule clôture en cache est déjà affichable (IPO / titre illiquide).
-    seriesFromChartCache = loaded.fromCache && loaded.series.length >= 1;
+    // Affichage immédiat dès 1 point. Le refetch client (densify) ne
+    // s'arrête que lorsque le cache couvre au moins 2 séances.
+    seriesFromChartCache = loaded.fromCache && loaded.series.length >= 2;
     seriesCacheStale = loaded.stale;
     officialDayChangePercent = loaded.officialDayChangePercent;
   }
