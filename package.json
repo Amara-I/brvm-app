@@ -40,6 +40,7 @@
     "enrich:fundamentals-docs": "ts-node scripts/enrich-fundamentals-from-documents.ts",
     "docs:refresh": "ts-node scripts/refresh-documents.ts",
     "research:run": "ts-node scripts/run-research-cli.ts",
+    "email:test": "node --env-file=.env ./node_modules/.bin/ts-node --transpile-only scripts/send-test-email.ts",
     "design:proposals": "ts-node scripts/generate-design-proposals.ts",
     "test": "vitest run"
   },

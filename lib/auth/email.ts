@@ -1,4 +1,13 @@
-import { BRAND_NAME } from "@/lib/theme/brand";
+// Import relatif (pas `@/`) : ce module est aussi chargé par `ts-node`
+// (`scripts/send-test-email.ts`), qui ne résout pas l'alias `@/*`.
+import { BRAND_NAME } from "../theme/brand";
+import {
+  gmailFromMismatch,
+  resolveEmailProvider,
+  resolveSmtpConfig,
+  type EnvMap,
+  type MailProviderId,
+} from "../mail/config";
 import { buildAuthLink, getAppBaseUrl } from "./app-url";
 
 export type AuthEmailKind = "verify" | "reset";
@@ -6,27 +15,30 @@ export type AuthEmailKind = "verify" | "reset";
 export type MailFailureCode = "not_configured" | "invalid_from" | "send_failed";
 
 export type SendEmailResult =
-  | { ok: true; provider: "resend" | "smtp" }
+  | { ok: true; provider: MailProviderId }
   | { ok: false; code: MailFailureCode; error: string; userMessage: string };
-
-type EnvMap = Record<string, string | undefined>;
 
 export const MAIL_USER_MESSAGES = {
   not_configured:
-    "L'envoi d'emails n'est pas configuré. Sur Vercel, renseignez RESEND_API_KEY (ou SMTP) et EMAIL_FROM avec un domaine vérifié.",
+    "L'envoi d'emails n'est pas configuré. Sur Vercel, renseignez SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS et EMAIL_FROM (Gmail : mot de passe d'application), ou EMAIL_PROVIDER=resend avec RESEND_API_KEY.",
   invalid_from:
-    "EMAIL_FROM est invalide. Utilisez une adresse d'un domaine vérifié chez Resend, par exemple OuestBourse <noreply@votre-domaine.com>.",
+    "EMAIL_FROM est invalide. Pour Gmail, utilisez l'adresse du compte (ou un alias « Envoyer en tant que »), par exemple OuestBourse <vous@gmail.com>.",
   send_failed:
-    "L'envoi de l'email a échoué. Vérifiez RESEND_API_KEY, EMAIL_FROM et que le domaine est bien vérifié, puis réessayez.",
+    "L'envoi de l'email a échoué. Vérifiez le mot de passe d'application, SMTP_HOST, SMTP_PORT, SMTP_SECURE et EMAIL_FROM, puis réessayez.",
 } as const;
 
 const EMAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
 export function hasEmailProvider(env: EnvMap = process.env): boolean {
-  if (env.RESEND_API_KEY?.trim()) return true;
-  if (env.EMAIL_SERVER?.trim()) return true;
-  if (env.EMAIL_SERVER_HOST?.trim()) return true;
-  return false;
+  return resolveEmailProvider(env) !== null;
+}
+
+export function resolveReplyTo(env: EnvMap = process.env): { ok: true; value: string | null } | { ok: false } {
+  const raw = env.EMAIL_REPLY_TO?.trim();
+  if (!raw) return { ok: true, value: null };
+  const parsed = parseEmailFrom(raw);
+  if (!parsed) return { ok: false };
+  return { ok: true, value: parsed.address };
 }
 
 export function parseEmailFrom(raw: string | undefined): { value: string; address: string } | null {
@@ -108,18 +120,30 @@ export function buildAuthEmail(kind: AuthEmailKind, to: string, rawToken: string
   return { subject, text, html };
 }
 
-function fail(code: MailFailureCode, error: string): SendEmailResult {
-  return { ok: false, code, error, userMessage: MAIL_USER_MESSAGES[code] };
+function fail(code: MailFailureCode, error: string, userMessage?: string): SendEmailResult {
+  return { ok: false, code, error, userMessage: userMessage ?? MAIL_USER_MESSAGES[code] };
 }
 
-async function sendViaResend(
-  to: string,
-  subject: string,
-  html: string,
-  text: string,
-  from: string
-): Promise<SendEmailResult> {
-  const apiKey = process.env.RESEND_API_KEY?.trim();
+function redactSecrets(message: string, env: EnvMap): string {
+  let out = message;
+  for (const key of ["SMTP_PASS", "EMAIL_SERVER_PASSWORD", "RESEND_API_KEY", "EMAIL_SERVER"] as const) {
+    const secret = env[key]?.trim();
+    if (secret && secret.length >= 4) out = out.split(secret).join("***");
+  }
+  return out;
+}
+
+type OutboundMail = {
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+  from: string;
+  replyTo: string | null;
+};
+
+async function sendViaResend(mail: OutboundMail, env: EnvMap): Promise<SendEmailResult> {
+  const apiKey = env.RESEND_API_KEY?.trim();
   if (!apiKey) return fail("not_configured", "RESEND_API_KEY manquant");
 
   const controller = new AbortController();
@@ -132,7 +156,14 @@ async function sendViaResend(
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ from, to: [to], subject, html, text }),
+      body: JSON.stringify({
+        from: mail.from,
+        to: [mail.to],
+        subject: mail.subject,
+        html: mail.html,
+        text: mail.text,
+        ...(mail.replyTo ? { reply_to: mail.replyTo } : {}),
+      }),
     });
     const raw = await res.text().catch(() => "");
     let parsed: { message?: string; name?: string; id?: string } | null = null;
@@ -150,10 +181,10 @@ async function sendViaResend(
       });
       return fail("send_failed", `Resend HTTP ${res.status}: ${detail}`);
     }
-    console.info("[auth:email] envoyé via Resend", { to, id: parsed?.id ?? null });
+    console.info("[auth:email] envoyé via Resend", { to: mail.to, id: parsed?.id ?? null });
     return { ok: true, provider: "resend" };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = redactSecrets(error instanceof Error ? error.message : String(error), env);
     console.error("[auth:email] Resend injoignable", message);
     return fail("send_failed", message);
   } finally {
@@ -161,39 +192,105 @@ async function sendViaResend(
   }
 }
 
-async function sendViaSmtp(
-  to: string,
-  subject: string,
-  html: string,
-  text: string,
-  from: string
-): Promise<SendEmailResult> {
-  try {
-    const nodemailer = await import("nodemailer");
-    const serverUrl = process.env.EMAIL_SERVER?.trim();
-    const transporter = serverUrl
-      ? nodemailer.createTransport(serverUrl)
-      : nodemailer.createTransport({
-          host: process.env.EMAIL_SERVER_HOST,
-          port: Number(process.env.EMAIL_SERVER_PORT || 587),
-          secure: process.env.EMAIL_SERVER_SECURE === "true",
-          auth:
-            process.env.EMAIL_SERVER_USER && process.env.EMAIL_SERVER_PASSWORD
-              ? {
-                  user: process.env.EMAIL_SERVER_USER,
-                  pass: process.env.EMAIL_SERVER_PASSWORD,
-                }
-              : undefined,
-        });
+type MailTransport = {
+  sendMail: (message: {
+    from: string;
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    replyTo?: string;
+  }) => Promise<{ messageId?: string }>;
+};
 
-    const info = await transporter.sendMail({ from, to, subject, text, html });
-    console.info("[auth:email] envoyé via SMTP", { to, messageId: info.messageId ?? null });
+type NodemailerModule = {
+  createTransport?: (options: unknown) => MailTransport;
+  default?: { createTransport?: (options: unknown) => MailTransport };
+};
+
+async function sendViaSmtp(mail: OutboundMail, env: EnvMap): Promise<SendEmailResult> {
+  const config = resolveSmtpConfig(env);
+  if (!config) return fail("not_configured", "Configuration SMTP incomplète");
+
+  const fromAddress = parseEmailFrom(mail.from)?.address;
+  if (fromAddress && gmailFromMismatch(config, fromAddress)) {
+    console.warn(
+      "[auth:email] Gmail réécrit l'expéditeur : EMAIL_FROM doit être le compte SMTP_USER (ou un alias autorisé)",
+      { from: fromAddress }
+    );
+  }
+
+  try {
+    const nodemailer = (await import("nodemailer")) as NodemailerModule;
+    const createTransport = nodemailer.createTransport ?? nodemailer.default?.createTransport;
+    if (!createTransport) return fail("send_failed", "nodemailer.createTransport introuvable");
+
+    const transporter =
+      config.source === "url"
+        ? createTransport(config.url)
+        : createTransport({
+            host: config.host,
+            port: config.port,
+            secure: config.secure,
+            auth: config.auth,
+            connectionTimeout: 10_000,
+            greetingTimeout: 10_000,
+            socketTimeout: 20_000,
+          });
+
+    const info = await transporter.sendMail({
+      from: mail.from,
+      to: mail.to,
+      subject: mail.subject,
+      text: mail.text,
+      html: mail.html,
+      ...(mail.replyTo ? { replyTo: mail.replyTo } : {}),
+    });
+    console.info("[auth:email] envoyé via SMTP", { to: mail.to, messageId: info.messageId ?? null });
     return { ok: true, provider: "smtp" };
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message = redactSecrets(error instanceof Error ? error.message : String(error), env);
     console.error("[auth:email] SMTP a échoué", message);
     return fail("send_failed", message);
   }
+}
+
+async function dispatchMail(
+  input: { to: string; subject: string; html: string; text: string },
+  logContext: string
+): Promise<SendEmailResult> {
+  const env = process.env;
+  const provider = resolveEmailProvider(env);
+  const from = getEmailFrom(env);
+
+  if (!provider) {
+    console.error(`[auth:email] aucun fournisseur — envoi refusé (${logContext})`, {
+      to: input.to,
+      baseUrl: getAppBaseUrl(env),
+    });
+    return fail("not_configured", "Aucun fournisseur email");
+  }
+  if (!from) {
+    console.error("[auth:email] EMAIL_FROM manquant ou invalide — envoi refusé", {
+      context: logContext,
+      raw: env.EMAIL_FROM ?? null,
+    });
+    return fail("invalid_from", "EMAIL_FROM manquant ou invalide");
+  }
+
+  const replyTo = resolveReplyTo(env);
+  if (!replyTo.ok) {
+    console.error("[auth:email] EMAIL_REPLY_TO invalide — envoi refusé", { raw: env.EMAIL_REPLY_TO ?? null });
+    return fail(
+      "invalid_from",
+      "EMAIL_REPLY_TO invalide",
+      "EMAIL_REPLY_TO est invalide. Laissez-le vide ou indiquez une adresse réelle."
+    );
+  }
+
+  const mail: OutboundMail = { ...input, from, replyTo: replyTo.value };
+  if (provider === "resend") return sendViaResend(mail, env);
+  return sendViaSmtp(mail, env);
 }
 
 export async function sendAppEmail(input: {
@@ -202,43 +299,12 @@ export async function sendAppEmail(input: {
   html: string;
   text: string;
 }): Promise<SendEmailResult> {
-  const from = getEmailFrom();
-  if (!hasEmailProvider()) {
-    return fail("not_configured", "Aucun fournisseur email");
-  }
-  if (!from) {
-    return fail("invalid_from", "EMAIL_FROM manquant ou invalide");
-  }
-  if (process.env.RESEND_API_KEY?.trim()) {
-    return sendViaResend(input.to, input.subject, input.html, input.text, from);
-  }
-  return sendViaSmtp(input.to, input.subject, input.html, input.text, from);
+  return dispatchMail(input, "app");
 }
 
 export async function sendAuthEmail(kind: AuthEmailKind, to: string, rawToken: string): Promise<SendEmailResult> {
   const { subject, text, html } = buildAuthEmail(kind, to, rawToken);
-  const from = getEmailFrom();
-
-  if (!hasEmailProvider()) {
-    console.error("[auth:email] aucun fournisseur (RESEND_API_KEY / EMAIL_SERVER) — envoi refusé", {
-      kind,
-      to,
-      baseUrl: getAppBaseUrl(),
-    });
-    return fail("not_configured", "Aucun fournisseur email");
-  }
-  if (!from) {
-    console.error("[auth:email] EMAIL_FROM manquant ou invalide — envoi refusé", {
-      kind,
-      raw: process.env.EMAIL_FROM ?? null,
-    });
-    return fail("invalid_from", "EMAIL_FROM manquant ou invalide");
-  }
-
-  if (process.env.RESEND_API_KEY?.trim()) {
-    return sendViaResend(to, subject, html, text, from);
-  }
-  return sendViaSmtp(to, subject, html, text, from);
+  return dispatchMail({ to, subject, text, html }, kind);
 }
 
 export function isDevAuthPreviewEnabled(env: EnvMap = process.env): boolean {
@@ -249,12 +315,14 @@ export function describeAppMailSetup(env: EnvMap = process.env): {
   configured: boolean;
   hasProvider: boolean;
   hasValidFrom: boolean;
+  provider: MailProviderId | null;
   baseUrl: string;
 } {
   return {
     configured: isEmailConfigured(env),
     hasProvider: hasEmailProvider(env),
     hasValidFrom: Boolean(parseEmailFrom(env.EMAIL_FROM)),
+    provider: resolveEmailProvider(env),
     baseUrl: getAppBaseUrl(env),
   };
 }

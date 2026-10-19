@@ -15,6 +15,7 @@ import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { parsePortfolioType } from "@/lib/portfolio-types";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET() {
   const user = await getCurrentUser();

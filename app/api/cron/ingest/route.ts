@@ -18,6 +18,7 @@ import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 // L'ingestion peut prendre plusieurs dizaines de secondes (rate limiting
 // respectueux par hôte, cf. http-client.ts) — nécessite un plan Vercel Pro
 // (ou Fluid Compute) pour dépasser les 10s du plan Hobby. À ajuster selon
