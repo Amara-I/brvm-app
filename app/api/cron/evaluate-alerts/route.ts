@@ -8,6 +8,7 @@ import { evaluateAllAlerts } from "@/lib/notifications/evaluate-all";
 import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 export const maxDuration = 120;
 
 async function handle(request: NextRequest) {

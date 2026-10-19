@@ -21,30 +21,40 @@ describe("notification email", () => {
   });
 
   it("n'envoie rien sans fournisseur", async () => {
-    const prevResend = process.env.RESEND_API_KEY;
-    const prevSmtp = process.env.EMAIL_SERVER;
-    const prevHost = process.env.EMAIL_SERVER_HOST;
-    const prevFrom = process.env.EMAIL_FROM;
-    delete process.env.RESEND_API_KEY;
-    delete process.env.EMAIL_SERVER;
-    delete process.env.EMAIL_SERVER_HOST;
-    delete process.env.EMAIL_FROM;
+    const keys = [
+      "RESEND_API_KEY",
+      "EMAIL_SERVER",
+      "EMAIL_SERVER_HOST",
+      "EMAIL_SERVER_PORT",
+      "EMAIL_SERVER_USER",
+      "EMAIL_SERVER_PASSWORD",
+      "EMAIL_SERVER_SECURE",
+      "SMTP_HOST",
+      "SMTP_PORT",
+      "SMTP_SECURE",
+      "SMTP_USER",
+      "SMTP_PASS",
+      "EMAIL_PROVIDER",
+      "EMAIL_FROM",
+      "EMAIL_REPLY_TO",
+    ] as const;
+    const previous = Object.fromEntries(keys.map((key) => [key, process.env[key]]));
+    for (const key of keys) delete process.env[key];
 
-    const result = await sendNotificationEmail({
-      to: "user@example.com",
-      title: "SNTS — seuil atteint",
-      body: "Cours 32 000 FCFA",
-      href: "/actions/SNTS",
-    });
-    expect(result).toEqual({ sent: false, skipped: "email_not_configured" });
-
-    if (prevResend === undefined) delete process.env.RESEND_API_KEY;
-    else process.env.RESEND_API_KEY = prevResend;
-    if (prevSmtp === undefined) delete process.env.EMAIL_SERVER;
-    else process.env.EMAIL_SERVER = prevSmtp;
-    if (prevHost === undefined) delete process.env.EMAIL_SERVER_HOST;
-    else process.env.EMAIL_SERVER_HOST = prevHost;
-    if (prevFrom === undefined) delete process.env.EMAIL_FROM;
-    else process.env.EMAIL_FROM = prevFrom;
+    try {
+      const result = await sendNotificationEmail({
+        to: "user@example.com",
+        title: "SNTS — seuil atteint",
+        body: "Cours 32 000 FCFA",
+        href: "/actions/SNTS",
+      });
+      expect(result).toEqual({ sent: false, skipped: "email_not_configured" });
+    } finally {
+      for (const key of keys) {
+        const value = previous[key];
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
   });
 });

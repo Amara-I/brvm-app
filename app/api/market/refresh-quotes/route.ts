@@ -16,6 +16,7 @@ import { runBrvmQuotesRefresh } from "@/lib/ingestion/run-brvm-quotes-refresh";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 export const maxDuration = 300;
 
 const COOLDOWN_MS = 10 * 60_000;

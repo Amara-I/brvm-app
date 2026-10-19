@@ -37,6 +37,11 @@ const SECURITY_HEADERS = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  experimental: {
+    // nodemailer parle à smtp.gmail.com via net/tls. Le laisser hors du
+    // bundle Webpack évite un transport cassé sur les fonctions Node Vercel.
+    serverComponentsExternalPackages: ["nodemailer"],
+  },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },

@@ -18,6 +18,8 @@ import { isDevAuthPreviewEnabled, sendAuthEmail, userMessageForMailFailure } fro
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
+// nodemailer (SMTP) a besoin de net/tls : runtime Node, pas Edge.
+export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);

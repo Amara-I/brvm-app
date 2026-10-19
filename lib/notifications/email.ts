@@ -1,5 +1,7 @@
-// E-mails d'alerte via la même stack que l'auth (Resend ou SMTP).
-// Si aucun fournisseur n'est configuré, on ignore — l'in-app reste.
+// E-mails d'alerte, notifications et digests : même transport que l'auth
+// (`sendAppEmail` — SMTP par défaut, Resend si EMAIL_PROVIDER=resend).
+// Sans fournisseur, l'envoi est ignoré explicitement (`sent: false`) —
+// jamais un succès fictif. L'in-app reste.
 
 import { getAppBaseUrl } from "@/lib/auth/app-url";
 import { isEmailConfigured as authEmailConfigured, sendAppEmail } from "@/lib/auth/email";

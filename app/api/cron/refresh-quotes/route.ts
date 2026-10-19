@@ -13,6 +13,7 @@ import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 export const maxDuration = 120;
 
 export async function GET(request: NextRequest) {

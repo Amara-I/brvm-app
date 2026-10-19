@@ -15,6 +15,7 @@ import {
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function POST() {
   const user = await getCurrentUser();
