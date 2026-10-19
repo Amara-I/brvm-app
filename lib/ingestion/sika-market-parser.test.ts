@@ -96,6 +96,30 @@ describe("parseSikaSymbolMap / A–Z", () => {
     expect(map.get("SNTS")).toBe("SNTS.sn");
     expect(map.get("BOAB")).toBe("BOAB.bj");
     expect(map.has("BRVMC")).toBe(false);
+    expect(map.get("BBGCI")).toBe("BBGC.ci");
+  });
+
+  it("rattache cotation_BBGC.ci au ticker base BBGCI", () => {
+    const html = `
+      <table id="tblShare">
+        <thead><tr>
+          <th>Nom</th><th>Ouverture</th><th>+Haut</th><th>+Bas</th>
+          <th>Volume (titres)</th><th>Volume (XOF)</th><th>Dernier</th><th>Variation</th>
+        </tr></thead>
+        <tbody>
+          <tr>
+            <td><a href="/marches/cotation_BBGC.ci">BRIDGE BANK</a></td>
+            <td>8900</td><td>8995</td><td>8900</td>
+            <td>35239</td><td>1</td>
+            <td><b>8995</b></td><td>2.22%</td>
+          </tr>
+        </tbody>
+      </table>`;
+    const quotes = parseSikaAazQuotes(html);
+    expect(quotes).toHaveLength(1);
+    expect(quotes[0]?.ticker).toBe("BBGCI");
+    expect(quotes[0]?.sikaSymbol).toBe("BBGC.ci");
+    expect(quotes[0]?.closePrice).toBe(8995);
   });
 
   it("prend Dernier (pas +Haut) et ignore les indices sans suffixe pays", () => {

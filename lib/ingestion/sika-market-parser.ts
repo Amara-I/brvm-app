@@ -9,6 +9,7 @@ import type { CheerioAPI } from "cheerio";
 import type { AnyNode } from "domhandler";
 import { findHeaderIndex } from "./html-table";
 import { normalizeIndexCode, parseFrenchNumber, toIsoDate } from "./parse-utils";
+import { applySikaSymbolAliases, internalTickerForSika } from "./sika-ticker-alias";
 import type { RawIndexQuote, RawPriceQuote } from "./types";
 
 export interface ParsedSikaAazQuote {
@@ -60,7 +61,7 @@ export function parseSikaSymbolMap(html: string): Map<string, string> {
     const cc = m[2]!.toLowerCase();
     map.set(ticker, `${ticker}.${cc}`);
   }
-  return map;
+  return applySikaSymbolAliases(map);
 }
 
 function parseCotationHref(href: string): { ticker: string; sikaSymbol: string; country?: string } | null {
@@ -110,7 +111,7 @@ export function parseSikaAazQuotes(html: string): ParsedSikaAazQuote[] {
     const closePrice = parseFrenchNumber(cells[closeCol] ?? "");
     if (closePrice === null || closePrice <= 0) return;
     results.push({
-      ticker: parsed.ticker,
+      ticker: internalTickerForSika(parsed.ticker),
       sikaSymbol: parsed.sikaSymbol,
       closePrice,
       volume: volumeCol >= 0 ? parseFrenchNumber(cells[volumeCol] ?? "") : null,

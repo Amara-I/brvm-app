@@ -108,7 +108,10 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   let discrepanciesCount = 0;
   let densifySources: string[] = [];
 
-  if (!loaded.fromCache && !shouldSkipLiveDensify()) {
+  // Un cache d'un seul point (BBGCI) n'est pas un historique complet :
+  // le fill Sika peut encore ajouter les séances publiées.
+  const cacheCoversHistory = loaded.fromCache && series.length >= 2;
+  if (!cacheCoversHistory && !shouldSkipLiveDensify()) {
     const fingerprint = chartDbFingerprint(series);
     const exactCache = getCachedDensifiedSeries(ticker, fingerprint);
     const softCache = exactCache ?? getAnyCachedDensifiedSeries(ticker);

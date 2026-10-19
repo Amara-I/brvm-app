@@ -17,7 +17,8 @@ import {
   type Time,
   type MouseEventParams,
 } from "lightweight-charts";
-import { computeSma, type ChartClosePoint } from "@/lib/charts/indicators";
+import { closesToCandles, computeSma, type ChartClosePoint } from "@/lib/charts/indicators";
+import { flatPriceBounds } from "@/lib/charts/sparse-series";
 import { type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import {
   computeAdxSeries,
@@ -525,7 +526,9 @@ export default function TradingChart({
       percentScale,
     });
     onIntervalNote?.(view.note);
-    const candles = view.candles;
+    // Une fenêtre d'agrégation vide ne doit pas laisser le panneau blanc
+    // quand des clôtures existent (série d'une séance, intervalle décalé).
+    const candles = view.candles.length > 0 ? view.candles : closesToCandles(series);
     if (candles.length === 0) return;
     const closes = view.indicatorCloses;
     const indCandles = view.indicatorCandles;
@@ -631,6 +634,20 @@ export default function TradingChart({
     }));
     candleSeries.setData(candleData);
 
+    if (candles.length === 1) {
+      const only = candles[0]!;
+      candleSeries.setMarkers([
+        {
+          time: only.time as Time,
+          position: "inBar",
+          color: only.close >= only.open ? TV.green : TV.red,
+          shape: "circle",
+          size: 2,
+        },
+      ]);
+      chart.timeScale().applyOptions({ barSpacing: 14, minBarSpacing: 6, rightOffset: 6 });
+    }
+
     function applyAutoscaleWithDrawings() {
       // Les tracés (fib inclus) ne doivent PAS élargir l'échelle :
       // seules les bougies / un zoom manuel utilisateur pilotent le scaling.
@@ -639,6 +656,16 @@ export default function TradingChart({
         candleSeries.applyOptions({
           autoscaleInfoProvider: () => ({
             priceRange: { minValue: min, maxValue: max },
+          }),
+        });
+        return;
+      }
+      // Série plate (une clôture) : marge d'affichage, sans inventer de cours.
+      const bounds = flatPriceBounds(candles.flatMap((c) => [c.low, c.high]));
+      if (bounds) {
+        candleSeries.applyOptions({
+          autoscaleInfoProvider: () => ({
+            priceRange: { minValue: bounds.min, maxValue: bounds.max },
           }),
         });
         return;

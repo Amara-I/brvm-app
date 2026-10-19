@@ -24,6 +24,20 @@ function tradingDays(n: number, start = "2021-01-04", startPrice = 100): ChartCl
 }
 
 describe("buildSyncedChartView", () => {
+  it("trace une bougie même s'il n'existe qu'une clôture", () => {
+    const one: ChartClosePoint[] = [{ time: "2026-09-15", value: 6750, volume: null }];
+    const view = buildSyncedChartView({
+      fullPoints: one,
+      visibleFrom: "2026-09-15",
+      visibleTo: "2026-09-15",
+      interval: "1D",
+      lookbackBars: 20,
+    });
+    expect(view.candles).toHaveLength(1);
+    expect(view.candles[0]?.close).toBe(6750);
+    expect(view.note).toBeNull();
+  });
+
   const full = tradingDays(1300, "2021-09-13", 1000);
   const last = full[full.length - 1]!;
   const from5y = "2021-09-13";

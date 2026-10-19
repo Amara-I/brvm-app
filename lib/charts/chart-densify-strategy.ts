@@ -83,11 +83,37 @@ export function planChartDensify(
   // Trous / série courte : un fill est nécessaire, mais on évite l'annuel
   // si la base couvre déjà plusieurs années.
   const years = new Set(dbSeries.map((p) => p.time.slice(0, 4)));
+  const dailyFrom = dailyFromForSparseFill(dbSeries, today);
+  // Introduction récente : un seul GetHistos journalier tient dans le timeout
+  // graphe. L'annuel depuis 2000 et Richbourse n'ajoutent pas de séances
+  // antérieures à la cotation.
+  const recentListing = dailyFrom !== SIKA_DETAILED_DAILY_FROM;
   return {
     mode: "fill",
-    dailyFrom: SIKA_DETAILED_DAILY_FROM,
-    fetchAnnual: years.size < 6,
-    fetchRich: true,
+    dailyFrom,
+    fetchAnnual: !recentListing && years.size < 6,
+    fetchRich: !recentListing,
     fetchOuestbourse: true,
   };
+}
+
+/**
+ * Introduction récente (peu de clôtures, première séance < 120 j) : un chunk
+ * GetHistos autour de cette séance. Une série ancienne et creuse garde la
+ * fenêtre 2024+ (pas de cours inventés, seulement la borne de requête).
+ */
+export function dailyFromForSparseFill(
+  dbSeries: Array<{ time: string }>,
+  today = todayIsoUtc()
+): string {
+  const first = dbSeries[0]?.time;
+  if (
+    dbSeries.length > 0 &&
+    dbSeries.length < 15 &&
+    first &&
+    first >= addCalendarDays(today, -120)
+  ) {
+    return addCalendarDays(first, -7);
+  }
+  return SIKA_DETAILED_DAILY_FROM;
 }
