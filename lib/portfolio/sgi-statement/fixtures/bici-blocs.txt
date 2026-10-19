@@ -1,0 +1,24 @@
+BICI BOURSE
+Relevé de titres
+Situation au 31/12/2025
+
+Code valeur : CBIBF
+Désignation : CORIS BANK INTERNATIONAL
+Quantité : 75
+Prix de revient unitaire : 7 800 FCFA
+Cours : 8 150
+Valorisation : 611 250
+
+Code valeur : SIBC
+Désignation : SIB
+Quantité : 30
+PRU : 14 200
+Dernier cours : 15 000
+Évaluation : 450 000
+
+Code valeur : XYZ1
+Désignation : SOCIETE FICTIVE NON COTEE
+Quantité : 5
+PRU : 100
+Cours : 110
+Valorisation : 550

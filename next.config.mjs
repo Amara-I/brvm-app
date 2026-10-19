@@ -40,7 +40,7 @@ const nextConfig = {
   experimental: {
     // nodemailer parle à smtp.gmail.com via net/tls. Le laisser hors du
     // bundle Webpack évite un transport cassé sur les fonctions Node Vercel.
-    serverComponentsExternalPackages: ["nodemailer"],
+    serverComponentsExternalPackages: ["nodemailer", "unpdf"],
   },
   async headers() {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];

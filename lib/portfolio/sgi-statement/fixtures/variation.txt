@@ -1,0 +1,6 @@
+SGI-CI
+Relevé de titres
+Date d'arrêté : 30/09/2026
+
+Code   Libellé   Qté   PRU   Cours   Variation   Valorisation
+SNTS   SONATEL   120   25 000   32 000   +1,25 %   3 840 000
