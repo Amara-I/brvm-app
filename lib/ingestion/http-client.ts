@@ -13,6 +13,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { capAttemptTimeout, fetchDeadlineRemainingMs, isIngestBudgetError } from "./fetch-budget";
 import { isPathAllowed } from "./robots";
 
 const DEFAULT_USER_AGENT =
@@ -41,14 +42,37 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function sleepWithinBudget(ms: number): Promise<void> {
+  const left = fetchDeadlineRemainingMs();
+  if (left !== null && left < ms + 500) {
+    throw new HttpFetchError("Budget temps épuisé (retry)");
+  }
+  await sleep(ms);
+}
+
 async function waitForRateLimit(hostname: string): Promise<void> {
   const minDelay = HOST_MIN_DELAY_MS[hostname] ?? DEFAULT_MIN_DELAY_MS;
   const lastAt = lastRequestAtByHost.get(hostname) ?? 0;
   const elapsed = Date.now() - lastAt;
-  if (elapsed < minDelay) {
-    await sleep(minDelay - elapsed);
+  const wait = elapsed < minDelay ? minDelay - elapsed : 0;
+  if (wait > 0) {
+    const left = fetchDeadlineRemainingMs();
+    if (left !== null && wait > left - 500) {
+      throw new HttpFetchError(`Budget temps épuisé (rate-limit ${hostname})`);
+    }
+    await sleep(wait);
   }
   lastRequestAtByHost.set(hostname, Date.now());
+}
+
+function beginAttempt(url: string, timeoutMs: number): { controller: AbortController; timer: NodeJS.Timeout } {
+  const capped = capAttemptTimeout(timeoutMs, fetchDeadlineRemainingMs());
+  if (capped == null) {
+    throw new HttpFetchError(`Budget temps épuisé avant ${url}`);
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), capped);
+  return { controller, timer };
 }
 
 function cacheKeyFor(url: string): string {
@@ -114,8 +138,7 @@ export async function fetchHtml(url: string, options: FetchHtmlOptions = {}): Pr
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     await waitForRateLimit(hostname);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const { controller, timer } = beginAttempt(url, timeoutMs);
     try {
       const res = await fetch(url, {
         headers: { "User-Agent": DEFAULT_USER_AGENT, Accept: "text/html,application/xhtml+xml" },
@@ -126,7 +149,7 @@ export async function fetchHtml(url: string, options: FetchHtmlOptions = {}): Pr
       if (res.status === 429 || res.status >= 500) {
         // Erreurs transitoires → backoff exponentiel puis retry.
         lastError = new HttpFetchError(`HTTP ${res.status} sur ${url}`, res.status);
-        await sleep(500 * 2 ** attempt);
+        await sleepWithinBudget(500 * 2 ** attempt);
         continue;
       }
       if (res.status === 403) {
@@ -145,7 +168,8 @@ export async function fetchHtml(url: string, options: FetchHtmlOptions = {}): Pr
       clearTimeout(timer);
       lastError = err;
       if (err instanceof HttpFetchError && err.httpStatus === 403) throw err;
-      if (attempt < MAX_RETRIES) await sleep(500 * 2 ** attempt);
+      if (isIngestBudgetError(err)) throw err;
+      if (attempt < MAX_RETRIES) await sleepWithinBudget(500 * 2 ** attempt);
     }
   }
 
@@ -186,8 +210,7 @@ export async function fetchJson<T = unknown>(url: string, options: FetchJsonOpti
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     await waitForRateLimit(hostname);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const { controller, timer } = beginAttempt(url, timeoutMs);
     try {
       const res = await fetch(url, {
         method,
@@ -203,7 +226,7 @@ export async function fetchJson<T = unknown>(url: string, options: FetchJsonOpti
 
       if (res.status === 429 || res.status >= 500) {
         lastError = new HttpFetchError(`HTTP ${res.status} sur ${url}`, res.status);
-        await sleep(500 * 2 ** attempt);
+        await sleepWithinBudget(500 * 2 ** attempt);
         continue;
       }
       if (res.status === 403) {
@@ -220,7 +243,8 @@ export async function fetchJson<T = unknown>(url: string, options: FetchJsonOpti
       clearTimeout(timer);
       lastError = err;
       if (err instanceof HttpFetchError && err.httpStatus === 403) throw err;
-      if (attempt < MAX_RETRIES) await sleep(500 * 2 ** attempt);
+      if (isIngestBudgetError(err)) throw err;
+      if (attempt < MAX_RETRIES) await sleepWithinBudget(500 * 2 ** attempt);
     }
   }
 
@@ -245,8 +269,7 @@ export async function fetchBuffer(url: string, options: FetchHtmlOptions = {}): 
   let lastError: unknown;
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     await waitForRateLimit(hostname);
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const { controller, timer } = beginAttempt(url, timeoutMs);
     try {
       const res = await fetch(url, {
         headers: { "User-Agent": DEFAULT_USER_AGENT, Accept: "application/pdf,application/octet-stream,*/*" },
@@ -256,7 +279,7 @@ export async function fetchBuffer(url: string, options: FetchHtmlOptions = {}): 
 
       if (res.status === 429 || res.status >= 500) {
         lastError = new HttpFetchError(`HTTP ${res.status} sur ${url}`, res.status);
-        await sleep(500 * 2 ** attempt);
+        await sleepWithinBudget(500 * 2 ** attempt);
         continue;
       }
       if (res.status === 403) {
@@ -273,7 +296,8 @@ export async function fetchBuffer(url: string, options: FetchHtmlOptions = {}): 
       clearTimeout(timer);
       lastError = err;
       if (err instanceof HttpFetchError && err.httpStatus === 403) throw err;
-      if (attempt < MAX_RETRIES) await sleep(500 * 2 ** attempt);
+      if (isIngestBudgetError(err)) throw err;
+      if (attempt < MAX_RETRIES) await sleepWithinBudget(500 * 2 ** attempt);
     }
   }
 

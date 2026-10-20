@@ -20,7 +20,8 @@
 //      l'autre (ex: BRVM.org publie en retard un jour donné).
 // ═══════════════════════════════════════════════════════════════════════════
 
-import type { PrismaClient } from "@prisma/client";
+import { randomUUID } from "node:crypto";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { toPrismaDataSource } from "./prisma-mappers";
 import type { DiscrepancyReport, ReconciledIndex, ReconciledPrice } from "./reconciliation";
 import { canElevateCanonical, sourcesOutranking, sourceOutranks } from "./reconciliation";
@@ -93,6 +94,49 @@ export interface PersistPricesResult {
   collarRejected: number;
 }
 
+const PRICE_UPSERT_CHUNK = 40;
+
+/// Un seul INSERT … ON CONFLICT par lot (le pooler Supabase :6543 facture
+/// chaque aller-retour). Repli ligne à ligne si le SQL groupé est refusé.
+async function bulkUpsertPriceHistory(
+  db: PrismaClient,
+  rows: Array<{
+    companyId: string;
+    date: Date;
+    source: string;
+    closePrice: number;
+    volume: bigint | null;
+    changePercent: number | null;
+  }>
+): Promise<void> {
+  for (let i = 0; i < rows.length; i += PRICE_UPSERT_CHUNK) {
+    const chunk = rows.slice(i, i + PRICE_UPSERT_CHUNK);
+    const values = chunk.map(
+      (r) =>
+        Prisma.sql`(
+          ${randomUUID()},
+          ${r.companyId},
+          ${r.date}::date,
+          CAST(${r.source} AS "data_source"),
+          ${r.closePrice}::numeric,
+          ${r.volume}::bigint,
+          ${r.changePercent}::numeric
+        )`
+    );
+    await db.$executeRaw`
+      INSERT INTO "price_history" (
+        "id", "company_id", "date", "source", "close_price", "volume", "change_percent"
+      )
+      VALUES ${Prisma.join(values)}
+      ON CONFLICT ("company_id", "date", "source") DO UPDATE SET
+        "close_price" = EXCLUDED."close_price",
+        "volume" = EXCLUDED."volume",
+        "change_percent" = COALESCE(EXCLUDED."change_percent", "price_history"."change_percent"),
+        "ingested_at" = CURRENT_TIMESTAMP
+    `;
+  }
+}
+
 /// Upserte toutes les cotations brutes (`price_history`), puis marque la
 /// valeur canonique retenue par la réconciliation. `companyIdByTicker` doit
 /// couvrir tous les tickers actifs — un ticker inconnu (ex: nouvelle
@@ -106,6 +150,14 @@ export async function persistPriceQuotes(
 ): Promise<PersistPricesResult> {
   const unknownTickers = new Set<string>();
   let upserted = 0;
+  const pending: Array<{
+    companyId: string;
+    date: Date;
+    source: ReturnType<typeof toPrismaDataSource>;
+    closePrice: number;
+    volume: bigint | null;
+    changePercent: number | null;
+  }> = [];
 
   for (const q of allQuotes) {
     const companyId = companyIdByTicker.get(q.ticker);
@@ -113,26 +165,45 @@ export async function persistPriceQuotes(
       unknownTickers.add(q.ticker);
       continue;
     }
-    const date = new Date(`${q.date}T00:00:00.000Z`);
-    const source = toPrismaDataSource(q.source);
-    await db.priceHistory.upsert({
-      where: { uniq_price_company_date_source: { companyId, date, source } },
-      update: {
-        closePrice: q.closePrice,
-        volume: q.volume !== null ? BigInt(Math.round(q.volume)) : null,
-        ...(q.changePercent != null ? { changePercent: q.changePercent } : {}),
-        ingestedAt: new Date(),
-      },
-      create: {
-        companyId,
-        date,
-        source,
-        closePrice: q.closePrice,
-        volume: q.volume !== null ? BigInt(Math.round(q.volume)) : null,
-        changePercent: q.changePercent ?? null,
-      },
+    pending.push({
+      companyId,
+      date: new Date(`${q.date}T00:00:00.000Z`),
+      source: toPrismaDataSource(q.source),
+      closePrice: q.closePrice,
+      volume: q.volume !== null ? BigInt(Math.round(q.volume)) : null,
+      changePercent: q.changePercent ?? null,
     });
-    upserted++;
+  }
+
+  if (pending.length > 0) {
+    try {
+      await bulkUpsertPriceHistory(db, pending);
+      upserted = pending.length;
+    } catch (err) {
+      console.warn(
+        `[ingest] upsert groupé price_history indisponible (${err instanceof Error ? err.message : String(err)}) — repli ligne à ligne`
+      );
+      for (const row of pending) {
+        await db.priceHistory.upsert({
+          where: { uniq_price_company_date_source: { companyId: row.companyId, date: row.date, source: row.source } },
+          update: {
+            closePrice: row.closePrice,
+            volume: row.volume,
+            ...(row.changePercent != null ? { changePercent: row.changePercent } : {}),
+            ingestedAt: new Date(),
+          },
+          create: {
+            companyId: row.companyId,
+            date: row.date,
+            source: row.source,
+            closePrice: row.closePrice,
+            volume: row.volume,
+            changePercent: row.changePercent,
+          },
+        });
+        upserted++;
+      }
+    }
   }
 
   const byTicker = new Map<string, ReconciledPrice[]>();

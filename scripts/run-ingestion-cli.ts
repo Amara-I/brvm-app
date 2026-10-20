@@ -38,7 +38,17 @@ async function main() {
     console.log(`  ⚠ Tickers inconnus rencontrés : ${summary.unknownTickers.join(", ")}`);
   }
 
-  console.log(`\n${line("═")}\n✅ Ingestion terminée en ${summary.durationMs}ms.\n${line("═")}`);
+  console.log(`\n${line()}\n⏱ ÉTAPES\n${line()}`);
+  for (const step of summary.steps) {
+    const label = step.skipped ? "skip" : `${step.durationMs}ms`;
+    console.log(`  ${step.name.padEnd(22)} ${label}${step.reason ? ` — ${step.reason}` : ""}`);
+  }
+  if (summary.richbourseDeferredTickers.length > 0) {
+    console.log(`  Richbourse différés : ${summary.richbourseDeferredTickers.length}`);
+  }
+  console.log(
+    `\n${line("═")}\n✅ Ingestion terminée en ${summary.durationMs}ms (budget ${summary.budgetMs}ms, incomplet=${summary.incomplete}).\n${line("═")}`
+  );
 }
 
 main().catch((err) => {

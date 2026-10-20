@@ -3,6 +3,7 @@ import {
   HEADLINE_SIKA_FALLBACKS,
   MIN_CANONICAL_POINTS_TO_SKIP,
   mergeSikaIndexSymbols,
+  runIndexEnrichmentOnDailyCron,
   shouldSkipIndexHistory,
 } from "./run-index-enrichment";
 
@@ -30,6 +31,13 @@ describe("shouldSkipIndexHistory", () => {
     expect(shouldSkipIndexHistory(MIN_CANONICAL_POINTS_TO_SKIP)).toBe(true);
     expect(shouldSkipIndexHistory(MIN_CANONICAL_POINTS_TO_SKIP, true)).toBe(false);
     expect(shouldSkipIndexHistory(1)).toBe(false);
+  });
+});
+
+describe("runIndexEnrichmentOnDailyCron", () => {
+  it("ne démarre pas quand le reste est sous 8s", async () => {
+    await expect(runIndexEnrichmentOnDailyCron(0)).resolves.toBeNull();
+    await expect(runIndexEnrichmentOnDailyCron(7_999)).resolves.toBeNull();
   });
 });
 

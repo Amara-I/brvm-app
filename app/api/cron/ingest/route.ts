@@ -19,10 +19,11 @@ import { isCronAuthorized } from "@/lib/security/cron-auth";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
-// L'ingestion peut prendre plusieurs dizaines de secondes (rate limiting
-// respectueux par hôte, cf. http-client.ts) — nécessite un plan Vercel Pro
-// (ou Fluid Compute) pour dépasser les 10s du plan Hobby. À ajuster selon
-// le plan effectivement utilisé en production.
+// Hobby (Fluid) coupe la fonction à 300s — « Task timed out after 300 seconds » —
+// sans laisser le catch s'exécuter. Le budget interne (240s, override
+// INGESTION_CRON_BUDGET_MS) s'arrête avant et journalise chaque étape.
+// Ne pas ajouter de cron dans vercel.json : le plan Hobby est limité à 2
+// crons (ingest quotidien + research hebdomadaire).
 export const maxDuration = 300;
 
 export async function GET(request: NextRequest) {
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
 
   try {
     const summary = await runFullIngestion();
+    console.log(
+      `[ingest] http done durationMs=${summary.durationMs} incomplete=${summary.incomplete} stoppedAt=${summary.stoppedAt ?? "-"} budgetMs=${summary.budgetMs}`
+    );
     return NextResponse.json({ ok: true, data: summary });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
