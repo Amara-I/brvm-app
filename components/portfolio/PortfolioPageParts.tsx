@@ -59,14 +59,17 @@ export function Kpi({
 
 export function AllocationBars({
   items,
+  heading,
 }: {
   items: Array<{ sector: string; weightPercent: number }>;
+  /** Remplace le titre « Allocation sectorielle » (ex. répartition par type). */
+  heading?: string;
 }) {
   if (items.length === 0) return null;
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ color: C.gold, fontSize: "var(--fs-body-sm)", fontWeight: 700, marginBottom: 10 }}>
-        <EducationTermLink slug="allocation-sectorielle">Allocation sectorielle</EducationTermLink>
+        {heading ?? <EducationTermLink slug="allocation-sectorielle">Allocation sectorielle</EducationTermLink>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {items.map((s) => (

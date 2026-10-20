@@ -4,7 +4,14 @@ import { useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
 import { parseFrNumber } from "@/lib/portfolio/sgi-statement/french-number";
 import { STATEMENT_ERRORS, STATEMENT_MAX_BYTES } from "@/lib/portfolio/sgi-statement/messages";
-import type { MatchConfidence, StatementCompanyOption, StatementPreview, StatementRowDraft } from "@/lib/portfolio/sgi-statement/types";
+import { IGNORE_REASON_LABEL } from "@/lib/portfolio/sgi-statement/noise";
+import type {
+  InstrumentKind,
+  MatchConfidence,
+  StatementCompanyOption,
+  StatementPreview,
+  StatementRowDraft,
+} from "@/lib/portfolio/sgi-statement/types";
 import styles from "./PortfolioStatementImport.module.css";
 
 type Props = {
@@ -20,6 +27,7 @@ type Draft = {
   label: string;
   quantity: string;
   avgBuyPrice: string;
+  tradeDate: string;
   lastPrice: number | null;
   valuation: number | null;
   companyId: string;
@@ -27,6 +35,21 @@ type Draft = {
   ambiguous: boolean;
   warnings: string[];
   manual: boolean;
+  instrumentKind: InstrumentKind;
+  tracked: boolean;
+  isin: string;
+  nominal: string;
+  couponRate: string;
+  maturityDate: string;
+  manager: string;
+  latestValue: string;
+  priceMode: "FCFA" | "PERCENT";
+};
+
+const KIND_LABEL: Record<InstrumentKind, string> = {
+  action: "Action",
+  obligation: "Obligation",
+  fcp: "FCP",
 };
 
 const CONFIDENCE_LABEL: Record<MatchConfidence, string> = {
@@ -47,11 +70,54 @@ function formatFcfa(value: number | null): string {
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(value)} FCFA`;
 }
 
-const STATEMENT_EXTENSIONS = [".pdf", ".csv", ".xlsx", ".xls"];
+const STATEMENT_EXTENSIONS = [".pdf", ".csv", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif"];
+const ACCEPT =
+  ".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.webp,.heic,.heif,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/heic,image/heif";
 
 function isStatementFile(file: File): boolean {
   const name = file.name.toLowerCase();
   return STATEMENT_EXTENSIONS.some((extension) => name.endsWith(extension));
+}
+
+function isHeicFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  const mime = file.type.toLowerCase();
+  return name.endsWith(".heic") || name.endsWith(".heif") || mime.includes("heic") || mime.includes("heif");
+}
+
+function isRasterImage(file: File): boolean {
+  const name = file.name.toLowerCase();
+  const mime = file.type.toLowerCase();
+  return mime === "image/png" || mime === "image/jpeg" || mime === "image/webp" || /\.(png|jpe?g|webp)$/.test(name);
+}
+
+/** Réduit une photo avant envoi (Hobby : corps ~4,5 Mo, lecture plus rapide). */
+async function downscaleImage(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxEdge = 1600;
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size < 1_500_000) {
+      bitmap.close();
+      return file;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    if (!blob) return file;
+    const name = file.name.replace(/\.[^.]+$/, "") || "releve";
+    return new File([blob], `${name}.jpg`, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
 }
 
 function formatBytes(bytes: number): string {
@@ -65,6 +131,7 @@ function formatBytes(bytes: number): string {
 }
 
 function includeByDefault(row: StatementRowDraft): boolean {
+  if (row.tracked === false) return false;
   if (row.quantity == null || row.quantity <= 0) return false;
   if (row.match.confidence === "haute") return true;
   return row.match.confidence === "moyenne" && !row.match.ambiguous;
@@ -78,6 +145,7 @@ function toDraft(row: StatementRowDraft): Draft {
     label: row.label,
     quantity: toInput(row.quantity),
     avgBuyPrice: toInput(row.avgBuyPrice),
+    tradeDate: row.tradeDate ?? "",
     lastPrice: row.lastPrice,
     valuation: row.valuation,
     companyId: row.match.companyId ?? "",
@@ -85,6 +153,15 @@ function toDraft(row: StatementRowDraft): Draft {
     ambiguous: row.match.ambiguous,
     warnings: row.warnings,
     manual: false,
+    instrumentKind: row.instrumentKind ?? "action",
+    tracked: row.tracked !== false,
+    isin: row.isin ?? "",
+    nominal: toInput(row.nominal),
+    couponRate: toInput(row.couponRate),
+    maturityDate: row.maturityDate ?? "",
+    manager: row.manager ?? "",
+    latestValue: toInput(row.lastPrice),
+    priceMode: row.priceMode ?? "FCFA",
   };
 }
 
@@ -165,25 +242,37 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
     const key = `${file.name}:${file.size}:${file.lastModified}`;
     if (inflight.current === key) return;
     inflight.current = key;
-    setSelected({ name: file.name, size: file.size });
     setError(null);
     setMessage(null);
 
     if (!isStatementFile(file)) {
+      setSelected({ name: file.name, size: file.size });
       resetReview();
       setError(STATEMENT_ERRORS.UNSUPPORTED);
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    if (file.size <= 0) {
+    if (isHeicFile(file)) {
+      setSelected({ name: file.name, size: file.size });
+      resetReview();
+      setError(STATEMENT_ERRORS.HEIC);
+      inflight.current = null;
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
+    const prepared = isRasterImage(file) ? await downscaleImage(file) : file;
+    setSelected({ name: prepared.name, size: prepared.size });
+
+    if (prepared.size <= 0) {
       resetReview();
       setError(STATEMENT_ERRORS.EMPTY);
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    if (file.size > STATEMENT_MAX_BYTES) {
+    if (prepared.size > STATEMENT_MAX_BYTES) {
       resetReview();
       setError(STATEMENT_ERRORS.TOO_LARGE);
       inflight.current = null;
@@ -194,7 +283,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
     setBusy("parse");
     try {
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", prepared);
       const res = await fetch(`/api/portfolio/${portfolioId}/import-statement`, { method: "POST", body });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Lecture du relevé impossible.");
@@ -218,6 +307,10 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...partial } : row)));
   }
 
+  function removeRow(id: string) {
+    setRows((current) => current.filter((row) => row.id !== id));
+  }
+
   function applyLastPrice(id: string) {
     const row = rows.find((item) => item.id === id);
     if (!row?.lastPrice) return;
@@ -234,7 +327,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
   const blocked = included.filter((row) => {
     const quantity = parseFrNumber(row.quantity);
     const price = parseFrNumber(row.avgBuyPrice);
-    return !row.companyId || quantity == null || quantity <= 0 || price == null || price <= 0;
+    const numbersMissing = quantity == null || quantity <= 0 || price == null || price <= 0;
+    if (row.instrumentKind !== "action") return numbersMissing || !row.label.trim();
+    return !row.companyId || numbersMissing;
   });
 
   async function save() {
@@ -245,7 +340,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
       return;
     }
     if (blocked.length > 0) {
-      setError("Complétez la société, la quantité et le PRU des lignes cochées, ou décochez-les.");
+      setError("Complétez la quantité et le prix des lignes cochées. Une action doit aussi avoir une société.");
       return;
     }
     if (mode === "replace" && !replaceAck) {
@@ -255,6 +350,8 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
 
     setBusy("save");
     try {
+      const actions = included.filter((row) => row.instrumentKind === "action");
+      const others = included.filter((row) => row.instrumentKind !== "action");
       const res = await fetch(`/api/portfolio/${portfolioId}/import-statement/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -262,20 +359,42 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
           mode,
           statementDate: statementDate || null,
           issuer: preview?.issuer ?? null,
-          rows: included.map((row) => ({
+          rows: actions.map((row) => ({
             companyId: row.companyId,
             quantity: parseFrNumber(row.quantity),
             avgBuyPrice: parseFrNumber(row.avgBuyPrice),
+            buyDate: /^\d{4}-\d{2}-\d{2}$/.test(row.tradeDate) ? row.tradeDate : null,
           })),
+          otherRows: others.map((row) => {
+            const nominal = parseFrNumber(row.nominal);
+            const couponRate = parseFrNumber(row.couponRate);
+            const latestValue = parseFrNumber(row.latestValue);
+            const isin = row.isin.replace(/\s+/g, "").toUpperCase();
+            return {
+              kind: row.instrumentKind === "fcp" ? "FCP" : "OBLIGATION",
+              name: row.label.trim(),
+              isin: /^[A-Z]{2}[A-Z0-9]{10}$/.test(isin) ? isin : null,
+              manager: row.manager.trim() || null,
+              quantity: parseFrNumber(row.quantity),
+              avgBuyPrice: parseFrNumber(row.avgBuyPrice),
+              priceMode: row.instrumentKind === "obligation" ? row.priceMode : "FCFA",
+              nominal: nominal != null && nominal > 0 ? nominal : null,
+              couponRate: couponRate != null && couponRate >= 0 ? couponRate : null,
+              maturityDate: /^\d{4}-\d{2}-\d{2}$/.test(row.maturityDate) ? row.maturityDate : null,
+              buyDate: /^\d{4}-\d{2}-\d{2}$/.test(row.tradeDate) ? row.tradeDate : null,
+              latestValue: latestValue != null && latestValue > 0 ? latestValue : null,
+            };
+          }),
         }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Enregistrement impossible.");
-      const data = json.data as { created: number; updated: number; deleted: number };
+      const data = json.data as { created: number; updated: number; deleted: number; skipped?: number };
       const parts = [
         mode === "replace" ? `${data.deleted} position(s) retirée(s)` : null,
         data.created ? `${data.created} créée(s)` : null,
         data.updated ? `${data.updated} renforcée(s)` : null,
+        data.skipped ? `${data.skipped} non fusionnée(s) (unité de prix différente)` : null,
       ].filter(Boolean);
       setMessage(`Relevé importé dans « ${portfolioName} » — ${parts.join(" · ") || "aucune modification"}.`);
       resetReview();
@@ -324,8 +443,8 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
             id={inputId}
             type="file"
             className={styles.fileHit}
-            accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            aria-label="Glissez-déposez votre relevé ici, ou choisissez un fichier PDF, Excel ou CSV"
+            accept={ACCEPT}
+            aria-label="Glissez-déposez votre relevé ici, ou choisissez un PDF, un Excel, un CSV ou une image"
             aria-describedby={`${inputId}-hint ${inputId}-formats`}
             disabled={busy != null}
             onChange={(event) => {
@@ -364,6 +483,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
               <li>Excel .xlsx</li>
               <li>Excel .xls</li>
               <li>CSV</li>
+              <li>JPEG</li>
+              <li>PNG</li>
+              <li>WEBP</li>
               <li data-kind="limit">4 Mo max</li>
             </ul>
           </div>
@@ -402,8 +524,10 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
         >
           <div className={styles.summary}>
             <strong>
-              {rows.length} ligne(s) lue(s) · {rows.filter((row) => row.confidence === "haute" || row.confidence === "moyenne").length}{" "}
-              reconnue(s)
+              {rows.length} position(s)
+              {preview.ignoredCount > 0 ? ` · ${preview.ignoredCount} ligne(s) ignorée(s)` : ""}
+              {" · "}
+              {rows.filter((row) => row.tracked && (row.confidence === "haute" || row.confidence === "moyenne")).length} reconnue(s)
             </strong>
             <span className={styles.meta}>
               {preview.issuer ?? "SGI non identifiée"}
@@ -419,6 +543,23 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                 <li key={warning}>{warning}</li>
               ))}
             </ul>
+          ) : null}
+
+          {preview.ignoredCount > 0 ? (
+            <details className={styles.ignored}>
+              <summary>
+                {preview.ignoredCount} ligne(s) ignorée(s)
+                {preview.ignored.length < preview.ignoredCount ? ` — ${preview.ignored.length} affichée(s)` : ""}
+              </summary>
+              <ul>
+                {preview.ignored.map((line, index) => (
+                  <li key={`${line.reason}-${index}`}>
+                    <strong>{IGNORE_REASON_LABEL[line.reason]}</strong>
+                    <span>{line.raw}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
 
           <div className={styles.modes} role="radiogroup" aria-label="Mode d’import">
@@ -457,24 +598,33 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
 
           <div className={styles.tableWrap}>
             <table className={styles.table}>
-              <caption className={styles.caption}>Lignes extraites du relevé, à corriger avant enregistrement</caption>
+              <caption className={styles.caption}>Une position par titre, à corriger avant enregistrement</caption>
               <thead>
                 <tr>
                   <th>Inclure</th>
+                  <th>Type</th>
                   <th>Ligne du relevé</th>
                   <th>Société</th>
                   <th>Confiance</th>
                   <th>Quantité</th>
                   <th>PRU</th>
+                  <th>Date</th>
                   <th>Cours</th>
-                  <th>Valorisation</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const tone = !row.companyId || row.confidence === "aucune" ? "bad" : row.ambiguous || row.confidence === "faible" ? "warn" : "ok";
+                  const other = row.instrumentKind !== "action";
+                  const tone = other
+                    ? "ok"
+                    : !row.companyId || row.confidence === "aucune"
+                      ? "bad"
+                      : row.ambiguous || row.confidence === "faible"
+                        ? "warn"
+                        : "ok";
                   return (
-                    <tr key={row.id} data-tone={tone}>
+                    <tr key={row.id} data-tone={tone} data-kind={row.instrumentKind}>
                       <td>
                         <input
                           type="checkbox"
@@ -484,39 +634,129 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                         />
                       </td>
                       <td>
+                        <span className={styles.kind}>{KIND_LABEL[row.instrumentKind]}</span>
+                      </td>
+                      <td>
                         <span className={styles.label}>{row.label}</span>
                         <span className={styles.raw}>{row.rawLine}</span>
                       </td>
                       <td>
-                        <select
-                          className={`ob-select ${styles.select}`}
-                          aria-label={`Société pour ${row.label}`}
-                          value={row.companyId}
-                          onChange={(event) =>
-                            patch(row.id, {
-                              companyId: event.target.value,
-                              confidence: event.target.value ? "haute" : "aucune",
-                              ambiguous: false,
-                              manual: true,
-                            })
-                          }
-                        >
-                          <option value="">— Choisir —</option>
-                          {companies.map((company: StatementCompanyOption) => (
-                            <option key={company.id} value={company.id}>
-                              {company.ticker} — {company.name}
-                            </option>
-                          ))}
-                        </select>
-                        {row.companyId && companyById.get(row.companyId) ? (
-                          <span className={styles.hint}>{row.manual ? "Corrigé manuellement" : companyById.get(row.companyId)?.name}</span>
+                        {other ? (
+                          <div className={styles.instrumentFields}>
+                            <input
+                              className="ob-input"
+                              aria-label={`Nom pour ${row.label}`}
+                              value={row.label}
+                              onChange={(event) => patch(row.id, { label: event.target.value })}
+                            />
+                            <input
+                              className="ob-input"
+                              aria-label={`ISIN pour ${row.label}`}
+                              value={row.isin}
+                              placeholder="ISIN — N/D"
+                              onChange={(event) => patch(row.id, { isin: event.target.value })}
+                            />
+                            {row.instrumentKind === "obligation" ? (
+                              <>
+                                <select
+                                  className="ob-select"
+                                  aria-label={`Unité du prix pour ${row.label}`}
+                                  value={row.priceMode}
+                                  onChange={(event) =>
+                                    patch(row.id, { priceMode: event.target.value === "PERCENT" ? "PERCENT" : "FCFA" })
+                                  }
+                                >
+                                  <option value="FCFA">Prix en FCFA</option>
+                                  <option value="PERCENT">% du nominal</option>
+                                </select>
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Nominal pour ${row.label}`}
+                                  value={row.nominal}
+                                  placeholder="Nominal — N/D"
+                                  onChange={(event) => patch(row.id, { nominal: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Coupon pour ${row.label}`}
+                                  value={row.couponRate}
+                                  placeholder="Coupon % — N/D"
+                                  onChange={(event) => patch(row.id, { couponRate: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input"
+                                  type="date"
+                                  aria-label={`Échéance pour ${row.label}`}
+                                  value={row.maturityDate}
+                                  onChange={(event) => patch(row.id, { maturityDate: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Dernier prix connu pour ${row.label}`}
+                                  value={row.latestValue}
+                                  placeholder="Dernier prix — N/D"
+                                  onChange={(event) => patch(row.id, { latestValue: event.target.value })}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <input
+                                  className="ob-input"
+                                  aria-label={`Société de gestion pour ${row.label}`}
+                                  value={row.manager}
+                                  placeholder="Société de gestion — N/D"
+                                  onChange={(event) => patch(row.id, { manager: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Dernière VL pour ${row.label}`}
+                                  value={row.latestValue}
+                                  placeholder="Dernière VL — N/D"
+                                  onChange={(event) => patch(row.id, { latestValue: event.target.value })}
+                                />
+                              </>
+                            )}
+                            <span className={styles.hint}>Enregistrée comme {KIND_LABEL[row.instrumentKind].toLowerCase()}</span>
+                          </div>
                         ) : (
-                          <span className={styles.hint}>Société non reconnue</span>
+                          <>
+                            <select
+                              className={`ob-select ${styles.select}`}
+                              aria-label={`Société pour ${row.label}`}
+                              value={row.companyId}
+                              onChange={(event) =>
+                                patch(row.id, {
+                                  companyId: event.target.value,
+                                  confidence: event.target.value ? "haute" : "aucune",
+                                  ambiguous: false,
+                                  manual: true,
+                                })
+                              }
+                            >
+                              <option value="">— Choisir —</option>
+                              {companies.map((company: StatementCompanyOption) => (
+                                <option key={company.id} value={company.id}>
+                                  {company.ticker} — {company.name}
+                                </option>
+                              ))}
+                            </select>
+                            {row.companyId && companyById.get(row.companyId) ? (
+                              <span className={styles.hint}>
+                                {row.manual ? "Corrigé manuellement" : companyById.get(row.companyId)?.name}
+                              </span>
+                            ) : (
+                              <span className={styles.hint}>Société non reconnue</span>
+                            )}
+                          </>
                         )}
                       </td>
                       <td>
-                        <span className={styles.badge} data-confidence={row.manual ? "haute" : row.confidence}>
-                          {row.manual ? "Corrigé" : CONFIDENCE_LABEL[row.confidence]}
+                        <span className={styles.badge} data-confidence={other || row.manual ? "haute" : row.confidence}>
+                          {other ? "Identifiée" : row.manual ? "Corrigé" : CONFIDENCE_LABEL[row.confidence]}
                         </span>
                         {row.warnings[0] ? <span className={styles.hint}>{row.warnings[0]}</span> : null}
                       </td>
@@ -545,8 +785,22 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                           </button>
                         ) : null}
                       </td>
+                      <td>
+                        <input
+                          className={`ob-input ${styles.dateInput}`}
+                          type="date"
+                          aria-label={`Date d’achat pour ${row.label}`}
+                          value={row.tradeDate}
+                          onChange={(event) => patch(row.id, { tradeDate: event.target.value })}
+                        />
+                        {!row.tradeDate ? <span className={styles.hint}>N/D</span> : null}
+                      </td>
                       <td className="ob-num">{formatFcfa(row.lastPrice)}</td>
-                      <td className="ob-num">{formatFcfa(row.valuation)}</td>
+                      <td>
+                        <button type="button" className={`ob-btn-ghost ${styles.rowRemove}`} onClick={() => removeRow(row.id)}>
+                          Retirer
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

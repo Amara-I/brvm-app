@@ -1,0 +1,30 @@
+SGI-CI
+Arrêté au 30/09/2026
+Relevé de portefeuille — historique des opérations
+Client : EXEMPLE ANONYME
+Adresse : 12 avenue de la République, Abidjan
+Tél : +225 27 00 00 00 00
+Email : client@example.com
+IBAN : CI93 CI000 00000000000000000000
+Arrêté au 30/09/2026
+
+Historique des transactions
+
+Date d'opération    Libellé    Code ISIN    Sens    Qté    Cours moy.    Montant
+10/01/2026    SONATEL    SN0000000018    Achat    100    10 000    1 000 000
+01/03/2026    SONATEL    SN0000000018    Achat    50    16 000    800 000
+01/06/2026    SNTS    SN0000000018    Vente    30    18 000    540 000
+15/02/2026    SGB CI    -    Achat    40    20 000    800 000
+20/04/2026    SGB CI    -    Vente    40    22 000    880 000
+12/03/2026    OBL ETAT CI 6,25% 2028    -    Achat    10    10 000    100 000
+05/05/2026    FCP HORIZON UEMOA    -    Achat    25    8 000    200 000
+10/02/2026    PALM CI    -    Achat    200    7 500    1 500 000
+          SONATEL    SN0000000018        999    1    999
+
+Espèces                         150 000
+Frais de courtage               2 500
+Commission de mouvement         1 000
+Sous-total                      4 000 000
+Total général                   4 150 000
+Page 1 / 2
+Les informations contenues dans ce document sont indicatives et ne constituent pas un conseil en investissement.

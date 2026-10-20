@@ -7,7 +7,7 @@ import { parseFrNumber } from "./french-number";
 import { StatementImportError } from "./messages";
 import { parseStatementText } from "./parse-statement";
 import { parseStatementUpload } from "./parse-upload";
-import { buildStatementTradeNote, consolidateImportRows } from "./consolidate";
+import { buildStatementTradeNote, consolidateImportRows, consolidateOtherRows } from "./consolidate";
 import type { SecurityCatalogEntry, StatementParseResult, StatementRowDraft } from "./types";
 
 const catalog: SecurityCatalogEntry[] = COMPANIES_FULL.map((company) => ({
@@ -148,7 +148,9 @@ describe("relevé SGI — texte", () => {
     expect(byTicker(edc, "SNTS").quantity).toBe(40);
     expect(byTicker(edc, "BOAB")).toMatchObject({ quantity: 25, avgBuyPrice: 4800, lastPrice: 5100 });
     const fund = edc.rows.find((row) => /FONDS PRIVE/i.test(row.label));
-    expect(fund?.match.confidence).toBe("aucune");
+    expect(fund?.instrumentKind).toBe("fcp");
+    expect(fund?.tracked).toBe(true);
+    expect(fund?.match.companyId).toBeNull();
     expect(fund?.quantity).toBe(12);
 
     const boa = parseFixture("boa-ambigu.txt");
@@ -185,7 +187,11 @@ describe("relevé SGI — fichiers", () => {
     expect(result.layoutId).toBe("matrice");
     expect(byTicker(result, "ETIT")).toMatchObject({ quantity: 1000, avgBuyPrice: 18.5, lastPrice: 22, valuation: 22000 });
     expect(byTicker(result, "TTLC").quantity).toBe(10);
-    expect(result.rows.find((row) => row.match.confidence === "aucune")?.quantity).toBe(12);
+    expect(result.rows.find((row) => row.instrumentKind === "fcp")).toMatchObject({
+      quantity: 12,
+      tracked: true,
+      avgBuyPrice: 2000,
+    });
   });
 
   it("lit un Excel dont les colonnes ne sont pas dans l’ordre OuestBourse", async () => {
@@ -222,10 +228,135 @@ describe("relevé SGI — fichiers", () => {
     ).rejects.toThrow(/OCR/);
   });
 
+  it("agrège un historique bruité en une position par titre", () => {
+    const result = parseFixture("historique-bruit.txt");
+    expect(result.layoutId).toBe("positions");
+    expect(result.documentKind).toBe("historique");
+    expect(result.issuer).toBe("SGI-CI");
+    expect(result.statementDate).toBe("2026-09-30");
+    expect(result.rows).toHaveLength(4);
+    expect(byTicker(result, "SNTS")).toMatchObject({
+      quantity: 120,
+      avgBuyPrice: 12000,
+      tradeDate: "2026-01-10",
+      instrumentKind: "action",
+      tracked: true,
+    });
+    expect(byTicker(result, "PALC")).toMatchObject({ quantity: 200, avgBuyPrice: 7500, tradeDate: "2026-02-10" });
+    const bond = result.rows.find((row) => row.instrumentKind === "obligation");
+    const fund = result.rows.find((row) => row.instrumentKind === "fcp");
+    expect(bond).toMatchObject({
+      quantity: 10,
+      avgBuyPrice: 10000,
+      tracked: true,
+      instrumentKind: "obligation",
+      couponRate: 6.25,
+      maturityDate: null,
+      priceMode: "FCFA",
+    });
+    expect(fund).toMatchObject({ quantity: 25, avgBuyPrice: 8000, tracked: true, instrumentKind: "fcp", priceMode: "FCFA" });
+    expect(bond?.warnings.join(" ")).not.toMatch(/non suivie/i);
+    expect(fund?.warnings.join(" ")).not.toMatch(/non suivi/i);
+    expect(result.rows.some((row) => row.match.ticker === "SGBC" || row.quantity === 999)).toBe(false);
+    const reasons = new Set(result.ignored.map((line) => line.reason));
+    for (const reason of ["adresse", "especes", "frais", "total", "page", "disclaimer", "soldee", "couverte", "en-tete"] as const) {
+      expect(reasons.has(reason), reason).toBe(true);
+    }
+  });
+
+  it("agrège achats et ventes d’une obligation et d’un FCP", () => {
+    const text = [
+      "Date d'opération    Libellé    Sens    Qté    Cours moy",
+      "10/01/2026    OBL ETAT CI 6,25% 2028    Achat    10    10000",
+      "01/03/2026    OBL ETAT CI 6,25% 2028    Achat    5    12000",
+      "01/06/2026    OBL ETAT CI 6,25% 2028    Vente    3    13000",
+      "10/01/2026    FCP HORIZON UEMOA géré par NSIA AM    Achat    20    8000",
+      "01/04/2026    FCP HORIZON UEMOA géré par NSIA AM    Achat    10    11000",
+      "01/07/2026    FCP HORIZON UEMOA géré par NSIA AM    Vente    5    9000",
+    ].join("\n");
+    const result = parseStatementText(text, catalog);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows.find((row) => row.instrumentKind === "obligation")).toMatchObject({
+      quantity: 12,
+      avgBuyPrice: 10666.67,
+      tradeDate: "2026-01-10",
+      tracked: true,
+      couponRate: 6.25,
+    });
+    expect(result.rows.find((row) => row.instrumentKind === "fcp")).toMatchObject({
+      quantity: 25,
+      avgBuyPrice: 9000,
+      tradeDate: "2026-01-10",
+      tracked: true,
+      manager: "NSIA AM",
+    });
+  });
+
   it("refuse un format non supporté", async () => {
     await expect(
       parseStatementUpload({ filename: "notes.txt", mime: "text/plain", bytes: new TextEncoder().encode("SNTS 10") }, catalog)
     ).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  });
+
+  function historyMatrix(): string[][] {
+    return fixture("historique-bruit.txt")
+      .split(/\r?\n/)
+      .filter((line) => line.trim())
+      .map((line) => line.trim().split(/\s{2,}/));
+  }
+
+  it("agrège le même historique en CSV, Excel et PDF", async () => {
+    const matrix = historyMatrix();
+    const csv = matrix.map((row) => row.join(";")).join("\n");
+    const fromCsv = await parseStatementUpload(
+      { filename: "historique.csv", mime: "text/csv", bytes: new TextEncoder().encode(csv) },
+      catalog
+    );
+    expect(byTicker(fromCsv, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000 });
+    expect(fromCsv.rows).toHaveLength(4);
+
+    const sheet = XLSX.utils.aoa_to_sheet(matrix);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Historique");
+    const xlsx = XLSX.write(book, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    const fromXlsx = await parseStatementUpload(
+      {
+        filename: "historique.xlsx",
+        mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        bytes: xlsx,
+      },
+      catalog
+    );
+    expect(byTicker(fromXlsx, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000, tradeDate: "2026-01-10" });
+    expect(fromXlsx.rows.filter((row) => row.instrumentKind === "obligation")).toHaveLength(1);
+    expect(fromXlsx.rows.filter((row) => row.instrumentKind === "fcp")).toHaveLength(1);
+
+    const pdf = buildTextPdf(
+      fixture("historique-bruit.txt")
+        .split(/\r?\n/)
+        .map((line) => line.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+    );
+    const fromPdf = await parseStatementUpload({ filename: "historique.pdf", mime: "application/pdf", bytes: pdf }, catalog);
+    expect(byTicker(fromPdf, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000 });
+    expect(fromPdf.rows).toHaveLength(4);
+  });
+
+  it("lit une image via le texte transcrit, et refuse un HEIC", async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    const fromImage = await parseStatementUpload(
+      { filename: "releve.png", mime: "image/png", bytes: png },
+      catalog,
+      { transcribe: async () => ({ text: fixture("historique-bruit.txt") }) }
+    );
+    expect(byTicker(fromImage, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000 });
+    expect(fromImage.rows).toHaveLength(4);
+
+    const heic = Buffer.alloc(16);
+    heic.write("ftyp", 4);
+    heic.write("heic", 8);
+    await expect(
+      parseStatementUpload({ filename: "photo.heic", mime: "image/heic", bytes: heic }, catalog)
+    ).rejects.toMatchObject({ code: "HEIC" });
   });
 });
 
@@ -240,6 +371,56 @@ describe("consolidation avant écriture", () => {
     ).toEqual([
       { companyId: "a", quantity: 20, avgBuyPrice: 200 },
       { companyId: "b", quantity: 2, avgBuyPrice: 50 },
+    ]);
+  });
+
+  it("conserve la date du premier achat", () => {
+    expect(
+      consolidateImportRows([
+        { companyId: "a", quantity: 10, avgBuyPrice: 100, buyDate: "2026-03-01" },
+        { companyId: "a", quantity: 5, avgBuyPrice: 200, buyDate: "2026-01-10" },
+      ])
+    ).toEqual([{ companyId: "a", quantity: 15, avgBuyPrice: 133.33, buyDate: "2026-01-10" }]);
+  });
+
+  it("pondère le PRU d’une obligation et d’un FCP homonymes", () => {
+    expect(
+      consolidateOtherRows([
+        { kind: "OBLIGATION", name: "OBL ETAT CI 6,25% 2028", quantity: 10, avgBuyPrice: 10000, buyDate: "2026-03-01", couponRate: 6.25 },
+        { kind: "OBLIGATION", name: "OBL ETAT CI 6,25% 2028", quantity: 10, avgBuyPrice: 12000, buyDate: "2026-01-10" },
+        { kind: "FCP", name: "FCP Horizon UEMOA", quantity: 4, avgBuyPrice: 5000, priceMode: "PERCENT" },
+      ])
+    ).toEqual([
+      {
+        kind: "OBLIGATION",
+        name: "OBL ETAT CI 6,25% 2028",
+        isin: null,
+        code: null,
+        manager: null,
+        quantity: 20,
+        avgBuyPrice: 11000,
+        priceMode: "FCFA",
+        nominal: null,
+        couponRate: 6.25,
+        maturityDate: null,
+        buyDate: "2026-01-10",
+        latestValue: null,
+      },
+      {
+        kind: "FCP",
+        name: "FCP Horizon UEMOA",
+        isin: null,
+        code: null,
+        manager: null,
+        quantity: 4,
+        avgBuyPrice: 5000,
+        priceMode: "FCFA",
+        nominal: null,
+        couponRate: null,
+        maturityDate: null,
+        buyDate: null,
+        latestValue: null,
+      },
     ]);
   });
 

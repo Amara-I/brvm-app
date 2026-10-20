@@ -84,6 +84,24 @@ enum BuyHorizon {
   @@map("buy_horizon")
 }
 
+/// Obligation ou FCP détenu dans un portefeuille. Enum neuf : on n'ajoute
+/// pas de valeur à un type PostgreSQL déjà utilisé par les actions.
+enum OtherInstrumentKind {
+  OBLIGATION
+  FCP
+
+  @@map("other_instrument_kind")
+}
+
+/// Unité du prix d'achat / du dernier prix saisi. FCFA = prix unitaire.
+/// PERCENT = pourcentage du nominal (obligations).
+enum OtherPriceMode {
+  FCFA
+  PERCENT
+
+  @@map("other_price_mode")
+}
+
 /// Rôle applicatif d'un utilisateur (préparation d'une future interface admin
 /// pour le fallback manuel de correction de données — cf. brief § ingestion).
 enum UserRole {
@@ -709,8 +727,9 @@ model Portfolio {
   name      String             @default("Mon portefeuille")
   createdAt DateTime           @default(now()) @map("created_at")
   updatedAt DateTime           @updatedAt @map("updated_at")
-  holdings  PortfolioHolding[]
-  trades    PortfolioTrade[]
+  holdings      PortfolioHolding[]
+  otherHoldings PortfolioOtherHolding[]
+  trades        PortfolioTrade[]
 
   @@index([userId])
   @@map("portfolios")
@@ -774,6 +793,39 @@ model PortfolioHolding {
   @@unique([portfolioId, companyId], name: "uniq_holding_portfolio_company")
   @@index([portfolioId])
   @@map("portfolio_holdings")
+}
+
+/// Obligation ou FCP. Table séparée pour ne pas rendre `company_id` nullable
+/// sur les actions déjà en base. Pas d'historique de cours : au plus une
+/// dernière valeur saisie (`latest_value`).
+model PortfolioOtherHolding {
+  id              String              @id @default(cuid())
+  portfolioId     String              @map("portfolio_id")
+  portfolio       Portfolio           @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  kind            OtherInstrumentKind
+  name            String
+  isin            String?
+  code            String?
+  /// Société de gestion (FCP) ou émetteur déjà porté par `name` (obligation).
+  manager         String?
+  quantity        Decimal             @db.Decimal(14, 4)
+  avgBuyPrice     Decimal             @map("avg_buy_price") @db.Decimal(14, 2)
+  priceMode       OtherPriceMode      @default(FCFA) @map("price_mode")
+  /// Valeur faciale unitaire, en FCFA. Requis pour convertir un prix en %.
+  nominal         Decimal?            @db.Decimal(14, 2)
+  /// Taux de coupon annuel en %. Ex. 6,25. Null si inconnu — pas de coupon inventé.
+  couponRate      Decimal?            @map("coupon_rate") @db.Decimal(8, 4)
+  maturityDate    DateTime?           @map("maturity_date") @db.Date
+  buyDate         DateTime?           @map("buy_date") @db.Date
+  /// Dernier prix connu (obligation, même unité que `priceMode`) ou dernière VL saisie (FCP).
+  latestValue     Decimal?            @map("latest_value") @db.Decimal(14, 4)
+  latestValueDate DateTime?           @map("latest_value_date") @db.Date
+  notes           String?
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  @@index([portfolioId, kind])
+  @@map("portfolio_other_holdings")
 }
 
 /// Analyse graphique sauvegardée par un utilisateur connecté

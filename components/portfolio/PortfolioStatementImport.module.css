@@ -365,7 +365,7 @@
 .table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 860px;
+  min-width: 980px;
   font-size: 0.78rem;
 }
 
@@ -444,6 +444,73 @@
   width: 7.2rem;
   min-height: 2.1rem;
   padding: 0.3rem 0.45rem;
+}
+
+.dateInput {
+  width: 9.2rem;
+  min-height: 2.1rem;
+  padding: 0.3rem 0.45rem;
+}
+
+.kind {
+  display: block;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.instrumentFields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 11rem;
+}
+
+.instrumentFields input,
+.instrumentFields select {
+  min-height: 1.8rem;
+  font-size: 0.75rem;
+}
+
+.rowRemove {
+  min-height: 2rem;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.ignored {
+  margin: 0 0 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  background: var(--c-inset);
+  padding: 8px 12px;
+}
+
+.ignored summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.ignored ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ignored li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  font-size: 0.75rem;
+  color: var(--c-textDim);
+}
+
+.ignored li strong {
+  color: var(--c-text);
+  font-weight: 700;
 }
 
 .select {
