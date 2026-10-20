@@ -1,0 +1,27 @@
+Relevé de mouvements de titres
+Titre                   Date          Libellé                           Valeur Unitaire Débit     Crédit    Solde
+BOA BENIN                                                                                                   16
+                        29/04/2026    Solde au :29/04/2026                                                  0
+                        29/07/2026    Acquisitions BOA BENIN            8 520.000                 16        16
+BOA NIGER                                                                                                   0
+                        29/04/2026    Solde au :29/04/2026                                                  0
+                        23/06/2026    Acquisitions BOA NIGER            3 850.000                 26        26
+                        28/07/2026    Cessions BOA NIGER                5 250.000       2                   24
+                        28/07/2026    Cessions BOA NIGER                5 250.000       24                  0
+BOA-BURKINA FASO                                                                                            0
+                        29/04/2026    Solde au :29/04/2026                                                  0
+                        23/06/2026    Acquisitions BOA-BURKINA FASO     5 595.000                 27        27
+                        28/07/2026    Cessions BOA-BURKINA FASO         6 905.000       2                   25
+                        28/07/2026    Cessions BOA-BURKINA FASO         6 905.000       5                   20
+                        28/07/2026    Cessions BOA-BURKINA FASO         6 905.000       20                  0
+CIE COTE DIVOIRE                                                                                            36
+                        29/04/2026    Solde au :29/04/2026                                                  0
+                        21/07/2026    Acquisitions CIE COTE DIVOIRE     5 140.000                 16        16
+                        24/07/2026    Acquisitions CIE COTE DIVOIRE     5 390.000                 20        36
+ECOBANK- CI                                                                                                 6
+                        29/04/2026    Solde au :29/04/2026                                                  0
+                        20/05/2026    Acquisitions ECOBANK- CI          16 300.000                5         5
+                        20/05/2026    Acquisitions ECOBANK- CI          16 300.000                1         6
+FILTISAC COTE                                                                                               33
+DIVOIRE
+                        29/04/2026    Solde au :29/04/2026                                                  0

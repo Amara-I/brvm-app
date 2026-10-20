@@ -1,6 +1,49 @@
 import { fold } from "./fold";
 
 /**
+ * Même clé pour les graphies SGI : apostrophe, trait d'union, « COTE D IVOIRE »
+ * et « COTE DIVOIRE », « BURKINA FASO » et « BURKINA ».
+ */
+export function canonAlias(value: string): string {
+  return fold(value)
+    .replace(/\bcote d ivoire\b/g, "cote divoire")
+    .replace(/\bburkina faso\b/g, "burkina")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+const LISTING_TAILS: readonly { re: RegExp; forms: readonly string[] }[] = [
+  { re: /^(.+?)\s+(?:ci|cote divoire|rci)$/, forms: ["ci", "cote divoire", "rci"] },
+  { re: /^(.+?)\s+(?:bf|burkina)$/, forms: ["bf", "burkina"] },
+  { re: /^(.+?)\s+(?:sn|senegal)$/, forms: ["sn", "senegal"] },
+  { re: /^(.+?)\s+(?:bj|benin)$/, forms: ["bj", "benin"] },
+  { re: /^(.+?)\s+(?:ne|niger)$/, forms: ["ne", "niger"] },
+  { re: /^(.+?)\s+(?:ml|mali)$/, forms: ["ml", "mali"] },
+  { re: /^(.+?)\s+(?:tg|togo)$/, forms: ["tg", "togo"] },
+];
+
+/**
+ * Clés supplémentaires pour un nom de cotation : « Filtisac CI » couvre aussi
+ * « FILTISAC COTE DIVOIRE ». Une clé trop courte ou ambiguë n'est pas émise.
+ */
+export function listingAliasKeys(name: string): string[] {
+  const stripped = name.replace(/\([^)]*\)/g, " ");
+  const base = canonAlias(stripped).replace(/\bex\b.*$/, "").replace(/\s+/g, " ").trim();
+  if (base.length < 5) return [];
+  const keys = new Set<string>();
+  for (const rule of LISTING_TAILS) {
+    const match = base.match(rule.re);
+    const stem = match?.[1]?.trim() ?? "";
+    if (stem.length < 2) continue;
+    for (const form of rule.forms) {
+      const key = `${stem} ${form}`.replace(/\s+/g, " ").trim();
+      if (key.length >= 5) keys.add(key);
+    }
+  }
+  return [...keys];
+}
+
+/**
  * Noms usuels vus sur les relevés SGI, absents ou abrégés dans `companies.name`.
  * Les clés sont repliées à l'initialisation. Un alias court (< 5 caractères)
  * ne compte que si le libellé entier est exactement cet alias.
@@ -80,7 +123,11 @@ const RAW_ALIASES: Record<string, string> = {
   "CFAO Motors CI": "CFAC",
   CIE: "CIEC",
   "Compagnie Ivoirienne d'Électricité": "CIEC",
+  // Relevés SGI : « CIE COTE DIVOIRE », « CIE COTE D'IVOIRE », « CIE COTE D IVOIRE ».
+  "CIE COTE DIVOIRE": "CIEC",
   Filtisac: "FTSC",
+  "Filtisac CI": "FTSC",
+  "FILTISAC COTE DIVOIRE": "FTSC",
   "Air Liquide": "SIVC",
   Erium: "SIVC",
   Unilever: "UNLC",
@@ -114,7 +161,7 @@ const RAW_ALIASES: Record<string, string> = {
 };
 
 export const TICKER_ALIASES: ReadonlyMap<string, string> = new Map(
-  Object.entries(RAW_ALIASES).map(([label, ticker]) => [fold(label), ticker])
+  Object.entries(RAW_ALIASES).map(([label, ticker]) => [canonAlias(label), ticker])
 );
 
 /** Alias dont la clé fait au moins 5 caractères, du plus long au plus court. */

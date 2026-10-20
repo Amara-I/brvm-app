@@ -21,8 +21,11 @@ Authentification obligatoire. Le relevé n’est parsé que pour le portefeuille
 | Lignes libres | `fixtures/edc-lignes.txt` | Une position par ligne, nombres en fin de ligne (`quantité`, `PRU`, `cours`, `valorisation`). |
 | CSV / Excel | test dans `sgi-statement.test.ts` | Même logique d’en-têtes, séparateur `;`, `,` ou tabulation. Nombres `1 234,50`, `1.234,50` ou `1234.5`. |
 | Historique d’opérations | `fixtures/historique-bruit.txt` | En-tête avec Sens / Date / Qté / Cours moy. Les achats et ventes d’un même titre deviennent **une** position : quantité nette, PRU pondéré (une vente ne change pas le PRU), date du premier achat. Quantité nette nulle → ligne ignorée « position soldée ». |
+| Mouvements de titres | `fixtures/mouvements-titres.txt` | Colonnes Titre, Date, Libellé, Valeur unitaire, Débit, Crédit, Solde. Le titre est sur une ligne de groupe (solde de clôture à droite) ; les lignes suivantes ont le titre vide. « Solde au … » est le solde d’ouverture, pas un achat. Le crédit est une entrée, le débit une sortie. `8 520.000` = 8 520 FCFA. Si le solde calculé ne vaut pas le solde du groupe, la ligne est marquée en confiance faible. Un solde d’en-tête sans mouvements (capture coupée) est repris tel quel, PRU vide. |
 
-Noms de colonnes déjà compris : Code, Ticker, Libellé, Désignation, Valeur, Quantité, Qté, PRU, PU, Prix de revient, Cours, Cours moy., Dernier cours, Valorisation, Évaluation, Variation, Sens, Nature, Date d’opération.
+Noms de colonnes déjà compris : Code, Ticker, Libellé, Désignation, Valeur, Quantité, Qté, PRU, PU, Prix de revient, Cours, Cours moy., Dernier cours, Valorisation, Évaluation, Variation, Sens, Nature, Date d’opération, et pour un relevé de mouvements : Titre, Valeur unitaire, Débit, Crédit, Solde.
+
+Dans un relevé de mouvements, le **crédit** est une entrée de titres (acquisition, souscription, attribution) et le **débit** une sortie (cession, vente, rachat, transfert sortant). « Solde au … » est le solde d’ouverture. Le nombre `8 520.000` vaut 8 520. Le solde calculé est comparé au solde du groupe : s’il diffère, la ligne reste visible avec une confiance faible. Une capture coupée (solde d’en-tête, sans les mouvements) reprend cette quantité et laisse le PRU vide. Une position revenue à zéro est ignorée ; le résultat réalisé est indiqué quand les prix sont connus. Un groupe qui continue sur la page suivante garde son titre. Les noms SGI (`CIE COTE DIVOIRE`, `BOA-BURKINA FASO`, `FILTISAC COTE D'IVOIRE`…) sont rapprochés des 47 cotations.
 
 ## Ce qui est ignoré
 

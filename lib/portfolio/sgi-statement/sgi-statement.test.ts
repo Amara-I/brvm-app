@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import * as XLSX from "xlsx";
 import { COMPANIES_FULL } from "@/prisma/seed-data/companies-full";
+import { createSecurityMatcher } from "./match-security";
 import { parseFrNumber } from "./french-number";
 import { StatementImportError } from "./messages";
 import { parseStatementText } from "./parse-statement";
@@ -41,22 +42,33 @@ function pdfEscape(value: string): string {
   return out;
 }
 
-function buildTextPdf(lines: string[]): Buffer {
+function pdfStream(lines: string[]): string {
   const commands = ["BT", "/F1 10 Tf", "40 800 Td"];
   lines.forEach((line, index) => {
     if (index > 0) commands.push("0 -14 Td");
     commands.push(`(${pdfEscape(line)}) Tj`);
   });
-  if (lines.length === 0) commands.push("ET");
-  else commands.push("ET");
-  const stream = commands.join("\n");
-  const objects = [
-    "<< /Type /Catalog /Pages 2 0 R >>",
-    "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
-    `<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`,
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-  ];
+  commands.push("ET");
+  return commands.join("\n");
+}
+
+function buildRawPdf(streams: string[], mediaBox = "0 0 595 842"): Buffer {
+  const fontId = 3;
+  const objects: string[] = ["", "", ""];
+  const kids: string[] = [];
+  streams.forEach((stream) => {
+    const pageId = objects.length + 1;
+    const contentId = pageId + 1;
+    kids.push(`${pageId} 0 R`);
+    objects.push(
+      `<< /Type /Page /Parent 2 0 R /MediaBox [${mediaBox}] /Contents ${contentId} 0 R /Resources << /Font << /F1 ${fontId} 0 R >> >> >>`
+    );
+    objects.push(`<< /Length ${Buffer.byteLength(stream, "latin1")} >>\nstream\n${stream}\nendstream`);
+  });
+  objects[0] = "<< /Type /Catalog /Pages 2 0 R >>";
+  objects[1] = `<< /Type /Pages /Kids [${kids.join(" ")}] /Count ${streams.length} >>`;
+  objects[2] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
   let body = "%PDF-1.4\n";
   const offsets = [0];
   objects.forEach((obj, index) => {
@@ -72,6 +84,38 @@ function buildTextPdf(lines: string[]): Buffer {
   return Buffer.from(body, "latin1");
 }
 
+const TABLE_X = [36, 120, 210, 400, 485, 545, 600];
+
+function tableStream(rows: string[][]): string {
+  const commands = ["BT", "/F1 9 Tf"];
+  rows.forEach((row, rowIndex) => {
+    const y = 780 - rowIndex * 16;
+    row.forEach((cell, column) => {
+      if (!cell) return;
+      const x = TABLE_X[column] ?? 36;
+      commands.push(`1 0 0 1 ${x} ${y} Tm (${pdfEscape(asciiFold(cell))}) Tj`);
+    });
+  });
+  commands.push("ET");
+  return commands.join("\n");
+}
+
+function buildTablePdf(pages: string[][][]): Buffer {
+  return buildRawPdf(pages.map(tableStream), "0 0 700 842");
+}
+
+function buildTextPdf(lines: string[]): Buffer {
+  return buildRawPdf([pdfStream(lines)]);
+}
+
+function buildPdfPages(pages: string[][]): Buffer {
+  return buildRawPdf(pages.map(pdfStream));
+}
+
+function asciiFold(value: string): string {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 describe("nombres français", () => {
   it("lit les formats FCFA usuels", () => {
     expect(parseFrNumber("1 234,50")).toBe(1234.5);
@@ -80,6 +124,8 @@ describe("nombres français", () => {
     expect(parseFrNumber("12,5 %")).toBe(12.5);
     expect(parseFrNumber("7 800 FCFA")).toBe(7800);
     expect(parseFrNumber("25 000,00")).toBe(25000);
+    expect(parseFrNumber("8 520.000")).toBe(8520);
+    expect(parseFrNumber("16 300.000")).toBe(16300);
     expect(parseFrNumber(32000)).toBe(32000);
   });
 });
@@ -357,6 +403,198 @@ describe("relevé SGI — fichiers", () => {
     await expect(
       parseStatementUpload({ filename: "photo.heic", mime: "image/heic", bytes: heic }, catalog)
     ).rejects.toMatchObject({ code: "HEIC" });
+  });
+});
+
+const MOUVEMENTS_MATRIX: string[][] = [
+  ["Titre", "Date", "Libellé", "Valeur Unitaire", "Débit", "Crédit", "Solde"],
+  ["BOA BENIN", "", "", "", "", "", "16"],
+  ["", "29/04/2026", "Solde au :29/04/2026", "", "", "", "0"],
+  ["", "29/07/2026", "Acquisitions BOA BENIN", "8 520.000", "", "16", "16"],
+  ["BOA NIGER", "", "", "", "", "", "0"],
+  ["", "29/04/2026", "Solde au :29/04/2026", "", "", "", "0"],
+  ["", "23/06/2026", "Acquisitions BOA NIGER", "3 850.000", "", "26", "26"],
+  ["", "28/07/2026", "Cessions BOA NIGER", "5 250.000", "2", "", "24"],
+  ["", "28/07/2026", "Cessions BOA NIGER", "5 250.000", "24", "", "0"],
+  ["BOA-BURKINA FASO", "", "", "", "", "", "0"],
+  ["", "29/04/2026", "Solde au :29/04/2026", "", "", "", "0"],
+  ["", "23/06/2026", "Acquisitions BOA-BURKINA FASO", "5 595.000", "", "27", "27"],
+  ["", "28/07/2026", "Cessions BOA-BURKINA FASO", "6 905.000", "2", "", "25"],
+  ["", "28/07/2026", "Cessions BOA-BURKINA FASO", "6 905.000", "5", "", "20"],
+  ["", "28/07/2026", "Cessions BOA-BURKINA FASO", "6 905.000", "20", "", "0"],
+  ["CIE COTE DIVOIRE", "", "", "", "", "", "36"],
+  ["", "29/04/2026", "Solde au :29/04/2026", "", "", "", "0"],
+  ["", "21/07/2026", "Acquisitions CIE COTE DIVOIRE", "5 140.000", "", "16", "16"],
+  ["", "24/07/2026", "Acquisitions CIE COTE DIVOIRE", "5 390.000", "", "20", "36"],
+  ["ECOBANK- CI", "", "", "", "", "", "6"],
+  ["", "29/04/2026", "Solde au :29/04/2026", "", "", "", "0"],
+  ["", "20/05/2026", "Acquisitions ECOBANK- CI", "16 300.000", "", "5", "5"],
+  ["", "20/05/2026", "Acquisitions ECOBANK- CI", "16 300.000", "", "1", "6"],
+  ["FILTISAC COTE", "", "", "", "", "", "33"],
+  ["DIVOIRE", "", "", "", "", "", ""],
+  ["", "29/04/2026", "Solde au :29/04/2026", "", "", "", "0"],
+];
+
+function expectMouvements(result: StatementParseResult) {
+  expect(result.layoutId).toBe("mouvements");
+  expect(result.documentKind).toBe("historique");
+  expect(result.rows.map((row) => row.match.ticker)).toEqual(["BOAB", "CIEC", "ECOC", "FTSC"]);
+  expect(byTicker(result, "BOAB")).toMatchObject({
+    quantity: 16,
+    avgBuyPrice: 8520,
+    tradeDate: "2026-07-29",
+    match: { ticker: "BOAB", confidence: "haute" },
+  });
+  expect(byTicker(result, "CIEC")).toMatchObject({
+    quantity: 36,
+    avgBuyPrice: 5278.89,
+    tradeDate: "2026-07-21",
+    match: { ticker: "CIEC", confidence: "haute" },
+  });
+  expect(byTicker(result, "ECOC")).toMatchObject({
+    quantity: 6,
+    avgBuyPrice: 16300,
+    tradeDate: "2026-05-20",
+    match: { ticker: "ECOC", confidence: "haute" },
+  });
+  const filtisac = byTicker(result, "FTSC");
+  expect(filtisac).toMatchObject({
+    quantity: 33,
+    avgBuyPrice: null,
+    tradeDate: null,
+    match: { ticker: "FTSC", confidence: "faible" },
+  });
+  expect(filtisac.warnings.join(" ")).toMatch(/solde d'en-tête/i);
+  expect(result.rows.some((row) => row.match.ticker === "BOAN" || row.match.ticker === "BOABF")).toBe(false);
+  const sold = result.ignored.filter((line) => line.reason === "soldee").map((line) => line.raw);
+  expect(sold.some((raw) => /BOA NIGER/i.test(raw) && /36 400/.test(raw))).toBe(true);
+  expect(sold.some((raw) => /BURKINA/i.test(raw) && /35 370/.test(raw))).toBe(true);
+}
+
+describe("relevé de mouvements de titres", () => {
+  it("rapproche les graphies SGI de toutes les cotes du catalogue", () => {
+    const matcher = createSecurityMatcher(catalog);
+    expect(matcher("BOA BENIN")).toMatchObject({ ticker: "BOAB", confidence: "haute" });
+    expect(matcher("BOA NIGER")).toMatchObject({ ticker: "BOAN", confidence: "haute" });
+    expect(matcher("BOA-BURKINA FASO")).toMatchObject({ ticker: "BOABF", confidence: "haute" });
+    expect(matcher("CIE COTE DIVOIRE")).toMatchObject({ ticker: "CIEC", confidence: "haute" });
+    expect(matcher("CIE COTE D'IVOIRE")).toMatchObject({ ticker: "CIEC", confidence: "haute" });
+    expect(matcher("CIE COTE D IVOIRE")).toMatchObject({ ticker: "CIEC", confidence: "haute" });
+    expect(matcher("ECOBANK- CI")).toMatchObject({ ticker: "ECOC", confidence: "haute" });
+    expect(matcher("FILTISAC COTE DIVOIRE")).toMatchObject({ ticker: "FTSC", confidence: "haute" });
+    expect(matcher("FILTISAC COTE D IVOIRE")).toMatchObject({ ticker: "FTSC", confidence: "haute" });
+    expect(matcher("SITAB COTE DIVOIRE")).toMatchObject({ ticker: "STBC", confidence: "haute" });
+    expect(matcher("BOA COTE D IVOIRE")).toMatchObject({ ticker: "BOAC", confidence: "haute" });
+  });
+
+  it("lit le relevé groupé (texte, Excel, PDF)", async () => {
+    expectMouvements(parseFixture("mouvements-titres.txt"));
+
+    const sheet = XLSX.utils.aoa_to_sheet(MOUVEMENTS_MATRIX);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Mouvements");
+    const xlsx = XLSX.write(book, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    const fromXlsx = await parseStatementUpload(
+      {
+        filename: "mouvements.xlsx",
+        mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        bytes: xlsx,
+      },
+      catalog
+    );
+    expectMouvements(fromXlsx);
+
+    const csv = MOUVEMENTS_MATRIX.map((row) => row.join(";")).join("\n");
+    const fromCsv = await parseStatementUpload(
+      { filename: "mouvements.csv", mime: "text/csv", bytes: new TextEncoder().encode(csv) },
+      catalog
+    );
+    expectMouvements(fromCsv);
+
+    const fromPdf = await parseStatementUpload(
+      { filename: "mouvements.pdf", mime: "application/pdf", bytes: buildTablePdf([MOUVEMENTS_MATRIX]) },
+      catalog
+    );
+    expectMouvements(fromPdf);
+  });
+
+  it("poursuit un groupe sur la page suivante", async () => {
+    const lines = fixture("mouvements-titres.txt").split(/\r?\n/).filter((line) => line.length > 0);
+    const header = lines.find((line) => line.startsWith("Titre"));
+    const cie = lines.find((line) => line.startsWith("CIE COTE DIVOIRE"));
+    const cut = lines.findIndex((line) => /24\/07\/2026/.test(line));
+    expect(cut).toBeGreaterThan(0);
+    const continued = [...lines.slice(0, cut), "Page 1 / 2", header!, cie!, ...lines.slice(cut)].join("\n");
+    expectMouvements(parseStatementText(continued, catalog));
+
+    const matrixCut = MOUVEMENTS_MATRIX.findIndex((row) => row[1] === "24/07/2026");
+    const fromPdf = await parseStatementUpload(
+      {
+        filename: "mouvements-2p.pdf",
+        mime: "application/pdf",
+        bytes: buildTablePdf([
+          MOUVEMENTS_MATRIX.slice(0, matrixCut),
+          [MOUVEMENTS_MATRIX[0]!, ...MOUVEMENTS_MATRIX.slice(matrixCut)],
+        ]),
+      },
+      catalog
+    );
+    expectMouvements(fromPdf);
+  });
+
+  it("reprend un solde d'en-tête sans mouvements et signale un écart", () => {
+    const text = [
+      "Titre                   Date          Libellé                           Valeur Unitaire Débit     Crédit    Solde",
+      "PALM CI                                                                                                     40",
+      "                        01/01/2026    Solde au :01/01/2026                                                  0",
+      "SONATEL                                                                                                     12",
+      "                        01/01/2026    Solde au :01/01/2026                                                  0",
+      "                        02/02/2026    Acquisitions SONATEL              1 000.000                 10        10",
+    ].join("\n");
+    const result = parseStatementText(text, catalog);
+    expect(byTicker(result, "PALC")).toMatchObject({ quantity: 40, avgBuyPrice: null, match: { confidence: "faible" } });
+    expect(byTicker(result, "SNTS")).toMatchObject({
+      quantity: 10,
+      avgBuyPrice: 1000,
+      tradeDate: "2026-02-02",
+      match: { confidence: "faible" },
+    });
+    expect(byTicker(result, "SNTS").warnings.join(" ")).toMatch(/quantité calculée/);
+  });
+
+  it("lit la capture (OCR) même si les colonnes ne sont plus alignées", async () => {
+    expectMouvements(parseFixture("mouvements-titres-ocr.txt"));
+    const png = readFileSync(path.join(__dirname, "fixtures", "mouvements-titres.png"));
+    const fromImage = await parseStatementUpload(
+      { filename: "releve-mouvements.png", mime: "image/png", bytes: png },
+      catalog,
+      { transcribe: async () => ({ text: fixture("mouvements-titres-ocr.txt") }) }
+    );
+    expectMouvements(fromImage);
+  });
+
+  it("compte une attribution gratuite et un transfert sans inverser débit et crédit", () => {
+    const widths = [24, 14, 34, 16, 10, 10, 8];
+    const render = (rows: string[][]) =>
+      rows
+        .map((row) => row.map((cell, index) => cell.padEnd(widths[index] ?? 8, " ")).join("").trimEnd())
+        .join("\n");
+    const result = parseStatementText(
+      render([
+        ["Titre", "Date", "Libellé", "Valeur Unitaire", "Débit", "Crédit", "Solde"],
+        ["SONATEL", "", "", "", "", "", "16"],
+        ["", "01/01/2026", "Acquisition", "1 000.000", "", "10", "10"],
+        ["", "02/01/2026", "Attribution gratuite", "", "", "10", "20"],
+        ["", "03/01/2026", "Transfert sortant", "1 500.000", "4", "", "16"],
+      ]),
+      catalog
+    );
+    expect(byTicker(result, "SNTS")).toMatchObject({
+      quantity: 16,
+      avgBuyPrice: 500,
+      tradeDate: "2026-01-01",
+      match: { confidence: "haute" },
+    });
   });
 });
 

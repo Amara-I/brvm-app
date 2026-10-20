@@ -24,6 +24,7 @@ import { createSecurityMatcher, extractIsin, type SecurityMatcher } from "./matc
 import { STATEMENT_MAX_ROWS, StatementImportError } from "./messages";
 import { termsFromLabel } from "./instrument-terms";
 import { classifyInstrument } from "./noise";
+import { tryParseMouvementsText } from "./parse-mouvements";
 import { nonStockMatch, tryParseHistoryText } from "./positions";
 import type {
   DocumentKind,
@@ -584,6 +585,20 @@ export function parseStatementText(text: string, catalog: readonly SecurityCatal
   const letters = normalized.replace(/[^A-Za-zÀ-ÿ]/g, "");
   if (letters.length < 15) {
     throw new StatementImportError("UNRECOGNIZED");
+  }
+
+  const mouvements = tryParseMouvementsText(normalized, catalog);
+  if (mouvements) {
+    return finalizeStatement(
+      mouvements.rows,
+      detectStatementMeta(normalized),
+      { id: "mouvements", label: mouvements.layoutLabel },
+      {
+        documentKind: mouvements.documentKind,
+        ignored: mouvements.ignored,
+        ignoredCount: mouvements.ignoredCount,
+      }
+    );
   }
 
   const history = tryParseHistoryText(normalized, catalog);

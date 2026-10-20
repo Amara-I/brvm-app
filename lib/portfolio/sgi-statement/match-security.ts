@@ -1,4 +1,4 @@
-import { TICKER_ALIASES, TICKER_ALIAS_PHRASES } from "./aliases";
+import { TICKER_ALIASES, TICKER_ALIAS_PHRASES, canonAlias, listingAliasKeys } from "./aliases";
 import { fold, includesPhrase } from "./fold";
 import type { MatchConfidence, MatchReason, SecurityCatalogEntry, SecurityMatch } from "./types";
 
@@ -160,6 +160,17 @@ export function createSecurityMatcher(catalog: readonly SecurityCatalogEntry[]):
     }
   }
 
+  const generatedAliases = new Map<string, string>();
+  for (const item of prepared) {
+    for (const key of listingAliasKeys(item.entry.name)) {
+      const explicit = TICKER_ALIASES.get(key);
+      if (explicit && explicit !== item.entry.ticker) continue;
+      const prev = generatedAliases.get(key);
+      if (!prev) generatedAliases.set(key, item.entry.ticker);
+      else if (prev !== item.entry.ticker) generatedAliases.set(key, "");
+    }
+  }
+
   const tickerPattern =
     prepared.length === 0
       ? null
@@ -199,7 +210,8 @@ export function createSecurityMatcher(catalog: readonly SecurityCatalogEntry[]):
     }
 
     const foldedLabel = fold(cleaned.replace(ISIN_RE, " "));
-    const aliasTicker = TICKER_ALIASES.get(foldedLabel);
+    const canonLabel = canonAlias(cleaned.replace(ISIN_RE, " "));
+    const aliasTicker = TICKER_ALIASES.get(canonLabel) || generatedAliases.get(canonLabel) || "";
     if (aliasTicker) {
       const hit = byTicker.get(aliasTicker);
       if (hit) return pack(hit.entry, 0.96, "alias", false, [candidate(hit, 0.96)]);
@@ -207,7 +219,7 @@ export function createSecurityMatcher(catalog: readonly SecurityCatalogEntry[]):
 
     const phraseHits: Prepared[] = [];
     for (const alias of TICKER_ALIAS_PHRASES) {
-      if (!includesPhrase(foldedLabel, alias.phrase)) continue;
+      if (!includesPhrase(canonLabel, alias.phrase)) continue;
       const hit = byTicker.get(alias.ticker);
       if (!hit) continue;
       if (phraseHits.some((item) => item.entry.ticker === hit.entry.ticker)) continue;
@@ -227,7 +239,7 @@ export function createSecurityMatcher(catalog: readonly SecurityCatalogEntry[]):
       );
     }
 
-    const exact = prepared.find((item) => item.foldedName === foldedLabel);
+    const exact = prepared.find((item) => canonAlias(item.foldedName) === canonLabel || item.foldedName === foldedLabel);
     if (exact) return pack(exact.entry, 0.97, "nom", false, [candidate(exact, 0.97)]);
 
     const labelRaw = tokensOf(foldedLabel);

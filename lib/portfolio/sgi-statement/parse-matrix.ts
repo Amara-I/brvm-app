@@ -1,6 +1,7 @@
 import { fold } from "./fold";
 import { headerRole, rolesLookLikeHeader, type HeaderRole } from "./headers";
 import { createSecurityMatcher } from "./match-security";
+import { tryParseMouvementsMatrix } from "./parse-mouvements";
 import { tryParseHistoryMatrix } from "./positions";
 import { detectStatementMeta, finalizeStatement, readHeaderRow } from "./parse-statement";
 import type { SecurityCatalogEntry, StatementParseResult } from "./types";
@@ -25,6 +26,16 @@ export function parseStatementMatrix(
     .map((row) => row.map((cell) => String(cell ?? "").replace(/\u00a0|\u202f/g, " ").trim()))
     .filter((row) => row.some((cell) => cell.length > 0));
   if (rows.length === 0) return null;
+
+  const mouvements = tryParseMouvementsMatrix(rows, catalog);
+  if (mouvements) {
+    const text = rows.map((row) => row.filter(Boolean).join(" ")).join("\n");
+    return finalizeStatement(mouvements.rows, detectStatementMeta(text), { id: "mouvements", label: mouvements.layoutLabel }, {
+      documentKind: mouvements.documentKind,
+      ignored: mouvements.ignored,
+      ignoredCount: mouvements.ignoredCount,
+    });
+  }
 
   let headerIndex = -1;
   let roles: (HeaderRole | null)[] = [];
