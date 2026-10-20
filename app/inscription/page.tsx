@@ -1,5 +1,6 @@
 import AuthPage from "@/components/auth/AuthPage";
 import RegisterForm from "@/components/auth/RegisterForm";
+import { enabledOAuthProviderIds } from "@/lib/auth/auth-options";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default function InscriptionPage() {
       title="Créer un compte"
       lead="Gratuit — suivez votre portefeuille et vos sociétés favorites sur la BRVM. Un email de confirmation vous sera envoyé."
     >
-      <RegisterForm />
+      <RegisterForm oauthProviders={enabledOAuthProviderIds} />
     </AuthPage>
   );
 }

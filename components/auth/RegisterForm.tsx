@@ -6,10 +6,10 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import PasswordField from "./PasswordField";
-import GoogleSignInButton from "./GoogleSignInButton";
+import OAuthSignInButtons from "./OAuthSignInButtons";
 import styles from "./AuthForm.module.css";
 
-export default function RegisterForm() {
+export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?: readonly string[] }) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -145,7 +145,7 @@ export default function RegisterForm() {
         {loading ? "Création du compte…" : "Créer mon compte"}
       </button>
 
-      <GoogleSignInButton callbackUrl="/portefeuille" />
+      <OAuthSignInButtons providers={oauthProviders} callbackUrl="/portefeuille" />
 
       <p className={styles.footer}>
         Déjà un compte ? <Link href="/connexion">Se connecter</Link>
