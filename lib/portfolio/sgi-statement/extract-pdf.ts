@@ -1,8 +1,8 @@
 /**
  * Extraction du texte d'un PDF « natif » (couche texte).
- * Pas d'OCR : un scan sans texte sélectionnable est refusé, avec un message
- * explicite. L'OCR (Tesseract) n'est pas raisonnable sur Vercel Hobby
- * (binaire / WASM lourd, durée) — voir docs/import-releve-sgi.md.
+ * Un scan sans texte est signalé `SCANNED_PDF`. L'appelant peut alors
+ * envoyer le PDF à un modèle de vision, ou demander une photo (OCR).
+ * Voir docs/import-releve-sgi.md.
  *
  * Le fichier n'est jamais écrit sur disque : uniquement le buffer reçu.
  */
@@ -49,7 +49,7 @@ function pagesToText(pages: readonly (readonly TextItem[])[]): string {
   for (const page of pages) {
     const buckets: { y: number; items: TextItem[] }[] = [];
     for (const item of page) {
-      const str = item.str?.replace(/\s+/g, " ").trim() ?? "";
+      const str = item.str?.replace(/\u00a0|\u202f/g, " ").trim() ?? "";
       if (!str) continue;
       const tolerance = Math.max(2, (item.fontSize || 10) * 0.45);
       const bucket = buckets.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance);

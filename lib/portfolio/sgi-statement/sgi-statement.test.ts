@@ -222,10 +222,97 @@ describe("relevé SGI — fichiers", () => {
     ).rejects.toThrow(/OCR/);
   });
 
+  it("agrège un historique bruité en une position par titre", () => {
+    const result = parseFixture("historique-bruit.txt");
+    expect(result.layoutId).toBe("positions");
+    expect(result.documentKind).toBe("historique");
+    expect(result.issuer).toBe("SGI-CI");
+    expect(result.statementDate).toBe("2026-09-30");
+    expect(result.rows).toHaveLength(4);
+    expect(byTicker(result, "SNTS")).toMatchObject({
+      quantity: 120,
+      avgBuyPrice: 12000,
+      tradeDate: "2026-01-10",
+      instrumentKind: "action",
+      tracked: true,
+    });
+    expect(byTicker(result, "PALC")).toMatchObject({ quantity: 200, avgBuyPrice: 7500, tradeDate: "2026-02-10" });
+    const bond = result.rows.find((row) => row.instrumentKind === "obligation");
+    const fund = result.rows.find((row) => row.instrumentKind === "fcp");
+    expect(bond).toMatchObject({ quantity: 10, avgBuyPrice: 10000, tracked: false, instrumentKind: "obligation" });
+    expect(fund).toMatchObject({ quantity: 25, avgBuyPrice: 8000, tracked: false, instrumentKind: "fcp" });
+    expect(result.rows.some((row) => row.match.ticker === "SGBC" || row.quantity === 999)).toBe(false);
+    const reasons = new Set(result.ignored.map((line) => line.reason));
+    for (const reason of ["adresse", "especes", "frais", "total", "page", "disclaimer", "soldee", "couverte", "en-tete"] as const) {
+      expect(reasons.has(reason), reason).toBe(true);
+    }
+  });
+
   it("refuse un format non supporté", async () => {
     await expect(
       parseStatementUpload({ filename: "notes.txt", mime: "text/plain", bytes: new TextEncoder().encode("SNTS 10") }, catalog)
     ).rejects.toMatchObject({ code: "UNSUPPORTED" });
+  });
+
+  function historyMatrix(): string[][] {
+    return fixture("historique-bruit.txt")
+      .split(/\r?\n/)
+      .filter((line) => line.trim())
+      .map((line) => line.trim().split(/\s{2,}/));
+  }
+
+  it("agrège le même historique en CSV, Excel et PDF", async () => {
+    const matrix = historyMatrix();
+    const csv = matrix.map((row) => row.join(";")).join("\n");
+    const fromCsv = await parseStatementUpload(
+      { filename: "historique.csv", mime: "text/csv", bytes: new TextEncoder().encode(csv) },
+      catalog
+    );
+    expect(byTicker(fromCsv, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000 });
+    expect(fromCsv.rows).toHaveLength(4);
+
+    const sheet = XLSX.utils.aoa_to_sheet(matrix);
+    const book = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(book, sheet, "Historique");
+    const xlsx = XLSX.write(book, { type: "buffer", bookType: "xlsx" }) as Buffer;
+    const fromXlsx = await parseStatementUpload(
+      {
+        filename: "historique.xlsx",
+        mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        bytes: xlsx,
+      },
+      catalog
+    );
+    expect(byTicker(fromXlsx, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000, tradeDate: "2026-01-10" });
+    expect(fromXlsx.rows.filter((row) => row.instrumentKind === "obligation")).toHaveLength(1);
+    expect(fromXlsx.rows.filter((row) => row.instrumentKind === "fcp")).toHaveLength(1);
+
+    const pdf = buildTextPdf(
+      fixture("historique-bruit.txt")
+        .split(/\r?\n/)
+        .map((line) => line.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
+    );
+    const fromPdf = await parseStatementUpload({ filename: "historique.pdf", mime: "application/pdf", bytes: pdf }, catalog);
+    expect(byTicker(fromPdf, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000 });
+    expect(fromPdf.rows).toHaveLength(4);
+  });
+
+  it("lit une image via le texte transcrit, et refuse un HEIC", async () => {
+    const png = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+    const fromImage = await parseStatementUpload(
+      { filename: "releve.png", mime: "image/png", bytes: png },
+      catalog,
+      { transcribe: async () => ({ text: fixture("historique-bruit.txt") }) }
+    );
+    expect(byTicker(fromImage, "SNTS")).toMatchObject({ quantity: 120, avgBuyPrice: 12000 });
+    expect(fromImage.rows).toHaveLength(4);
+
+    const heic = Buffer.alloc(16);
+    heic.write("ftyp", 4);
+    heic.write("heic", 8);
+    await expect(
+      parseStatementUpload({ filename: "photo.heic", mime: "image/heic", bytes: heic }, catalog)
+    ).rejects.toMatchObject({ code: "HEIC" });
   });
 });
 
@@ -241,6 +328,15 @@ describe("consolidation avant écriture", () => {
       { companyId: "a", quantity: 20, avgBuyPrice: 200 },
       { companyId: "b", quantity: 2, avgBuyPrice: 50 },
     ]);
+  });
+
+  it("conserve la date du premier achat", () => {
+    expect(
+      consolidateImportRows([
+        { companyId: "a", quantity: 10, avgBuyPrice: 100, buyDate: "2026-03-01" },
+        { companyId: "a", quantity: 5, avgBuyPrice: 200, buyDate: "2026-01-10" },
+      ])
+    ).toEqual([{ companyId: "a", quantity: 15, avgBuyPrice: 133.33, buyDate: "2026-01-10" }]);
   });
 
   it("rédige une note de mouvement sans reprendre le fichier", () => {

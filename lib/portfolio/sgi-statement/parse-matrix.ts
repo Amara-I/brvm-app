@@ -1,6 +1,7 @@
 import { fold } from "./fold";
 import { headerRole, rolesLookLikeHeader, type HeaderRole } from "./headers";
 import { createSecurityMatcher } from "./match-security";
+import { tryParseHistoryMatrix } from "./positions";
 import { detectStatementMeta, finalizeStatement, readHeaderRow } from "./parse-statement";
 import type { SecurityCatalogEntry, StatementParseResult } from "./types";
 
@@ -37,6 +38,16 @@ export function parseStatementMatrix(
     break;
   }
   if (headerIndex < 0) return null;
+
+  const history = tryParseHistoryMatrix(rows, catalog);
+  if (history) {
+    const text = rows.map((row) => row.filter(Boolean).join(" ")).join("\n");
+    return finalizeStatement(history.rows, detectStatementMeta(text), { id: "positions", label: history.layoutLabel }, {
+      documentKind: history.documentKind,
+      ignored: history.ignored,
+      ignoredCount: history.ignoredCount,
+    });
+  }
 
   const matcher = createSecurityMatcher(catalog);
   const parsed = [];
