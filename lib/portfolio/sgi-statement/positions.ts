@@ -24,6 +24,7 @@ import {
 } from "./headers";
 import { createSecurityMatcher, extractIsin, type SecurityMatcher } from "./match-security";
 import { STATEMENT_MAX_ROWS } from "./messages";
+import { termsFromLabel } from "./instrument-terms";
 import { classifyInstrument, classifyNoise } from "./noise";
 import type {
   DocumentKind,
@@ -113,7 +114,7 @@ export function parseSide(value: string): Side | null {
   return null;
 }
 
-function untrackedMatch(): SecurityMatch {
+export function nonStockMatch(): SecurityMatch {
   return {
     companyId: null,
     ticker: null,
@@ -173,7 +174,7 @@ function movementFromParts(
   if (headerRole(label) && fold(label).split(" ").length < 3) return null;
   const kind = classifyInstrument(label);
   const isin = parts.isin ?? extractIsin(label);
-  const match = kind === "action" ? matcher(label, isin) : untrackedMatch();
+  const match = kind === "action" ? matcher(label, isin) : nonStockMatch();
   return {
     raw: clip(parts.raw),
     label,
@@ -404,14 +405,11 @@ function aggregate(movements: Movement[], ignored: IgnoredLine[], count: { n: nu
       continue;
     }
     const avg = lot.cost > 0 && lot.qty > 0 ? roundMoney(lot.cost / lot.qty) : null;
+    const terms = termsFromLabel(lot.label, lot.kind);
     const warnings: string[] = [];
-    if (lot.kind === "obligation") {
-      warnings.push("Obligation non suivie dans le portefeuille — elle ne sera pas enregistrée sans société cotée.");
-    } else if (lot.kind === "fcp") {
-      warnings.push("FCP non suivi dans le portefeuille — il ne sera pas enregistré sans société cotée.");
-    } else if (lot.match.confidence === "aucune") {
+    if (lot.kind === "action" && lot.match.confidence === "aucune") {
       warnings.push("Aucune société cotée ne correspond à cette ligne.");
-    } else if (lot.match.ambiguous) {
+    } else if (lot.kind === "action" && lot.match.ambiguous) {
       warnings.push("Plusieurs sociétés possibles — vérifiez le titre.");
     }
     if (avg == null) warnings.push("PRU manquant — à compléter avant l’enregistrement.");
@@ -426,7 +424,12 @@ function aggregate(movements: Movement[], ignored: IgnoredLine[], count: { n: nu
       valuation: lot.lastPrice != null ? roundMoney(lot.qty * lot.lastPrice) : null,
       tradeDate: lot.firstBuy,
       instrumentKind: lot.kind,
-      tracked: lot.kind === "action",
+      couponRate: terms.couponRate,
+      nominal: null,
+      maturityDate: terms.maturityDate,
+      manager: terms.manager,
+      priceMode: "FCFA",
+      tracked: true,
       match: lot.match,
       warnings,
     });

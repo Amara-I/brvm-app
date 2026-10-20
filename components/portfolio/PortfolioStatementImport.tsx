@@ -37,6 +37,13 @@ type Draft = {
   manual: boolean;
   instrumentKind: InstrumentKind;
   tracked: boolean;
+  isin: string;
+  nominal: string;
+  couponRate: string;
+  maturityDate: string;
+  manager: string;
+  latestValue: string;
+  priceMode: "FCFA" | "PERCENT";
 };
 
 const KIND_LABEL: Record<InstrumentKind, string> = {
@@ -148,6 +155,13 @@ function toDraft(row: StatementRowDraft): Draft {
     manual: false,
     instrumentKind: row.instrumentKind ?? "action",
     tracked: row.tracked !== false,
+    isin: row.isin ?? "",
+    nominal: toInput(row.nominal),
+    couponRate: toInput(row.couponRate),
+    maturityDate: row.maturityDate ?? "",
+    manager: row.manager ?? "",
+    latestValue: toInput(row.lastPrice),
+    priceMode: row.priceMode ?? "FCFA",
   };
 }
 
@@ -313,7 +327,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
   const blocked = included.filter((row) => {
     const quantity = parseFrNumber(row.quantity);
     const price = parseFrNumber(row.avgBuyPrice);
-    return !row.companyId || quantity == null || quantity <= 0 || price == null || price <= 0;
+    const numbersMissing = quantity == null || quantity <= 0 || price == null || price <= 0;
+    if (row.instrumentKind !== "action") return numbersMissing || !row.label.trim();
+    return !row.companyId || numbersMissing;
   });
 
   async function save() {
@@ -324,7 +340,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
       return;
     }
     if (blocked.length > 0) {
-      setError("Complétez la société, la quantité et le PRU des lignes cochées, ou décochez-les.");
+      setError("Complétez la quantité et le prix des lignes cochées. Une action doit aussi avoir une société.");
       return;
     }
     if (mode === "replace" && !replaceAck) {
@@ -334,6 +350,8 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
 
     setBusy("save");
     try {
+      const actions = included.filter((row) => row.instrumentKind === "action");
+      const others = included.filter((row) => row.instrumentKind !== "action");
       const res = await fetch(`/api/portfolio/${portfolioId}/import-statement/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -341,21 +359,42 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
           mode,
           statementDate: statementDate || null,
           issuer: preview?.issuer ?? null,
-          rows: included.map((row) => ({
+          rows: actions.map((row) => ({
             companyId: row.companyId,
             quantity: parseFrNumber(row.quantity),
             avgBuyPrice: parseFrNumber(row.avgBuyPrice),
             buyDate: /^\d{4}-\d{2}-\d{2}$/.test(row.tradeDate) ? row.tradeDate : null,
           })),
+          otherRows: others.map((row) => {
+            const nominal = parseFrNumber(row.nominal);
+            const couponRate = parseFrNumber(row.couponRate);
+            const latestValue = parseFrNumber(row.latestValue);
+            const isin = row.isin.replace(/\s+/g, "").toUpperCase();
+            return {
+              kind: row.instrumentKind === "fcp" ? "FCP" : "OBLIGATION",
+              name: row.label.trim(),
+              isin: /^[A-Z]{2}[A-Z0-9]{10}$/.test(isin) ? isin : null,
+              manager: row.manager.trim() || null,
+              quantity: parseFrNumber(row.quantity),
+              avgBuyPrice: parseFrNumber(row.avgBuyPrice),
+              priceMode: row.instrumentKind === "obligation" ? row.priceMode : "FCFA",
+              nominal: nominal != null && nominal > 0 ? nominal : null,
+              couponRate: couponRate != null && couponRate >= 0 ? couponRate : null,
+              maturityDate: /^\d{4}-\d{2}-\d{2}$/.test(row.maturityDate) ? row.maturityDate : null,
+              buyDate: /^\d{4}-\d{2}-\d{2}$/.test(row.tradeDate) ? row.tradeDate : null,
+              latestValue: latestValue != null && latestValue > 0 ? latestValue : null,
+            };
+          }),
         }),
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Enregistrement impossible.");
-      const data = json.data as { created: number; updated: number; deleted: number };
+      const data = json.data as { created: number; updated: number; deleted: number; skipped?: number };
       const parts = [
         mode === "replace" ? `${data.deleted} position(s) retirée(s)` : null,
         data.created ? `${data.created} créée(s)` : null,
         data.updated ? `${data.updated} renforcée(s)` : null,
+        data.skipped ? `${data.skipped} non fusionnée(s) (unité de prix différente)` : null,
       ].filter(Boolean);
       setMessage(`Relevé importé dans « ${portfolioName} » — ${parts.join(" · ") || "aucune modification"}.`);
       resetReview();
@@ -576,8 +615,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const tone = !row.tracked
-                    ? "warn"
+                  const other = row.instrumentKind !== "action";
+                  const tone = other
+                    ? "ok"
                     : !row.companyId || row.confidence === "aucune"
                       ? "bad"
                       : row.ambiguous || row.confidence === "faible"
@@ -595,48 +635,128 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                       </td>
                       <td>
                         <span className={styles.kind}>{KIND_LABEL[row.instrumentKind]}</span>
-                        {!row.tracked ? (
-                          <span className={styles.badge} data-confidence="aucune">
-                            Non suivi
-                          </span>
-                        ) : null}
                       </td>
                       <td>
                         <span className={styles.label}>{row.label}</span>
                         <span className={styles.raw}>{row.rawLine}</span>
                       </td>
                       <td>
-                        <select
-                          className={`ob-select ${styles.select}`}
-                          aria-label={`Société pour ${row.label}`}
-                          value={row.companyId}
-                          onChange={(event) =>
-                            patch(row.id, {
-                              companyId: event.target.value,
-                              confidence: event.target.value ? "haute" : "aucune",
-                              ambiguous: false,
-                              manual: true,
-                            })
-                          }
-                        >
-                          <option value="">— Choisir —</option>
-                          {companies.map((company: StatementCompanyOption) => (
-                            <option key={company.id} value={company.id}>
-                              {company.ticker} — {company.name}
-                            </option>
-                          ))}
-                        </select>
-                        {row.companyId && companyById.get(row.companyId) ? (
-                          <span className={styles.hint}>{row.manual ? "Corrigé manuellement" : companyById.get(row.companyId)?.name}</span>
-                        ) : !row.tracked ? (
-                          <span className={styles.hint}>Non suivi — choisissez une société pour l’enregistrer</span>
+                        {other ? (
+                          <div className={styles.instrumentFields}>
+                            <input
+                              className="ob-input"
+                              aria-label={`Nom pour ${row.label}`}
+                              value={row.label}
+                              onChange={(event) => patch(row.id, { label: event.target.value })}
+                            />
+                            <input
+                              className="ob-input"
+                              aria-label={`ISIN pour ${row.label}`}
+                              value={row.isin}
+                              placeholder="ISIN — N/D"
+                              onChange={(event) => patch(row.id, { isin: event.target.value })}
+                            />
+                            {row.instrumentKind === "obligation" ? (
+                              <>
+                                <select
+                                  className="ob-select"
+                                  aria-label={`Unité du prix pour ${row.label}`}
+                                  value={row.priceMode}
+                                  onChange={(event) =>
+                                    patch(row.id, { priceMode: event.target.value === "PERCENT" ? "PERCENT" : "FCFA" })
+                                  }
+                                >
+                                  <option value="FCFA">Prix en FCFA</option>
+                                  <option value="PERCENT">% du nominal</option>
+                                </select>
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Nominal pour ${row.label}`}
+                                  value={row.nominal}
+                                  placeholder="Nominal — N/D"
+                                  onChange={(event) => patch(row.id, { nominal: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Coupon pour ${row.label}`}
+                                  value={row.couponRate}
+                                  placeholder="Coupon % — N/D"
+                                  onChange={(event) => patch(row.id, { couponRate: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input"
+                                  type="date"
+                                  aria-label={`Échéance pour ${row.label}`}
+                                  value={row.maturityDate}
+                                  onChange={(event) => patch(row.id, { maturityDate: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Dernier prix connu pour ${row.label}`}
+                                  value={row.latestValue}
+                                  placeholder="Dernier prix — N/D"
+                                  onChange={(event) => patch(row.id, { latestValue: event.target.value })}
+                                />
+                              </>
+                            ) : (
+                              <>
+                                <input
+                                  className="ob-input"
+                                  aria-label={`Société de gestion pour ${row.label}`}
+                                  value={row.manager}
+                                  placeholder="Société de gestion — N/D"
+                                  onChange={(event) => patch(row.id, { manager: event.target.value })}
+                                />
+                                <input
+                                  className="ob-input ob-num"
+                                  inputMode="decimal"
+                                  aria-label={`Dernière VL pour ${row.label}`}
+                                  value={row.latestValue}
+                                  placeholder="Dernière VL — N/D"
+                                  onChange={(event) => patch(row.id, { latestValue: event.target.value })}
+                                />
+                              </>
+                            )}
+                            <span className={styles.hint}>Enregistrée comme {KIND_LABEL[row.instrumentKind].toLowerCase()}</span>
+                          </div>
                         ) : (
-                          <span className={styles.hint}>Société non reconnue</span>
+                          <>
+                            <select
+                              className={`ob-select ${styles.select}`}
+                              aria-label={`Société pour ${row.label}`}
+                              value={row.companyId}
+                              onChange={(event) =>
+                                patch(row.id, {
+                                  companyId: event.target.value,
+                                  confidence: event.target.value ? "haute" : "aucune",
+                                  ambiguous: false,
+                                  manual: true,
+                                })
+                              }
+                            >
+                              <option value="">— Choisir —</option>
+                              {companies.map((company: StatementCompanyOption) => (
+                                <option key={company.id} value={company.id}>
+                                  {company.ticker} — {company.name}
+                                </option>
+                              ))}
+                            </select>
+                            {row.companyId && companyById.get(row.companyId) ? (
+                              <span className={styles.hint}>
+                                {row.manual ? "Corrigé manuellement" : companyById.get(row.companyId)?.name}
+                              </span>
+                            ) : (
+                              <span className={styles.hint}>Société non reconnue</span>
+                            )}
+                          </>
                         )}
                       </td>
                       <td>
-                        <span className={styles.badge} data-confidence={row.manual ? "haute" : row.confidence}>
-                          {row.manual ? "Corrigé" : CONFIDENCE_LABEL[row.confidence]}
+                        <span className={styles.badge} data-confidence={other || row.manual ? "haute" : row.confidence}>
+                          {other ? "Identifiée" : row.manual ? "Corrigé" : CONFIDENCE_LABEL[row.confidence]}
                         </span>
                         {row.warnings[0] ? <span className={styles.hint}>{row.warnings[0]}</span> : null}
                       </td>

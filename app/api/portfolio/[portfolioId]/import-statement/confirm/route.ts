@@ -9,19 +9,28 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { apiError, apiNotFound, apiSuccess, apiValidationError, privateCacheHeaders } from "@/lib/api/response";
 import { recordPortfolioTrade } from "@/lib/api/portfolio-trades";
-import { buildStatementTradeNote, consolidateImportRows } from "@/lib/portfolio/sgi-statement/consolidate";
+import {
+  buildStatementTradeNote,
+  consolidateImportRows,
+  consolidateOtherRows,
+  otherInstrumentKey,
+  type ConfirmedOtherRow,
+} from "@/lib/portfolio/sgi-statement/consolidate";
+import { isMissingOtherHoldingsTable } from "@/lib/portfolio/other-holdings-errors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+const ymdSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .nullable()
+  .optional();
+
 const bodySchema = z.object({
   mode: z.enum(["merge", "replace"]),
-  statementDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable()
-    .optional(),
+  statementDate: ymdSchema,
   issuer: z.string().max(80).nullable().optional(),
   rows: z
     .array(
@@ -29,15 +38,33 @@ const bodySchema = z.object({
         companyId: z.string().trim().min(1).max(64),
         quantity: z.number().positive().max(1_000_000_000),
         avgBuyPrice: z.number().positive().max(1_000_000_000),
-        buyDate: z
-          .string()
-          .regex(/^\d{4}-\d{2}-\d{2}$/)
-          .nullable()
-          .optional(),
+        buyDate: ymdSchema,
       })
     )
-    .min(1)
-    .max(200),
+    .max(200)
+    .optional()
+    .default([]),
+  otherRows: z
+    .array(
+      z.object({
+        kind: z.enum(["OBLIGATION", "FCP"]),
+        name: z.string().trim().min(1).max(160),
+        isin: z.string().trim().max(16).nullable().optional(),
+        code: z.string().trim().max(32).nullable().optional(),
+        manager: z.string().trim().max(120).nullable().optional(),
+        quantity: z.number().positive().max(1_000_000_000),
+        avgBuyPrice: z.number().positive().max(1_000_000_000),
+        priceMode: z.enum(["FCFA", "PERCENT"]).optional(),
+        nominal: z.number().positive().max(1_000_000_000).nullable().optional(),
+        couponRate: z.number().min(0).max(100).nullable().optional(),
+        maturityDate: ymdSchema,
+        buyDate: ymdSchema,
+        latestValue: z.number().positive().max(1_000_000_000).nullable().optional(),
+      })
+    )
+    .max(200)
+    .optional()
+    .default([]),
 });
 
 function isRealYmd(value: string): boolean {
@@ -66,21 +93,29 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
     return apiError("Date du relevé invalide.", 422);
   }
 
-  if (parsed.data.rows.some((row) => row.buyDate && !isRealYmd(row.buyDate))) {
+  const stockRows = parsed.data.rows ?? [];
+  const otherInput = parsed.data.otherRows ?? [];
+  if (
+    stockRows.some((row) => row.buyDate && !isRealYmd(row.buyDate)) ||
+    otherInput.some((row) => (row.buyDate && !isRealYmd(row.buyDate)) || (row.maturityDate && !isRealYmd(row.maturityDate)))
+  ) {
     return apiError("Date d’achat invalide.", 422);
   }
 
-  const consolidated = consolidateImportRows(parsed.data.rows);
-  if (consolidated.length === 0) {
-    return apiError("Aucune ligne exploitable : indiquez une quantité et un PRU pour chaque société retenue.", 422);
+  const consolidated = consolidateImportRows(stockRows);
+  const otherRows = consolidateOtherRows(otherInput);
+  if (consolidated.length === 0 && otherRows.length === 0) {
+    return apiError("Aucune ligne exploitable : indiquez une quantité et un prix pour chaque ligne retenue.", 422);
   }
 
-  const companies = await prisma.company.findMany({
-    where: { id: { in: consolidated.map((row) => row.companyId) } },
-    select: { id: true },
-  });
-  if (companies.length !== consolidated.length) {
-    return apiError("Une ou plusieurs sociétés ne sont plus reconnues. Relancez l’analyse du relevé.", 422);
+  if (consolidated.length > 0) {
+    const companies = await prisma.company.findMany({
+      where: { id: { in: consolidated.map((row) => row.companyId) } },
+      select: { id: true },
+    });
+    if (companies.length !== consolidated.length) {
+      return apiError("Une ou plusieurs sociétés ne sont plus reconnues. Relancez l’analyse du relevé.", 422);
+    }
   }
 
   const issuer = parsed.data.issuer?.replace(/\s+/g, " ").trim().slice(0, 80) || null;
@@ -88,11 +123,14 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
   const tradedAt = statementDate ? new Date(`${statementDate}T00:00:00.000Z`) : new Date();
   const mode = parsed.data.mode;
 
-  const result = await prisma.$transaction(
+  let result: { created: number; updated: number; deleted: number; skipped: number };
+  try {
+    result = await prisma.$transaction(
     async (tx) => {
       let created = 0;
       let updated = 0;
       let deleted = 0;
+      let skipped = 0;
 
       if (mode === "replace") {
         const removed = await tx.portfolioHolding.deleteMany({ where: { portfolioId: portfolio.id } });
@@ -156,10 +194,41 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
         });
       }
 
-      return { created, updated, deleted };
+      if (mode === "replace") {
+        const removedOther = await tx.portfolioOtherHolding.deleteMany({ where: { portfolioId: portfolio.id } });
+        deleted += removedOther.count;
+      }
+
+      const existingOther =
+        mode === "replace" || otherRows.length === 0
+          ? []
+          : await tx.portfolioOtherHolding.findMany({ where: { portfolioId: portfolio.id } });
+      const otherByKey = new Map(existingOther.map((row) => [otherInstrumentKey(row), row]));
+
+      for (const row of otherRows) {
+        const key = otherInstrumentKey(row);
+        const existing = otherByKey.get(key) ?? null;
+        const sameMode = !existing || existing.priceMode === (row.priceMode ?? "FCFA");
+        if (existing && !sameMode) {
+          skipped += 1;
+          continue;
+        }
+        const saved = await upsertOtherHolding(tx, portfolio.id, row, existing, note);
+        otherByKey.set(key, saved);
+        if (existing) updated += 1;
+        else created += 1;
+      }
+
+      return { created, updated, deleted, skipped };
     },
     { timeout: 20_000 }
-  );
+    );
+  } catch (err) {
+    if (isMissingOtherHoldingsTable(err)) {
+      return apiError("La base ne suit pas encore les obligations et FCP. Appliquez la migration, puis réessayez.", 503);
+    }
+    throw err;
+  }
 
   console.info("[sgi-statement] confirmé", {
     portfolioId: portfolio.id,
@@ -167,16 +236,74 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
     created: result.created,
     updated: result.updated,
     deleted: result.deleted,
+    skipped: result.skipped,
   });
 
   return apiSuccess(
     {
       mode,
-      imported: consolidated.length,
+      imported: consolidated.length + otherRows.length,
       created: result.created,
       updated: result.updated,
       deleted: result.deleted,
+      skipped: result.skipped,
     },
     { headers: privateCacheHeaders() }
   );
+}
+
+function ymdDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  return new Date(`${value}T00:00:00.000Z`);
+}
+
+async function upsertOtherHolding(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0],
+  portfolioId: string,
+  row: ConfirmedOtherRow,
+  existing: { id: string; quantity: unknown; avgBuyPrice: unknown; buyDate: Date | null; notes: string | null } | null,
+  note: string
+) {
+  const buyDate = ymdDate(row.buyDate);
+  const optional = {
+    ...(row.isin ? { isin: row.isin } : {}),
+    ...(row.code ? { code: row.code } : {}),
+    ...(row.manager ? { manager: row.manager } : {}),
+    ...(row.nominal != null ? { nominal: row.nominal } : {}),
+    ...(row.couponRate != null ? { couponRate: row.couponRate } : {}),
+    ...(row.maturityDate ? { maturityDate: ymdDate(row.maturityDate) } : {}),
+    ...(row.latestValue != null ? { latestValue: row.latestValue, latestValueDate: new Date() } : {}),
+  };
+
+  if (!existing) {
+    return tx.portfolioOtherHolding.create({
+      data: {
+        portfolioId,
+        kind: row.kind,
+        name: row.name,
+        quantity: row.quantity,
+        avgBuyPrice: row.avgBuyPrice,
+        priceMode: row.priceMode ?? "FCFA",
+        buyDate,
+        notes: note,
+        ...optional,
+      },
+    });
+  }
+
+  const existingQty = Number(existing.quantity);
+  const existingAvg = Number(existing.avgBuyPrice);
+  const newQty = existingQty + row.quantity;
+  const newAvg = (existingQty * existingAvg + row.quantity * row.avgBuyPrice) / newQty;
+  return tx.portfolioOtherHolding.update({
+    where: { id: existing.id },
+    data: {
+      name: row.name,
+      quantity: newQty,
+      avgBuyPrice: newAvg,
+      buyDate: existing.buyDate && buyDate && existing.buyDate.getTime() <= buyDate.getTime() ? existing.buyDate : (buyDate ?? existing.buyDate),
+      notes: existing.notes ?? note,
+      ...optional,
+    },
+  });
 }

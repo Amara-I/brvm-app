@@ -458,6 +458,19 @@
   margin-bottom: 4px;
 }
 
+.instrumentFields {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 11rem;
+}
+
+.instrumentFields input,
+.instrumentFields select {
+  min-height: 1.8rem;
+  font-size: 0.75rem;
+}
+
 .rowRemove {
   min-height: 2rem;
   padding: 0.2rem 0.55rem;

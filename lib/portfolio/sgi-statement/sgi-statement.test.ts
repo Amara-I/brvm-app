@@ -7,7 +7,7 @@ import { parseFrNumber } from "./french-number";
 import { StatementImportError } from "./messages";
 import { parseStatementText } from "./parse-statement";
 import { parseStatementUpload } from "./parse-upload";
-import { buildStatementTradeNote, consolidateImportRows } from "./consolidate";
+import { buildStatementTradeNote, consolidateImportRows, consolidateOtherRows } from "./consolidate";
 import type { SecurityCatalogEntry, StatementParseResult, StatementRowDraft } from "./types";
 
 const catalog: SecurityCatalogEntry[] = COMPANIES_FULL.map((company) => ({
@@ -148,7 +148,9 @@ describe("relevé SGI — texte", () => {
     expect(byTicker(edc, "SNTS").quantity).toBe(40);
     expect(byTicker(edc, "BOAB")).toMatchObject({ quantity: 25, avgBuyPrice: 4800, lastPrice: 5100 });
     const fund = edc.rows.find((row) => /FONDS PRIVE/i.test(row.label));
-    expect(fund?.match.confidence).toBe("aucune");
+    expect(fund?.instrumentKind).toBe("fcp");
+    expect(fund?.tracked).toBe(true);
+    expect(fund?.match.companyId).toBeNull();
     expect(fund?.quantity).toBe(12);
 
     const boa = parseFixture("boa-ambigu.txt");
@@ -185,7 +187,11 @@ describe("relevé SGI — fichiers", () => {
     expect(result.layoutId).toBe("matrice");
     expect(byTicker(result, "ETIT")).toMatchObject({ quantity: 1000, avgBuyPrice: 18.5, lastPrice: 22, valuation: 22000 });
     expect(byTicker(result, "TTLC").quantity).toBe(10);
-    expect(result.rows.find((row) => row.match.confidence === "aucune")?.quantity).toBe(12);
+    expect(result.rows.find((row) => row.instrumentKind === "fcp")).toMatchObject({
+      quantity: 12,
+      tracked: true,
+      avgBuyPrice: 2000,
+    });
   });
 
   it("lit un Excel dont les colonnes ne sont pas dans l’ordre OuestBourse", async () => {
@@ -239,13 +245,51 @@ describe("relevé SGI — fichiers", () => {
     expect(byTicker(result, "PALC")).toMatchObject({ quantity: 200, avgBuyPrice: 7500, tradeDate: "2026-02-10" });
     const bond = result.rows.find((row) => row.instrumentKind === "obligation");
     const fund = result.rows.find((row) => row.instrumentKind === "fcp");
-    expect(bond).toMatchObject({ quantity: 10, avgBuyPrice: 10000, tracked: false, instrumentKind: "obligation" });
-    expect(fund).toMatchObject({ quantity: 25, avgBuyPrice: 8000, tracked: false, instrumentKind: "fcp" });
+    expect(bond).toMatchObject({
+      quantity: 10,
+      avgBuyPrice: 10000,
+      tracked: true,
+      instrumentKind: "obligation",
+      couponRate: 6.25,
+      maturityDate: null,
+      priceMode: "FCFA",
+    });
+    expect(fund).toMatchObject({ quantity: 25, avgBuyPrice: 8000, tracked: true, instrumentKind: "fcp", priceMode: "FCFA" });
+    expect(bond?.warnings.join(" ")).not.toMatch(/non suivie/i);
+    expect(fund?.warnings.join(" ")).not.toMatch(/non suivi/i);
     expect(result.rows.some((row) => row.match.ticker === "SGBC" || row.quantity === 999)).toBe(false);
     const reasons = new Set(result.ignored.map((line) => line.reason));
     for (const reason of ["adresse", "especes", "frais", "total", "page", "disclaimer", "soldee", "couverte", "en-tete"] as const) {
       expect(reasons.has(reason), reason).toBe(true);
     }
+  });
+
+  it("agrège achats et ventes d’une obligation et d’un FCP", () => {
+    const text = [
+      "Date d'opération    Libellé    Sens    Qté    Cours moy",
+      "10/01/2026    OBL ETAT CI 6,25% 2028    Achat    10    10000",
+      "01/03/2026    OBL ETAT CI 6,25% 2028    Achat    5    12000",
+      "01/06/2026    OBL ETAT CI 6,25% 2028    Vente    3    13000",
+      "10/01/2026    FCP HORIZON UEMOA géré par NSIA AM    Achat    20    8000",
+      "01/04/2026    FCP HORIZON UEMOA géré par NSIA AM    Achat    10    11000",
+      "01/07/2026    FCP HORIZON UEMOA géré par NSIA AM    Vente    5    9000",
+    ].join("\n");
+    const result = parseStatementText(text, catalog);
+    expect(result.rows).toHaveLength(2);
+    expect(result.rows.find((row) => row.instrumentKind === "obligation")).toMatchObject({
+      quantity: 12,
+      avgBuyPrice: 10666.67,
+      tradeDate: "2026-01-10",
+      tracked: true,
+      couponRate: 6.25,
+    });
+    expect(result.rows.find((row) => row.instrumentKind === "fcp")).toMatchObject({
+      quantity: 25,
+      avgBuyPrice: 9000,
+      tradeDate: "2026-01-10",
+      tracked: true,
+      manager: "NSIA AM",
+    });
   });
 
   it("refuse un format non supporté", async () => {
@@ -337,6 +381,47 @@ describe("consolidation avant écriture", () => {
         { companyId: "a", quantity: 5, avgBuyPrice: 200, buyDate: "2026-01-10" },
       ])
     ).toEqual([{ companyId: "a", quantity: 15, avgBuyPrice: 133.33, buyDate: "2026-01-10" }]);
+  });
+
+  it("pondère le PRU d’une obligation et d’un FCP homonymes", () => {
+    expect(
+      consolidateOtherRows([
+        { kind: "OBLIGATION", name: "OBL ETAT CI 6,25% 2028", quantity: 10, avgBuyPrice: 10000, buyDate: "2026-03-01", couponRate: 6.25 },
+        { kind: "OBLIGATION", name: "OBL ETAT CI 6,25% 2028", quantity: 10, avgBuyPrice: 12000, buyDate: "2026-01-10" },
+        { kind: "FCP", name: "FCP Horizon UEMOA", quantity: 4, avgBuyPrice: 5000, priceMode: "PERCENT" },
+      ])
+    ).toEqual([
+      {
+        kind: "OBLIGATION",
+        name: "OBL ETAT CI 6,25% 2028",
+        isin: null,
+        code: null,
+        manager: null,
+        quantity: 20,
+        avgBuyPrice: 11000,
+        priceMode: "FCFA",
+        nominal: null,
+        couponRate: 6.25,
+        maturityDate: null,
+        buyDate: "2026-01-10",
+        latestValue: null,
+      },
+      {
+        kind: "FCP",
+        name: "FCP Horizon UEMOA",
+        isin: null,
+        code: null,
+        manager: null,
+        quantity: 4,
+        avgBuyPrice: 5000,
+        priceMode: "FCFA",
+        nominal: null,
+        couponRate: null,
+        maturityDate: null,
+        buyDate: null,
+        latestValue: null,
+      },
+    ]);
   });
 
   it("rédige une note de mouvement sans reprendre le fichier", () => {

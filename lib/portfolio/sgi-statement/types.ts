@@ -67,9 +67,19 @@ export type StatementRowDraft = {
   /** Première date d'achat lue (YYYY-MM-DD), si le relevé est un historique. */
   tradeDate: string | null;
   instrumentKind: InstrumentKind;
+  /** Taux annuel lu dans le libellé (`6,25 %`), sinon null. */
+  couponRate: number | null;
+  /** Nominal unitaire s'il est écrit sur la ligne. Jamais déduit. */
+  nominal: number | null;
+  /** Échéance JJ/MM/AAAA si elle est écrite. Une année seule ne suffit pas. */
+  maturityDate: string | null;
+  /** Société de gestion si « géré par … » est écrit. */
+  manager: string | null;
+  /** FCFA par défaut. PERCENT seulement si l'utilisateur le choisit dans l'aperçu. */
+  priceMode: "FCFA" | "PERCENT";
   /**
-   * `false` pour une obligation ou un FCP : la ligne est montrée, décochée,
-   * et n'est pas enregistrée tant que l'utilisateur n'a pas choisi une société.
+   * `true` quand la ligne peut être enregistrée : action (avec société),
+   * obligation ou FCP (sans société cotée).
    */
   tracked: boolean;
   match: SecurityMatch;

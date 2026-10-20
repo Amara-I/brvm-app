@@ -14,6 +14,14 @@ import {
   type PortfolioAdvice,
 } from "@/lib/calc/portfolio-advice";
 import { getPortfolioNavSeries, type PortfolioNavPoint } from "@/lib/api/portfolio-nav-series";
+import {
+  combinePortfolioHeadline,
+  valueOtherHolding,
+  type OtherHoldingInput,
+  type OtherHoldingMetrics,
+  type PortfolioHeadline,
+} from "@/lib/calc/other-holding-metrics";
+import { isMissingOtherHoldingsTable } from "@/lib/portfolio/other-holdings-errors";
 
 export type EnrichedHoldingMetrics = HoldingMetrics & {
   buyDate: string | null;
@@ -32,6 +40,24 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
     include: { holdings: { include: { company: { include: { sector: true } } } } },
     orderBy: { createdAt: "asc" },
   });
+
+  const otherByPortfolio = new Map<string, OtherHoldingInput[]>();
+  if (portfolios.length > 0) {
+    try {
+      const rows = await prisma.portfolioOtherHolding.findMany({
+        where: { portfolioId: { in: portfolios.map((p) => p.id) } },
+        orderBy: [{ kind: "asc" }, { name: "asc" }],
+      });
+      for (const row of rows) {
+        const list = otherByPortfolio.get(row.portfolioId) ?? [];
+        list.push(otherHoldingFromRow(row));
+        otherByPortfolio.set(row.portfolioId, list);
+      }
+    } catch (err) {
+      if (!isMissingOtherHoldingsTable(err)) throw err;
+      console.warn("[portfolio] table portfolio_other_holdings absente — prisma migrate deploy requis");
+    }
+  }
 
   const allCompanyIds = [...new Set(portfolios.flatMap((p) => p.holdings.map((h) => h.companyId)))];
   const currentYear = new Date().getUTCFullYear();
@@ -120,6 +146,15 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
       );
 
       const recap = adviceRecap(enrichedHoldings.map((h) => h.advice));
+      const otherHoldings: OtherHoldingMetrics[] = (otherByPortfolio.get(p.id) ?? []).map((row) => valueOtherHolding(row));
+      const combined: PortfolioHeadline = combinePortfolioHeadline(
+        {
+          totalMarketValue: metrics.totalMarketValue,
+          totalCostBasis: metrics.totalCostBasis,
+          totalGainLoss: metrics.totalGainLoss,
+        },
+        otherHoldings
+      );
 
       return {
         id: p.id,
@@ -142,9 +177,51 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
         },
         navSeries,
         adviceRecap: recap,
+        otherHoldings,
+        combined,
       };
     })
   );
+}
+
+function ymd(value: Date | null): string | null {
+  return value ? value.toISOString().slice(0, 10) : null;
+}
+
+function otherHoldingFromRow(row: {
+  id: string;
+  kind: "OBLIGATION" | "FCP";
+  name: string;
+  isin: string | null;
+  code: string | null;
+  manager: string | null;
+  quantity: unknown;
+  avgBuyPrice: unknown;
+  priceMode: "FCFA" | "PERCENT";
+  nominal: unknown;
+  couponRate: unknown;
+  maturityDate: Date | null;
+  buyDate: Date | null;
+  latestValue: unknown;
+  latestValueDate: Date | null;
+}): OtherHoldingInput {
+  return {
+    id: row.id,
+    kind: row.kind,
+    name: row.name,
+    isin: row.isin,
+    code: row.code,
+    manager: row.manager,
+    quantity: Number(row.quantity),
+    avgBuyPrice: Number(row.avgBuyPrice),
+    priceMode: row.priceMode,
+    nominal: row.nominal != null ? Number(row.nominal) : null,
+    couponRate: row.couponRate != null ? Number(row.couponRate) : null,
+    maturityDate: ymd(row.maturityDate),
+    buyDate: ymd(row.buyDate),
+    latestValue: row.latestValue != null ? Number(row.latestValue) : null,
+    latestValueDate: ymd(row.latestValueDate),
+  };
 }
 
 export type UserPortfoliosWithMetrics = Awaited<ReturnType<typeof getUserPortfoliosWithMetrics>>;

@@ -6,8 +6,8 @@ Un utilisateur connecté peut déposer, sur la page **Portefeuille**, le relevé
 
 1. Ouvrir un portefeuille et choisir **Importer un relevé SGI**.
 2. Glisser le fichier sur la zone, ou appuyer sur **Choisir un fichier**. PDF, Excel (.xlsx, .xls), CSV, ou image JPEG, PNG, WEBP. 4 Mo maximum (une photo plus lourde est réduite dans le navigateur avant l’envoi, jusqu’à 1 600 px). Un autre format est refusé, y compris s’il est déposé. Les photos HEIC / HEIF sont refusées : les exporter en JPEG ou PNG.
-3. Vérifier le tableau : **une position par titre**, avec le type (action, obligation, FCP), la société, la confiance, la quantité, le PRU et la date du premier achat. Décocher ou retirer une ligne. Les obligations et FCP sont marqués **Non suivi** et décochés : le portefeuille ne stocke que des actions cotées (`PortfolioHolding.companyId`). Elles ne sont enregistrées que si une société est choisie à la main.
-4. Choisir **Fusionner** (ajoute les quantités et recalcule le PRU moyen) ou **Remplacer** (retire les positions actuelles de ce portefeuille, l’historique des mouvements déjà saisis reste en place).
+3. Vérifier le tableau : **une position par titre**, avec le type (action, obligation, FCP), la société ou le nom de l’instrument, la quantité, le PRU et la date du premier achat. Décocher ou retirer une ligne. Les obligations et FCP sont cochées et enregistrées comme telles (nom, ISIN, nominal, coupon, échéance, VL).
+4. Choisir **Fusionner** (ajoute les quantités et recalcule le PRU moyen, y compris pour une obligation ou un FCP déjà suivi dans la même unité de prix) ou **Remplacer** (retire les actions, obligations et FCP actuels de ce portefeuille ; l’historique des mouvements d’actions déjà saisis reste en place).
 5. Confirmer. Rien n’est écrit avant cette étape.
 
 Authentification obligatoire. Le relevé n’est parsé que pour le portefeuille du compte connecté.
@@ -46,9 +46,15 @@ Les lignes vides ne sont pas comptées. Un relevé de **positions** (pas de colo
 
 ## Obligations et FCP
 
-Une ligne est une **obligation** si le libellé contient OBL, obligation, emprunt, EOS, échéance, ou un taux `6,25 %`. C’est un **FCP** s’il contient FCP, fonds, SICAV ou OPCVM. Ces mots l’emportent sur un rapprochement approximatif avec une action. Elles restent dans l’aperçu, décochées, badge **Non suivi**. Aucune table n’a été ajoutée : une position de portefeuille exige une société cotée.
+Une ligne est une **obligation** si le libellé contient OBL, obligation, emprunt, EOS, échéance, ou un taux `6,25 %`. C’est un **FCP** s’il contient FCP, fonds, SICAV ou OPCVM. Ces mots l’emportent sur un rapprochement approximatif avec une action.
 
-Le rapprochement avec `companies` se fait par ISIN, ticker BRVM, alias (`lib/portfolio/sgi-statement/aliases.ts`) puis nom approché. Une ligne inconnue reste visible, avec la confiance **Aucune** : elle n’est pas importée tant que l’utilisateur n’a pas choisi la société.
+Elles sont **cochées** et enregistrées dans `portfolio_other_holdings` (migration `20261020190000_portfolio_other_holdings`). Les actions restent dans `portfolio_holdings`. Plusieurs achats et ventes du même instrument sont agrégés comme pour une action : quantité nette, PRU pondéré, date du premier achat.
+
+Dans l’aperçu on peut corriger le nom, l’ISIN, la quantité, le prix, la date, et selon le type : nominal, coupon, échéance, unité du prix (FCFA ou % du nominal), société de gestion, dernière VL. Le prix du relevé est enregistré en **FCFA** tant que l’utilisateur ne choisit pas « % du nominal ». Un taux `6,25 %` dans le libellé remplit le coupon. Une année seule (`2028`) ne remplit pas l’échéance : il faut une date complète. Rien n’est inventé.
+
+Valorisation dans le portefeuille : dernier prix ou dernière VL saisis s’ils existent, sinon prix ou VL d’achat. Un prix en % du nominal sans nominal affiché donne **N/D**. Le coupon couru n’apparaît que si le taux, le nominal et la date d’achat sont connus (base 365 jours depuis l’achat, plafonné à l’échéance). Il n’est pas ajouté à la valeur. Pas d’historique de cours pour ces lignes.
+
+Le rapprochement des **actions** avec `companies` se fait par ISIN, ticker BRVM, alias (`lib/portfolio/sgi-statement/aliases.ts`) puis nom approché. Une action inconnue reste visible, avec la confiance **Aucune** : elle n’est pas importée tant que l’utilisateur n’a pas choisi la société.
 
 SGI repérées dans l’en-tête (informatif, la lecture ne dépend pas du nom) : SGI-CI, Hudson & Cie, BICI Bourse, SGI Bénin, Atlantique Finance, EDC, Impaxis, CGF Bourse, Matha Capital, SGI Togo, SGI Mali, Coris Bourse.
 
