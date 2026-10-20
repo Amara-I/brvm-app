@@ -12,6 +12,23 @@ Un utilisateur connecté peut déposer, sur la page **Portefeuille**, le relevé
 
 Authentification obligatoire. Le relevé n’est parsé que pour le portefeuille du compte connecté.
 
+## Modèles
+
+L’import fait toujours quatre choses, dans cet ordre :
+
+1. **Détecter la famille** : mouvements groupés, liste d’opérations à plat, ou liste de positions déjà nettes.
+2. **Appliquer le modèle** dont les règles de détection collent. Le premier modèle qui lit quelque chose gagne. L’ordre est `mouvements-titres`, puis `operations`, puis `positions`.
+3. **Réconcilier** : quantité nette, PRU pondéré, et pour un grand livre le solde courant comparé au solde d’en-tête.
+4. **Expliquer la confiance** de chaque ligne (alias, code, solde confirmé, ou la raison d’une confiance faible).
+
+| Modèle | Famille | Détection | Réconciliation |
+|---|---|---|---|
+| `mouvements-titres` | mouvements | Colonnes Titre, Date, Libellé, Valeur unitaire, Débit, Crédit, Solde. Lignes groupées par titre. | Solde d’ouverture, crédit = entrée, débit = sortie, PRU pondéré, contrôle du solde. |
+| `operations` | opérations | Colonne Sens, ou les mots Achat / Vente, une ligne par opération. | Quantité nette, PRU pondéré, premier achat. Quantité nulle écartée. |
+| `positions` | positions | Tableau, blocs « Libellé : valeur », ou une position par ligne. Pas de sens. | La quantité imprimée est gardée telle quelle. |
+
+Les profils sont dans `lib/portfolio/sgi-statement/templates/`. `mouvements-titres` est le modèle de référence : ses règles sont aussi le texte donné au modèle de vision.
+
 ## Formats lus aujourd’hui
 
 | Mise en page | Exemple de fixture | Ce qui est reconnu |
@@ -81,14 +98,18 @@ La limite reste **4 Mo** (sous le plafond de corps des fonctions Vercel, 4,5 Mo)
 
 L’OCR de repli ne facture rien. Au premier appel d’une instance, `tesseract.js` télécharge les données `fra` (quelques Mo, mis en cache dans `/tmp`). Compter plusieurs secondes : sur un démarrage à froid Vercel Hobby, rester sous les 60 s. Si l’OCR échoue, le message est « Lecture du fichier impossible ».
 
-## Ajouter une mise en page
+## Ajouter un modèle
 
-Aucun relevé réel n’est versionné (données clients). Pour en prendre un nouveau en charge :
+Aucun relevé réel n’est versionné (données clients). Un nouveau courtier qui tient dans un modèle existant ne demande pas un nouveau fichier : un alias ou un libellé de colonne suffit.
 
 1. Anonymiser le relevé (nom, numéro de compte, adresse) et déposer le texte extrait dans `lib/portfolio/sgi-statement/fixtures/<sgi>.txt`. Ne pas committer le PDF d’origine s’il contient encore des données personnelles.
-2. Lancer le parseur sur cette fixture. Si les colonnes utilisent un libellé nouveau (`CMP`, `Valo nette`…), l’ajouter à `HEADER_PHRASES` dans `headers.ts`.
+2. Si c’est encore un tableau de positions et que seule une colonne a un nom nouveau (`CMP`, `Valo nette`…), l’ajouter à `HEADER_PHRASES` dans `headers.ts`. Le modèle `positions` la prendra.
 3. Si le courtier écrit le titre autrement que dans `companies.name` (`PALMCI`, `SGBCI`, `BICICI`…), ajouter l’alias dans `aliases.ts`. Un alias de moins de 5 caractères ne s’applique que si le libellé est exactement cet alias, pour éviter les faux positifs (`BOA` seul reste ambigu).
-4. Si la structure n’est ni un tableau, ni des blocs `Champ : valeur`, ni une ligne avec les nombres à la fin, ajouter un parseur à côté de `parseColumns` / `parseBlocks` / `parseLoose` dans `parse-statement.ts`, avec un `detect` qui retourne 0 quand le texte n’est pas le sien. Le parseur qui sort le plus de quantités l’emporte ; à égalité, le score de détection départage.
-5. Ajouter un cas dans `sgi-statement.test.ts` : quantités, PRU, cours, date d’arrêté, et au moins une ligne volontairement inconnue qui doit rester dans `rows`.
+4. Si la structure est vraiment nouvelle, ajouter un profil dans `lib/portfolio/sgi-statement/templates/<nom>.ts` sur le modèle de `mouvements-titres.ts` : `id`, `family` (`mouvements`, `operations` ou `positions`), `columns`, et `rules` en français. Ces règles sont recopiées dans le prompt de vision (`visionSystemPrompt`) : décrire ce qu’il faut extraire, pas le calcul du PRU.
+5. Brancher le profil dans `parseStatementText` (`parse-statement.ts`) et, si le fichier est un Excel, dans `parseStatementMatrix`. Le `run` détecte (retourner `null` si ce n’est pas lui) puis réconcilie. `firstTemplate` essaie les familles dans l’ordre mouvements, opérations, positions : placer le nouveau modèle dans sa famille.
+6. La réconciliation doit produire les mêmes lignes que les autres modèles (`quantity`, `avgBuyPrice`, `tradeDate`, `warnings`). `finalizeStatement` ajoute la phrase de confiance. Ne pas recalculer le PRU une seconde fois dans l’aperçu.
+7. Ajouter un cas dans `sgi-statement.test.ts` : quantités, PRU, date du premier achat, confiance, et la phrase qui explique une ligne faible. Pour la vision, valider un JSON avec `parseVisionDocument` / `applyVisionDocument` sans appeler de modèle.
 
 Le point d’entrée fichier est `parseStatementUpload` (`parse-upload.ts`). L’aperçu HTTP est `POST /api/portfolio/:id/import-statement` ; l’écriture, après revue, est `POST /api/portfolio/:id/import-statement/confirm`.
+
+Une photo passe par le modèle de vision quand une clé est configurée. Le JSON (`template`, `lignes` ou `rows`) est validé avec Zod. Un relevé `mouvements-titres` est réconcilié par `reconcileMouvementLedger`, le même code que le PDF et l’Excel. Les nombres peuvent arriver en texte (`8 520.000`) : ils sont relus comme sur un relevé papier.

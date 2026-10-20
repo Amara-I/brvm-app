@@ -8,6 +8,8 @@ import { parseFrNumber } from "./french-number";
 import { StatementImportError } from "./messages";
 import { parseStatementText } from "./parse-statement";
 import { parseStatementUpload } from "./parse-upload";
+import { MOUVEMENTS_TITRES } from "./templates/mouvements-titres";
+import { applyVisionDocument, visionSystemPrompt } from "./templates/vision";
 import { buildStatementTradeNote, consolidateImportRows, consolidateOtherRows } from "./consolidate";
 import type { SecurityCatalogEntry, StatementParseResult, StatementRowDraft } from "./types";
 
@@ -134,6 +136,8 @@ describe("relevé SGI — texte", () => {
   it("lit un tableau SGI-CI (colonnes, nombres FR)", () => {
     const result = parseFixture("sgici-colonnes.txt");
     expect(result.layoutId).toBe("colonnes");
+    expect(result.templateId).toBe("positions");
+    expect(result.layoutFamily).toBe("positions");
     expect(result.issuer).toBe("SGI-CI");
     expect(result.statementDate).toBe("2026-09-30");
     expect(result.rows).toHaveLength(4);
@@ -277,6 +281,8 @@ describe("relevé SGI — fichiers", () => {
   it("agrège un historique bruité en une position par titre", () => {
     const result = parseFixture("historique-bruit.txt");
     expect(result.layoutId).toBe("positions");
+    expect(result.templateId).toBe("operations");
+    expect(result.layoutFamily).toBe("operations");
     expect(result.documentKind).toBe("historique");
     expect(result.issuer).toBe("SGI-CI");
     expect(result.statementDate).toBe("2026-09-30");
@@ -437,6 +443,8 @@ const MOUVEMENTS_MATRIX: string[][] = [
 
 function expectMouvements(result: StatementParseResult) {
   expect(result.layoutId).toBe("mouvements");
+  expect(result.templateId).toBe("mouvements-titres");
+  expect(result.layoutFamily).toBe("mouvements");
   expect(result.documentKind).toBe("historique");
   expect(result.rows.map((row) => row.match.ticker)).toEqual(["BOAB", "CIEC", "ECOC", "FTSC"]);
   expect(byTicker(result, "BOAB")).toMatchObject({
@@ -445,6 +453,8 @@ function expectMouvements(result: StatementParseResult) {
     tradeDate: "2026-07-29",
     match: { ticker: "BOAB", confidence: "haute" },
   });
+  expect(byTicker(result, "BOAB").confidenceWhy).toMatch(/alias SGI/i);
+  expect(byTicker(result, "BOAB").confidenceWhy).toMatch(/solde/i);
   expect(byTicker(result, "CIEC")).toMatchObject({
     quantity: 36,
     avgBuyPrice: 5278.89,
@@ -465,6 +475,7 @@ function expectMouvements(result: StatementParseResult) {
     match: { ticker: "FTSC", confidence: "faible" },
   });
   expect(filtisac.warnings.join(" ")).toMatch(/solde d'en-tête/i);
+  expect(filtisac.confidenceWhy).toMatch(/solde d'en-tête/i);
   expect(result.rows.some((row) => row.match.ticker === "BOAN" || row.match.ticker === "BOABF")).toBe(false);
   const sold = result.ignored.filter((line) => line.reason === "soldee").map((line) => line.raw);
   expect(sold.some((raw) => /BOA NIGER/i.test(raw) && /36 400/.test(raw))).toBe(true);
@@ -571,6 +582,39 @@ describe("relevé de mouvements de titres", () => {
       { transcribe: async () => ({ text: fixture("mouvements-titres-ocr.txt") }) }
     );
     expectMouvements(fromImage);
+  });
+
+  it("réconcilie le JSON de vision avec le modèle mouvements-titres", () => {
+    expect(visionSystemPrompt()).toMatch(/mouvements-titres/);
+    expect(visionSystemPrompt()).toMatch(/Crédit = titres qui entrent/);
+    expect(visionSystemPrompt()).toMatch(/8 520\.000/);
+    expect(MOUVEMENTS_TITRES.family).toBe("mouvements");
+    expect(MOUVEMENTS_TITRES.columns).toEqual([
+      "Titre",
+      "Date",
+      "Libellé",
+      "Valeur unitaire",
+      "Débit",
+      "Crédit",
+      "Solde",
+    ]);
+
+    const [, ...body] = MOUVEMENTS_MATRIX;
+    const document = {
+      template: "mouvements-titres",
+      lignes: body.map((row) => ({
+        titre: row[0] || null,
+        date: row[1] || null,
+        libelle: row[2] || null,
+        valeurUnitaire: row[3] || null,
+        debit: row[4] || null,
+        credit: row[5] || null,
+        solde: row[6] || null,
+      })),
+      rows: [],
+    };
+    expectMouvements(applyVisionDocument(document, catalog)!);
+    expect(applyVisionDocument({ template: "autre" }, catalog)).toBeNull();
   });
 
   it("compte une attribution gratuite et un transfert sans inverser débit et crédit", () => {

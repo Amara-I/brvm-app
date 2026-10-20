@@ -34,6 +34,9 @@ export type InstrumentKind = "action" | "obligation" | "fcp";
 
 export type DocumentKind = "positions" | "historique" | "mixte";
 
+/** Famille de mise en page : mouvements groupés, opérations à plat, positions nettes. */
+export type LayoutFamily = "mouvements" | "operations" | "positions";
+
 export type IgnoreReason =
   | "vide"
   | "en-tete"
@@ -84,6 +87,8 @@ export type StatementRowDraft = {
   tracked: boolean;
   match: SecurityMatch;
   warnings: string[];
+  /** Pourquoi cette confiance, une phrase. */
+  confidenceWhy?: string;
 };
 
 export type StatementParseResult = {
@@ -92,6 +97,10 @@ export type StatementParseResult = {
   statementDate: string | null;
   layoutId: string;
   layoutLabel: string;
+  /** Modèle nommé (`mouvements-titres`, `positions`, `operations`). */
+  templateId: string;
+  /** Famille détectée avant le choix du modèle. */
+  layoutFamily: LayoutFamily;
   /** `positions` = quantités déjà nettes ; `historique` = achats/ventes agrégés. */
   documentKind: DocumentKind;
   rows: StatementRowDraft[];

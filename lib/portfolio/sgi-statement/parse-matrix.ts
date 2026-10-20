@@ -4,6 +4,10 @@ import { createSecurityMatcher } from "./match-security";
 import { tryParseMouvementsMatrix } from "./parse-mouvements";
 import { tryParseHistoryMatrix } from "./positions";
 import { detectStatementMeta, finalizeStatement, readHeaderRow } from "./parse-statement";
+import { MOUVEMENTS_TITRES } from "./templates/mouvements-titres";
+import { OPERATIONS } from "./templates/operations";
+import { POSITIONS } from "./templates/positions";
+import { firstTemplate } from "./templates/run";
 import type { SecurityCatalogEntry, StatementParseResult } from "./types";
 
 function trimTrailing(cells: string[]): string[] {
@@ -27,51 +31,84 @@ export function parseStatementMatrix(
     .filter((row) => row.some((cell) => cell.length > 0));
   if (rows.length === 0) return null;
 
-  const mouvements = tryParseMouvementsMatrix(rows, catalog);
-  if (mouvements) {
-    const text = rows.map((row) => row.filter(Boolean).join(" ")).join("\n");
-    return finalizeStatement(mouvements.rows, detectStatementMeta(text), { id: "mouvements", label: mouvements.layoutLabel }, {
-      documentKind: mouvements.documentKind,
-      ignored: mouvements.ignored,
-      ignoredCount: mouvements.ignoredCount,
-    });
-  }
-
-  let headerIndex = -1;
-  let roles: (HeaderRole | null)[] = [];
-  for (let index = 0; index < Math.min(rows.length, 25); index += 1) {
-    const cells = trimTrailing(rows[index] ?? []);
-    const next = cells.map((cell) => headerRole(cell));
-    const known = next.filter(Boolean).length;
-    if (!rolesLookLikeHeader(next) || known < Math.ceil(next.length * 0.6)) continue;
-    headerIndex = index;
-    roles = next;
-    break;
-  }
-  if (headerIndex < 0) return null;
-
-  const history = tryParseHistoryMatrix(rows, catalog);
-  if (history) {
-    const text = rows.map((row) => row.filter(Boolean).join(" ")).join("\n");
-    return finalizeStatement(history.rows, detectStatementMeta(text), { id: "positions", label: history.layoutLabel }, {
-      documentKind: history.documentKind,
-      ignored: history.ignored,
-      ignoredCount: history.ignoredCount,
-    });
-  }
-
-  const matcher = createSecurityMatcher(catalog);
-  const parsed = [];
-  for (const row of rows.slice(headerIndex + 1)) {
-    if (isTotalRow(row)) break;
-    const raw = readHeaderRow(row, roles, matcher, row.filter(Boolean).join(" | "));
-    if (raw) parsed.push(raw);
-  }
-  if (!parsed.some((row) => (row.quantity ?? 0) > 0)) return null;
-
   const text = rows.map((row) => row.filter(Boolean).join(" ")).join("\n");
-  return finalizeStatement(parsed, detectStatementMeta(text), {
-    id: "matrice",
-    label: "Fichier tabulé",
+  const selected = firstTemplate([
+    [
+      {
+        templateId: MOUVEMENTS_TITRES.id,
+        family: MOUVEMENTS_TITRES.family,
+        layoutId: MOUVEMENTS_TITRES.layoutId,
+        label: MOUVEMENTS_TITRES.label,
+        run: () => {
+          const parsed = tryParseMouvementsMatrix(rows, catalog);
+          if (!parsed) return null;
+          return {
+            rows: parsed.rows,
+            ignored: parsed.ignored,
+            ignoredCount: parsed.ignoredCount,
+            documentKind: parsed.documentKind,
+            label: parsed.layoutLabel,
+          };
+        },
+      },
+    ],
+    [
+      {
+        templateId: OPERATIONS.id,
+        family: OPERATIONS.family,
+        layoutId: OPERATIONS.layoutId,
+        label: OPERATIONS.label,
+        run: () => {
+          const parsed = tryParseHistoryMatrix(rows, catalog);
+          if (!parsed) return null;
+          return {
+            rows: parsed.rows,
+            ignored: parsed.ignored,
+            ignoredCount: parsed.ignoredCount,
+            documentKind: parsed.documentKind,
+            label: parsed.layoutLabel,
+          };
+        },
+      },
+    ],
+    [
+      {
+        templateId: POSITIONS.id,
+        family: POSITIONS.family,
+        layoutId: "matrice",
+        label: "Fichier tabulé",
+        run: () => {
+          let headerIndex = -1;
+          let roles: (HeaderRole | null)[] = [];
+          for (let index = 0; index < Math.min(rows.length, 25); index += 1) {
+            const cells = trimTrailing(rows[index] ?? []);
+            const next = cells.map((cell) => headerRole(cell));
+            const known = next.filter(Boolean).length;
+            if (!rolesLookLikeHeader(next) || known < Math.ceil(next.length * 0.6)) continue;
+            headerIndex = index;
+            roles = next;
+            break;
+          }
+          if (headerIndex < 0) return null;
+          const matcher = createSecurityMatcher(catalog);
+          const parsed = [];
+          for (const row of rows.slice(headerIndex + 1)) {
+            if (isTotalRow(row)) break;
+            const raw = readHeaderRow(row, roles, matcher, row.filter(Boolean).join(" | "));
+            if (raw) parsed.push({ ...raw, id: `m${parsed.length + 1}` });
+          }
+          if (!parsed.some((row) => (row.quantity ?? 0) > 0)) return null;
+          return { rows: parsed, ignored: [], ignoredCount: 0, documentKind: "positions" as const };
+        },
+      },
+    ],
+  ]);
+  if (!selected) return null;
+  return finalizeStatement(selected.draft.rows, detectStatementMeta(text), { id: selected.layoutId, label: selected.label }, {
+    documentKind: selected.draft.documentKind,
+    ignored: selected.draft.ignored,
+    ignoredCount: selected.draft.ignoredCount,
+    templateId: selected.templateId,
+    family: selected.family,
   });
 }

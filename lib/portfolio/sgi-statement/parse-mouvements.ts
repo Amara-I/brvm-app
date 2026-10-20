@@ -25,7 +25,9 @@ type ColKey = "titre" | "date" | "libelle" | "valeur" | "debit" | "credit" | "so
 
 type Columns = Record<ColKey, number>;
 
-type Cells = Record<ColKey, string>;
+export type MouvementLine = Record<ColKey, string>;
+
+type Cells = MouvementLine;
 
 const COL_RES: readonly { key: ColKey; re: RegExp }[] = [
   { key: "valeur", re: /valeur\s+unitaire/i },
@@ -69,6 +71,11 @@ export function detectMouvementHeader(line: string): Columns | null {
   const columns = emptyCells() as unknown as Columns;
   for (const column of found) columns[column.key] = column.at;
   return columns;
+}
+
+/** Vrai si la ligne de cellules est l'en-tête Titre / Date / Libellé / Valeur unitaire / Débit / Crédit / Solde. */
+export function detectMouvementHeaderRow(row: readonly string[]): boolean {
+  return headerCells(row) != null;
 }
 
 function headerCells(row: readonly string[]): Columns | null {
@@ -502,6 +509,14 @@ function finish(built: Built | null): HistoryParse | null {
   };
 }
 
+/** Réconciliation du grand livre : solde courant, quantité nette, PRU pondéré. */
+export function reconcileMouvementLedger(
+  entries: { cells: MouvementLine; raw: string }[],
+  catalog: readonly SecurityCatalogEntry[]
+): HistoryParse | null {
+  return finish(consume(entries, createSecurityMatcher(catalog)));
+}
+
 export function tryParseMouvementsMatrix(
   matrix: readonly (readonly string[])[],
   catalog: readonly SecurityCatalogEntry[]
@@ -518,12 +533,11 @@ export function tryParseMouvementsMatrix(
   }
   if (!columns || headerAt < 0) return null;
 
-  const matcher = createSecurityMatcher(catalog);
   const entries = rows.slice(headerAt + 1).flatMap((row) => {
     if (!row.some((cell) => cell.trim())) return [];
     return [{ cells: cellsFromRow(row, columns!), raw: row.filter(Boolean).join(" | ") }];
   });
-  return finish(consume(entries, matcher));
+  return reconcileMouvementLedger(entries, catalog);
 }
 
 export function tryParseMouvementsText(text: string, catalog: readonly SecurityCatalogEntry[]): HistoryParse | null {
@@ -539,7 +553,6 @@ export function tryParseMouvementsText(text: string, catalog: readonly SecurityC
   }
   if (!columns || headerAt < 0) return null;
 
-  const matcher = createSecurityMatcher(catalog);
   const wide = columnsAreWide(columns);
   const entries: { cells: Cells; raw: string }[] = [];
   for (const line of lines.slice(headerAt + 1)) {
@@ -550,5 +563,5 @@ export function tryParseMouvementsText(text: string, catalog: readonly SecurityC
     }
     entries.push({ cells: wide ? assignTokens(line, columns) : looseCells(line), raw: line.trim() });
   }
-  return finish(consume(entries, matcher));
+  return reconcileMouvementLedger(entries, catalog);
 }

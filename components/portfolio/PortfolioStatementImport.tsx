@@ -34,6 +34,7 @@ type Draft = {
   confidence: MatchConfidence;
   ambiguous: boolean;
   warnings: string[];
+  confidenceWhy: string;
   manual: boolean;
   instrumentKind: InstrumentKind;
   tracked: boolean;
@@ -152,6 +153,7 @@ function toDraft(row: StatementRowDraft): Draft {
     confidence: row.match.confidence,
     ambiguous: row.match.ambiguous,
     warnings: row.warnings,
+    confidenceWhy: row.confidenceWhy ?? "",
     manual: false,
     instrumentKind: row.instrumentKind ?? "action",
     tracked: row.tracked !== false,
@@ -732,6 +734,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                                 patch(row.id, {
                                   companyId: event.target.value,
                                   confidence: event.target.value ? "haute" : "aucune",
+                                  confidenceWhy: event.target.value
+                                    ? "Société choisie manuellement."
+                                    : "Aucune société choisie.",
                                   ambiguous: false,
                                   manual: true,
                                 })
@@ -758,7 +763,15 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                         <span className={styles.badge} data-confidence={other || row.manual ? "haute" : row.confidence}>
                           {other ? "Identifiée" : row.manual ? "Corrigé" : CONFIDENCE_LABEL[row.confidence]}
                         </span>
-                        {row.warnings[0] ? <span className={styles.hint}>{row.warnings[0]}</span> : null}
+                        {row.confidenceWhy ? <span className={styles.hint}>{row.confidenceWhy}</span> : null}
+                        {row.warnings
+                          .filter((warning) => warning !== row.confidenceWhy)
+                          .slice(0, 1)
+                          .map((warning) => (
+                            <span key={warning} className={styles.hint}>
+                              {warning}
+                            </span>
+                          ))}
                       </td>
                       <td>
                         <input

@@ -1,13 +1,14 @@
 /**
  * Lecture heuristique d'un relevé de titres SGI (texte déjà extrait).
  *
- * Trois mises en page, dans cet ordre de préférence quand elles extraient
- * autant de quantités :
- *   1. `colonnes` — ligne d'en-tête (Code, Libellé, Qté, PRU, Cours…)
- *   2. `blocs`   — champs « Quantité : 120 » répétés
- *   3. `lignes`  — une position par ligne, nombres en fin de ligne
+ * Quatre étapes (voir `templates/`) :
+ *   1. famille : mouvements groupés, opérations à plat, ou positions nettes ;
+ *   2. modèle nommé (`mouvements-titres`, `operations`, `positions`) ;
+ *   3. réconciliation dans le modèle (solde, quantité nette, PRU pondéré) ;
+ *   4. une phrase de confiance par ligne.
  *
- * Ajouter une SGI : voir `docs/import-releve-sgi.md`.
+ * Dans la famille positions, à quantité égale : `colonnes`, puis `blocs`,
+ * puis `lignes`. Ajouter un modèle : `docs/import-releve-sgi.md`.
  */
 
 import { parseFrNumber, segmentAmountLine } from "./french-number";
@@ -26,9 +27,16 @@ import { termsFromLabel } from "./instrument-terms";
 import { classifyInstrument } from "./noise";
 import { tryParseMouvementsText } from "./parse-mouvements";
 import { nonStockMatch, tryParseHistoryText } from "./positions";
+import { explainConfidence } from "./templates/confidence";
+import { MOUVEMENTS_TITRES } from "./templates/mouvements-titres";
+import { OPERATIONS } from "./templates/operations";
+import { POSITIONS } from "./templates/positions";
+import type { TemplateCandidate } from "./templates/profile";
+import { firstTemplate } from "./templates/run";
 import type {
   DocumentKind,
   IgnoredLine,
+  LayoutFamily,
   SecurityCatalogEntry,
   StatementParseResult,
   StatementRowDraft,
@@ -537,10 +545,20 @@ export function finalizeStatement(
   rawRows: RawRow[],
   meta: { issuer: string | null; statementDate: string | null },
   layout: { id: string; label: string },
-  extras?: { documentKind?: DocumentKind; ignored?: IgnoredLine[]; ignoredCount?: number }
+  extras?: {
+    documentKind?: DocumentKind;
+    ignored?: IgnoredLine[];
+    ignoredCount?: number;
+    templateId?: string;
+    family?: LayoutFamily;
+  }
 ): StatementParseResult {
   const truncated = rawRows.length > STATEMENT_MAX_ROWS;
-  const rows = withIds(rawRows);
+  const family = extras?.family ?? "positions";
+  const rows = withIds(rawRows).map((row) => ({
+    ...row,
+    confidenceWhy: row.confidenceWhy ?? explainConfidence(row, family),
+  }));
   const warnings = summarize(rows, truncated);
   if (!meta.issuer) warnings.unshift("SGI non reconnue : la lecture s’appuie sur les colonnes et les noms de valeurs.");
   if (!meta.statementDate) warnings.unshift("Date du relevé introuvable — vous pourrez la saisir avant d’enregistrer.");
@@ -549,11 +567,34 @@ export function finalizeStatement(
     statementDate: meta.statementDate,
     layoutId: layout.id,
     layoutLabel: layout.label,
+    templateId: extras?.templateId ?? POSITIONS.id,
+    layoutFamily: family,
     documentKind: extras?.documentKind ?? "positions",
     ignored: extras?.ignored ?? [],
     ignoredCount: extras?.ignoredCount ?? extras?.ignored?.length ?? 0,
     rows,
     warnings,
+  };
+}
+
+function asDraft(
+  parsed: {
+    rows: StatementRowDraft[];
+    ignored: IgnoredLine[];
+    ignoredCount: number;
+    documentKind: DocumentKind;
+    layoutLabel?: string;
+  } | null,
+  layoutId?: string
+): ReturnType<TemplateCandidate["run"]> {
+  if (!parsed) return null;
+  return {
+    rows: parsed.rows,
+    ignored: parsed.ignored,
+    ignoredCount: parsed.ignoredCount,
+    documentKind: parsed.documentKind,
+    label: parsed.layoutLabel,
+    layoutId,
   };
 }
 
@@ -587,43 +628,62 @@ export function parseStatementText(text: string, catalog: readonly SecurityCatal
     throw new StatementImportError("UNRECOGNIZED");
   }
 
-  const mouvements = tryParseMouvementsText(normalized, catalog);
-  if (mouvements) {
-    return finalizeStatement(
-      mouvements.rows,
-      detectStatementMeta(normalized),
-      { id: "mouvements", label: mouvements.layoutLabel },
-      {
-        documentKind: mouvements.documentKind,
-        ignored: mouvements.ignored,
-        ignoredCount: mouvements.ignoredCount,
-      }
-    );
-  }
-
-  const history = tryParseHistoryText(normalized, catalog);
-  if (history) {
-    return finalizeStatement(history.rows, detectStatementMeta(normalized), { id: "positions", label: history.layoutLabel }, {
-      documentKind: history.documentKind,
-      ignored: history.ignored,
-      ignoredCount: history.ignoredCount,
-    });
-  }
-
   const matcher = createSecurityMatcher(catalog);
-  const layouts = [
-    { id: "colonnes", label: "Tableau à colonnes", score: detectColumns(normalized), rows: [] as RawRow[], parse: () => parseColumns(normalized, matcher) },
-    { id: "blocs", label: "Blocs libellé / valeur", score: detectBlocks(normalized), rows: [] as RawRow[], parse: () => parseBlocks(normalized, matcher) },
-    { id: "lignes", label: "Lignes libres", score: detectLoose(normalized, matcher), rows: [] as RawRow[], parse: () => parseLoose(normalized, matcher) },
-  ];
+  const selected = firstTemplate([
+    [
+      {
+        templateId: MOUVEMENTS_TITRES.id,
+        family: MOUVEMENTS_TITRES.family,
+        layoutId: MOUVEMENTS_TITRES.layoutId,
+        label: MOUVEMENTS_TITRES.label,
+        run: () => asDraft(tryParseMouvementsText(normalized, catalog)),
+      },
+    ],
+    [
+      {
+        templateId: OPERATIONS.id,
+        family: OPERATIONS.family,
+        layoutId: OPERATIONS.layoutId,
+        label: OPERATIONS.label,
+        run: () => asDraft(tryParseHistoryText(normalized, catalog)),
+      },
+    ],
+    [
+      {
+        templateId: POSITIONS.id,
+        family: POSITIONS.family,
+        layoutId: POSITIONS.layoutId,
+        label: POSITIONS.label,
+        run: () => pickHoldings(normalized, matcher),
+      },
+    ],
+  ]);
+  if (!selected) throw new StatementImportError("UNRECOGNIZED");
+  return finalizeStatement(
+    selected.draft.rows,
+    detectStatementMeta(normalized),
+    { id: selected.layoutId, label: selected.label },
+    {
+      documentKind: selected.draft.documentKind,
+      ignored: selected.draft.ignored,
+      ignoredCount: selected.draft.ignoredCount,
+      templateId: selected.templateId,
+      family: selected.family,
+    }
+  );
+}
 
+function pickHoldings(text: string, matcher: SecurityMatcher): ReturnType<TemplateCandidate["run"]> {
+  const layouts = [
+    { id: "colonnes", label: "Tableau à colonnes", score: detectColumns(text), parse: () => parseColumns(text, matcher) },
+    { id: "blocs", label: "Blocs libellé / valeur", score: detectBlocks(text), parse: () => parseBlocks(text, matcher) },
+    { id: "lignes", label: "Lignes libres", score: detectLoose(text, matcher), parse: () => parseLoose(text, matcher) },
+  ];
   const parsed = layouts
     .filter((layout) => layout.score > 0)
     .map((layout) => ({ ...layout, rows: layout.parse() }))
     .filter((layout) => layout.rows.some((row) => (row.quantity ?? 0) > 0));
-
-  if (parsed.length === 0) throw new StatementImportError("UNRECOGNIZED");
-
+  if (parsed.length === 0) return null;
   const columnar = parsed.find((layout) => layout.id === "colonnes");
   const winner =
     columnar ??
@@ -633,5 +693,12 @@ export function parseStatementText(text: string, catalog: readonly SecurityCatal
       if (qtyB !== qtyA) return qtyB - qtyA;
       return b.score - a.score;
     })[0]!;
-  return finalizeStatement(winner.rows, detectStatementMeta(normalized), { id: winner.id, label: winner.label });
+  return {
+    rows: winner.rows.map((row, index) => ({ ...row, id: `h${index + 1}` })),
+    ignored: [],
+    ignoredCount: 0,
+    documentKind: "positions",
+    layoutId: winner.id,
+    label: winner.label,
+  };
 }
