@@ -8,7 +8,7 @@ export const STATEMENT_MAX_ROWS = 200;
 export const STATEMENT_ERRORS: Record<StatementImportCode, string> = {
   EMPTY: "Le fichier est vide.",
   TOO_LARGE: "Fichier trop volumineux (maximum 4 Mo).",
-  UNSUPPORTED: "Format non accepté. Déposez un PDF, un CSV ou un fichier Excel (.xlsx).",
+  UNSUPPORTED: "Format non accepté. Déposez un PDF, un fichier Excel (.xlsx ou .xls) ou un CSV.",
   INVALID_PDF: "Ce fichier n’est pas un PDF valide.",
   SCANNED_PDF:
     "Ce PDF ne contient pas de couche de texte exploitable (document scanné, image, ou texte incomplet). L’import ne peut pas en extraire les positions. Demandez à votre SGI un relevé PDF « texte » ou un export Excel/CSV. La reconnaissance optique (OCR) sera proposée dans une prochaine version.",
