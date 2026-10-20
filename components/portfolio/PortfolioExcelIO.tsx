@@ -8,9 +8,11 @@ import styles from "./PortfolioExcelIO.module.css";
 type Props = {
   portfolioId: string;
   portfolioName: string;
+  /** Remplace le message vert persistant. */
+  onDone?: (message: string) => void;
 };
 
-export default function PortfolioExcelIO({ portfolioId, portfolioName }: Props) {
+export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -36,7 +38,9 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName }: Props) 
       a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
-      setMessage(`Export « ${portfolioName} » téléchargé.`);
+      const done = `Export « ${portfolioName} » téléchargé.`;
+      if (onDone) onDone(done);
+      else setMessage(done);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Export échoué.");
     } finally {
@@ -78,7 +82,8 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName }: Props) 
       if (d.warnings?.length) {
         msg += ` (${d.warnings.length} avertissement(s))`;
       }
-      setMessage(msg);
+      if (onDone) onDone(msg);
+      else setMessage(msg);
       notifyPortfolioChanged(portfolioId);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import échoué.");
