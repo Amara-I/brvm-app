@@ -29,6 +29,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import * as cheerio from "cheerio";
+import { isFetchDeadlineExceeded, isIngestBudgetError } from "../fetch-budget";
 import { fetchHtml } from "../http-client";
 import { parseFrenchNumber, toIsoDate, lastBusinessDay } from "../parse-utils";
 import type { ConnectorResult, MarketDataConnector, RawDividendRow, RawIndexQuote, RawPriceQuote } from "../types";
@@ -168,6 +169,8 @@ export class RichbourseConnector implements MarketDataConnector {
     const results: RawPriceQuote[] = [];
 
     for (const ticker of tickers) {
+      // 2,5s : le Crawl-delay hôte est de 3s — inutile d'entamer le ticker suivant.
+      if (isFetchDeadlineExceeded(2_500)) break;
       const url = `${BASE_URL}/common/mouvements/index/${ticker.toUpperCase()}`;
       try {
         const html = await fetchHtml(url);
@@ -175,7 +178,9 @@ export class RichbourseConnector implements MarketDataConnector {
         if (closePrice !== null) {
           results.push({ ticker: ticker.toUpperCase(), closePrice, volume: null, source: this.source, date: isoDate, fetchedAt });
         }
-      } catch {
+      } catch (err) {
+        // Budget global épuisé : on s'arrête, le cron suivant reprend la fenêtre.
+        if (isIngestBudgetError(err) || isFetchDeadlineExceeded(0)) break;
         // Ticker inconnu de Richbourse (404) ou page temporairement
         // indisponible → ignoré pour ce ticker, sans faire échouer les autres.
       }

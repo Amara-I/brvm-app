@@ -2,6 +2,7 @@
 // Vérification du robots.txt — respect obligatoire avant tout scraping
 // ═══════════════════════════════════════════════════════════════════════════
 import robotsParser from "robots-parser";
+import { fetchDeadlineRemainingMs } from "./fetch-budget";
 
 interface CachedRobots {
   parser: ReturnType<typeof robotsParser>;
@@ -18,7 +19,9 @@ async function getRobotsParser(origin: string): Promise<ReturnType<typeof robots
   }
   const robotsUrl = `${origin}/robots.txt`;
   try {
-    const res = await fetch(robotsUrl);
+    const left = fetchDeadlineRemainingMs();
+    const timeoutMs = left == null ? 8_000 : Math.min(8_000, Math.max(500, left));
+    const res = await fetch(robotsUrl, { signal: AbortSignal.timeout(timeoutMs) });
     if (!res.ok) {
       // Pas de robots.txt (ou inaccessible) = pas de restriction déclarée.
       cache.set(origin, { parser: robotsParser(robotsUrl, ""), fetchedAt: Date.now() });
@@ -28,11 +31,20 @@ async function getRobotsParser(origin: string): Promise<ReturnType<typeof robots
     const parser = robotsParser(robotsUrl, body);
     cache.set(origin, { parser, fetchedAt: Date.now() });
     return parser;
-  } catch {
-    // En cas d'erreur réseau sur le robots.txt lui-même, on adopte la
-    // position la plus prudente : on considère l'accès NON autorisé plutôt
-    // que de scraper "à l'aveugle".
-    return null;
+  } catch (err) {
+    const name = err instanceof Error ? err.name : "";
+    const timedOut = name === "TimeoutError" || name === "AbortError";
+    if (!timedOut) {
+      // Erreur réseau franche : on n'a pas pu vérifier les interdictions.
+      return null;
+    }
+    // Timeout : ne pas bloquer le cron jusqu'au kill 300s. Ce n'est pas un
+    // refus explicite — parser vide = pas de règle d'interdiction. Cache court.
+    const message = err instanceof Error ? err.message : String(err);
+    console.warn(`[robots] ${origin} timeout (${message}) — accès non bloqué, revérification dans 5 min`);
+    const parser = robotsParser(robotsUrl, "");
+    cache.set(origin, { parser, fetchedAt: Date.now() - (ROBOTS_CACHE_TTL_MS - 5 * 60 * 1000) });
+    return parser;
   }
 }
 

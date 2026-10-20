@@ -22,27 +22,49 @@
 // Appelé par `app/api/cron/ingest/route.ts` (Vercel Cron, production) et par
 // `scripts/run-ingestion-cli.ts` (exécution/débogage manuel).
 //
+// Budget : sur Vercel le run s'arrête vers 240s (kill plateforme à 300s).
+// BRVM puis Sikafinance sont persistés avant le scrape Richbourse (1 page
+// par ticker). Les étapes suivantes se partagent le reste, sans plancher
+// qui les ferait déborder. Chaque étape écrit `[ingest] step=… durationMs=…`.
+//
 // ⚠️ Non exécuté contre une vraie base à ce stade (pas de `DATABASE_URL`
 // réelle disponible dans cet environnement, cf. AGENTS.md) — à valider de
 // bout en bout dès qu'une base Postgres réelle est branchée.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { IngestionStatus } from "@prisma/client";
+import { refreshChartSeries, type RefreshChartSeriesSummary } from "../charts/refresh-chart-series";
 import { prisma } from "../prisma";
+import { sendIngestionAlert } from "./alerts";
+import { getConnectorFeatureFlags, getHistoryBackfillFlags, getIndexEnrichmentFlags } from "./connector-config";
 import { brvmConnector } from "./connectors/brvm_connector";
-import { sikafinanceConnector } from "./connectors/sikafinance_connector";
 import { richbourseConnector } from "./connectors/richbourse_connector";
-import { getConnectorFeatureFlags, getHistoryBackfillFlags } from "./connector-config";
-import { runIndexEnrichmentOnDailyCron, type IndexEnrichmentSummary } from "./run-index-enrichment";
-import { deriveSourceRunStatus, type IngestionRunStatus } from "./status";
-import { DISCREPANCY_THRESHOLD_PERCENT, reconcileIndexQuotes, reconcilePriceBatch } from "./reconciliation";
-import type { ReconciledIndex } from "./reconciliation";
+import { sikafinanceConnector } from "./connectors/sikafinance_connector";
+import { runWithFetchDeadline } from "./fetch-budget";
 import { persistDiscrepancies, persistIndexQuotes, persistPriceQuotes } from "./persist";
 import { toPrismaDataSource } from "./prisma-mappers";
-import { sendIngestionAlert } from "./alerts";
-import { runHistoryBackfill, type HistoryBackfillSummary } from "./run-history-backfill";
+import { DISCREPANCY_THRESHOLD_PERCENT, reconcileIndexQuotes, reconcilePriceBatch } from "./reconciliation";
+import type { ReconciledIndex, ReconciledPrice } from "./reconciliation";
 import { runDocumentRefresh, type DocumentRefreshSummary } from "./run-document-refresh";
-import { refreshChartSeries, type RefreshChartSeriesSummary } from "../charts/refresh-chart-series";
+import { runHistoryBackfill, type HistoryBackfillSummary } from "./run-history-backfill";
+import { runIndexEnrichmentOnDailyCron, type IndexEnrichmentSummary } from "./run-index-enrichment";
+import { deriveSourceRunStatus, type IngestionRunStatus } from "./status";
+import {
+  INGEST_SAFETY_MS,
+  RICHBOURSE_MS_PER_TICKER,
+  type IngestStepLog,
+  type TimeBudget,
+  allocatedOptionalMs,
+  createTimeBudget,
+  forEachUntilBudget,
+  planOptionalIngestSteps,
+  preferCompleteTertiary,
+  resolveIngestBudgetMs,
+  richbourseWantMs,
+  sliceTickersForRun,
+  utcEpochDay,
+  withTimeout,
+} from "./time-budget";
 import type { ConnectorResult, DataSourceCode, MarketDataConnector, RawIndexQuote, RawPriceQuote } from "./types";
 
 export interface SourceRunSummary {
@@ -67,6 +89,16 @@ export interface FullIngestionSummary {
   indexEnrichment?: IndexEnrichmentSummary | null;
   documentRefresh?: DocumentRefreshSummary | null;
   chartSeries?: RefreshChartSeriesSummary | null;
+  budgetMs: number;
+  incomplete: boolean;
+  stoppedAt: string | null;
+  steps: IngestStepLog[];
+  richbourseDeferredTickers: string[];
+}
+
+export interface RunFullIngestionOptions {
+  budgetMs?: number;
+  logger?: (msg: string) => void;
 }
 
 interface ConnectorEnabled {
@@ -74,10 +106,13 @@ interface ConnectorEnabled {
   quotes: boolean;
 }
 
+const MIN_CONNECTOR_CALL_MS = 8_000;
+
 async function runOneConnectorCalls(
   connector: MarketDataConnector,
   tickers: string[],
-  enabled: ConnectorEnabled
+  enabled: ConnectorEnabled,
+  budget: TimeBudget
 ): Promise<{ summary: SourceRunSummary; indexQuotes: RawIndexQuote[]; priceQuotes: RawPriceQuote[] }> {
   const startedAt = Date.now();
   const errors: string[] = [];
@@ -85,31 +120,47 @@ async function runOneConnectorCalls(
   let quotesResult: ConnectorResult<RawPriceQuote[]> | null = null;
 
   if (enabled.indices) {
-    try {
-      indicesResult = await connector.fetchIndices();
-      if (!indicesResult.ok) errors.push(`indices: ${indicesResult.error}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+    if (!budget.canStart(MIN_CONNECTOR_CALL_MS)) {
+      const message = "reporté (budget temps épuisé)";
       indicesResult = { ok: false, source: connector.source, error: message, fetchedAt: new Date().toISOString() };
       errors.push(`indices: ${message}`);
+    } else {
+      try {
+        indicesResult = await connector.fetchIndices();
+        if (!indicesResult.ok) errors.push(`indices: ${indicesResult.error}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        indicesResult = { ok: false, source: connector.source, error: message, fetchedAt: new Date().toISOString() };
+        errors.push(`indices: ${message}`);
+      }
     }
   }
 
   if (enabled.quotes) {
-    try {
-      quotesResult = await connector.fetchQuotes(tickers);
-      if (!quotesResult.ok) errors.push(`quotes: ${quotesResult.error}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+    if (!budget.canStart(MIN_CONNECTOR_CALL_MS)) {
+      const message = "reporté (budget temps épuisé)";
       quotesResult = { ok: false, source: connector.source, error: message, fetchedAt: new Date().toISOString() };
       errors.push(`quotes: ${message}`);
+    } else {
+      try {
+        quotesResult = await connector.fetchQuotes(tickers);
+        if (!quotesResult.ok) errors.push(`quotes: ${quotesResult.error}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        quotesResult = { ok: false, source: connector.source, error: message, fetchedAt: new Date().toISOString() };
+        errors.push(`quotes: ${message}`);
+      }
     }
   }
 
-  const status = deriveSourceRunStatus([
+  let status = deriveSourceRunStatus([
     { attempted: enabled.indices, ok: indicesResult?.ok ?? false },
     { attempted: enabled.quotes, ok: quotesResult?.ok ?? false },
   ]);
+  // Un arrêt volontaire (budget) n'est pas une source morte : pas d'alerte critique.
+  if (status === "FAILED" && errors.length > 0 && errors.every((e) => e.includes("budget temps"))) {
+    status = "PARTIAL";
+  }
 
   return {
     summary: {
@@ -125,78 +176,14 @@ async function runOneConnectorCalls(
   };
 }
 
-export async function runFullIngestion(): Promise<FullIngestionSummary> {
-  const startedAt = new Date();
-  const flags = getConnectorFeatureFlags();
+interface PersistSnapshot {
+  reconciledPrices: ReconciledPrice[];
+  reconciledIndices: ReconciledIndex[];
+  discrepancies: ReturnType<typeof reconcilePriceBatch>["discrepancies"];
+  unknownTickers: string[];
+}
 
-  const companies = await prisma.company.findMany({ where: { isActive: true }, select: { id: true, ticker: true } });
-  const tickers = companies.map((c) => c.ticker);
-  const companyIdByTicker = new Map(companies.map((c) => [c.ticker, c.id]));
-
-  const connectorPlan: Array<{ connector: MarketDataConnector; enabled: ConnectorEnabled }> = [
-    { connector: brvmConnector, enabled: { indices: flags.brvmIndices, quotes: flags.brvmQuotes } },
-    { connector: sikafinanceConnector, enabled: { indices: flags.sikafinanceIndices, quotes: flags.sikafinanceQuotes } },
-    { connector: richbourseConnector, enabled: { indices: flags.richbourseIndices, quotes: flags.richbourseQuotes } },
-  ];
-
-  const perSource: SourceRunSummary[] = [];
-  const allIndexQuotes: RawIndexQuote[] = [];
-  const allPriceQuotes: RawPriceQuote[] = [];
-
-  for (const { connector, enabled } of connectorPlan) {
-    const log = await prisma.ingestionLog.create({
-      data: { source: toPrismaDataSource(connector.source), status: IngestionStatus.RUNNING },
-    });
-
-    try {
-      const { summary, indexQuotes, priceQuotes } = await runOneConnectorCalls(connector, tickers, enabled);
-      perSource.push(summary);
-      allIndexQuotes.push(...indexQuotes);
-      allPriceQuotes.push(...priceQuotes);
-
-      await prisma.ingestionLog.update({
-        where: { id: log.id },
-        data: {
-          status: IngestionStatus[summary.status],
-          finishedAt: new Date(),
-          recordsProcessed: (enabled.indices ? 1 : 0) + (enabled.quotes ? tickers.length : 0),
-          recordsInserted: summary.indicesFetched + summary.quotesFetched,
-          recordsFailed: summary.errors.length,
-          errors: summary.errors.length ? summary.errors : undefined,
-          durationMs: summary.durationMs,
-        },
-      });
-
-      if (summary.status === "FAILED") {
-        await sendIngestionAlert({
-          severity: "critical",
-          title: `Source d'ingestion en échec : ${connector.source}`,
-          message: summary.errors.join(" | ") || "Échec sans détail disponible",
-        });
-      }
-    } catch (err) {
-      // Filet de sécurité ultime : même un bug inattendu ici (ex: Prisma
-      // injoignable en cours de route) ne doit JAMAIS empêcher les deux
-      // autres sources de tourner — c'est tout le sens de la boucle
-      // try/catch PAR connecteur plutôt qu'un try/catch global.
-      const message = err instanceof Error ? err.message : String(err);
-      perSource.push({ source: connector.source, status: "FAILED", indicesFetched: 0, quotesFetched: 0, errors: [message], durationMs: 0 });
-      await prisma.ingestionLog
-        .update({ where: { id: log.id }, data: { status: IngestionStatus.FAILED, finishedAt: new Date(), errors: [message] } })
-        .catch(() => {
-          // Même la mise à jour du log peut échouer (DB down) — on ne fait
-          // pas planter le run pour autant.
-        });
-      await sendIngestionAlert({ severity: "critical", title: `Erreur inattendue — connecteur ${connector.source}`, message });
-    }
-  }
-
-  // ── Réconciliation + persistance des cotations ──────────────────────────
-  const { reconciled: reconciledPrices, discrepancies } = reconcilePriceBatch(allPriceQuotes);
-  const priceResult = await persistPriceQuotes(prisma, allPriceQuotes, reconciledPrices, companyIdByTicker);
-  await persistDiscrepancies(prisma, discrepancies, companyIdByTicker, reconciledPrices);
-
-  // ── Réconciliation + persistance des indices ────────────────────────────
+function reconcileIndices(allIndexQuotes: RawIndexQuote[]): ReconciledIndex[] {
   const indexCodes = new Set(allIndexQuotes.map((q) => q.code));
   const reconciledIndices: ReconciledIndex[] = [];
   for (const code of indexCodes) {
@@ -206,115 +193,493 @@ export async function runFullIngestion(): Promise<FullIngestionSummary> {
       if (reconciled) reconciledIndices.push(reconciled);
     }
   }
-  await persistIndexQuotes(prisma, allIndexQuotes, reconciledIndices);
+  return reconciledIndices;
+}
 
-  if (discrepancies.length > 0) {
-    await sendIngestionAlert({
-      severity: "warning",
-      title: `${discrepancies.length} écart(s) de cours > ${DISCREPANCY_THRESHOLD_PERCENT}% détecté(s)`,
-      message: discrepancies.map((d) => `${d.ticker} (${d.date}): écart ${d.deltaPercent}%`).join(" | "),
-    });
-  }
+async function persistCollected(
+  allPriceQuotes: RawPriceQuote[],
+  allIndexQuotes: RawIndexQuote[],
+  companyIdByTicker: Map<string, string>,
+  budget: TimeBudget
+): Promise<PersistSnapshot> {
+  const persistMs = Math.min(60_000, Math.max(5_000, budget.remainingMs() - 5_000));
+  return withTimeout(
+    (async () => {
+      const { reconciled: reconciledPrices, discrepancies } = reconcilePriceBatch(allPriceQuotes);
+      const priceResult = await persistPriceQuotes(prisma, allPriceQuotes, reconciledPrices, companyIdByTicker);
+      const reconciledIndices = reconcileIndices(allIndexQuotes);
+      await persistIndexQuotes(prisma, allIndexQuotes, reconciledIndices);
+      return {
+        reconciledPrices,
+        reconciledIndices,
+        discrepancies,
+        unknownTickers: priceResult.unknownTickers,
+      };
+    })(),
+    persistMs,
+    "persistance cours"
+  );
+}
 
-  if (priceResult.unknownTickers.length > 0) {
-    await sendIngestionAlert({
-      severity: "info",
-      title: `${priceResult.unknownTickers.length} ticker(s) inconnu(s) rencontré(s) pendant l'ingestion`,
-      message: `${priceResult.unknownTickers.join(", ")} — absent(s) de la table companies (nouvelle introduction ? faute de frappe côté source ?)`,
-    });
-  }
+export async function runFullIngestion(options: RunFullIngestionOptions = {}): Promise<FullIngestionSummary> {
+  const startedAt = new Date();
+  const budget = createTimeBudget(resolveIngestBudgetMs(options.budgetMs));
+  const logger = options.logger ?? ((msg: string) => console.log(msg));
+  const steps: IngestStepLog[] = [];
+  let incomplete = false;
+  let stoppedAt: string | null = null;
 
-  const finishedAt = new Date();
-
-  let indexEnrichment: IndexEnrichmentSummary | null = null;
-  try {
-    const elapsed = finishedAt.getTime() - startedAt.getTime();
-    const remaining = Math.max(10_000, 270_000 - elapsed);
-    indexEnrichment = await runIndexEnrichmentOnDailyCron(remaining, (msg) =>
-      console.log(`[ingest→indices] ${msg}`)
+  const note = (row: IngestStepLog) => {
+    steps.push(row);
+    const reason = row.reason ? ` reason=${row.reason}` : "";
+    logger(
+      `[ingest] step=${row.name} durationMs=${row.durationMs} remainingMs=${budget.remainingMs()} skipped=${row.skipped}${reason}`
     );
-  } catch (err) {
-    console.warn(
-      `[ingest→indices] enrichissement ignoré : ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
+  };
 
-  let historyBackfill: HistoryBackfillSummary | null = null;
-  if (getHistoryBackfillFlags().onDailyCron) {
-    const elapsed = finishedAt.getTime() - startedAt.getTime();
-    const remaining = Math.max(15_000, 270_000 - elapsed);
+  const skip = (name: string, reason: string, countsAsStop: boolean) => {
+    note({ name, durationMs: 0, skipped: true, reason });
+    if (countsAsStop) {
+      incomplete = true;
+      stoppedAt ??= name;
+    }
+  };
+
+  async function timed<T>(name: string, fn: () => Promise<T>): Promise<T> {
+    const t0 = Date.now();
+    logger(`[ingest] step=${name} start remainingMs=${budget.remainingMs()}`);
     try {
-      historyBackfill = await runHistoryBackfill({
-        timeBudgetMs: remaining,
-        resume: true,
-        logger: (msg) => console.log(`[ingest→history] ${msg}`),
-      });
+      const value = await fn();
+      note({ name, durationMs: Date.now() - t0, skipped: false });
+      return value;
     } catch (err) {
-      console.warn(
-        `[ingest→history] backfill ignoré : ${err instanceof Error ? err.message : String(err)}`
-      );
+      const message = err instanceof Error ? err.message : String(err);
+      note({ name, durationMs: Date.now() - t0, skipped: false, reason: message });
+      throw err;
     }
   }
 
-  let documentRefresh: DocumentRefreshSummary | null = null;
-  const historyFlags = getHistoryBackfillFlags();
-  if (historyFlags.documentsOnDailyCron) {
-    const elapsed = Date.now() - startedAt.getTime();
-    const remaining = Math.min(50_000, Math.max(0, 270_000 - elapsed - 40_000));
-    if (remaining >= 12_000) {
-      try {
-        documentRefresh = await runDocumentRefresh({
-          timeBudgetMs: remaining,
-          resume: true,
-          maxTickers: 8,
-          logger: (msg) => console.log(`[ingest→docs] ${msg}`),
-        });
-      } catch (err) {
-        console.warn(
-          `[ingest→docs] actualisation ignorée : ${err instanceof Error ? err.message : String(err)}`
-        );
+  logger(`[ingest] start budgetMs=${budget.totalMs} safetyMs=${INGEST_SAFETY_MS}`);
+
+  async function executeIngestion(): Promise<FullIngestionSummary> {
+    const flags = getConnectorFeatureFlags();
+    const historyFlags = getHistoryBackfillFlags();
+    const indexFlags = getIndexEnrichmentFlags();
+
+    const companies = await timed("companies", () =>
+      withTimeout(
+        prisma.company.findMany({ where: { isActive: true }, select: { id: true, ticker: true } }),
+        Math.min(20_000, Math.max(5_000, budget.remainingMs())),
+        "lecture sociétés"
+      )
+    );
+    const tickers = companies.map((c) => c.ticker);
+    const companyIdByTicker = new Map(companies.map((c) => [c.ticker, c.id]));
+
+    const perSource: SourceRunSummary[] = [];
+    const allIndexQuotes: RawIndexQuote[] = [];
+    const allPriceQuotes: RawPriceQuote[] = [];
+
+    const runLoggedConnector = async (connector: MarketDataConnector, enabled: ConnectorEnabled, quoteTickers: string[]) => {
+      if (!enabled.indices && !enabled.quotes) {
+        skip(`source:${connector.source}`, "connecteur désactivé", false);
+        return;
+      }
+      await timed(`source:${connector.source}`, async () => {
+        let logId: string | null = null;
+        try {
+          const log = await prisma.ingestionLog.create({
+            data: { source: toPrismaDataSource(connector.source), status: IngestionStatus.RUNNING },
+          });
+          logId = log.id;
+          const { summary, indexQuotes, priceQuotes } = await runOneConnectorCalls(connector, quoteTickers, enabled, budget);
+          perSource.push(summary);
+          allIndexQuotes.push(...indexQuotes);
+          allPriceQuotes.push(...priceQuotes);
+          await prisma.ingestionLog.update({
+            where: { id: logId },
+            data: {
+              status: IngestionStatus[summary.status],
+              finishedAt: new Date(),
+              recordsProcessed: (enabled.indices ? 1 : 0) + (enabled.quotes ? quoteTickers.length : 0),
+              recordsInserted: summary.indicesFetched + summary.quotesFetched,
+              recordsFailed: summary.errors.length,
+              errors: summary.errors.length ? summary.errors : undefined,
+              durationMs: summary.durationMs,
+            },
+          });
+          if (summary.status === "FAILED") {
+            await sendIngestionAlert({
+              severity: "critical",
+              title: `Source d'ingestion en échec : ${connector.source}`,
+              message: summary.errors.join(" | ") || "Échec sans détail disponible",
+            });
+          }
+          if (summary.errors.some((e) => e.includes("budget temps"))) {
+            incomplete = true;
+            stoppedAt ??= `source:${connector.source}`;
+          }
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          perSource.push({
+            source: connector.source,
+            status: "FAILED",
+            indicesFetched: 0,
+            quotesFetched: 0,
+            errors: [message],
+            durationMs: 0,
+          });
+          if (logId) {
+            await prisma.ingestionLog
+              .update({
+                where: { id: logId },
+                data: { status: IngestionStatus.FAILED, finishedAt: new Date(), errors: [message] },
+              })
+              .catch(() => undefined);
+          }
+          await sendIngestionAlert({
+            severity: "critical",
+            title: `Erreur inattendue — connecteur ${connector.source}`,
+            message,
+          });
+        }
+      });
+    };
+
+    // Priorité fraîcheur : BRVM (1 page de cours) puis Sika (tableau A–Z).
+    // Richbourse indices = 1 page ; ses cotations (1 page / ticker) viennent après la persistance.
+    await runLoggedConnector(brvmConnector, { indices: flags.brvmIndices, quotes: flags.brvmQuotes }, tickers);
+    await runLoggedConnector(
+      sikafinanceConnector,
+      { indices: flags.sikafinanceIndices, quotes: flags.sikafinanceQuotes },
+      tickers
+    );
+    if (flags.richbourseIndices) {
+      await runLoggedConnector(richbourseConnector, { indices: true, quotes: false }, []);
+    }
+
+    let snapshot = await timed("persist", () =>
+      persistCollected(allPriceQuotes, allIndexQuotes, companyIdByTicker, budget)
+    );
+
+    const quotesOf = (source: DataSourceCode) => perSource.find((s) => s.source === source)?.quotesFetched ?? 0;
+    const brvmQuotesOk = !flags.brvmQuotes || quotesOf("BRVM_OFFICIEL") > 0;
+    const sikaQuotesOk = !flags.sikafinanceQuotes || quotesOf("SIKAFINANCE") > 0;
+    const plan = planOptionalIngestSteps({
+      remainingMs: budget.remainingMs(),
+      richbourseQuotesEnabled: flags.richbourseQuotes,
+      richbourseWantMs: richbourseWantMs({
+        tickerCount: tickers.length,
+        brvmQuotesOk,
+        sikaQuotesOk,
+        preferComplete: preferCompleteTertiary(budget.totalMs),
+      }),
+      historyOnDailyCron: historyFlags.onDailyCron,
+      documentsOnDailyCron: historyFlags.documentsOnDailyCron,
+      indexOnDailyCron: indexFlags.compositionOnDailyCron || indexFlags.recentHistoryOnDailyCron,
+    });
+    logger(
+      `[ingest] plan remainingMs=${budget.remainingMs()} allocatedMs=${allocatedOptionalMs(plan)} richbourse=${plan.richbourseQuotes.budgetMs} indices=${plan.indexEnrichment.budgetMs} history=${plan.historyBackfill.budgetMs} docs=${plan.documents.budgetMs} charts=${plan.chartSeries.budgetMs} alerts=${plan.alerts.budgetMs}`
+    );
+
+    let richbourseDeferredTickers: string[] = [];
+    if (!flags.richbourseQuotes) {
+      skip("richbourse-quotes", plan.richbourseQuotes.reason ?? "désactivé", false);
+    } else if (!plan.richbourseQuotes.run) {
+      const cut = (plan.richbourseQuotes.reason ?? "").includes("reste utile");
+      skip("richbourse-quotes", plan.richbourseQuotes.reason ?? "budget épuisé", cut);
+      if (cut) richbourseDeferredTickers = tickers.map((t) => t.toUpperCase());
+    } else {
+      const sliceMs = Math.min(plan.richbourseQuotes.budgetMs, Math.max(0, budget.remainingMs() - INGEST_SAFETY_MS));
+      const maxCount = Math.max(1, Math.floor(sliceMs / RICHBOURSE_MS_PER_TICKER));
+      const slice = sliceTickersForRun(tickers, utcEpochDay(budget.startedAtMs), maxCount);
+      richbourseDeferredTickers = slice.deferred;
+      logger(
+        `[ingest] richbourse-quotes fenêtre=${slice.selected.length} différés=${slice.deferred.length} budgetMs=${sliceMs}`
+      );
+      const sliceBudget = createTimeBudget(sliceMs);
+      let fetchedRich = 0;
+      await timed("richbourse-quotes", () =>
+        runWithFetchDeadline(sliceBudget.deadlineMs, async () => {
+          const log = await prisma.ingestionLog.create({
+            data: { source: toPrismaDataSource("RICHBOURSE"), status: IngestionStatus.RUNNING },
+          });
+          try {
+            const loop = await forEachUntilBudget(slice.selected, sliceBudget, 2_500, async (ticker) => {
+              const part = await richbourseConnector.fetchQuotes([ticker]);
+              if (part.ok) {
+                allPriceQuotes.push(...part.data);
+                fetchedRich += part.data.length;
+              }
+            });
+            if (loop.stoppedEarly) {
+              incomplete = true;
+              stoppedAt ??= "richbourse-quotes";
+              richbourseDeferredTickers = [...slice.selected.slice(loop.processed), ...slice.deferred];
+            }
+            const summary: SourceRunSummary = {
+              source: "RICHBOURSE",
+              status: loop.stoppedEarly ? "PARTIAL" : fetchedRich > 0 || slice.selected.length === 0 ? "SUCCESS" : "PARTIAL",
+              indicesFetched: 0,
+              quotesFetched: fetchedRich,
+              errors: loop.stoppedEarly ? ["quotes: reporté (budget temps épuisé)"] : [],
+              durationMs: sliceBudget.elapsedMs(),
+            };
+            perSource.push(summary);
+            await prisma.ingestionLog.update({
+              where: { id: log.id },
+              data: {
+                status: IngestionStatus[summary.status],
+                finishedAt: new Date(),
+                recordsProcessed: slice.selected.length,
+                recordsInserted: fetchedRich,
+                recordsFailed: loop.deferred,
+                errors: summary.errors.length ? summary.errors : undefined,
+                durationMs: summary.durationMs,
+              },
+            });
+          } catch (err) {
+            const message = err instanceof Error ? err.message : String(err);
+            perSource.push({
+              source: "RICHBOURSE",
+              status: "FAILED",
+              indicesFetched: 0,
+              quotesFetched: fetchedRich,
+              errors: [message],
+              durationMs: sliceBudget.elapsedMs(),
+            });
+            await prisma.ingestionLog
+              .update({
+                where: { id: log.id },
+                data: { status: IngestionStatus.FAILED, finishedAt: new Date(), errors: [message] },
+              })
+              .catch(() => undefined);
+            if (!message.includes("budget temps")) {
+              await sendIngestionAlert({
+                severity: "critical",
+                title: "Erreur inattendue — connecteur RICHBOURSE",
+                message,
+              });
+            } else {
+              incomplete = true;
+              stoppedAt ??= "richbourse-quotes";
+            }
+          }
+        })
+      );
+      if (fetchedRich > 0) {
+        try {
+          snapshot = await timed("persist-richbourse", () =>
+            persistCollected(allPriceQuotes, allIndexQuotes, companyIdByTicker, budget)
+          );
+        } catch (err) {
+          logger(
+            `[ingest] persistance Richbourse ignorée (cours BRVM/Sika déjà écrits) : ${err instanceof Error ? err.message : String(err)}`
+          );
+        }
       }
     }
-  }
 
-  let chartSeries: RefreshChartSeriesSummary | null = null;
-  try {
-    const elapsed = Date.now() - startedAt.getTime();
-    const remaining = Math.min(40_000, Math.max(8_000, 270_000 - elapsed));
-    const touched = [...new Set(reconciledPrices.map((r) => r.ticker))];
-    chartSeries = await refreshChartSeries({
-      symbols: touched.length > 0 && touched.length <= 48 ? touched : undefined,
-      timeBudgetMs: remaining,
-      logger: (msg) => console.log(`[ingest→charts] ${msg}`),
-    });
-  } catch (err) {
-    console.warn(
-      `[ingest→charts] refresh ignoré : ${err instanceof Error ? err.message : String(err)}`
+    const liveSlice = (wanted: number, minMs: number): number => {
+      const live = Math.min(wanted, budget.remainingMs() - INGEST_SAFETY_MS);
+      return live >= minMs ? live : 0;
+    };
+
+    let indexEnrichment: IndexEnrichmentSummary | null = null;
+    if (!plan.indexEnrichment.run) {
+      skip("index-enrichment", plan.indexEnrichment.reason ?? "budget épuisé", false);
+    } else {
+      const ms = liveSlice(plan.indexEnrichment.budgetMs, 8_000);
+      if (ms <= 0) skip("index-enrichment", "reste insuffisant au moment de démarrer", false);
+      else {
+        try {
+          indexEnrichment = await timed("index-enrichment", () =>
+            runIndexEnrichmentOnDailyCron(ms, (msg) => logger(`[ingest→indices] ${msg}`))
+          );
+        } catch (err) {
+          logger(`[ingest→indices] enrichissement ignoré : ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    let historyBackfill: HistoryBackfillSummary | null = null;
+    if (!plan.historyBackfill.run) {
+      skip("history-backfill", plan.historyBackfill.reason ?? "budget épuisé", false);
+    } else {
+      const ms = liveSlice(plan.historyBackfill.budgetMs, 15_000);
+      if (ms <= 0) skip("history-backfill", "reste insuffisant au moment de démarrer", false);
+      else {
+        try {
+          historyBackfill = await timed("history-backfill", () =>
+            runHistoryBackfill({
+              timeBudgetMs: ms,
+              resume: true,
+              logger: (msg) => logger(`[ingest→history] ${msg}`),
+            })
+          );
+        } catch (err) {
+          logger(`[ingest→history] backfill ignoré : ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    let documentRefresh: DocumentRefreshSummary | null = null;
+    if (!plan.documents.run) {
+      skip("documents", plan.documents.reason ?? "budget épuisé", false);
+    } else {
+      const ms = liveSlice(plan.documents.budgetMs, 12_000);
+      if (ms <= 0) skip("documents", "reste insuffisant au moment de démarrer", false);
+      else {
+        try {
+          documentRefresh = await timed("documents", () =>
+            runDocumentRefresh({
+              timeBudgetMs: ms,
+              resume: true,
+              maxTickers: 8,
+              logger: (msg) => logger(`[ingest→docs] ${msg}`),
+            })
+          );
+        } catch (err) {
+          logger(`[ingest→docs] actualisation ignorée : ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    let chartSeries: RefreshChartSeriesSummary | null = null;
+    if (!plan.chartSeries.run) {
+      skip("chart-series", plan.chartSeries.reason ?? "budget épuisé", false);
+    } else {
+      const ms = liveSlice(plan.chartSeries.budgetMs, 8_000);
+      if (ms <= 0) skip("chart-series", "reste insuffisant au moment de démarrer", false);
+      else {
+        try {
+          chartSeries = await timed("chart-series", async () => {
+            const touched = [...new Set(snapshot.reconciledPrices.map((r) => r.ticker))];
+            const indexReserve = ms >= 14_000 ? 6_000 : 0;
+            const companyBudget = ms - indexReserve;
+            const maxCompanies = Math.max(1, Math.floor(companyBudget / 2_500));
+            const companySlice = sliceTickersForRun(touched, utcEpochDay(budget.startedAtMs), maxCompanies);
+            let summary: RefreshChartSeriesSummary | null = null;
+            if (companySlice.selected.length > 0) {
+              summary = await refreshChartSeries({
+                symbols: companySlice.selected,
+                kinds: ["COMPANY"],
+                timeBudgetMs: companyBudget,
+                logger: (msg) => logger(`[ingest→charts] ${msg}`),
+              });
+            }
+            if (indexReserve >= 6_000) {
+              const indices = await refreshChartSeries({
+                kinds: ["INDEX"],
+                timeBudgetMs: indexReserve,
+                logger: (msg) => logger(`[ingest→charts] ${msg}`),
+              });
+              summary = summary
+                ? {
+                    ...summary,
+                    indicesUpdated: indices.indicesUpdated,
+                    rowsUpserted: summary.rowsUpserted + indices.rowsUpserted,
+                    incomplete: summary.incomplete || indices.incomplete,
+                    nextSymbol: summary.nextSymbol ?? indices.nextSymbol,
+                    durationMs: summary.durationMs + indices.durationMs,
+                    skippedMissingTable: summary.skippedMissingTable || indices.skippedMissingTable,
+                  }
+                : indices;
+            }
+            if (companySlice.deferred.length > 0) {
+              logger(`[ingest→charts] sociétés différées=${companySlice.deferred.length} (fenêtre du jour)`);
+            }
+            if (!summary) {
+              const nowIso = new Date().toISOString();
+              return {
+                startedAt: nowIso,
+                finishedAt: nowIso,
+                durationMs: 0,
+                incomplete: false,
+                nextSymbol: null,
+                companiesUpdated: 0,
+                indicesUpdated: 0,
+                rowsUpserted: 0,
+                skippedMissingTable: false,
+              };
+            }
+            return summary;
+          });
+        } catch (err) {
+          logger(`[ingest→charts] refresh ignoré : ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    if (!plan.alerts.run) {
+      skip("alerts", plan.alerts.reason ?? "budget épuisé", false);
+    } else {
+      const ms = liveSlice(plan.alerts.budgetMs, 4_000);
+      if (ms <= 0) skip("alerts", "reste insuffisant au moment de démarrer", false);
+      else {
+        try {
+          await timed("alerts", async () => {
+            const { evaluateAllAlerts } = await import("../notifications/evaluate-all");
+            await withTimeout(evaluateAllAlerts(), ms, "alertes");
+          });
+        } catch (err) {
+          logger(`[ingest→alerts] évaluation ignorée : ${err instanceof Error ? err.message : String(err)}`);
+        }
+      }
+    }
+
+    if (snapshot.discrepancies.length > 0) {
+      try {
+        await withTimeout(
+          persistDiscrepancies(prisma, snapshot.discrepancies, companyIdByTicker, snapshot.reconciledPrices),
+          Math.min(15_000, Math.max(1_000, budget.remainingMs())),
+          "écarts"
+        );
+        await sendIngestionAlert({
+          severity: "warning",
+          title: `${snapshot.discrepancies.length} écart(s) de cours > ${DISCREPANCY_THRESHOLD_PERCENT}% détecté(s)`,
+          message: snapshot.discrepancies
+            .slice(0, 12)
+            .map((d) => `${d.ticker} (${d.date}): écart ${d.deltaPercent}%`)
+            .join(" | "),
+        });
+      } catch (err) {
+        logger(`[ingest] écarts non journalisés : ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    if (snapshot.unknownTickers.length > 0) {
+      await sendIngestionAlert({
+        severity: "info",
+        title: `${snapshot.unknownTickers.length} ticker(s) inconnu(s) rencontré(s) pendant l'ingestion`,
+        message: `${snapshot.unknownTickers.join(", ")} — absent(s) de la table companies (nouvelle introduction ? faute de frappe côté source ?)`,
+      });
+    }
+
+    const summary: FullIngestionSummary = {
+      startedAt: startedAt.toISOString(),
+      finishedAt: new Date().toISOString(),
+      durationMs: Date.now() - startedAt.getTime(),
+      perSource,
+      reconciledPricesCount: snapshot.reconciledPrices.length,
+      reconciledIndicesCount: snapshot.reconciledIndices.length,
+      discrepanciesCount: snapshot.discrepancies.length,
+      unknownTickers: snapshot.unknownTickers,
+      historyBackfill,
+      indexEnrichment,
+      documentRefresh,
+      chartSeries,
+      budgetMs: budget.totalMs,
+      incomplete,
+      stoppedAt,
+      steps,
+      richbourseDeferredTickers,
+    };
+    logger(
+      `[ingest] done durationMs=${summary.durationMs} incomplete=${summary.incomplete} stoppedAt=${summary.stoppedAt ?? "-"} prices=${summary.reconciledPricesCount} deferredRichbourse=${richbourseDeferredTickers.length} steps=${steps.map((s) => `${s.name}:${s.skipped ? "skip" : s.durationMs}`).join(",")}`
     );
+    return summary;
   }
 
-  // Notifications : après persistance des cours/indices, jamais bloquant.
-  try {
-    const { evaluateAllAlerts } = await import("../notifications/evaluate-all");
-    await evaluateAllAlerts();
-  } catch (err) {
-    console.warn(
-      `[ingest→alerts] évaluation ignorée : ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
-
-  return {
-    startedAt: startedAt.toISOString(),
-    finishedAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt.getTime(),
-    perSource,
-    reconciledPricesCount: reconciledPrices.length,
-    reconciledIndicesCount: reconciledIndices.length,
-    discrepanciesCount: discrepancies.length,
-    unknownTickers: priceResult.unknownTickers,
-    historyBackfill,
-    indexEnrichment,
-    documentRefresh,
-    chartSeries,
-  };
+  return runWithFetchDeadline(budget.deadlineMs, () => executeIngestion());
 }

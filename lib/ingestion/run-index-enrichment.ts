@@ -375,7 +375,14 @@ export async function runIndexEnrichment(
   }
   }
 
-  await persistComposition();
+  if (deadline && Date.now() >= deadline) {
+    if (includeComposition) {
+      summary.incomplete = true;
+      log(options.logger, "composition BRVM 30 différée : budget temps épuisé");
+    }
+  } else {
+    await persistComposition();
+  }
 
   summary.finishedAt = new Date().toISOString();
   summary.durationMs = Date.now() - started;
@@ -403,6 +410,9 @@ export async function runIndexEnrichmentOnDailyCron(
   remainingMs: number,
   logger?: (msg: string) => void
 ): Promise<IndexEnrichmentSummary | null> {
+  // Ne plus forcer un plancher (ancien `Math.max(8_000, remaining)`) : un
+  // reste nul relançait quand même GetHistos + le PDF de composition.
+  if (!(remainingMs >= 8_000)) return null;
   const flags = getIndexEnrichmentFlags();
   if (!flags.compositionOnDailyCron && !flags.recentHistoryOnDailyCron) return null;
   const toDate = toIsoDate(new Date());
@@ -415,7 +425,7 @@ export async function runIndexEnrichmentOnDailyCron(
     includeDaily: flags.recentHistoryOnDailyCron,
     dailyFrom,
     codes: flags.recentHistoryOnDailyCron ? [...HEADLINE_INDEX_CODES] : [],
-    timeBudgetMs: Math.max(8_000, remainingMs),
+    timeBudgetMs: remainingMs,
     logger,
   });
 }
