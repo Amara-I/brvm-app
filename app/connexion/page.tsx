@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import AuthPage from "@/components/auth/AuthPage";
 import LoginForm from "@/components/auth/LoginForm";
+import { enabledOAuthProviderIds } from "@/lib/auth/auth-options";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export default function ConnexionPage() {
       lead="Accédez à votre portefeuille et vos préférences OuestBourse."
     >
       <Suspense fallback={null}>
-        <LoginForm />
+        <LoginForm oauthProviders={enabledOAuthProviderIds} />
       </Suspense>
     </AuthPage>
   );

@@ -4,20 +4,10 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import { authErrorMessage } from "@/lib/auth/oauth-errors";
 import PasswordField from "./PasswordField";
-import GoogleSignInButton from "./GoogleSignInButton";
+import OAuthSignInButtons from "./OAuthSignInButtons";
 import styles from "./AuthForm.module.css";
-
-const NEXTAUTH_ERRORS: Record<string, string> = {
-  CredentialsSignin: "Email ou mot de passe incorrect.",
-  OAuthAccountNotLinked:
-    "Un compte existe déjà avec cette adresse. Connectez-vous avec votre mot de passe, puis vous pourrez lier Google.",
-  OAuthSignin: "Impossible de démarrer la connexion Google.",
-  OAuthCallback: "La connexion Google a échoué. Réessayez.",
-  AccessDenied: "Connexion refusée.",
-  Configuration: "La connexion est temporairement indisponible.",
-  Default: "La connexion a échoué. Réessayez.",
-};
 
 function messageFromQuery(searchParams: URLSearchParams): { text: string; ok: boolean } | null {
   if (searchParams.get("verified") === "1") {
@@ -31,12 +21,12 @@ function messageFromQuery(searchParams: URLSearchParams): { text: string; ok: bo
   }
   const error = searchParams.get("error");
   if (error) {
-    return { ok: false, text: NEXTAUTH_ERRORS[error] ?? NEXTAUTH_ERRORS.Default };
+    return { ok: false, text: authErrorMessage(error) };
   }
   return null;
 }
 
-export default function LoginForm() {
+export default function LoginForm({ oauthProviders = [] }: { oauthProviders?: readonly string[] }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/portefeuille";
@@ -54,7 +44,7 @@ export default function LoginForm() {
     const result = await signIn("credentials", { redirect: false, email, password });
     setLoading(false);
     if (result?.error) {
-      setError(NEXTAUTH_ERRORS.CredentialsSignin);
+      setError(authErrorMessage("CredentialsSignin"));
       return;
     }
     router.push(callbackUrl.startsWith("/") ? callbackUrl : "/portefeuille");
@@ -102,7 +92,10 @@ export default function LoginForm() {
         {loading ? "Connexion…" : "Se connecter"}
       </button>
 
-      <GoogleSignInButton callbackUrl={callbackUrl.startsWith("/") ? callbackUrl : "/portefeuille"} />
+      <OAuthSignInButtons
+        providers={oauthProviders}
+        callbackUrl={callbackUrl.startsWith("/") ? callbackUrl : "/portefeuille"}
+      />
 
       <p className={styles.footer}>
         Pas encore de compte ?{" "}
