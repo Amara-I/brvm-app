@@ -159,10 +159,22 @@ function readXlsxMatrix(bytes: Uint8Array): string[][] {
   return matrix.map((row) => (Array.isArray(row) ? row : []).map((cell) => cellToString(cell)));
 }
 
-async function textFromImage(file: StatementUpload, hooks?: ParseStatementHooks): Promise<string> {
-  if (hooks?.transcribe) return (await hooks.transcribe(file)).text;
+async function readTranscribed(
+  file: StatementUpload,
+  catalog: readonly SecurityCatalogEntry[],
+  hooks?: ParseStatementHooks
+): Promise<StatementParseResult> {
+  if (hooks?.transcribe) return parseStatementText((await hooks.transcribe(file)).text, catalog);
   const { transcribeStatement } = await import("./transcribe");
-  return transcribeStatement(file);
+  const transcript = await transcribeStatement(file);
+  if (transcript.mode === "vision") {
+    const { applyVisionDocument } = await import("./templates/vision");
+    const applied = applyVisionDocument(transcript.document, catalog);
+    if (applied) return applied;
+    if (transcript.text.trim()) return parseStatementText(transcript.text, catalog);
+    throw new StatementImportError("UNREADABLE");
+  }
+  return parseStatementText(transcript.text, catalog);
 }
 
 /**
@@ -179,7 +191,7 @@ export async function parseStatementUpload(
   const kind = detectKind(file);
   if (kind === "heic") throw new StatementImportError("HEIC");
   if (kind === "image") {
-    return parseStatementText(await textFromImage(file, hooks), catalog);
+    return readTranscribed(file, catalog, hooks);
   }
   if (kind === "pdf") {
     const { extractPdfText } = await import("./extract-pdf");
@@ -192,7 +204,7 @@ export async function parseStatementUpload(
         const { visionConfigured } = await import("./transcribe");
         if (!visionConfigured()) throw error;
       }
-      return parseStatementText(await textFromImage(file, hooks), catalog);
+      return readTranscribed(file, catalog, hooks);
     }
   }
 

@@ -48,28 +48,32 @@ function pagesToText(pages: readonly (readonly TextItem[])[]): string {
   const lines: string[] = [];
   for (const page of pages) {
     const buckets: { y: number; items: TextItem[] }[] = [];
+    let minX = Number.POSITIVE_INFINITY;
     for (const item of page) {
-      const str = item.str?.replace(/\u00a0|\u202f/g, " ").trim() ?? "";
+      const raw = item.str?.replace(/\u00a0|\u202f/g, " ") ?? "";
+      if (!raw || /^\s+$/.test(raw)) continue;
+      const str = raw.trim();
       if (!str) continue;
+      if (item.x < minX) minX = item.x;
       const tolerance = Math.max(2, (item.fontSize || 10) * 0.45);
       const bucket = buckets.find((candidate) => Math.abs(candidate.y - item.y) <= tolerance);
       if (bucket) bucket.items.push({ ...item, str });
       else buckets.push({ y: item.y, items: [{ ...item, str }] });
     }
+    if (!Number.isFinite(minX)) minX = 0;
     buckets.sort((a, b) => b.y - a.y);
     for (const bucket of buckets) {
       bucket.items.sort((a, b) => a.x - b.x);
       let line = "";
-      let cursor = 0;
       for (const item of bucket.items) {
-        if (line) {
-          const gap = item.x - cursor;
-          line += gap > 18 ? "   " : " ";
-        }
+        const spaceW = Math.max(1, (item.fontSize || 10) * 0.28);
+        const target = Math.max(0, Math.round((item.x - minX) / spaceW));
+        if (line.length < target) line += " ".repeat(target - line.length);
+        else if (line.length > 0 && !line.endsWith(" ")) line += " ";
         line += item.str;
-        cursor = item.x + (item.width > 0 ? item.width : item.str.length * (item.fontSize || 10) * 0.45);
       }
-      if (line.trim()) lines.push(line.trim());
+      const kept = line.replace(/\s+$/, "");
+      if (kept.trim()) lines.push(kept);
     }
   }
   return lines.join("\n");

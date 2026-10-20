@@ -2,7 +2,8 @@
  * Lecture d'une photo, d'une capture ou d'un PDF image.
  *
  * 1. Modèle de vision (Vercel AI Gateway) si `AI_GATEWAY_API_KEY` ou
- *    `VERCEL_OIDC_TOKEN` est présent — une requête, sortie structurée.
+ *    `VERCEL_OIDC_TOKEN` est présent — une requête, JSON validé par Zod,
+ *    puis la même réconciliation que les autres modèles.
  * 2. Sinon OCR local (`tesseract.js`, français) pour JPEG / PNG / WEBP.
  *    Un PDF sans texte n'est pas rasterisé ici (pas de canvas natif) :
  *    le message demande une photo, sauf si la vision est configurée.
@@ -11,28 +12,21 @@
  */
 
 import type { GatewayModelId } from "ai";
-import { z } from "zod";
 import { StatementImportError } from "./messages";
 import type { StatementUpload } from "./parse-upload";
+import {
+  parseVisionDocument,
+  visionDocumentSchema,
+  visionFallbackText,
+  visionSystemPrompt,
+  type VisionDocument,
+} from "./templates/vision";
 
 const DEFAULT_VISION_MODEL = "google/gemini-2.5-flash";
 
-const visionRowSchema = z.object({
-  label: z.string(),
-  isin: z.string().nullable(),
-  ticker: z.string().nullable(),
-  side: z.enum(["achat", "vente"]).nullable(),
-  quantity: z.number().nullable(),
-  unitPrice: z.number().nullable(),
-  date: z.string().nullable(),
-  kind: z.enum(["action", "obligation", "fcp"]).nullable(),
-});
-
-const visionSchema = z.object({
-  rows: z.array(visionRowSchema),
-});
-
-export type VisionRow = z.infer<typeof visionRowSchema>;
+export type Transcript =
+  | { mode: "text"; text: string }
+  | { mode: "vision"; document: VisionDocument; text: string };
 
 export function visionConfigured(): boolean {
   return Boolean(process.env.AI_GATEWAY_API_KEY?.trim() || process.env.VERCEL_OIDC_TOKEN?.trim());
@@ -54,20 +48,7 @@ function isRaster(file: StatementUpload): boolean {
   return mime === "image/png" || mime === "image/jpeg" || mime === "image/webp";
 }
 
-/** Transforme les lignes du modèle en tableau texte, ré-agrégé par le parseur. */
-export function visionRowsToText(rows: readonly VisionRow[]): string {
-  const header = ["Date", "Libellé", "Code ISIN", "Sens", "Qté", "PU", "Montant"].join("\t");
-  const body = rows.map((row) => {
-    let label = (row.label || row.ticker || "").replace(/[\t\n\r]+/g, " ").trim();
-    if (row.kind === "obligation" && !/\bobl|obligation|emprunt/i.test(label)) label = `OBL ${label}`.trim();
-    if (row.kind === "fcp" && !/\bfcp|fonds|sicav|opcvm/i.test(label)) label = `FCP ${label}`.trim();
-    const side = row.side === "vente" ? "Vente" : row.side === "achat" ? "Achat" : "";
-    return [row.date ?? "", label, row.isin ?? "", side, row.quantity ?? "", row.unitPrice ?? "", ""].join("\t");
-  });
-  return [header, ...body].join("\n");
-}
-
-async function visionTranscribe(file: StatementUpload): Promise<string> {
+async function visionTranscribe(file: StatementUpload): Promise<Extract<Transcript, { mode: "vision" }>> {
   const { generateText, Output, gateway } = await import("ai");
   const modelId = (process.env.SGI_STATEMENT_VISION_MODEL?.trim() || DEFAULT_VISION_MODEL) as GatewayModelId;
   const mediaType = mediaTypeOf(file);
@@ -79,33 +60,30 @@ async function visionTranscribe(file: StatementUpload): Promise<string> {
   const result = await generateText({
     model: gateway(modelId),
     output: Output.object({
-      schema: visionSchema,
+      schema: visionDocumentSchema,
       name: "releve_sgi",
-      description: "Lignes d'instruments d'un relevé de titres ou d'un historique d'opérations.",
+      description: "Relevé SGI classé dans un modèle : mouvements-titres, positions ou operations.",
     }),
     maxRetries: 0,
     timeout: 25_000,
-    system:
-      "Tu lis un relevé de titres d'une SGI de la BRVM (relevé de portefeuille, avis d'opéré ou historique). " +
-      "Extrais chaque ligne d'instrument, sans agréger les achats et les ventes. " +
-      "Ignore en-têtes, pieds de page, adresses, totaux, espèces, frais et numéros de page. " +
-      "side vaut achat ou vente, ou null si la ligne est une position déjà nette. " +
-      "quantity et unitPrice sont des nombres (pas de texte). date est YYYY-MM-DD ou null. " +
-      "kind vaut action, obligation ou fcp.",
+    system: visionSystemPrompt(),
     messages: [
       {
         role: "user",
         content: [
-          { type: "text", text: "Extrais les lignes d'instruments de ce relevé." },
+          {
+            type: "text",
+            text: "Classe ce relevé dans un modèle et extrais les lignes. Ne calcule pas le PRU : la réconciliation se fait ensuite.",
+          },
           part,
         ],
       },
     ],
   });
 
-  const rows = result.output?.rows ?? [];
-  if (rows.length === 0) return "";
-  return visionRowsToText(rows);
+  const document = parseVisionDocument(result.output);
+  if (!document) throw new Error("JSON de vision invalide");
+  return { mode: "vision", document, text: visionFallbackText(document) };
 }
 
 async function ocrImage(bytes: Uint8Array): Promise<string> {
@@ -123,11 +101,13 @@ async function ocrImage(bytes: Uint8Array): Promise<string> {
   }
 }
 
-export async function transcribeStatement(file: StatementUpload): Promise<string> {
+export async function transcribeStatement(file: StatementUpload): Promise<Transcript> {
   if (visionConfigured()) {
     try {
-      const text = await visionTranscribe(file);
-      if (text.trim()) return text;
+      const transcript = await visionTranscribe(file);
+      if (transcript.document.lignes.length > 0 || transcript.document.rows.length > 0 || transcript.text.trim()) {
+        return transcript;
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       console.error("[sgi-statement] vision indisponible", message.slice(0, 180));
@@ -140,7 +120,7 @@ export async function transcribeStatement(file: StatementUpload): Promise<string
   try {
     const text = await ocrImage(file.bytes);
     if (!text.trim()) throw new StatementImportError("UNREADABLE");
-    return text;
+    return { mode: "text", text };
   } catch (error) {
     if (error instanceof StatementImportError) throw error;
     const message = error instanceof Error ? error.message : "";
