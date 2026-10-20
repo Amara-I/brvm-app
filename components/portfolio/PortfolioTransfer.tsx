@@ -76,6 +76,13 @@ export default function PortfolioTransfer({
     panelRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [open, highlighted]);
 
+  useEffect(() => {
+    const node = panelRef.current;
+    if (!node) return;
+    if (open) node.removeAttribute("inert");
+    else node.setAttribute("inert", "");
+  }, [open]);
+
   function finish(message: string) {
     setToast(message);
     close();
@@ -123,7 +130,6 @@ export default function PortfolioTransfer({
         aria-modal={sheet && open ? true : undefined}
         aria-hidden={open ? undefined : true}
         aria-label={sheet && open ? "Importer ou exporter le portefeuille" : undefined}
-        inert={open ? undefined : true}
       >
         <div className={styles.panelInner}>
           <div className={styles.panelBody}>
