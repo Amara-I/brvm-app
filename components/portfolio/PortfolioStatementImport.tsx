@@ -720,7 +720,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                                 />
                               </>
                             )}
-                            <span className={styles.hint}>Enregistrée comme {KIND_LABEL[row.instrumentKind].toLowerCase()}</span>
+                            <span className={styles.hint}>
+                              {row.instrumentKind === "fcp" ? "Enregistrée comme FCP" : "Enregistrée comme obligation"}
+                            </span>
                           </div>
                         ) : (
                           <>
