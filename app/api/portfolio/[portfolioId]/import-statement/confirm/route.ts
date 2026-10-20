@@ -29,6 +29,11 @@ const bodySchema = z.object({
         companyId: z.string().trim().min(1).max(64),
         quantity: z.number().positive().max(1_000_000_000),
         avgBuyPrice: z.number().positive().max(1_000_000_000),
+        buyDate: z
+          .string()
+          .regex(/^\d{4}-\d{2}-\d{2}$/)
+          .nullable()
+          .optional(),
       })
     )
     .min(1)
@@ -61,6 +66,10 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
     return apiError("Date du relevé invalide.", 422);
   }
 
+  if (parsed.data.rows.some((row) => row.buyDate && !isRealYmd(row.buyDate))) {
+    return apiError("Date d’achat invalide.", 422);
+  }
+
   const consolidated = consolidateImportRows(parsed.data.rows);
   if (consolidated.length === 0) {
     return apiError("Aucune ligne exploitable : indiquez une quantité et un PRU pour chaque société retenue.", 422);
@@ -91,6 +100,7 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
       }
 
       for (const row of consolidated) {
+        const rowTradedAt = row.buyDate ? new Date(`${row.buyDate}T00:00:00.000Z`) : tradedAt;
         const existing =
           mode === "replace"
             ? null
@@ -114,7 +124,8 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
               quantity: newQty,
               avgBuyPrice: newAvg,
               lastSide: HoldingSide.ACHAT,
-              buyDate: tradedAt,
+              buyDate:
+                existing.buyDate && existing.buyDate.getTime() <= rowTradedAt.getTime() ? existing.buyDate : rowTradedAt,
               notes: existing.notes ?? note,
             },
           });
@@ -127,7 +138,7 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
               quantity: row.quantity,
               avgBuyPrice: row.avgBuyPrice,
               lastSide: HoldingSide.ACHAT,
-              buyDate: tradedAt,
+              buyDate: rowTradedAt,
               notes: note,
             },
           });
@@ -140,7 +151,7 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
           side: HoldingSide.ACHAT,
           quantity: row.quantity,
           price: row.avgBuyPrice,
-          tradedAt,
+          tradedAt: rowTradedAt,
           notes: note,
         });
       }

@@ -5,8 +5,8 @@ Un utilisateur connecté peut déposer, sur la page **Portefeuille**, le relevé
 ## Parcours
 
 1. Ouvrir un portefeuille et choisir **Importer un relevé SGI**.
-2. Glisser le fichier sur la zone, ou appuyer sur **Choisir un fichier**. PDF, Excel (.xlsx, .xls) et CSV, 4 Mo maximum. Un autre format est refusé, y compris s’il est déposé.
-3. Vérifier le tableau : société rapprochée, confiance, quantité, PRU. Décocher une ligne, corriger le titre, la quantité ou le PRU.
+2. Glisser le fichier sur la zone, ou appuyer sur **Choisir un fichier**. PDF, Excel (.xlsx, .xls), CSV, ou image JPEG, PNG, WEBP. 4 Mo maximum (une photo plus lourde est réduite dans le navigateur avant l’envoi, jusqu’à 1 600 px). Un autre format est refusé, y compris s’il est déposé. Les photos HEIC / HEIF sont refusées : les exporter en JPEG ou PNG.
+3. Vérifier le tableau : **une position par titre**, avec le type (action, obligation, FCP), la société, la confiance, la quantité, le PRU et la date du premier achat. Décocher ou retirer une ligne. Les obligations et FCP sont marqués **Non suivi** et décochés : le portefeuille ne stocke que des actions cotées (`PortfolioHolding.companyId`). Elles ne sont enregistrées que si une société est choisie à la main.
 4. Choisir **Fusionner** (ajoute les quantités et recalcule le PRU moyen) ou **Remplacer** (retire les positions actuelles de ce portefeuille, l’historique des mouvements déjà saisis reste en place).
 5. Confirmer. Rien n’est écrit avant cette étape.
 
@@ -20,16 +20,57 @@ Authentification obligatoire. Le relevé n’est parsé que pour le portefeuille
 | Blocs « Libellé : valeur » | `fixtures/bici-blocs.txt` | `Code valeur`, `Désignation`, `Quantité`, `PRU` / `Prix de revient`, `Cours`, `Valorisation`. |
 | Lignes libres | `fixtures/edc-lignes.txt` | Une position par ligne, nombres en fin de ligne (`quantité`, `PRU`, `cours`, `valorisation`). |
 | CSV / Excel | test dans `sgi-statement.test.ts` | Même logique d’en-têtes, séparateur `;`, `,` ou tabulation. Nombres `1 234,50`, `1.234,50` ou `1234.5`. |
+| Historique d’opérations | `fixtures/historique-bruit.txt` | En-tête avec Sens / Date / Qté / Cours moy. Les achats et ventes d’un même titre deviennent **une** position : quantité nette, PRU pondéré (une vente ne change pas le PRU), date du premier achat. Quantité nette nulle → ligne ignorée « position soldée ». |
 
-Noms de colonnes déjà compris : Code, Ticker, Libellé, Désignation, Valeur, Quantité, Qté, PRU, Prix de revient, Cours, Dernier cours, Valorisation, Évaluation, Variation.
+Noms de colonnes déjà compris : Code, Ticker, Libellé, Désignation, Valeur, Quantité, Qté, PRU, PU, Prix de revient, Cours, Cours moy., Dernier cours, Valorisation, Évaluation, Variation, Sens, Nature, Date d’opération.
+
+## Ce qui est ignoré
+
+Dès qu’un en-tête de tableau est reconnu et que des lignes portent un sens (Achat / Vente), tout le reste est écarté et compté. Le détail s’ouvre sous l’aperçu :
+
+| Motif | Exemples |
+|---|---|
+| En-tête de colonnes | la ligne `Date · Libellé · Qté · Sens` |
+| Adresse ou identité | Client, adresse, téléphone, e-mail, IBAN |
+| Titre de section | « Historique des transactions », « Arrêté au … » |
+| Espèces | espèces, liquidités, disponibilités |
+| Frais | courtage, commission, TVA, droits de garde |
+| Total | total, sous-total, net à payer |
+| Page | `Page 1 / 2` |
+| Mention légale | disclaimer, « ne constitue pas un conseil » |
+| Pas une ligne de titre | ligne sans libellé ni quantité |
+| Position soldée | achats − ventes = 0 |
+| Déjà couverte | une ligne de position sur un titre qui a déjà des opérations |
+
+Les lignes vides ne sont pas comptées. Un relevé de **positions** (pas de colonne Sens, pas de mot Achat/Vente) garde l’ancien lecteur : les quantités sont prises telles quelles.
+
+## Obligations et FCP
+
+Une ligne est une **obligation** si le libellé contient OBL, obligation, emprunt, EOS, échéance, ou un taux `6,25 %`. C’est un **FCP** s’il contient FCP, fonds, SICAV ou OPCVM. Ces mots l’emportent sur un rapprochement approximatif avec une action. Elles restent dans l’aperçu, décochées, badge **Non suivi**. Aucune table n’a été ajoutée : une position de portefeuille exige une société cotée.
 
 Le rapprochement avec `companies` se fait par ISIN, ticker BRVM, alias (`lib/portfolio/sgi-statement/aliases.ts`) puis nom approché. Une ligne inconnue reste visible, avec la confiance **Aucune** : elle n’est pas importée tant que l’utilisateur n’a pas choisi la société.
 
 SGI repérées dans l’en-tête (informatif, la lecture ne dépend pas du nom) : SGI-CI, Hudson & Cie, BICI Bourse, SGI Bénin, Atlantique Finance, EDC, Impaxis, CGF Bourse, Matha Capital, SGI Togo, SGI Mali, Coris Bourse.
 
-## PDF scanné
+## Photos, captures et PDF scannés
 
-Seule la couche texte est lue (`unpdf` / PDF.js, sans binaire natif). Un PDF image, ou un PDF dont le texte est trop court pour contenir des positions, est refusé avec un message en français. **L’OCR n’est pas branché** : Tesseract (WASM ou binaire) est trop lourd pour une fonction Vercel Hobby. Suite possible : file d’attente + worker, ou demande à la SGI d’un export Excel/CSV.
+| Cas | Sans clé | Avec clé |
+|---|---|---|
+| JPEG, PNG, WEBP | OCR `tesseract.js` (français), puis le même parseur que le texte | Modèle de vision, sortie structurée, puis le parseur (les totaux que le modèle recopierait sont ignorés) |
+| PDF avec texte | Couche texte (`unpdf`), pas d’appel réseau | Idem, la couche texte suffit |
+| PDF image | Refus en français : déposer une photo JPEG/PNG/WEBP | Le PDF est envoyé au modèle de vision |
+| HEIC / HEIF | Refus : exporter en JPEG ou PNG | Idem (pas de décodeur HEIC) |
+
+La limite reste **4 Mo** (sous le plafond de corps des fonctions Vercel, 4,5 Mo). Le navigateur réduit les photos à 1 600 px, JPEG qualité 0,82, avant l’envoi. `maxDuration` de la route d’aperçu : 60 s.
+
+### Variables d’environnement
+
+| Variable | Rôle | Coût |
+|---|---|---|
+| `AI_GATEWAY_API_KEY` | Clé [Vercel AI Gateway](https://vercel.com/docs/ai-gateway). Si elle est absente, `VERCEL_OIDC_TOKEN` (injecté sur Vercel quand le projet est lié) suffit aussi. Sans aucune des deux, aucune requête n’est envoyée. | Une requête par image ou PDF image. Modèle par défaut `google/gemini-2.5-flash` (vision, classe « flash ») : en pratique bien moins de 0,01 USD par page, facturé à l’équipe Vercel. Pas d’appel si la clé manque. |
+| `SGI_STATEMENT_VISION_MODEL` | Identifiant Gateway du modèle. Défaut `google/gemini-2.5-flash`. Choisir un modèle **vision** (pas un modèle de génération d’images). | Selon le tarif du modèle choisi. |
+
+L’OCR de repli ne facture rien. Au premier appel d’une instance, `tesseract.js` télécharge les données `fra` (quelques Mo, mis en cache dans `/tmp`). Compter plusieurs secondes : sur un démarrage à froid Vercel Hobby, rester sous les 60 s. Si l’OCR échoue, le message est « Lecture du fichier impossible ».
 
 ## Ajouter une mise en page
 

@@ -4,7 +4,14 @@ import { useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
 import { parseFrNumber } from "@/lib/portfolio/sgi-statement/french-number";
 import { STATEMENT_ERRORS, STATEMENT_MAX_BYTES } from "@/lib/portfolio/sgi-statement/messages";
-import type { MatchConfidence, StatementCompanyOption, StatementPreview, StatementRowDraft } from "@/lib/portfolio/sgi-statement/types";
+import { IGNORE_REASON_LABEL } from "@/lib/portfolio/sgi-statement/noise";
+import type {
+  InstrumentKind,
+  MatchConfidence,
+  StatementCompanyOption,
+  StatementPreview,
+  StatementRowDraft,
+} from "@/lib/portfolio/sgi-statement/types";
 import styles from "./PortfolioStatementImport.module.css";
 
 type Props = {
@@ -20,6 +27,7 @@ type Draft = {
   label: string;
   quantity: string;
   avgBuyPrice: string;
+  tradeDate: string;
   lastPrice: number | null;
   valuation: number | null;
   companyId: string;
@@ -27,6 +35,14 @@ type Draft = {
   ambiguous: boolean;
   warnings: string[];
   manual: boolean;
+  instrumentKind: InstrumentKind;
+  tracked: boolean;
+};
+
+const KIND_LABEL: Record<InstrumentKind, string> = {
+  action: "Action",
+  obligation: "Obligation",
+  fcp: "FCP",
 };
 
 const CONFIDENCE_LABEL: Record<MatchConfidence, string> = {
@@ -47,11 +63,54 @@ function formatFcfa(value: number | null): string {
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(value)} FCFA`;
 }
 
-const STATEMENT_EXTENSIONS = [".pdf", ".csv", ".xlsx", ".xls"];
+const STATEMENT_EXTENSIONS = [".pdf", ".csv", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif"];
+const ACCEPT =
+  ".pdf,.csv,.xlsx,.xls,.png,.jpg,.jpeg,.webp,.heic,.heif,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/png,image/jpeg,image/webp,image/heic,image/heif";
 
 function isStatementFile(file: File): boolean {
   const name = file.name.toLowerCase();
   return STATEMENT_EXTENSIONS.some((extension) => name.endsWith(extension));
+}
+
+function isHeicFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  const mime = file.type.toLowerCase();
+  return name.endsWith(".heic") || name.endsWith(".heif") || mime.includes("heic") || mime.includes("heif");
+}
+
+function isRasterImage(file: File): boolean {
+  const name = file.name.toLowerCase();
+  const mime = file.type.toLowerCase();
+  return mime === "image/png" || mime === "image/jpeg" || mime === "image/webp" || /\.(png|jpe?g|webp)$/.test(name);
+}
+
+/** Réduit une photo avant envoi (Hobby : corps ~4,5 Mo, lecture plus rapide). */
+async function downscaleImage(file: File): Promise<File> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const maxEdge = 1600;
+    const scale = Math.min(1, maxEdge / Math.max(bitmap.width, bitmap.height));
+    if (scale === 1 && file.size < 1_500_000) {
+      bitmap.close();
+      return file;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    const ctx = canvas.getContext("2d");
+    if (!ctx) {
+      bitmap.close();
+      return file;
+    }
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.82));
+    if (!blob) return file;
+    const name = file.name.replace(/\.[^.]+$/, "") || "releve";
+    return new File([blob], `${name}.jpg`, { type: "image/jpeg" });
+  } catch {
+    return file;
+  }
 }
 
 function formatBytes(bytes: number): string {
@@ -65,6 +124,7 @@ function formatBytes(bytes: number): string {
 }
 
 function includeByDefault(row: StatementRowDraft): boolean {
+  if (row.tracked === false) return false;
   if (row.quantity == null || row.quantity <= 0) return false;
   if (row.match.confidence === "haute") return true;
   return row.match.confidence === "moyenne" && !row.match.ambiguous;
@@ -78,6 +138,7 @@ function toDraft(row: StatementRowDraft): Draft {
     label: row.label,
     quantity: toInput(row.quantity),
     avgBuyPrice: toInput(row.avgBuyPrice),
+    tradeDate: row.tradeDate ?? "",
     lastPrice: row.lastPrice,
     valuation: row.valuation,
     companyId: row.match.companyId ?? "",
@@ -85,6 +146,8 @@ function toDraft(row: StatementRowDraft): Draft {
     ambiguous: row.match.ambiguous,
     warnings: row.warnings,
     manual: false,
+    instrumentKind: row.instrumentKind ?? "action",
+    tracked: row.tracked !== false,
   };
 }
 
@@ -165,25 +228,37 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
     const key = `${file.name}:${file.size}:${file.lastModified}`;
     if (inflight.current === key) return;
     inflight.current = key;
-    setSelected({ name: file.name, size: file.size });
     setError(null);
     setMessage(null);
 
     if (!isStatementFile(file)) {
+      setSelected({ name: file.name, size: file.size });
       resetReview();
       setError(STATEMENT_ERRORS.UNSUPPORTED);
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    if (file.size <= 0) {
+    if (isHeicFile(file)) {
+      setSelected({ name: file.name, size: file.size });
+      resetReview();
+      setError(STATEMENT_ERRORS.HEIC);
+      inflight.current = null;
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
+    const prepared = isRasterImage(file) ? await downscaleImage(file) : file;
+    setSelected({ name: prepared.name, size: prepared.size });
+
+    if (prepared.size <= 0) {
       resetReview();
       setError(STATEMENT_ERRORS.EMPTY);
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
-    if (file.size > STATEMENT_MAX_BYTES) {
+    if (prepared.size > STATEMENT_MAX_BYTES) {
       resetReview();
       setError(STATEMENT_ERRORS.TOO_LARGE);
       inflight.current = null;
@@ -194,7 +269,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
     setBusy("parse");
     try {
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", prepared);
       const res = await fetch(`/api/portfolio/${portfolioId}/import-statement`, { method: "POST", body });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Lecture du relevé impossible.");
@@ -216,6 +291,10 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
 
   function patch(id: string, partial: Partial<Draft>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...partial } : row)));
+  }
+
+  function removeRow(id: string) {
+    setRows((current) => current.filter((row) => row.id !== id));
   }
 
   function applyLastPrice(id: string) {
@@ -266,6 +345,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
             companyId: row.companyId,
             quantity: parseFrNumber(row.quantity),
             avgBuyPrice: parseFrNumber(row.avgBuyPrice),
+            buyDate: /^\d{4}-\d{2}-\d{2}$/.test(row.tradeDate) ? row.tradeDate : null,
           })),
         }),
       });
@@ -324,8 +404,8 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
             id={inputId}
             type="file"
             className={styles.fileHit}
-            accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            aria-label="Glissez-déposez votre relevé ici, ou choisissez un fichier PDF, Excel ou CSV"
+            accept={ACCEPT}
+            aria-label="Glissez-déposez votre relevé ici, ou choisissez un PDF, un Excel, un CSV ou une image"
             aria-describedby={`${inputId}-hint ${inputId}-formats`}
             disabled={busy != null}
             onChange={(event) => {
@@ -364,6 +444,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
               <li>Excel .xlsx</li>
               <li>Excel .xls</li>
               <li>CSV</li>
+              <li>JPEG</li>
+              <li>PNG</li>
+              <li>WEBP</li>
               <li data-kind="limit">4 Mo max</li>
             </ul>
           </div>
@@ -402,8 +485,10 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
         >
           <div className={styles.summary}>
             <strong>
-              {rows.length} ligne(s) lue(s) · {rows.filter((row) => row.confidence === "haute" || row.confidence === "moyenne").length}{" "}
-              reconnue(s)
+              {rows.length} position(s)
+              {preview.ignoredCount > 0 ? ` · ${preview.ignoredCount} ligne(s) ignorée(s)` : ""}
+              {" · "}
+              {rows.filter((row) => row.tracked && (row.confidence === "haute" || row.confidence === "moyenne")).length} reconnue(s)
             </strong>
             <span className={styles.meta}>
               {preview.issuer ?? "SGI non identifiée"}
@@ -419,6 +504,23 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                 <li key={warning}>{warning}</li>
               ))}
             </ul>
+          ) : null}
+
+          {preview.ignoredCount > 0 ? (
+            <details className={styles.ignored}>
+              <summary>
+                {preview.ignoredCount} ligne(s) ignorée(s)
+                {preview.ignored.length < preview.ignoredCount ? ` — ${preview.ignored.length} affichée(s)` : ""}
+              </summary>
+              <ul>
+                {preview.ignored.map((line, index) => (
+                  <li key={`${line.reason}-${index}`}>
+                    <strong>{IGNORE_REASON_LABEL[line.reason]}</strong>
+                    <span>{line.raw}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
 
           <div className={styles.modes} role="radiogroup" aria-label="Mode d’import">
@@ -457,24 +559,32 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
 
           <div className={styles.tableWrap}>
             <table className={styles.table}>
-              <caption className={styles.caption}>Lignes extraites du relevé, à corriger avant enregistrement</caption>
+              <caption className={styles.caption}>Une position par titre, à corriger avant enregistrement</caption>
               <thead>
                 <tr>
                   <th>Inclure</th>
+                  <th>Type</th>
                   <th>Ligne du relevé</th>
                   <th>Société</th>
                   <th>Confiance</th>
                   <th>Quantité</th>
                   <th>PRU</th>
+                  <th>Date</th>
                   <th>Cours</th>
-                  <th>Valorisation</th>
+                  <th />
                 </tr>
               </thead>
               <tbody>
                 {rows.map((row) => {
-                  const tone = !row.companyId || row.confidence === "aucune" ? "bad" : row.ambiguous || row.confidence === "faible" ? "warn" : "ok";
+                  const tone = !row.tracked
+                    ? "warn"
+                    : !row.companyId || row.confidence === "aucune"
+                      ? "bad"
+                      : row.ambiguous || row.confidence === "faible"
+                        ? "warn"
+                        : "ok";
                   return (
-                    <tr key={row.id} data-tone={tone}>
+                    <tr key={row.id} data-tone={tone} data-kind={row.instrumentKind}>
                       <td>
                         <input
                           type="checkbox"
@@ -482,6 +592,14 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                           aria-label={`Inclure ${row.label}`}
                           onChange={(event) => patch(row.id, { include: event.target.checked })}
                         />
+                      </td>
+                      <td>
+                        <span className={styles.kind}>{KIND_LABEL[row.instrumentKind]}</span>
+                        {!row.tracked ? (
+                          <span className={styles.badge} data-confidence="aucune">
+                            Non suivi
+                          </span>
+                        ) : null}
                       </td>
                       <td>
                         <span className={styles.label}>{row.label}</span>
@@ -510,6 +628,8 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                         </select>
                         {row.companyId && companyById.get(row.companyId) ? (
                           <span className={styles.hint}>{row.manual ? "Corrigé manuellement" : companyById.get(row.companyId)?.name}</span>
+                        ) : !row.tracked ? (
+                          <span className={styles.hint}>Non suivi — choisissez une société pour l’enregistrer</span>
                         ) : (
                           <span className={styles.hint}>Société non reconnue</span>
                         )}
@@ -545,8 +665,22 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                           </button>
                         ) : null}
                       </td>
+                      <td>
+                        <input
+                          className={`ob-input ${styles.dateInput}`}
+                          type="date"
+                          aria-label={`Date d’achat pour ${row.label}`}
+                          value={row.tradeDate}
+                          onChange={(event) => patch(row.id, { tradeDate: event.target.value })}
+                        />
+                        {!row.tradeDate ? <span className={styles.hint}>N/D</span> : null}
+                      </td>
                       <td className="ob-num">{formatFcfa(row.lastPrice)}</td>
-                      <td className="ob-num">{formatFcfa(row.valuation)}</td>
+                      <td>
+                        <button type="button" className={`ob-btn-ghost ${styles.rowRemove}`} onClick={() => removeRow(row.id)}>
+                          Retirer
+                        </button>
+                      </td>
                     </tr>
                   );
                 })}

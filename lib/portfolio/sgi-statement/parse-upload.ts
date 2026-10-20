@@ -10,7 +10,14 @@ export type StatementUpload = {
   bytes: Uint8Array;
 };
 
-type Kind = "pdf" | "csv" | "xlsx";
+type Kind = "pdf" | "csv" | "xlsx" | "image" | "heic";
+
+export type StatementTranscribe = (file: StatementUpload) => Promise<{ text: string }>;
+
+export type ParseStatementHooks = {
+  /** Remplace vision + OCR (tests). Le texte est ensuite parsé comme un relevé. */
+  transcribe?: StatementTranscribe;
+};
 
 function extensionOf(filename: string): string {
   const base = filename.toLowerCase().split(/[/\\]/).pop() ?? "";
@@ -23,17 +30,47 @@ function startsWith(bytes: Uint8Array, ascii: string): boolean {
   return Buffer.from(bytes.subarray(0, ascii.length)).toString("latin1") === ascii;
 }
 
+function isHeic(file: StatementUpload): boolean {
+  const ext = extensionOf(file.filename);
+  const mime = (file.mime || "").toLowerCase();
+  if (ext === ".heic" || ext === ".heif" || mime.includes("heic") || mime.includes("heif")) return true;
+  if (file.bytes.length < 12) return false;
+  const box = Buffer.from(file.bytes.subarray(4, 8)).toString("ascii");
+  const brand = Buffer.from(file.bytes.subarray(8, 12)).toString("ascii").toLowerCase();
+  return box === "ftyp" && /heic|heif|mif1|msf1/.test(brand);
+}
+
+function isRasterImage(file: StatementUpload): boolean {
+  const ext = extensionOf(file.filename);
+  const mime = (file.mime || "").toLowerCase();
+  if (ext === ".png" || mime === "image/png") return file.bytes[0] === 0x89 && file.bytes[1] === 0x50;
+  if (ext === ".jpg" || ext === ".jpeg" || mime === "image/jpeg" || mime === "image/jpg") {
+    return file.bytes[0] === 0xff && file.bytes[1] === 0xd8;
+  }
+  if (ext === ".webp" || mime === "image/webp") {
+    return startsWith(file.bytes, "RIFF") && Buffer.from(file.bytes.subarray(8, 12)).toString("ascii") === "WEBP";
+  }
+  if (file.bytes[0] === 0x89 && file.bytes[1] === 0x50 && file.bytes[2] === 0x4e && file.bytes[3] === 0x47) return true;
+  if (file.bytes[0] === 0xff && file.bytes[1] === 0xd8 && file.bytes[2] === 0xff) return true;
+  if (startsWith(file.bytes, "RIFF") && file.bytes.length > 12 && Buffer.from(file.bytes.subarray(8, 12)).toString("ascii") === "WEBP") {
+    return true;
+  }
+  return false;
+}
+
 function detectKind(file: StatementUpload): Kind {
   const ext = extensionOf(file.filename);
   const mime = (file.mime || "").toLowerCase();
   const pdfMagic = startsWith(file.bytes, "%PDF-");
   const zipMagic = startsWith(file.bytes, "PK");
 
+  if (isHeic(file)) return "heic";
   if (ext === ".pdf" || mime === "application/pdf") {
     if (!pdfMagic) throw new StatementImportError("INVALID_PDF");
     return "pdf";
   }
   if (pdfMagic) return "pdf";
+  if (isRasterImage(file)) return "image";
   if (ext === ".xlsx" || ext === ".xls" || mime.includes("spreadsheet") || mime.includes("excel")) return "xlsx";
   if (zipMagic && ext !== ".csv") return "xlsx";
   if (ext === ".csv" || mime.includes("csv")) return "csv";
@@ -122,21 +159,41 @@ function readXlsxMatrix(bytes: Uint8Array): string[][] {
   return matrix.map((row) => (Array.isArray(row) ? row : []).map((cell) => cellToString(cell)));
 }
 
+async function textFromImage(file: StatementUpload, hooks?: ParseStatementHooks): Promise<string> {
+  if (hooks?.transcribe) return (await hooks.transcribe(file)).text;
+  const { transcribeStatement } = await import("./transcribe");
+  return transcribeStatement(file);
+}
+
 /**
  * Parse un relevé en mémoire. Ne journalise pas le contenu du fichier.
  */
 export async function parseStatementUpload(
   file: StatementUpload,
-  catalog: readonly SecurityCatalogEntry[]
+  catalog: readonly SecurityCatalogEntry[],
+  hooks?: ParseStatementHooks
 ): Promise<StatementParseResult> {
   if (file.bytes.byteLength <= 0) throw new StatementImportError("EMPTY");
   if (file.bytes.byteLength > STATEMENT_MAX_BYTES) throw new StatementImportError("TOO_LARGE");
 
   const kind = detectKind(file);
+  if (kind === "heic") throw new StatementImportError("HEIC");
+  if (kind === "image") {
+    return parseStatementText(await textFromImage(file, hooks), catalog);
+  }
   if (kind === "pdf") {
     const { extractPdfText } = await import("./extract-pdf");
-    const extracted = await extractPdfText(file.bytes);
-    return parseStatementText(extracted.text, catalog);
+    try {
+      const extracted = await extractPdfText(file.bytes);
+      return parseStatementText(extracted.text, catalog);
+    } catch (error) {
+      if (!(error instanceof StatementImportError) || error.code !== "SCANNED_PDF") throw error;
+      if (!hooks?.transcribe) {
+        const { visionConfigured } = await import("./transcribe");
+        if (!visionConfigured()) throw error;
+      }
+      return parseStatementText(await textFromImage(file, hooks), catalog);
+    }
   }
 
   const matrix = kind === "csv" ? parseCsvMatrix(decodeCsv(file.bytes)) : readXlsxMatrix(file.bytes);

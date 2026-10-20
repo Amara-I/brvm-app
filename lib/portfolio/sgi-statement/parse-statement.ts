@@ -22,7 +22,14 @@ import {
 } from "./headers";
 import { createSecurityMatcher, extractIsin, type SecurityMatcher } from "./match-security";
 import { STATEMENT_MAX_ROWS, StatementImportError } from "./messages";
-import type { SecurityCatalogEntry, StatementParseResult, StatementRowDraft } from "./types";
+import { tryParseHistoryText } from "./positions";
+import type {
+  DocumentKind,
+  IgnoredLine,
+  SecurityCatalogEntry,
+  StatementParseResult,
+  StatementRowDraft,
+} from "./types";
 
 type Amounts = {
   label: string;
@@ -332,6 +339,9 @@ export function buildStatementRow(amounts: Amounts, matcher: SecurityMatcher, ra
     avgBuyPrice: amounts.avgBuyPrice,
     lastPrice: amounts.lastPrice,
     valuation: amounts.valuation,
+    tradeDate: null,
+    instrumentKind: "action",
+    tracked: true,
     match,
     warnings,
   };
@@ -516,7 +526,8 @@ export function readHeaderRow(
 export function finalizeStatement(
   rawRows: RawRow[],
   meta: { issuer: string | null; statementDate: string | null },
-  layout: { id: string; label: string }
+  layout: { id: string; label: string },
+  extras?: { documentKind?: DocumentKind; ignored?: IgnoredLine[]; ignoredCount?: number }
 ): StatementParseResult {
   const truncated = rawRows.length > STATEMENT_MAX_ROWS;
   const rows = withIds(rawRows);
@@ -528,6 +539,9 @@ export function finalizeStatement(
     statementDate: meta.statementDate,
     layoutId: layout.id,
     layoutLabel: layout.label,
+    documentKind: extras?.documentKind ?? "positions",
+    ignored: extras?.ignored ?? [],
+    ignoredCount: extras?.ignoredCount ?? extras?.ignored?.length ?? 0,
     rows,
     warnings,
   };
@@ -541,6 +555,12 @@ function summarize(rows: StatementRowDraft[], truncated: boolean): string[] {
   if (ambiguous > 0) warnings.push(`${ambiguous} ligne(s) avec plusieurs correspondances possibles.`);
   const missingPru = rows.filter((row) => row.avgBuyPrice == null).length;
   if (missingPru > 0) warnings.push(`${missingPru} ligne(s) sans PRU — à compléter avant l’enregistrement.`);
+  const untracked = rows.filter((row) => row.tracked === false).length;
+  if (untracked > 0) {
+    warnings.push(
+      `${untracked} ligne(s) obligation ou FCP : affichées pour contrôle, non importées tant qu’une société cotée n’est pas choisie.`
+    );
+  }
   const counts = new Map<string, number>();
   for (const row of rows) {
     if (!row.match.ticker) continue;
@@ -561,6 +581,15 @@ export function parseStatementText(text: string, catalog: readonly SecurityCatal
   const letters = normalized.replace(/[^A-Za-zÀ-ÿ]/g, "");
   if (letters.length < 15) {
     throw new StatementImportError("UNRECOGNIZED");
+  }
+
+  const history = tryParseHistoryText(normalized, catalog);
+  if (history) {
+    return finalizeStatement(history.rows, detectStatementMeta(normalized), { id: "positions", label: history.layoutLabel }, {
+      documentKind: history.documentKind,
+      ignored: history.ignored,
+      ignoredCount: history.ignoredCount,
+    });
   }
 
   const matcher = createSecurityMatcher(catalog);

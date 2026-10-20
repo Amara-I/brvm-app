@@ -5,6 +5,8 @@ export type ConfirmedStatementRow = {
   companyId: string;
   quantity: number;
   avgBuyPrice: number;
+  /** Premier achat lu sur l'historique, YYYY-MM-DD. */
+  buyDate?: string | null;
 };
 
 export type ConsolidatedStatementRow = ConfirmedStatementRow;
@@ -15,19 +17,25 @@ function roundQty(value: number): number {
 
 /** Additionne les lignes d'une même société et recalcule le PRU pondéré. */
 export function consolidateImportRows(rows: readonly ConfirmedStatementRow[]): ConsolidatedStatementRow[] {
-  const grouped = new Map<string, { quantity: number; cost: number }>();
+  const grouped = new Map<string, { quantity: number; cost: number; buyDate: string | null }>();
   for (const row of rows) {
     if (!(row.quantity > 0) || !(row.avgBuyPrice > 0) || !row.companyId) continue;
-    const current = grouped.get(row.companyId) ?? { quantity: 0, cost: 0 };
+    const current = grouped.get(row.companyId) ?? { quantity: 0, cost: 0, buyDate: null };
     current.quantity += row.quantity;
     current.cost += row.quantity * row.avgBuyPrice;
+    if (row.buyDate && /^\d{4}-\d{2}-\d{2}$/.test(row.buyDate)) {
+      if (!current.buyDate || row.buyDate < current.buyDate) current.buyDate = row.buyDate;
+    }
     grouped.set(row.companyId, current);
   }
-  return [...grouped.entries()].map(([companyId, value]) => ({
-    companyId,
-    quantity: roundQty(value.quantity),
-    avgBuyPrice: roundMoney(value.cost / value.quantity),
-  }));
+  return [...grouped.entries()].map(([companyId, value]) => {
+    const row = {
+      companyId,
+      quantity: roundQty(value.quantity),
+      avgBuyPrice: roundMoney(value.cost / value.quantity),
+    };
+    return value.buyDate ? { ...row, buyDate: value.buyDate } : row;
+  });
 }
 
 export function buildStatementTradeNote(issuer: string | null, statementDate: string | null): string {

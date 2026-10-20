@@ -1,7 +1,17 @@
 import { parseFrNumber } from "./french-number";
 import { fold } from "./fold";
 
-export type HeaderRole = "isin" | "ticker" | "name" | "quantity" | "pru" | "last" | "valuation" | "variation";
+export type HeaderRole =
+  | "isin"
+  | "ticker"
+  | "name"
+  | "quantity"
+  | "pru"
+  | "last"
+  | "valuation"
+  | "variation"
+  | "side"
+  | "date";
 
 export type ColumnDelimiter = "tab" | "pipe" | "semi" | "multi" | "phrases";
 
@@ -50,10 +60,13 @@ export const HEADER_PHRASES: readonly { role: HeaderRole; phrase: string }[] = [
   { role: "pru", phrase: "prix moyen" },
   { role: "pru", phrase: "prix d achat" },
   { role: "pru", phrase: "prix unitaire" },
+  { role: "pru", phrase: "cours moyen" },
+  { role: "pru", phrase: "cours moy" },
   { role: "pru", phrase: "prmp" },
   { role: "pru", phrase: "pru" },
   { role: "pru", phrase: "cmp" },
   { role: "pru", phrase: "pmp" },
+  { role: "pru", phrase: "pu" },
   { role: "last", phrase: "dernier cours" },
   { role: "last", phrase: "cours du jour" },
   { role: "last", phrase: "cours" },
@@ -65,6 +78,20 @@ export const HEADER_PHRASES: readonly { role: HeaderRole; phrase: string }[] = [
   { role: "variation", phrase: "variation" },
   { role: "variation", phrase: "perf" },
   { role: "variation", phrase: "var" },
+  { role: "side", phrase: "sens de l operation" },
+  { role: "side", phrase: "type d operation" },
+  { role: "side", phrase: "type operation" },
+  { role: "side", phrase: "nature operation" },
+  { role: "side", phrase: "sens" },
+  { role: "side", phrase: "operation" },
+  { role: "side", phrase: "nature" },
+  { role: "date", phrase: "date d operation" },
+  { role: "date", phrase: "date operation" },
+  { role: "date", phrase: "date de valeur" },
+  { role: "date", phrase: "date valeur" },
+  { role: "date", phrase: "date execution" },
+  { role: "date", phrase: "date nego" },
+  { role: "date", phrase: "date" },
 ];
 
 const HEADER_STOPWORDS = new Set([
