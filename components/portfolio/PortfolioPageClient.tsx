@@ -10,6 +10,7 @@ import PortfolioNavChart from "@/components/portfolio/PortfolioNavChart";
 import PortfolioTradesHistory from "@/components/portfolio/PortfolioTradesHistory";
 import PortfolioDiscreteControls from "@/components/portfolio/PortfolioDiscreteControls";
 import PortfolioExcelIO from "@/components/portfolio/PortfolioExcelIO";
+import PortfolioStatementImport from "@/components/portfolio/PortfolioStatementImport";
 import PortfolioManageBar from "@/components/portfolio/PortfolioManageBar";
 import {
   AllocationBars,
@@ -221,6 +222,7 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
               <PortfolioManageBar portfolioId={p.id} name={p.name} onChanged={reloadFromApi} />
             </div>
 
+            <PortfolioStatementImport portfolioId={p.id} portfolioName={p.name} holdingCount={p.holdings.length} />
             <PortfolioExcelIO portfolioId={p.id} portfolioName={p.name} />
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>

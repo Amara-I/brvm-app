@@ -1,0 +1,9 @@
+HUDSON & CIE
+Relevé de portefeuille titres
+Arrêté au 15 juin 2026
+
+Valeur   Quantité   Prix de revient   Dernier cours   Évaluation
+SONATEL (SNTS)   1 234   12 500,50   13 200   16 288 800
+SGB CI   50   18 500   21 000   1 050 000
+LIGNE INCONNUE SA   10   1 000   1 100   11 000
+Total portefeuille   17 349 800
