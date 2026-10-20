@@ -18,6 +18,7 @@ import CompanyMegaMenu from "./CompanyMegaMenu";
 import EducationMegaMenu from "./EducationMegaMenu";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import { featureFromPath } from "@/lib/analytics/features";
+import { ExpandChevronMark } from "@/components/ui/ExpandChevron";
 import styles from "./HeaderNav.module.css";
 
 export interface HeaderNavUser {
@@ -106,9 +107,7 @@ function MarketNavGroup({
         </span>
         <span className={styles.marketTriggerMeta}>
           {badge ? <span className={styles.soonBadge}>{badge}</span> : null}
-          <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
-            ▾
-          </span>
+          <ExpandChevronMark expanded={open} />
         </span>
       </button>
       {open ? (

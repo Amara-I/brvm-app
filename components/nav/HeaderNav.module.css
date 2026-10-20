@@ -126,17 +126,6 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--hn-gold) 28%, transparent);
 }
 
-.chevron {
-  font-size: 0.62rem;
-  color: var(--hn-textDim);
-  transition: transform var(--duration-fast) var(--ease-out);
-  line-height: 1;
-}
-
-.chevronOpen {
-  transform: rotate(180deg);
-}
-
 .navNested {
   display: flex;
   flex-direction: column;

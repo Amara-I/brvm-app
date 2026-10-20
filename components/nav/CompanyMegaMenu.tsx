@@ -52,6 +52,7 @@ export default function CompanyMegaMenu({
         onToggle={toggle}
         className={triggerClass}
         analyticsFeature="societes_cotees"
+        expandCaret={isSidebar}
       />
 
       {open && (

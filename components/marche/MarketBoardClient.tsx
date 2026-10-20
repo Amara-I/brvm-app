@@ -20,6 +20,7 @@ import type { ChartClosePoint } from "@/lib/charts/indicators";
 import MarketSparkline from "@/components/marche/MarketSparkline";
 import HorizonSelect from "@/components/marche/HorizonSelect";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
+import ExpandChevron from "@/components/ui/ExpandChevron";
 import {
   applyColumnSort,
   type ColumnFilterDef,
@@ -484,16 +485,26 @@ export default function MarketBoardClient({
                         tabIndex={0}
                         aria-expanded={open}
                         onKeyDown={(e) => {
+                          if (e.target !== e.currentTarget) return;
                           if (e.key === "Enter" || e.key === " ") {
                             e.preventDefault();
                             toggleRow(co.ticker);
                           }
                         }}
                       >
-                        <td>
-                          <span className={styles.expandHint} aria-hidden="true">
-                            {open ? "▾" : "▸"}
-                          </span>{" "}
+                        <td className={styles.tickerCell}>
+                          <ExpandChevron
+                            expanded={open}
+                            label={
+                              open
+                                ? `Masquer le détail de ${co.ticker}`
+                                : `Afficher le détail de ${co.ticker}`
+                            }
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleRow(co.ticker);
+                            }}
+                          />
                           <span className={styles.ticker} style={{ color: co.color }}>
                             {co.ticker}
                           </span>{" "}

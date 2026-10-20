@@ -54,6 +54,7 @@ export default function EducationMegaMenu({
         onToggle={toggle}
         className={triggerClass}
         analyticsFeature="education"
+        expandCaret={isSidebar}
       />
 
       {open && (

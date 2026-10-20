@@ -1,6 +1,7 @@
 "use client";
 
 import type { Ref } from "react";
+import { ExpandChevronMark } from "@/components/ui/ExpandChevron";
 import styles from "./MegaMenu.module.css";
 
 export default function MegaMenuTrigger({
@@ -11,6 +12,7 @@ export default function MegaMenuTrigger({
   onToggle,
   className,
   analyticsFeature,
+  expandCaret = false,
 }: {
   label: string;
   open: boolean;
@@ -19,6 +21,8 @@ export default function MegaMenuTrigger({
   onToggle: () => void;
   className: string;
   analyticsFeature: string;
+  /** Chevron de dépliage (barre latérale) plutôt que le petit caret de menu. */
+  expandCaret?: boolean;
 }) {
   return (
     <button
@@ -33,9 +37,13 @@ export default function MegaMenuTrigger({
       data-analytics-action="mega_menu_toggle"
     >
       {label}
-      <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
-        ▾
-      </span>
+      {expandCaret ? (
+        <ExpandChevronMark expanded={open} />
+      ) : (
+        <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`} aria-hidden="true">
+          ▾
+        </span>
+      )}
     </button>
   );
 }
