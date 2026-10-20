@@ -9,16 +9,15 @@ import PortfolioAllocationChart from "@/components/portfolio/PortfolioAllocation
 import PortfolioNavChart from "@/components/portfolio/PortfolioNavChart";
 import PortfolioTradesHistory from "@/components/portfolio/PortfolioTradesHistory";
 import PortfolioDiscreteControls from "@/components/portfolio/PortfolioDiscreteControls";
-import PortfolioExcelIO from "@/components/portfolio/PortfolioExcelIO";
-import PortfolioStatementImport from "@/components/portfolio/PortfolioStatementImport";
 import OtherHoldingsSection from "@/components/portfolio/OtherHoldingsSection";
+import PortfolioTransfer, { usePortfolioFileDrag } from "@/components/portfolio/PortfolioTransfer";
+import pageStyles from "@/components/portfolio/PortfolioPage.module.css";
 import PortfolioManageBar from "@/components/portfolio/PortfolioManageBar";
 import {
   AllocationBars,
   fmtFcfa,
   Kpi,
   panelStyle,
-  allocationLayoutRow,
   allocationSectorsCol,
   allocationTickersCol,
 } from "@/components/portfolio/PortfolioPageParts";
@@ -93,8 +92,28 @@ function formatGainKpi(
   return pct ? `${cash} (${pct})` : cash;
 }
 
+function investedAmount(costBasis: number, others: { costBasis: number | "N/D" }[]): number {
+  return others.reduce((sum, row) => sum + (typeof row.costBasis === "number" ? row.costBasis : 0), costBasis);
+}
+
+function dayMove(series: { value: number; changePercent: number | null }[]): {
+  amount: number | null;
+  percent: number | null;
+} {
+  if (series.length < 2) return { amount: null, percent: null };
+  const last = series[series.length - 1]!;
+  const previous = series[series.length - 2]!;
+  return { amount: last.value - previous.value, percent: last.changePercent };
+}
+
 export default function PortfolioPageClient({ initialPortfolios, tickers, tradesByPortfolio }: Props) {
   const [portfolios, setPortfolios] = useState(initialPortfolios);
+  const [openId, setOpenId] = useState<string | null>(() => {
+    const empty = initialPortfolios.find((item) => item.holdings.length + item.otherHoldings.length === 0);
+    return empty?.id ?? null;
+  });
+  const [incoming, setIncoming] = useState<{ portfolioId: string; file: File } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const [discrete, setDiscrete] = usePersistedState<boolean>(PORTFOLIO_DISCRETE_STORAGE_KEY, false);
   const [masks, setMasks] = useDiscreteMasks();
 
@@ -159,6 +178,23 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
     };
   }, [refreshOnOpen, reloadFromApi]);
 
+  const acceptDroppedFile = useCallback(
+    (file: File) => {
+      const targetId = openId ?? portfolios[0]?.id;
+      if (!targetId) return;
+      setOpenId(targetId);
+      setIncoming({ portfolioId: targetId, file });
+    },
+    [openId, portfolios]
+  );
+  const onDragChange = useCallback((active: boolean) => {
+    setDragging(active);
+    if (active) {
+      setOpenId((current) => current ?? portfolios[0]?.id ?? null);
+    }
+  }, [portfolios]);
+  usePortfolioFileDrag(acceptDroppedFile, onDragChange);
+
   const hidePortfolioTotal = isMasked(discrete, masks, "portfolioTotal");
   const hideGainAmt = isMasked(discrete, masks, "gainAmount");
   const hideGainPct = isMasked(discrete, masks, "gainPercent");
@@ -207,30 +243,53 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
           gainCount: 0,
         };
 
+        const lineCount = p.holdings.length + p.otherHoldings.length;
+        const invested = investedAmount(p.metrics.totalCostBasis, p.otherHoldings);
+        const session = dayMove(p.navSeries);
+        const sessionColor =
+          session.percent == null ? C.textDim : session.percent >= 0 ? C.green : C.red;
+        const latentColor =
+          p.combined.totalGainLossPercent !== "N/D" && p.combined.totalGainLossPercent >= 0
+            ? C.green
+            : p.combined.totalGainLossPercent !== "N/D"
+              ? C.red
+              : p.combined.totalGainLoss >= 0
+                ? C.green
+                : C.red;
+
         return (
           <div key={p.id} id={`portfolio-${p.id}`} style={panelStyle}>
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                alignItems: "center",
-                justifyContent: "space-between",
-                gap: 10,
-                marginBottom: 4,
-              }}
-            >
-              <h2 style={{ color: C.gold, fontSize: "var(--fs-section)", margin: 0 }}>{p.name}</h2>
-              <PortfolioManageBar portfolioId={p.id} name={p.name} onChanged={reloadFromApi} />
-            </div>
-
-            <PortfolioStatementImport
+            <PortfolioTransfer
               portfolioId={p.id}
               portfolioName={p.name}
-              holdingCount={p.holdings.length + p.otherHoldings.length}
-            />
-            <PortfolioExcelIO portfolioId={p.id} portfolioName={p.name} />
+              holdingCount={lineCount}
+              open={openId === p.id}
+              onOpenChange={(next) => setOpenId(next ? p.id : openId === p.id ? null : openId)}
+              incomingFile={incoming?.portfolioId === p.id ? incoming.file : null}
+              onIncomingFileHandled={() => setIncoming((current) => (current?.portfolioId === p.id ? null : current))}
+              highlighted={dragging && openId === p.id}
+            >
+              {(transferButton) => (
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 10,
+                    marginBottom: 4,
+                  }}
+                >
+                  <h2 style={{ color: C.gold, fontSize: "var(--fs-section)", margin: 0 }}>{p.name}</h2>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    {transferButton}
+                    <PortfolioManageBar portfolioId={p.id} name={p.name} onChanged={reloadFromApi} />
+                  </div>
+                </div>
+              )}
+            </PortfolioTransfer>
 
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+            <div className={pageStyles.kpis}>
               <Kpi
                 label="Total du portefeuille"
                 value={fmtFcfaOrMasked(p.combined.totalMarketValue, hidePortfolioTotal)}
@@ -238,9 +297,9 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                 hint={
                   hidePortfolioTotal
                     ? "Montant masqué"
-                    : `${p.metrics.marketPricesAsOfLabel !== "N/D" ? p.metrics.marketPricesAsOfLabel : "Cours actions : N/D"}${
-                        p.otherHoldings.length > 0 ? " · obligations et FCP selon la base de chaque ligne" : ""
-                      }`
+                    : p.metrics.marketPricesAsOfLabel !== "N/D"
+                      ? p.metrics.marketPricesAsOfLabel
+                      : "Cours actions : N/D"
                 }
               />
               <Kpi
@@ -251,97 +310,37 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                   hideGainAmt,
                   hideGainPct
                 )}
-                color={
-                  p.combined.totalGainLossPercent !== "N/D" && p.combined.totalGainLossPercent >= 0
-                    ? C.green
-                    : p.combined.totalGainLossPercent !== "N/D"
-                      ? C.red
-                      : p.combined.totalGainLoss >= 0
-                        ? C.green
-                        : C.red
-                }
+                color={latentColor}
                 educationSlug="plus-moins-value-latente"
-                hint={
-                  hideGainAmt && hideGainPct
-                    ? "Montants masqués"
-                    : hideGainAmt
-                      ? "Montant FCFA masqué — % visible"
-                      : hideGainPct
-                        ? "% masqué — montant FCFA visible"
-                        : p.metrics.marketPricesAsOfLabel !== "N/D"
-                          ? `${p.metrics.marketPricesAsOfLabel} vs PRU`
-                          : "Cours : N/D vs PRU"
-                }
+                hint={hideGainAmt && hideGainPct ? "Montants masqués" : "FCFA et % vs PRU"}
               />
               <Kpi
-                label="P&L réalisé (ventes)"
+                label="Variation du jour"
                 value={
-                  hideRealized
-                    ? DISCRETE_AMOUNT_LABEL
-                    : `${summary.totalRealizedPnl >= 0 ? "+" : ""}${fmtFcfa(summary.totalRealizedPnl)}`
+                  session.amount == null
+                    ? "N/D"
+                    : formatGainKpi(session.amount, session.percent ?? "N/D", hideGainAmt, hideGainPct)
                 }
-                color={summary.totalRealizedPnl >= 0 ? C.green : C.red}
-                hint={`${summary.salesCount} vente(s) · ${summary.lossCount} perte(s) · ${summary.gainCount} gain(s)`}
-              />
-              <Kpi
-                label="Performance YTD"
-                value={p.metrics.ytdChangePercent !== "N/D" ? `${p.metrics.ytdChangePercent}%` : "N/D"}
-                color={C.teal}
-                educationSlug="performance-ytd"
+                color={sessionColor}
                 hint={
                   p.otherHoldings.length > 0
-                    ? "Actions seulement, vs dernier cours avant le 1er janvier"
-                    : "vs dernier cours avant le 1er janvier"
+                    ? "Actions seulement, vs clôture précédente"
+                    : session.amount == null
+                      ? "Pas assez de clôtures"
+                      : "vs clôture précédente"
                 }
               />
-              <Kpi label="Lignes ouvertes" value={String(p.holdings.length + p.otherHoldings.length)} />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 10,
-                margin: "10px 0 4px",
-                fontSize: "0.78rem",
-              }}
-            >
-              <span style={{ color: C.textDim }}>Conseils analyse :</span>
-              <span style={{ color: C.green, fontWeight: 700 }}>{p.adviceRecap.reinforce} à renforcer</span>
-              <span style={{ color: C.gold, fontWeight: 700 }}>{p.adviceRecap.hold} à conserver</span>
-              <span style={{ color: C.red, fontWeight: 700 }}>{p.adviceRecap.exit} à sortir / alléger</span>
-            </div>
-
-            {p.otherHoldings.length > 0 ? (
-              <p style={{ color: C.textDim, fontSize: "0.78rem", margin: "8px 0 0" }}>
-                L’historique de valeur ci-dessous porte sur les actions. Les obligations et FCP sont dans le total, sans historique de cours.
-              </p>
-            ) : null}
-            <PortfolioNavChart series={p.navSeries} titleSlug="evolution-portefeuille" discrete={hideNav} />
-
-            {p.otherHoldings.length > 0 ? (
-              <AllocationBars
-                heading="Répartition par type"
-                items={p.combined.assetTypeBreakdown.map((slice) => ({
-                  sector: slice.type,
-                  weightPercent: slice.weightPercent,
-                }))}
+              <Kpi
+                label="Montant investi"
+                value={fmtFcfaOrMasked(invested, hidePortfolioTotal)}
+                hint="Coût d’achat des lignes ouvertes"
               />
-            ) : null}
-
-            <div style={allocationLayoutRow}>
-              <div style={allocationSectorsCol}>
-                <AllocationBars items={p.metrics.sectorBreakdown} />
-              </div>
-              <div style={allocationTickersCol}>
-                <PortfolioAllocationChart items={p.metrics.tickerBreakdown} discrete={hideAlloc} />
-              </div>
             </div>
 
             {p.holdings.length > 0 ? (
               <>
                 {p.otherHoldings.length > 0 ? (
-                  <h3 style={{ color: C.gold, fontSize: "0.95rem", margin: "16px 0 0" }}>
+                  <h3 style={{ color: C.gold, fontSize: "0.95rem", margin: "4px 0 0" }}>
                     Actions
                     <span style={{ color: C.textDim, fontWeight: 500, marginLeft: 8 }}>
                       {fmtFcfa(p.metrics.totalMarketValue)}
@@ -352,27 +351,106 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                   portfolioId={p.id}
                   holdings={p.metrics.holdings}
                   latestQuoteLabel={p.metrics.marketPricesAsOfLabel}
+                  portfolioValue={p.combined.totalMarketValue}
                   discrete={discrete}
                   masks={masks}
                 />
               </>
             ) : p.otherHoldings.length === 0 ? (
-              <p style={{ color: C.textDim, fontSize: "0.82rem", marginTop: 16 }}>
-                Aucune position pour l&apos;instant — ajoutez-en une ci-dessous.
+              <p className={pageStyles.emptyLine}>
+                Aucune position pour l’instant.
+                {openId === p.id ? null : (
+                  <button type="button" className="ob-btn-ghost" onClick={() => setOpenId(p.id)}>
+                    Importer un relevé SGI
+                  </button>
+                )}
               </p>
             ) : null}
 
-            <OtherHoldingsSection portfolioId={p.id} holdings={p.otherHoldings} />
-
-            <PortfolioTradesHistory
+            <OtherHoldingsSection
               portfolioId={p.id}
-              initialTrades={tradeBundle?.trades ?? []}
-              initialSummary={summary}
-              discrete={discrete}
-              masks={masks}
+              holdings={p.otherHoldings}
+              portfolioValue={p.combined.totalMarketValue}
+              part="tables"
             />
 
-            <AddHoldingForm portfolioId={p.id} tickers={tickers} />
+            <details className={pageStyles.secondary}>
+              <summary>Répartition et historique</summary>
+              <div className={pageStyles.kpis}>
+                <Kpi
+                  label="P&L réalisé (ventes)"
+                  value={
+                    hideRealized
+                      ? DISCRETE_AMOUNT_LABEL
+                      : `${summary.totalRealizedPnl >= 0 ? "+" : ""}${fmtFcfa(summary.totalRealizedPnl)}`
+                  }
+                  color={summary.totalRealizedPnl >= 0 ? C.green : C.red}
+                  hint={`${summary.salesCount} vente(s) · ${summary.lossCount} perte(s) · ${summary.gainCount} gain(s)`}
+                />
+                <Kpi
+                  label="Performance YTD"
+                  value={p.metrics.ytdChangePercent !== "N/D" ? `${p.metrics.ytdChangePercent}%` : "N/D"}
+                  color={C.teal}
+                  educationSlug="performance-ytd"
+                  hint={
+                    p.otherHoldings.length > 0
+                      ? "Actions seulement, vs dernier cours avant le 1er janvier"
+                      : "vs dernier cours avant le 1er janvier"
+                  }
+                />
+                <Kpi label="Lignes ouvertes" value={String(lineCount)} />
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 10,
+                  margin: "4px 0 8px",
+                  fontSize: "0.78rem",
+                }}
+              >
+                <span style={{ color: C.textDim }}>Conseils analyse :</span>
+                <span style={{ color: C.green, fontWeight: 700 }}>{p.adviceRecap.reinforce} à renforcer</span>
+                <span style={{ color: C.gold, fontWeight: 700 }}>{p.adviceRecap.hold} à conserver</span>
+                <span style={{ color: C.red, fontWeight: 700 }}>{p.adviceRecap.exit} à sortir / alléger</span>
+              </div>
+              {p.otherHoldings.length > 0 ? (
+                <p style={{ color: C.textDim, fontSize: "0.78rem", margin: "8px 0 0" }}>
+                  L’historique de valeur ci-dessous porte sur les actions. Les obligations et FCP sont dans le total, sans historique de cours.
+                </p>
+              ) : null}
+              <PortfolioNavChart series={p.navSeries} titleSlug="evolution-portefeuille" discrete={hideNav} />
+              {p.otherHoldings.length > 0 ? (
+                <AllocationBars
+                  heading="Répartition par type"
+                  items={p.combined.assetTypeBreakdown.map((slice) => ({
+                    sector: slice.type,
+                    weightPercent: slice.weightPercent,
+                  }))}
+                />
+              ) : null}
+              <div className={pageStyles.alloc}>
+                <div style={allocationSectorsCol}>
+                  <AllocationBars items={p.metrics.sectorBreakdown} />
+                </div>
+                <div style={allocationTickersCol}>
+                  <PortfolioAllocationChart items={p.metrics.tickerBreakdown} discrete={hideAlloc} />
+                </div>
+              </div>
+              <PortfolioTradesHistory
+                portfolioId={p.id}
+                initialTrades={tradeBundle?.trades ?? []}
+                initialSummary={summary}
+                discrete={discrete}
+                masks={masks}
+              />
+            </details>
+
+            <details className={pageStyles.addMore}>
+              <summary>Ajouter une ligne</summary>
+              <AddHoldingForm portfolioId={p.id} tickers={tickers} />
+              <OtherHoldingsSection portfolioId={p.id} holdings={p.otherHoldings} part="form" />
+            </details>
           </div>
         );
       })}

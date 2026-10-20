@@ -1,0 +1,139 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--c-border);
+  background: transparent;
+  color: var(--c-text);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.button:hover,
+.button[aria-expanded="true"] {
+  border-color: var(--c-gold);
+  color: var(--c-gold);
+}
+
+.button svg {
+  flex: none;
+}
+
+.chevron {
+  transition: transform 0.2s ease;
+}
+
+.button[aria-expanded="true"] .chevron {
+  transform: rotate(180deg);
+}
+
+.panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  margin-top: 0;
+  transition: grid-template-rows 0.22s ease, margin-top 0.22s ease;
+}
+
+.panel[data-open="true"] {
+  grid-template-rows: 1fr;
+  margin-top: 12px;
+}
+
+.panel[data-open="true"][data-dragging="true"] .panelBody {
+  border-color: var(--c-gold);
+}
+
+.panelInner {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.panelBody {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--c-bg) 55%, var(--c-panel));
+}
+
+.sheetHead {
+  display: none;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 70;
+  transform: translateX(-50%);
+  max-width: min(520px, calc(100vw - 24px));
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--c-green);
+  background: var(--c-panel);
+  color: var(--c-text);
+  box-shadow: var(--shadow-sm);
+  font-size: 0.86rem;
+}
+
+.backdrop {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .panel[data-open="true"] {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 65;
+    margin: 0;
+    grid-template-rows: 1fr;
+    max-height: min(88vh, 760px);
+    animation: sheet-in 0.22s ease;
+  }
+
+  .panel[data-open="true"] .panelInner {
+    overflow: auto;
+    max-height: min(88vh, 760px);
+  }
+
+  .panel[data-open="true"] .panelBody {
+    border-radius: 16px 16px 0 0;
+    border-bottom: none;
+    padding-bottom: 28px;
+  }
+
+  .panel[data-open="true"] .sheetHead {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .backdrop[data-open="true"] {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 64;
+    border: 0;
+    background: color-mix(in srgb, #000 45%, transparent);
+  }
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(16px);
+    opacity: 0.6;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}

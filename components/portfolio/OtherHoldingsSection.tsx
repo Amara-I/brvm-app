@@ -5,6 +5,7 @@ import { C } from "@/lib/theme/colors";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
 import type { OtherHoldingMetrics, OtherInstrumentKind, OtherPriceMode } from "@/lib/calc/other-holding-metrics";
 import { fmtFcfa } from "@/components/portfolio/PortfolioPageParts";
+import styles from "./OtherHoldingsSection.module.css";
 
 type Kind = OtherInstrumentKind;
 
@@ -41,31 +42,57 @@ function Field({
 export default function OtherHoldingsSection({
   portfolioId,
   holdings,
+  portfolioValue = 0,
+  part = "all",
 }: {
   portfolioId: string;
   holdings: OtherHoldingMetrics[];
+  /** Valeur totale du portefeuille, pour le poids de chaque ligne. */
+  portfolioValue?: number;
+  /** `tables` au-dessus de la ligne de flottaison, `form` dans l’accordéon d’ajout. */
+  part?: "all" | "tables" | "form";
 }) {
   const bonds = holdings.filter((row) => row.kind === "OBLIGATION");
   const funds = holdings.filter((row) => row.kind === "FCP");
 
+  if (part === "form") {
+    return <AddOtherForm portfolioId={portfolioId} />;
+  }
+
+  if (part === "tables" && bonds.length === 0 && funds.length === 0) return null;
+
   return (
-    <div data-testid="other-holdings" style={{ marginTop: 18 }}>
-      <Group title="Obligations" rows={bonds} portfolioId={portfolioId} />
-      <Group title="FCP" rows={funds} portfolioId={portfolioId} />
-      <AddOtherForm portfolioId={portfolioId} />
+    <div data-testid="other-holdings" style={{ marginTop: part === "tables" ? 8 : 18 }}>
+      <Group title="Obligations" rows={bonds} portfolioId={portfolioId} portfolioValue={portfolioValue} />
+      <Group title="FCP" rows={funds} portfolioId={portfolioId} portfolioValue={portfolioValue} />
+      {part === "all" ? <AddOtherForm portfolioId={portfolioId} /> : null}
     </div>
   );
+}
+
+function weightLabel(row: OtherHoldingMetrics, portfolioValue: number): string {
+  if (typeof row.marketValue !== "number" || portfolioValue <= 0) return "N/D";
+  return `${((row.marketValue / portfolioValue) * 100).toFixed(1)} %`;
+}
+
+function coursLabel(row: OtherHoldingMetrics): string {
+  if (row.latestValue != null) return row.priceMode === "PERCENT" ? `${row.latestValue} %` : fmtFcfa(row.latestValue);
+  if (row.valueBasis === "purchase") return row.priceMode === "PERCENT" ? `${row.avgBuyPrice} %` : fmtFcfa(row.avgBuyPrice);
+  return "N/D";
 }
 
 function Group({
   title,
   rows,
   portfolioId,
+  portfolioValue,
 }: {
   title: string;
   rows: OtherHoldingMetrics[];
   portfolioId: string;
+  portfolioValue: number;
 }) {
+  if (rows.length === 0) return null;
   const valued = rows.filter((row) => typeof row.marketValue === "number");
   const total = valued.reduce((sum, row) => sum + (row.marketValue as number), 0);
   return (
@@ -77,22 +104,25 @@ function Group({
         </span>
       </h3>
       {rows.length === 0 ? null : (
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
+        <div className={styles.scroll} style={{ overflowX: "auto" }}>
+          <table className={styles.table} style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.82rem" }}>
             <thead>
               <tr style={{ color: C.textDim, textAlign: "left" }}>
-                <th style={{ padding: "6px 8px" }}>Nom</th>
+                <th style={{ padding: "6px 8px" }}>Titre</th>
                 <th style={{ padding: "6px 8px" }}>Qté</th>
-                <th style={{ padding: "6px 8px" }}>Prix d’achat</th>
+                <th style={{ padding: "6px 8px" }}>PRU</th>
+                <th style={{ padding: "6px 8px" }}>Cours</th>
                 <th style={{ padding: "6px 8px" }}>Valeur</th>
                 <th style={{ padding: "6px 8px" }}>+/− value</th>
-                <th style={{ padding: "6px 8px" }}>Coupon couru</th>
+                <th style={{ padding: "6px 8px" }}>%</th>
+                <th style={{ padding: "6px 8px" }}>Poids</th>
+                <th className="ob-col-secondary" style={{ padding: "6px 8px" }}>Coupon couru</th>
                 <th style={{ padding: "6px 8px" }} />
               </tr>
             </thead>
             <tbody>
               {rows.map((row) => (
-                <HoldingRow key={row.id} portfolioId={portfolioId} row={row} />
+                <HoldingRow key={row.id} portfolioId={portfolioId} row={row} portfolioValue={portfolioValue} />
               ))}
             </tbody>
           </table>
@@ -102,7 +132,15 @@ function Group({
   );
 }
 
-function HoldingRow({ portfolioId, row }: { portfolioId: string; row: OtherHoldingMetrics }) {
+function HoldingRow({
+  portfolioId,
+  row,
+  portfolioValue,
+}: {
+  portfolioId: string;
+  row: OtherHoldingMetrics;
+  portfolioValue: number;
+}) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const gainColor = row.gainLoss === "N/D" ? C.textDim : row.gainLoss >= 0 ? C.green : C.red;
@@ -121,7 +159,7 @@ function HoldingRow({ portfolioId, row }: { portfolioId: string; row: OtherHoldi
   return (
     <>
       <tr style={{ borderTop: `1px solid ${C.border}` }} data-kind={row.kind}>
-        <td style={{ padding: "8px" }}>
+        <td style={{ padding: "8px" }} data-label="Titre">
           <strong>{row.name}</strong>
           <span style={{ display: "block", color: C.textDim, fontSize: "0.72rem" }}>
             {row.isin || row.code || "ISIN N/D"}
@@ -129,23 +167,32 @@ function HoldingRow({ portfolioId, row }: { portfolioId: string; row: OtherHoldi
             {row.maturityDate ? ` · échéance ${row.maturityDate.split("-").reverse().join("/")}` : ""}
           </span>
         </td>
-        <td style={{ padding: "8px" }} className="ob-num">
+        <td style={{ padding: "8px" }} className="ob-num" data-label="Qté">
           {row.quantity}
         </td>
-        <td style={{ padding: "8px" }} className="ob-num">
+        <td style={{ padding: "8px" }} className="ob-num" data-label="PRU">
           {row.priceMode === "PERCENT" ? `${row.avgBuyPrice} %` : fmtFcfa(row.avgBuyPrice)}
           {row.nominal != null ? (
             <span style={{ display: "block", color: C.textDim, fontSize: "0.72rem" }}>Nominal {fmtFcfa(row.nominal)}</span>
           ) : null}
         </td>
-        <td style={{ padding: "8px" }}>
+        <td style={{ padding: "8px" }} className="ob-num" data-label="Cours">
+          {coursLabel(row)}
+        </td>
+        <td style={{ padding: "8px" }} data-label="Valeur">
           <span className="ob-num">{money(row.marketValue)}</span>
           <span style={{ display: "block", color: C.textDim, fontSize: "0.72rem" }}>{row.valueBasisLabel}</span>
         </td>
-        <td style={{ padding: "8px", color: gainColor }} className="ob-num">
+        <td style={{ padding: "8px", color: gainColor }} className="ob-num" data-label="+/− value">
           {row.gainLoss === "N/D" ? "N/D" : `${row.gainLoss >= 0 ? "+" : ""}${fmtFcfa(row.gainLoss)}`}
         </td>
-        <td style={{ padding: "8px" }}>
+        <td style={{ padding: "8px", color: gainColor }} className="ob-num" data-label="%">
+          {row.gainLossPercent === "N/D" ? "N/D" : `${row.gainLossPercent >= 0 ? "+" : ""}${row.gainLossPercent} %`}
+        </td>
+        <td style={{ padding: "8px" }} className="ob-num" data-label="Poids">
+          {weightLabel(row, portfolioValue)}
+        </td>
+        <td style={{ padding: "8px" }} className="ob-col-secondary" data-label="Coupon couru">
           <span className="ob-num">{money(row.accruedCoupon)}</span>
           {row.accruedCoupon !== "N/D" ? (
             <span style={{ display: "block", color: C.textDim, fontSize: "0.72rem" }}>{row.accruedCouponLabel}</span>
@@ -163,7 +210,7 @@ function HoldingRow({ portfolioId, row }: { portfolioId: string; row: OtherHoldi
       </tr>
       {editing && row.id ? (
         <tr>
-          <td colSpan={7} style={{ padding: "8px 8px 14px" }}>
+          <td colSpan={10} style={{ padding: "8px 8px 14px" }}>
             <EditOtherForm portfolioId={portfolioId} row={row} onDone={() => setEditing(false)} />
           </td>
         </tr>

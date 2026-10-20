@@ -124,6 +124,8 @@ type Props = {
   portfolioId: string;
   holdings: EnrichedHoldingMetrics[];
   latestQuoteLabel?: string;
+  /** Valeur totale du portefeuille, pour la colonne Poids. */
+  portfolioValue?: number;
   /** Mode discret actif. */
   discrete?: boolean;
   /** Quels champs masquer (défaut = config historique, PRU/Marché visibles). */
@@ -134,6 +136,7 @@ export default function PortfolioHoldingsTable({
   portfolioId,
   holdings,
   latestQuoteLabel,
+  portfolioValue = 0,
   discrete = false,
   masks = DEFAULT_DISCRETE_MASKS,
 }: Props) {
@@ -201,8 +204,8 @@ export default function PortfolioHoldingsTable({
     return map;
   }, [holdings, varHorizon, sparkSeriesByTicker, dayChangesByTicker]);
 
-  const colDefs = useMemo<ColumnFilterDef<EnrichedHoldingMetrics>[]>(
-    () => [
+  const colDefs = useMemo<ColumnFilterDef<EnrichedHoldingMetrics>[]>(() => {
+    const defs: ColumnFilterDef<EnrichedHoldingMetrics>[] = [
       {
         key: "ticker",
         label: "Société",
@@ -219,9 +222,19 @@ export default function PortfolioHoldingsTable({
         },
       },
       ...STATIC_COL_DEFS_AFTER_VAR,
-    ],
-    [variationByTicker]
-  );
+    ];
+    const pnlAt = defs.findIndex((column) => column.key === "pnl");
+    defs.splice(pnlAt + 1, 0, {
+      key: "weight",
+      label: "Poids",
+      sortKind: "number",
+      getValue: (h) => {
+        if (typeof h.marketValue !== "number" || portfolioValue <= 0) return "N/D";
+        return String((h.marketValue / portfolioValue) * 100);
+      },
+    });
+    return defs;
+  }, [variationByTicker, portfolioValue]);
 
   const rows = useMemo(
     () => applyColumnSort(holdings, colDefs, colSort),
@@ -550,7 +563,7 @@ export default function PortfolioHoldingsTable({
         <tbody>
           {rows.length === 0 ? (
             <tr>
-              <td colSpan={13} className={styles.cellMuted}>
+              <td colSpan={14} className={styles.cellMuted}>
                 Aucune ligne.
               </td>
             </tr>
@@ -576,7 +589,7 @@ export default function PortfolioHoldingsTable({
 
               return (
                 <tr key={h.id ?? h.ticker} className={styles.row}>
-                  <td className={styles.cellSticky}>
+                  <td className={styles.cellSticky} data-label="Titre">
                     <Link href={`/actions/${h.ticker}`} className={styles.tickerLink}>
                       <span className={styles.tickerCode}>{h.ticker}</span>
                       {h.name ? <span className={styles.tickerName}>{h.name}</span> : null}
@@ -613,6 +626,7 @@ export default function PortfolioHoldingsTable({
                     ) : null}
                   </td>
                   <td
+                    data-label="Variation"
                     className={styles.varChg}
                     style={{ color: varColor }}
                     title={
@@ -623,7 +637,7 @@ export default function PortfolioHoldingsTable({
                   >
                     {formatSignedPct(varPct)}
                   </td>
-                  <td className={styles.cellNum}>
+                  <td className={styles.cellNum} data-label="Qté">
                     {isEdit ? (
                       <input
                         type="number"
@@ -643,7 +657,7 @@ export default function PortfolioHoldingsTable({
                       </span>
                     )}
                   </td>
-                  <td className={styles.cellNum}>
+                  <td className={styles.cellNum} data-label="PRU">
                     {isEdit ? (
                       <input
                         type="number"
@@ -659,20 +673,20 @@ export default function PortfolioHoldingsTable({
                       fmtAmtOrMasked(h.avgBuyPrice, isMasked(discrete, masks, "pru"))
                     )}
                   </td>
-                  <td className={styles.cellNum}>
+                  <td className={`${styles.cellNum} ${styles.cellSecondary}`}>
                     {fmtAmtOrMasked(h.costBasis, isMasked(discrete, masks, "cost"))}
                   </td>
-                  <td className={styles.cellNum} title="Cours unitaire actuel">
+                  <td className={styles.cellNum} data-label="Cours" title="Cours unitaire actuel">
                     {typeof h.currentPrice === "number"
                       ? fmtAmtOrMasked(h.currentPrice, isMasked(discrete, masks, "unitPrice"))
                       : "N/D"}
                   </td>
-                  <td className={styles.cellNum} title="Total marché = quantité × cours">
+                  <td className={styles.cellNum} data-label="Valeur" title="Total marché = quantité × cours">
                     {typeof h.marketValue === "number"
                       ? fmtAmtOrMasked(h.marketValue, isMasked(discrete, masks, "positionTotal"))
                       : "N/D"}
                   </td>
-                  <td className={styles.cellMuted}>
+                  <td className={`${styles.cellMuted} ${styles.cellSecondary}`}>
                     {h.id ? (
                       <input
                         type="date"
@@ -688,7 +702,7 @@ export default function PortfolioHoldingsTable({
                       fmtDay(buyDateValue)
                     )}
                   </td>
-                  <td className={styles.cell}>
+                  <td className={`${styles.cell} ${styles.cellSecondary}`}>
                     {isEdit ? (
                       <select
                         value={horizon}
@@ -705,7 +719,7 @@ export default function PortfolioHoldingsTable({
                       <span className={styles.horizonPill}>{horizonLabel(h.buyHorizon)}</span>
                     )}
                   </td>
-                  <td className={styles.cellNum} style={{ color: pnlColor }}>
+                  <td className={styles.cellNum} data-label="+/− value" style={{ color: pnlColor }}>
                     {typeof h.gainLossPercent === "number" || typeof h.gainLoss === "number" ? (
                       <div className={styles.pnlCell}>
                         {!isMasked(discrete, masks, "gainPercent") &&
@@ -731,12 +745,17 @@ export default function PortfolioHoldingsTable({
                       "N/D"
                     )}
                   </td>
-                  <td className={styles.cellNum}>
+                  <td className={styles.cellNum} data-label="Poids">
+                    {typeof h.marketValue === "number" && portfolioValue > 0
+                      ? `${((h.marketValue / portfolioValue) * 100).toFixed(1)} %`
+                      : "N/D"}
+                  </td>
+                  <td className={`${styles.cellNum} ${styles.cellSecondary}`}>
                     <span className={styles.scoreValue} style={{ color: scoreColor }}>
                       {typeof h.analysisScore === "number" ? h.analysisScore : "N/D"}
                     </span>
                   </td>
-                  <td className={styles.cell}>
+                  <td className={`${styles.cell} ${styles.cellSecondary}`}>
                     <span
                       className={styles.advicePill}
                       title={[h.advice.summary, ...h.advice.reasons].filter(Boolean).join(" · ")}
@@ -745,7 +764,7 @@ export default function PortfolioHoldingsTable({
                       {h.advice.label}
                     </span>
                   </td>
-                  <td className={styles.cellActions}>
+                  <td className={styles.cellActions} data-label="Actions">
                     {!h.id ? null : isEdit ? (
                       <div className={styles.editBtns}>
                         <button

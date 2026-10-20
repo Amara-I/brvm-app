@@ -566,9 +566,63 @@
 }
 
 @media (max-width: 720px) {
-  .cellSticky {
+  .scroll {
+    overflow: visible;
+    border: none;
+    background: transparent;
+  }
+
+  .table {
+    min-width: 0;
+    display: block;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody {
+    display: block;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    margin: 0 0 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--c-border);
+    border-radius: 12px;
+    background: var(--c-panel);
+  }
+
+  .table td {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 0;
+    border: none;
+    text-align: left;
+  }
+
+  .table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--c-textDim);
+  }
+
+  .cellSticky,
+  .cellActions {
+    grid-column: 1 / -1;
     position: static;
     box-shadow: none;
+  }
+
+  .cellSecondary {
+    display: none;
   }
 
   .rowActions {

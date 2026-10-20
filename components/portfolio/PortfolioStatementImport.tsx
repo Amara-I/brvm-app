@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState, type DragEvent } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
 import { parseFrNumber } from "@/lib/portfolio/sgi-statement/french-number";
 import { STATEMENT_ERRORS, STATEMENT_MAX_BYTES } from "@/lib/portfolio/sgi-statement/messages";
@@ -18,6 +18,13 @@ type Props = {
   portfolioId: string;
   portfolioName: string;
   holdingCount: number;
+  /** Fichier déposé sur la page, en dehors de la zone. */
+  incomingFile?: File | null;
+  onIncomingFileHandled?: () => void;
+  /** Remplace la ligne verte persistante : le parent ferme le panneau et affiche un toast. */
+  onImported?: (message: string) => void;
+  /** Surbrillance quand un fichier est glissé sur la page. */
+  highlighted?: boolean;
 };
 
 type Draft = {
@@ -167,7 +174,15 @@ function toDraft(row: StatementRowDraft): Draft {
   };
 }
 
-export default function PortfolioStatementImport({ portfolioId, portfolioName, holdingCount }: Props) {
+export default function PortfolioStatementImport({
+  portfolioId,
+  portfolioName,
+  holdingCount,
+  incomingFile,
+  onIncomingFileHandled,
+  onImported,
+  highlighted = false,
+}: Props) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
@@ -305,6 +320,15 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
     }
   }
 
+  const parseRef = useRef(parseFile);
+  parseRef.current = parseFile;
+
+  useEffect(() => {
+    if (!incomingFile) return;
+    void parseRef.current(incomingFile);
+    onIncomingFileHandled?.();
+  }, [incomingFile, onIncomingFileHandled]);
+
   function patch(id: string, partial: Partial<Draft>) {
     setRows((current) => current.map((row) => (row.id === id ? { ...row, ...partial } : row)));
   }
@@ -398,7 +422,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
         data.updated ? `${data.updated} renforcée(s)` : null,
         data.skipped ? `${data.skipped} non fusionnée(s) (unité de prix différente)` : null,
       ].filter(Boolean);
-      setMessage(`Relevé importé dans « ${portfolioName} » — ${parts.join(" · ") || "aucune modification"}.`);
+      const done = `Relevé importé dans « ${portfolioName} » — ${parts.join(" · ") || "aucune modification"}.`;
+      if (onImported) onImported(done);
+      else setMessage(done);
       resetReview();
       dismissFile();
       notifyPortfolioChanged(portfolioId);
@@ -431,7 +457,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
       <div
         className={styles.drop}
         data-testid="sgi-drop"
-        data-active={dragOver ? "true" : "false"}
+        data-active={dragOver || highlighted ? "true" : "false"}
         data-state={busy === "parse" ? "parsing" : error ? "error" : selected ? "selected" : "idle"}
         onDragEnter={onDragEnter}
         onDragOver={onDragOver}
@@ -474,12 +500,14 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
             <p className={styles.headline}>
               {busy === "parse"
                 ? "Lecture du relevé…"
-                : dragOver
+                : dragOver || highlighted
                   ? "Relâchez pour analyser le relevé"
                   : "Glissez-déposez votre relevé ici"}
             </p>
-            {busy !== "parse" && !dragOver ? <p className={styles.or}>ou</p> : null}
-            {busy !== "parse" && !dragOver ? <span className={`ob-btn-gold ${styles.choose}`}>Choisir un fichier</span> : null}
+            {busy !== "parse" && !dragOver && !highlighted ? <p className={styles.or}>ou</p> : null}
+            {busy !== "parse" && !dragOver && !highlighted ? (
+              <span className={`ob-btn-gold ${styles.choose}`}>Choisir un fichier</span>
+            ) : null}
             <ul className={styles.formats} id={`${inputId}-formats`}>
               <li>PDF</li>
               <li>Excel .xlsx</li>
