@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
 import { parseFrNumber } from "@/lib/portfolio/sgi-statement/french-number";
 import { STATEMENT_ERRORS, STATEMENT_MAX_BYTES } from "@/lib/portfolio/sgi-statement/messages";
@@ -47,6 +47,23 @@ function formatFcfa(value: number | null): string {
   return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(value)} FCFA`;
 }
 
+const STATEMENT_EXTENSIONS = [".pdf", ".csv", ".xlsx", ".xls"];
+
+function isStatementFile(file: File): boolean {
+  const name = file.name.toLowerCase();
+  return STATEMENT_EXTENSIONS.some((extension) => name.endsWith(extension));
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} o`;
+  const kilo = bytes / 1024;
+  if (kilo < 1024) {
+    return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: kilo < 10 ? 1 : 0 }).format(kilo)} Ko`;
+  }
+  const mega = bytes / (1024 * 1024);
+  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: mega < 10 ? 1 : 0 }).format(mega)} Mo`;
+}
+
 function includeByDefault(row: StatementRowDraft): boolean {
   if (row.quantity == null || row.quantity <= 0) return false;
   if (row.match.confidence === "haute") return true;
@@ -74,10 +91,14 @@ function toDraft(row: StatementRowDraft): Draft {
 export default function PortfolioStatementImport({ portfolioId, portfolioName, holdingCount }: Props) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
+  const dragDepth = useRef(0);
+  const inflight = useRef<string | null>(null);
+  const dropped = useRef(false);
   const [dragOver, setDragOver] = useState(false);
   const [busy, setBusy] = useState<"parse" | "save" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [selected, setSelected] = useState<{ name: string; size: number } | null>(null);
   const [preview, setPreview] = useState<StatementPreview | null>(null);
   const [rows, setRows] = useState<Draft[]>([]);
   const [mode, setMode] = useState<"merge" | "replace">("merge");
@@ -95,21 +116,78 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
     setStatementDate("");
   }
 
-  async function parseFile(file: File) {
+  function dismissFile() {
+    setSelected(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }
+
+  function clearSelection() {
+    resetReview();
+    dismissFile();
     setError(null);
     setMessage(null);
-    const name = file.name.toLowerCase();
-    const allowed = name.endsWith(".pdf") || name.endsWith(".csv") || name.endsWith(".xlsx") || name.endsWith(".xls");
-    if (!allowed) {
+  }
+
+  function endDrag() {
+    dragDepth.current = 0;
+    setDragOver(false);
+  }
+
+  function onDragEnter(event: DragEvent) {
+    event.preventDefault();
+    if (busy != null) return;
+    dragDepth.current += 1;
+    setDragOver(true);
+  }
+
+  function onDragOver(event: DragEvent) {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = busy != null ? "none" : "copy";
+  }
+
+  function onDragLeave(event: DragEvent) {
+    event.preventDefault();
+    dragDepth.current = Math.max(0, dragDepth.current - 1);
+    if (dragDepth.current === 0) setDragOver(false);
+  }
+
+  function onDrop(event: DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    endDrag();
+    if (busy != null) return;
+    dropped.current = true;
+    void parseFile(event.dataTransfer.files?.[0]);
+  }
+
+  async function parseFile(file: File | undefined) {
+    if (!file || busy != null) return;
+    const key = `${file.name}:${file.size}:${file.lastModified}`;
+    if (inflight.current === key) return;
+    inflight.current = key;
+    setSelected({ name: file.name, size: file.size });
+    setError(null);
+    setMessage(null);
+
+    if (!isStatementFile(file)) {
+      resetReview();
       setError(STATEMENT_ERRORS.UNSUPPORTED);
+      inflight.current = null;
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
     if (file.size <= 0) {
+      resetReview();
       setError(STATEMENT_ERRORS.EMPTY);
+      inflight.current = null;
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
     if (file.size > STATEMENT_MAX_BYTES) {
+      resetReview();
       setError(STATEMENT_ERRORS.TOO_LARGE);
+      inflight.current = null;
+      if (inputRef.current) inputRef.current.value = "";
       return;
     }
 
@@ -131,13 +209,9 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
       setError(err instanceof Error ? err.message : "Lecture du relevé impossible.");
     } finally {
       setBusy(null);
+      inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
     }
-  }
-
-  function onFile(file: File | undefined) {
-    if (!file) return;
-    void parseFile(file);
   }
 
   function patch(id: string, partial: Partial<Draft>) {
@@ -205,6 +279,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
       ].filter(Boolean);
       setMessage(`Relevé importé dans « ${portfolioName} » — ${parts.join(" · ") || "aucune modification"}.`);
       resetReview();
+      dismissFile();
       notifyPortfolioChanged(portfolioId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Enregistrement impossible.");
@@ -223,52 +298,88 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
         <li data-state={phase === "done" ? "current" : "todo"}>3. Enregistrer</li>
       </ol>
 
+      <div className={styles.intro}>
+        <h3 id={`${inputId}-title`} className={styles.heading}>
+          Importer un relevé SGI
+        </h3>
+        <p className={styles.privacy} id={`${inputId}-hint`}>
+          Rien n’est enregistré tant que vous n’avez pas vérifié les lignes, et le fichier n’est pas conservé.
+        </p>
+      </div>
+
       <div
         className={styles.drop}
+        data-testid="sgi-drop"
         data-active={dragOver ? "true" : "false"}
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragOver(true);
-        }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragOver(false);
-          onFile(event.dataTransfer.files?.[0]);
-        }}
+        data-state={busy === "parse" ? "parsing" : error ? "error" : selected ? "selected" : "idle"}
+        onDragEnter={onDragEnter}
+        onDragOver={onDragOver}
+        onDragLeave={onDragLeave}
+        onDrop={onDrop}
+        onDragEnd={endDrag}
       >
-        <div className={styles.mark} aria-hidden="true">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-            <path d="M12 4v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-            <path d="M8 8l4-4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M5 16.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-          </svg>
-        </div>
-        <div>
-          <h3 id={`${inputId}-title`} className={styles.title}>
-            Importer un relevé SGI
-          </h3>
-          <p className={styles.lead} id={`${inputId}-hint`}>
-            Déposez le relevé de titres PDF, CSV ou Excel fourni par votre SGI (SGI-CI, Hudson &amp; Cie, BICI Bourse,
-            SGI Bénin, EDC, Atlantique Finance…). Rien n’est enregistré tant que vous n’avez pas vérifié les lignes, et
-            le fichier n’est pas conservé.
-          </p>
-        </div>
-        <div className={styles.actions}>
-          <button type="button" className="ob-btn-gold" disabled={busy != null} onClick={() => inputRef.current?.click()}>
-            {busy === "parse" ? "Lecture…" : "Choisir un fichier"}
-          </button>
+        <div className={styles.dropHit}>
           <input
             ref={inputRef}
             id={inputId}
             type="file"
-            className={styles.fileInput}
-            accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            aria-label="Relevé de titres PDF, CSV ou Excel"
-            aria-describedby={`${inputId}-hint`}
-            onChange={(event) => onFile(event.target.files?.[0])}
+            className={styles.fileHit}
+            accept=".pdf,.csv,.xlsx,.xls,application/pdf,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            aria-label="Glissez-déposez votre relevé ici, ou choisissez un fichier PDF, Excel ou CSV"
+            aria-describedby={`${inputId}-hint ${inputId}-formats`}
+            disabled={busy != null}
+            onChange={(event) => {
+              if (dropped.current) {
+                dropped.current = false;
+                event.target.value = "";
+                return;
+              }
+              void parseFile(event.target.files?.[0]);
+            }}
           />
+          <div className={styles.dropBody}>
+            <div className={styles.mark} aria-hidden="true">
+              {busy === "parse" ? (
+                <span className={styles.spinner} />
+              ) : (
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none">
+                  <path d="M12 4v10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                  <path d="M8 8l4-4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                  <path d="M5 16.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                </svg>
+              )}
+            </div>
+            <p className={styles.touchCue}>Appuyez pour choisir votre relevé</p>
+            <p className={styles.headline}>
+              {busy === "parse"
+                ? "Lecture du relevé…"
+                : dragOver
+                  ? "Relâchez pour analyser le relevé"
+                  : "Glissez-déposez votre relevé ici"}
+            </p>
+            {busy !== "parse" && !dragOver ? <p className={styles.or}>ou</p> : null}
+            {busy !== "parse" && !dragOver ? <span className={`ob-btn-gold ${styles.choose}`}>Choisir un fichier</span> : null}
+            <ul className={styles.formats} id={`${inputId}-formats`}>
+              <li>PDF</li>
+              <li>Excel .xlsx</li>
+              <li>Excel .xls</li>
+              <li>CSV</li>
+              <li data-kind="limit">4 Mo max</li>
+            </ul>
+          </div>
         </div>
+        {selected ? (
+          <div className={styles.fileChip}>
+            <span className={styles.fileName}>{selected.name}</span>
+            <span className={styles.fileMeta}>
+              {formatBytes(selected.size)}
+              {busy === "parse" ? " · Lecture en cours…" : ""}
+            </span>
+            <button type="button" className={`ob-btn-ghost ${styles.remove}`} onClick={clearSelection} disabled={busy != null}>
+              Retirer
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {error ? (
@@ -461,7 +572,7 @@ export default function PortfolioStatementImport({ portfolioId, portfolioName, h
                 </label>
               ) : null}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
-                <button type="button" className="ob-btn-ghost" onClick={resetReview} disabled={busy != null}>
+                <button type="button" className="ob-btn-ghost" onClick={clearSelection} disabled={busy != null}>
                   Annuler
                 </button>
                 <button type="submit" className="ob-btn-gold" disabled={busy != null || included.length === 0}>

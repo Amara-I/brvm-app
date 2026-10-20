@@ -5,7 +5,7 @@ Un utilisateur connecté peut déposer, sur la page **Portefeuille**, le relevé
 ## Parcours
 
 1. Ouvrir un portefeuille et choisir **Importer un relevé SGI**.
-2. Déposer un PDF texte, un CSV ou un Excel (4 Mo maximum).
+2. Glisser le fichier sur la zone, ou appuyer sur **Choisir un fichier**. PDF, Excel (.xlsx, .xls) et CSV, 4 Mo maximum. Un autre format est refusé, y compris s’il est déposé.
 3. Vérifier le tableau : société rapprochée, confiance, quantité, PRU. Décocher une ligne, corriger le titre, la quantité ou le PRU.
 4. Choisir **Fusionner** (ajoute les quantités et recalcule le PRU moyen) ou **Remplacer** (retire les positions actuelles de ce portefeuille, l’historique des mouvements déjà saisis reste en place).
 5. Confirmer. Rien n’est écrit avant cette étape.
