@@ -33,29 +33,26 @@
   padding: 0 12px 12px;
 }
 
-.secondary summary,
-.addMore summary {
-  cursor: pointer;
+.foldBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
   color: var(--c-gold);
+  font: inherit;
   font-weight: 700;
   font-size: 0.92rem;
-  padding: 12px 0;
-  list-style: none;
+  text-align: left;
+  cursor: pointer;
 }
 
-.secondary summary::-webkit-details-marker,
-.addMore summary::-webkit-details-marker {
-  display: none;
-}
-
-.secondary summary::before,
-.addMore summary::before {
-  content: "▸ ";
-}
-
-.secondary[open] summary::before,
-.addMore[open] summary::before {
-  content: "▾ ";
+.foldBtn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-gold) 55%, transparent);
 }
 
 .emptyLine {

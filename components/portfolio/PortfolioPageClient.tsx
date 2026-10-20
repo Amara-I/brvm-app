@@ -12,6 +12,7 @@ import PortfolioDiscreteControls from "@/components/portfolio/PortfolioDiscreteC
 import OtherHoldingsSection from "@/components/portfolio/OtherHoldingsSection";
 import PortfolioTransfer, { usePortfolioFileDrag } from "@/components/portfolio/PortfolioTransfer";
 import pageStyles from "@/components/portfolio/PortfolioPage.module.css";
+import { ExpandSection } from "@/components/ui/ExpandChevron";
 import PortfolioManageBar from "@/components/portfolio/PortfolioManageBar";
 import {
   AllocationBars,
@@ -374,8 +375,11 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
               part="tables"
             />
 
-            <details className={pageStyles.secondary}>
-              <summary>Répartition et historique</summary>
+            <ExpandSection
+              title="Répartition et historique"
+              className={pageStyles.secondary}
+              buttonClassName={pageStyles.foldBtn}
+            >
               <div className={pageStyles.kpis}>
                 <Kpi
                   label="P&L réalisé (ventes)"
@@ -444,13 +448,12 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                 discrete={discrete}
                 masks={masks}
               />
-            </details>
+            </ExpandSection>
 
-            <details className={pageStyles.addMore}>
-              <summary>Ajouter une ligne</summary>
+            <ExpandSection title="Ajouter une ligne" className={pageStyles.addMore} buttonClassName={pageStyles.foldBtn}>
               <AddHoldingForm portfolioId={p.id} tickers={tickers} />
               <OtherHoldingsSection portfolioId={p.id} holdings={p.otherHoldings} part="form" />
-            </details>
+            </ExpandSection>
           </div>
         );
       })}

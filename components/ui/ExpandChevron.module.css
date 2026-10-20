@@ -1,0 +1,52 @@
+.hit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--c-textDim);
+  cursor: pointer;
+}
+
+.hit svg {
+  display: block;
+  transition: transform 0.18s ease;
+}
+
+.hit:hover,
+.hit:focus-visible,
+.open {
+  background: color-mix(in srgb, var(--c-gold) 18%, transparent);
+  color: var(--c-gold);
+}
+
+.hit:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--c-gold) 55%, transparent);
+}
+
+.open svg {
+  transform: rotate(90deg);
+}
+
+.mark {
+  cursor: inherit;
+}
+
+button:hover > .mark,
+button:focus-visible > .mark,
+button[aria-expanded="true"] > .mark {
+  background: color-mix(in srgb, var(--c-gold) 18%, transparent);
+  color: var(--c-gold);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hit svg {
+    transition: none;
+  }
+}
