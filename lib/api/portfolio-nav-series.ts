@@ -3,6 +3,9 @@
 // les quantités actuelles à chaque jour de l'historique (comme le YTD).
 
 import { prisma } from "@/lib/prisma";
+import { priceDivisor } from "@/lib/corporate-actions/adjust";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 
 export interface PortfolioNavPoint {
   date: string; // YYYY-MM-DD
@@ -12,6 +15,7 @@ export interface PortfolioNavPoint {
 
 export interface PortfolioNavHoldingInput {
   companyId: string;
+  ticker?: string;
   quantity: number;
   /** Date d'achat / création ISO YYYY-MM-DD — borne basse de la série. */
   sinceDate: string | null;
@@ -47,6 +51,7 @@ export async function getPortfolioNavSeries(
   }
 
   const companyIds = [...new Set(active.map((h) => h.companyId))];
+  const splitActions = await actionsByTicker().catch(() => new Map<string, AdjustmentAction[]>());
   const rows = await prisma.priceHistory.findMany({
     where: {
       companyId: { in: companyIds },
@@ -62,13 +67,19 @@ export async function getPortfolioNavSeries(
     qtyByCompany.set(h.companyId, (qtyByCompany.get(h.companyId) ?? 0) + h.quantity);
   }
 
+  const tickerByCompany = new Map(active.filter((h) => h.ticker).map((h) => [h.companyId, h.ticker!]));
   return buildNavSeriesFromCloses(
     qtyByCompany,
-    rows.map((r) => ({
-      companyId: r.companyId,
-      date: r.date.toISOString().slice(0, 10),
-      closePrice: Number(r.closePrice),
-    }))
+    rows.map((r) => {
+      const date = r.date.toISOString().slice(0, 10);
+      const ticker = tickerByCompany.get(r.companyId);
+      const factor = ticker ? priceDivisor(splitActions.get(ticker) ?? [], date) : 1;
+      return {
+        companyId: r.companyId,
+        date,
+        closePrice: Number(r.closePrice) / factor,
+      };
+    })
   );
 }
 

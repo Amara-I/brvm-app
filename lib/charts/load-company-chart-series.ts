@@ -13,6 +13,10 @@ import {
 import { chartRangeCutoffIso, parseChartRangeParam, DEFAULT_CHART_RANGE } from "./chart-window";
 import { isChartSeriesStale } from "./chart-series-cache";
 import { readCachedChartSeries } from "./refresh-chart-series";
+import { adjustmentFingerprint, splitSessionMissing } from "@/lib/corporate-actions/adjust";
+import { actionsForTicker } from "@/lib/corporate-actions/load";
+import { presentCompanyCloses } from "@/lib/corporate-actions/present-series";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 
 export interface LoadedCompanyChartSeries {
   series: ChartClosePoint[];
@@ -24,6 +28,8 @@ export interface LoadedCompanyChartSeries {
   officialDayChangePercent: number | null;
   cacheRangeKey: ChartSeriesRangeKey;
   meta: ChartSeriesMetaPayload | null;
+  /** Fractionnements actifs de ce titre (série déjà ramenée sur la nouvelle base). */
+  corporateActions: AdjustmentAction[];
 }
 
 interface LatestCanonicalClose {
@@ -103,10 +109,13 @@ function withFreshness(
   latest: LatestCanonicalClose | null
 ): LoadedCompanyChartSeries {
   const last = base.series[base.series.length - 1]?.time ?? null;
+  const today = new Date().toISOString().slice(0, 10);
+  const splitPending = splitSessionMissing(base.series, base.corporateActions, today);
   return {
     ...base,
-    stale: base.fromCache && isChartSeriesStale(last, latest?.date ?? null),
-    officialDayChangePercent: latest?.changePercent ?? null,
+    stale: splitPending || (base.fromCache && isChartSeriesStale(last, latest?.date ?? null)),
+    // La variation officielle ne vaut que pour la séance qu'elle décrit.
+    officialDayChangePercent: latest && last === latest.date ? (latest.changePercent ?? null) : null,
   };
 }
 
@@ -118,53 +127,56 @@ export async function loadCompanyChartSeries(opts: {
   const parsed = parseChartRangeParam(opts.rangeParam ?? undefined) ?? DEFAULT_CHART_RANGE;
   const cacheRangeKey = cacheRangeKeyForQuery(parsed);
 
-  const [cached, latest] = await Promise.all([
+  const [cached, latest, actions] = await Promise.all([
     readCachedChartSeries(prisma, "COMPANY", opts.ticker, cacheRangeKey),
     readLatestCanonicalClose(opts.companyId),
+    actionsForTicker(opts.ticker),
   ]);
 
-  if (cached && cached.points.length > 0) {
-    const sources = cached.meta?.sources ?? [];
+  async function asPresented(
+    points: ChartClosePoint[],
+    meta: ChartSeriesMetaPayload | null,
+    fromCache: boolean,
+    rangeKey: ChartSeriesRangeKey
+  ): Promise<LoadedCompanyChartSeries> {
+    const fp = adjustmentFingerprint(actions);
+    const already = meta?.adjustmentFingerprint === fp;
+    const presented = already
+      ? { points, actions, fingerprint: fp }
+      : await presentCompanyCloses(prisma, opts.companyId, opts.ticker, points);
+    const sources = meta?.sources ?? [];
     return withFreshness(
       {
-        series: cached.points,
-        dbSeries: toDbSeries(cached.points, sources),
-        fromCache: true,
-        cacheRangeKey,
-        meta: cached.meta,
+        series: presented.points,
+        dbSeries: toDbSeries(presented.points, sources),
+        fromCache,
+        cacheRangeKey: rangeKey,
+        // Meta recalculée sur la série brute : ne pas réutiliser les variations.
+        meta: already ? meta : null,
+        corporateActions: presented.actions,
       },
       latest
     );
   }
 
+  if (cached && cached.points.length > 0) {
+    return asPresented(cached.points, cached.meta, true, cacheRangeKey);
+  }
+
   if (cacheRangeKey !== "MAX") {
     const maxCached = await readCachedChartSeries(prisma, "COMPANY", opts.ticker, "MAX");
     if (maxCached && maxCached.points.length > 0) {
-      const sources = maxCached.meta?.sources ?? [];
-      return withFreshness(
-        {
-          series: maxCached.points,
-          dbSeries: toDbSeries(maxCached.points, sources),
-          fromCache: true,
-          cacheRangeKey: "MAX",
-          meta: maxCached.meta,
-        },
-        latest
-      );
+      return asPresented(maxCached.points, maxCached.meta, true, "MAX");
     }
   }
 
   try {
     const live = await loadLiveCanonical({ companyId: opts.companyId, rangeKey: cacheRangeKey });
-    return withFreshness(
-      {
-        series: live.points,
-        dbSeries: live.dbSeries,
-        fromCache: false,
-        cacheRangeKey,
-        meta: null,
-      },
-      latest
+    return asPresented(
+      live.points,
+      null,
+      false,
+      cacheRangeKey
     );
   } catch (err) {
     if (isMissingDatabaseObject(err)) {
@@ -175,6 +187,7 @@ export async function loadCompanyChartSeries(opts: {
           fromCache: false,
           cacheRangeKey,
           meta: null,
+          corporateActions: actions,
         },
         latest
       );

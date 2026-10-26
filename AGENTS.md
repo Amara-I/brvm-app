@@ -1026,6 +1026,23 @@ BRVM30 269,06 au 11/09/2026 — identiques à l'officiel.
 
 ---
 
+## 21. Étape 25 — Fractionnements (SNTS 1:10 du 26/10/2026)
+
+Les cours bruts de `price_history` ne sont pas réécrits. Un facteur
+(`titres nouveaux / titres anciens`) est appliqué à la lecture et au
+rafraîchissement de `chart_series` (empreinte `adjustmentFingerprint`).
+Catalogue : `lib/corporate-actions/catalog.ts` (SNTS forcé ; fractionnements
+historiques 2018-2019 insérés avec `adjust_prices = false` jusqu'à
+vérification qu'ils ne sont pas déjà dans les cours). Portefeuille : quantité
+et PRU ajustés à l'affichage selon la date d'opération (relevé SGI « arrêté
+au »), sans réécrire les lignes.
+
+Migration : `prisma/migrations/20261026193000_corporate_actions`.
+Recalcul idempotent : `npm run corporate-actions:apply` ou
+`GET /api/cron/corporate-actions` (`CRON_SECRET`).
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

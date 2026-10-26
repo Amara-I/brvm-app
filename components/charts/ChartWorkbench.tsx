@@ -38,6 +38,7 @@ import { truncateSummary } from "@/lib/calc/analysis-recap";
 import type { TechnicalSnapshot } from "@/lib/charts/technical-indicators";
 import type { ChartDrawing } from "@/lib/charts/chart-drawings-storage";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeSplitLabel } from "@/lib/i18n/split-label";
 import {
   chartSignalSummary,
   chartTechnicalLines,
@@ -161,6 +162,7 @@ interface ChartApiPayload {
   };
   /** Série déjà peinte (fiche) — remplacée quand l'API renvoie une fenêtre différente. */
   provisional?: boolean;
+  corporateActions?: Array<{ effectiveDate: string; label: string }>;
 }
 
 function buildProvisionalPayload(
@@ -1170,6 +1172,11 @@ export default function ChartWorkbench({
         <div className={styles.chartCol}>
           <div className={styles.legendBar}>{ohlcLegend ?? defaultLegend ?? "—"}</div>
           {intervalNote && <div className={styles.intervalNote}>{localizeIntervalNote(intervalNote, t)}</div>}
+          {payload?.corporateActions?.map((action) => (
+            <div key={action.effectiveDate} className={styles.splitNote}>
+              {localizeSplitLabel(action.label, t, format)}
+            </div>
+          ))}
           <div className={styles.chartShell}>
             {payload ? (
               <TradingChart
@@ -1177,6 +1184,7 @@ export default function ChartWorkbench({
                 series={mainSeries}
                 fullSeries={historySeries}
                 interval={interval}
+                splitMarkers={payload.corporateActions}
                 compareSeries={compareSeries}
                 indicators={indicators}
                 showVolume={hasRealVolume}

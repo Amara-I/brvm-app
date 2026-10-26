@@ -231,4 +231,9 @@ export const charts = {
     saved: "Analyse enregistrée.",
     deleted: "Analyse supprimée.",
   },
+  split: {
+    ratio: "{old}:{new}",
+    withDate: "Fractionnement {ratio} le {date}",
+    bare: "Fractionnement {ratio}",
+  },
 } as const;

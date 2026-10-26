@@ -30,6 +30,9 @@ import {
   type PrefsSnapshot,
   type SignalEntryParams,
 } from "./types";
+import { priceDivisor, sessionChangePercent } from "@/lib/corporate-actions/adjust";
+import { actionsForTicker } from "@/lib/corporate-actions/load";
+import { operationDateFromTrade } from "@/lib/corporate-actions/positions";
 
 export type AlertEvalSummary = {
   price: { checked: number; triggered: number };
@@ -193,15 +196,24 @@ async function loadLatestQuotes(tickers?: string[]): Promise<LatestQuote[]> {
   return out;
 }
 
-async function dailyChangeFor(quote: LatestQuote): Promise<number | null> {
-  if (quote.changePercent != null && Number.isFinite(quote.changePercent)) return quote.changePercent;
+async function dailyMove(quote: LatestQuote): Promise<{ change: number | null; close: number }> {
+  const actions = await actionsForTicker(quote.ticker);
+  const date = quote.date.toISOString().slice(0, 10);
+  const close = quote.close / priceDivisor(actions, date);
   const prev = await prisma.priceHistory.findFirst({
     where: { companyId: quote.companyId, isCanonical: true, date: { lt: quote.date } },
     orderBy: { date: "desc" },
-    select: { closePrice: true },
+    select: { closePrice: true, date: true },
   });
-  if (!prev) return null;
-  return horizonReturnPct(Number(prev.closePrice), quote.close);
+  const change = sessionChangePercent(
+    prev
+      ? { date: prev.date.toISOString().slice(0, 10), close: Number(prev.closePrice) }
+      : null,
+    { date, close: quote.close },
+    quote.changePercent,
+    actions
+  );
+  return { change, close };
 }
 
 async function evaluateUserRules(opts: {
@@ -231,7 +243,8 @@ async function evaluateUserRules(opts: {
       const quote = quoteByTicker.get(rule.ticker);
       if (!quote) continue;
       const threshold = clampDailyMovePct(numParam(params.percent) ?? 5);
-      const change = await dailyChangeFor(quote);
+      const move = await dailyMove(quote);
+      const change = move.change;
       if (change == null || !dailyMoveHits(change, threshold)) continue;
       const key = fireKey(opts.today, "DAILY", rule.ticker, threshold);
       if (alreadyFiredToday(rule.lastFireKey, key)) continue;
@@ -239,13 +252,13 @@ async function evaluateUserRules(opts: {
         userId: rule.userId,
         type: "PRIX",
         title: `${rule.ticker} : variation du jour ${fmtSignedPct(change)}`,
-        body: `Seuil ${fmtSignedPct(threshold)} (collier BRVM typique ±${7.5} %). Cours ${fmtFcfa(quote.close)}.`,
+        body: `Seuil ${fmtSignedPct(threshold)} (collier BRVM typique ±${7.5} %). Cours ${fmtFcfa(move.close)}.`,
         ticker: rule.ticker,
         preferChart: true,
         alertRuleId: rule.id,
         prefs,
         now: opts.now,
-        payload: { change, threshold, close: quote.close },
+        payload: { change, threshold, close: move.close },
       });
       if (emitted.created) {
         result.triggered += 1;
@@ -272,7 +285,17 @@ async function evaluateUserRules(opts: {
         select: { closePrice: true, date: true },
       });
       if (!past) continue;
-      const change = horizonReturnPct(Number(past.closePrice), quote.close);
+      const horizonActions = await actionsForTicker(quote.ticker);
+      const pastDate = past.date.toISOString().slice(0, 10);
+      const quoteDate = quote.date.toISOString().slice(0, 10);
+      const pastClose = Number(past.closePrice) / priceDivisor(horizonActions, pastDate);
+      const quoteClose = quote.close / priceDivisor(horizonActions, quoteDate);
+      const change = sessionChangePercent(
+        { date: pastDate, close: Number(past.closePrice) },
+        { date: quoteDate, close: quote.close },
+        null,
+        horizonActions
+      );
       if (change == null || !dailyMoveHits(change, threshold)) continue;
       const key = fireKey(opts.today, "HORIZON", rule.ticker, horizon);
       if (alreadyFiredToday(rule.lastFireKey, key)) continue;
@@ -280,7 +303,7 @@ async function evaluateUserRules(opts: {
         userId: rule.userId,
         type: "PRIX",
         title: `${rule.ticker} : variation ${horizon} ${fmtSignedPct(change)}`,
-        body: `Depuis le ${past.date.toISOString().slice(0, 10)} (${fmtFcfa(Number(past.closePrice))}) → ${fmtFcfa(quote.close)}. Seuil ${fmtSignedPct(threshold)}.`,
+        body: `Depuis le ${pastDate} (${fmtFcfa(pastClose)}) → ${fmtFcfa(quoteClose)}. Seuil ${fmtSignedPct(threshold)}.`,
         ticker: rule.ticker,
         preferChart: true,
         alertRuleId: rule.id,
@@ -347,7 +370,8 @@ async function evaluatePortfolioAlerts(opts: {
     const quote = quoteByCompany.get(h.companyId);
     if (!quote) continue;
 
-    const change = await dailyChangeFor(quote);
+    const move = await dailyMove(quote);
+    const change = move.change;
     const threshold = clampDailyMovePct(prefs.portfolioMovePct);
     if (change != null && dailyMoveHits(change, threshold)) {
       const already = await prisma.notificationEvent.findFirst({
@@ -365,7 +389,7 @@ async function evaluatePortfolioAlerts(opts: {
           userId,
           type: "PORTEFEUILLE",
           title: `${h.company.ticker} (ligne) : ${fmtSignedPct(change)} aujourd'hui`,
-          body: `Variation ≥ ${fmtSignedPct(threshold)} sur une position. Cours ${fmtFcfa(quote.close)}.`,
+          body: `Variation ≥ ${fmtSignedPct(threshold)} sur une position. Cours ${fmtFcfa(move.close)}.`,
           ticker: h.company.ticker,
           href: "/portefeuille",
           prefs,
@@ -376,9 +400,17 @@ async function evaluatePortfolioAlerts(opts: {
       }
     }
 
-    const target = h.targetPrice != null ? Number(h.targetPrice) : null;
-    const stop = h.stopPrice != null ? Number(h.stopPrice) : null;
-    if (target != null && quote.close >= target) {
+    const positionActions = await actionsForTicker(h.company.ticker);
+    const positionBasis = operationDateFromTrade({
+      tradedAt: (h.buyDate ?? h.createdAt).toISOString(),
+      notes: h.notes,
+    });
+    const positionFactor = priceDivisor(positionActions, positionBasis);
+    const quoteFactor = priceDivisor(positionActions, quote.date.toISOString().slice(0, 10));
+    const comparableClose = quote.close / quoteFactor;
+    const target = h.targetPrice != null ? Number(h.targetPrice) / positionFactor : null;
+    const stop = h.stopPrice != null ? Number(h.stopPrice) / positionFactor : null;
+    if (target != null && comparableClose >= target) {
       const dup = await prisma.notificationEvent.findFirst({
         where: {
           userId,
@@ -394,17 +426,17 @@ async function evaluatePortfolioAlerts(opts: {
           userId,
           type: "PORTEFEUILLE",
           title: `${h.company.ticker} : objectif ${fmtFcfa(target)} atteint`,
-          body: `Cours ${fmtFcfa(quote.close)}. Ce n'est pas un ordre de vente automatique.`,
+          body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
           ticker: h.company.ticker,
           href: "/portefeuille",
           prefs,
           now: opts.now,
-          payload: { kind: "target", target, close: quote.close },
+          payload: { kind: "target", target, close: comparableClose },
         });
         if (emitted.created) result.triggered += 1;
       }
     }
-    if (stop != null && quote.close <= stop) {
+    if (stop != null && comparableClose <= stop) {
       const dup = await prisma.notificationEvent.findFirst({
         where: {
           userId,
@@ -420,12 +452,12 @@ async function evaluatePortfolioAlerts(opts: {
           userId,
           type: "PORTEFEUILLE",
           title: `${h.company.ticker} : stop ${fmtFcfa(stop)} atteint`,
-          body: `Cours ${fmtFcfa(quote.close)}. Ce n'est pas un ordre de vente automatique.`,
+          body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
           ticker: h.company.ticker,
           href: "/portefeuille",
           prefs,
           now: opts.now,
-          payload: { kind: "stop", stop, close: quote.close },
+          payload: { kind: "stop", stop, close: comparableClose },
         });
         if (emitted.created) result.triggered += 1;
       }

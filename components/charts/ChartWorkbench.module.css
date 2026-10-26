@@ -603,6 +603,13 @@
   color: var(--tv-gold);
 }
 
+.splitNote {
+  padding: 0 14px 6px;
+  font-size: 0.68rem;
+  color: #787b86;
+  letter-spacing: 0.01em;
+}
+
 .railBtn,
 .railBtnActive {
   width: 100%;

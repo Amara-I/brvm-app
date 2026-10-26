@@ -26,6 +26,8 @@ import { toPrismaDataSource } from "./prisma-mappers";
 import type { DiscrepancyReport, ReconciledIndex, ReconciledPrice } from "./reconciliation";
 import { canElevateCanonical, sourcesOutranking, sourceOutranks } from "./reconciliation";
 import { filterCanonicalByCollar } from "./price-collar";
+import { priceDivisor } from "@/lib/corporate-actions/adjust";
+import { loadCorporateActions } from "@/lib/corporate-actions/load";
 import { isMissingDatabaseObject } from "../db/is-database-unavailable";
 import type {
   DataSourceCode,
@@ -239,9 +241,21 @@ export async function persistPriceQuotes(
     }
   }
 
+  const actionsBySymbol = new Map<string, Awaited<ReturnType<typeof loadCorporateActions>>>();
+  try {
+    for (const action of await loadCorporateActions()) {
+      const list = actionsBySymbol.get(action.ticker) ?? [];
+      list.push(action);
+      actionsBySymbol.set(action.ticker, list);
+    }
+  } catch {
+    /* catalogue indisponible — collier sur les cours bruts */
+  }
+
   const collar = filterCanonicalByCollar(reconciled, {
     previousByTicker,
     rawQuotes: allQuotes,
+    priceDivisor: (ticker, date) => priceDivisor(actionsBySymbol.get(ticker.toUpperCase()) ?? [], date),
   });
   if (collar.rejected.length > 0) {
     console.warn(

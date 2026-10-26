@@ -48,6 +48,23 @@ describe("filterCanonicalByCollar", () => {
     expect(rejected).toHaveLength(0);
   });
 
+  it("accepte le cours post-fractionnement quand le précédent est ramené sur la nouvelle base", () => {
+    const divisor = (ticker: string, date: string) =>
+      ticker === "SNTS" && date < "2026-10-26" ? 10 : 1;
+    const without = filterCanonicalByCollar(
+      [row("2026-10-23", 43850), row("2026-10-26", 4700)],
+      { config }
+    );
+    expect(without.rejected).toHaveLength(1);
+
+    const withSplit = filterCanonicalByCollar(
+      [row("2026-10-23", 43850), row("2026-10-26", 4700)],
+      { config, priceDivisor: divisor }
+    );
+    expect(withSplit.rejected).toHaveLength(0);
+    expect(withSplit.accepted.map((r) => r.closePrice)).toEqual([43850, 4700]);
+  });
+
   it("PRICE_COLLAR_OVERRIDE ticker laisse passer", () => {
     const { rejected } = filterCanonicalByCollar(
       [row("2026-09-14", 10000), row("2026-09-15", 18000)],

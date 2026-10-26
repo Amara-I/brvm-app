@@ -1,6 +1,10 @@
 // Journal des mouvements portefeuille (achats / ventes + P&L réalisé).
 
 import type { HoldingSide, Prisma, PrismaClient } from "@prisma/client";
+import { priceDivisor } from "@/lib/corporate-actions/adjust";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import { operationDateFromTrade } from "@/lib/corporate-actions/positions";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 
 export type TradeClient = PrismaClient | Prisma.TransactionClient;
 
@@ -75,18 +79,26 @@ export async function listPortfolioTrades(
     take: options?.take ?? 100,
   });
 
-  return rows.map((r) => ({
-    id: r.id,
-    side: r.side,
-    ticker: r.company.ticker,
-    name: r.company.name,
-    quantity: Number(r.quantity),
-    price: Number(r.price),
-    tradedAt: r.tradedAt.toISOString().slice(0, 10),
-    costBasis: r.costBasis != null ? Number(r.costBasis) : null,
-    realizedPnl: r.realizedPnl != null ? Number(r.realizedPnl) : null,
-    notes: r.notes,
-  }));
+  const splitActions = await actionsByTicker().catch(() => new Map<string, AdjustmentAction[]>());
+  return rows.map((r) => {
+    const tradedAt = r.tradedAt.toISOString().slice(0, 10);
+    const factor = priceDivisor(
+      splitActions.get(r.company.ticker) ?? [],
+      operationDateFromTrade({ tradedAt, notes: r.notes })
+    );
+    return {
+      id: r.id,
+      side: r.side,
+      ticker: r.company.ticker,
+      name: r.company.name,
+      quantity: Number(r.quantity) * factor,
+      price: Number(r.price) / factor,
+      tradedAt,
+      costBasis: r.costBasis != null ? Number(r.costBasis) / factor : null,
+      realizedPnl: r.realizedPnl != null ? Number(r.realizedPnl) : null,
+      notes: r.notes,
+    };
+  });
 }
 
 export function summarizeRealizedPnl(trades: PortfolioTradeRow[]): {

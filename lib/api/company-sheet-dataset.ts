@@ -3,6 +3,15 @@
 import { prisma } from "@/lib/prisma";
 import { getCompaniesFullDataset, type CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
+import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
+import {
+  adjustPerShareAmount,
+  dividendBasisDate,
+  markersFor,
+  restateSharesOutstanding,
+  splitBetween,
+} from "@/lib/corporate-actions/adjust";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 import { computeFinancialHealth, type FinancialHealth } from "@/lib/calc/financial-health";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { loadCompanyChartSeries } from "@/lib/charts/load-company-chart-series";
@@ -126,6 +135,8 @@ export interface CompanySheetPayload {
   seriesFromChartCache: boolean;
   /** `chart_series` présent mais en retard sur la dernière clôture canonique. */
   seriesCacheStale: boolean;
+  /** Marqueurs de fractionnement (libellé déjà formulé, ex. « Fractionnement 1:10 le 26/10/2026 »). */
+  splitMarkers: Array<{ effectiveDate: string; label: string }>;
   performance: SheetPerformance;
   keyRows: SheetKeyRow[];
   sessionDate: string | null;
@@ -468,9 +479,11 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
   let seriesFromChartCache = false;
   let seriesCacheStale = false;
   let officialDayChangePercent: number | null = null;
+  let corporateActions: AdjustmentAction[] = [];
   if (chartLoad) {
     // Même chargeur que GET /api/charts : `chart_series` d'abord, sinon clôtures canoniques.
     const loaded = await chartLoad;
+    corporateActions = loaded.corporateActions;
     series = loaded.series;
     // Affichage immédiat dès 1 point. Le refetch client (densify) ne
     // s'arrête que lorsque le cache couvre au moins 2 séances.
@@ -499,7 +512,7 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
 
   const metrics = calcMetrics({
     years: dataset.years,
-    prices: company.prices,
+    prices: pricesSyncedToLatestClose(company.prices, series),
     dividends: company.dividends,
     per: company.per,
     mktcap: company.mktcap,
@@ -511,22 +524,44 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
 
   const last = series[series.length - 1] ?? null;
   const prev = series.length >= 2 ? series[series.length - 2]! : null;
-  const dayChangePercent =
-    officialDayChangePercent ??
-    (last && prev && prev.value > 0
-      ? Math.round(((last.value - prev.value) / prev.value) * 1000) / 10
-      : null);
+  const splitAcross = last && prev ? splitBetween(corporateActions, prev.time, last.time) : false;
+  const seriesDayChange =
+    last && prev && prev.value > 0
+      ? Math.round(((last.value - prev.value) / prev.value) * 10000) / 100
+      : null;
+  const officialInCollar =
+    officialDayChangePercent != null && Math.abs(officialDayChangePercent) <= 8;
+  const dayChangePercent = splitAcross
+    ? officialInCollar
+      ? officialDayChangePercent
+      : seriesDayChange
+    : (officialDayChangePercent ?? seriesDayChange);
+  const impliedAbs =
+    splitAcross && officialInCollar && last && officialDayChangePercent != null
+      ? Math.round((last.value - last.value / (1 + officialDayChangePercent / 100)) * 100) / 100
+      : null;
   const dayChangeAbs =
-    last && prev && dayChangePercent != null
-      ? Math.round((last.value - prev.value) * 100) / 100
-      : last && prev
-        ? Math.round((last.value - prev.value) * 100) / 100
-        : null;
+    impliedAbs ??
+    (last && prev ? Math.round((last.value - prev.value) * 100) / 100 : null);
 
-  const [dividendSchedule, incomeStatement] = await Promise.all([
+  const [rawDividends, incomeStatement] = await Promise.all([
     dbCompany ? loadEnrichedDividendsForCompany(dbCompany.id) : Promise.resolve([]),
     loadIncomeStatementSeries(dbCompany?.id, t),
   ]);
+  const dividendSchedule = rawDividends.map((row) => ({
+    ...row,
+    amount: adjustPerShareAmount(
+      row.amount,
+      dividendBasisDate(row.year, row.exDate, corporateActions),
+      corporateActions
+    ),
+  }));
+  const rawProfile = (dbCompany?.profileMeta as CompanyProfileMeta | null) ?? null;
+  const sharesOutstanding = restateSharesOutstanding(rawProfile?.sharesOutstanding, corporateActions);
+  const profileMeta = rawProfile
+    ? { ...rawProfile, sharesOutstanding: sharesOutstanding ?? rawProfile.sharesOutstanding ?? null }
+    : null;
+  const splitMarkers = markersFor(corporateActions);
 
   return {
     company,
@@ -537,6 +572,7 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     series,
     seriesFromChartCache,
     seriesCacheStale,
+    splitMarkers,
     performance: computeSheetPerformance(series),
     keyRows: [...buildKeyRows(company, dataset.years, metrics, avgDailyVolume), ...incomeStatementKeyRows(incomeStatement)],
     sessionDate: last?.time ?? null,
@@ -547,7 +583,7 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     listedSince: dbCompany?.listedSince
       ? dbCompany.listedSince.toISOString().slice(0, 10)
       : ((dbCompany?.profileMeta as CompanyProfileMeta | null)?.listingDate ?? null),
-    profileMeta: (dbCompany?.profileMeta as CompanyProfileMeta | null) ?? null,
+    profileMeta,
     documents: [...docRows]
       .sort((a, b) => {
         if (!a.publishedAt && !b.publishedAt) {

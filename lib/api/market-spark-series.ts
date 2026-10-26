@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 import { readCachedSparkSeriesByTicker } from "@/lib/charts/refresh-chart-series";
+import { adjustSeries, sessionChangePercent, splitBetween } from "@/lib/corporate-actions/adjust";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 
 function sparkFromRows(
   companies: Array<{ id: string; ticker: string }>,
@@ -70,7 +73,18 @@ export async function getMarketSparkSeriesByTicker(): Promise<Record<string, Cha
     select: { companyId: true, date: true, closePrice: true },
   });
 
-  return sparkFromRows(companies, rows);
+  const raw = sparkFromRows(companies, rows);
+  try {
+    const byTicker = await actionsByTicker();
+    for (const company of companies) {
+      const actions = byTicker.get(company.ticker) ?? [];
+      if (actions.length === 0) continue;
+      raw[company.ticker] = adjustSeries(raw[company.ticker] ?? [], actions);
+    }
+  } catch {
+    /* catalogue indisponible — série brute */
+  }
+  return raw;
 }
 
 /**
@@ -102,6 +116,13 @@ export async function getMarketDayChangeByTicker(): Promise<Record<string, numbe
     select: { companyId: true, date: true, closePrice: true, changePercent: true },
   });
 
+  let actions = new Map<string, AdjustmentAction[]>();
+  try {
+    actions = await actionsByTicker();
+  } catch {
+    actions = new Map();
+  }
+
   const idToTicker = new Map(companies.map((c) => [c.id, c.ticker]));
   const byCompany = new Map<string, typeof rows>();
   for (const row of rows) {
@@ -114,17 +135,29 @@ export async function getMarketDayChangeByTicker(): Promise<Record<string, numbe
     const ticker = idToTicker.get(companyId);
     if (!ticker || list.length === 0) continue;
     const latest = list[0]!;
-    if (latest.changePercent != null) {
-      out[ticker] = Math.round(Number(latest.changePercent) * 100) / 100;
+    const stored =
+      latest.changePercent != null ? Math.round(Number(latest.changePercent) * 100) / 100 : null;
+    const tickerActions = actions.get(ticker) ?? [];
+    if (list.length < 2) {
+      out[ticker] = stored;
       continue;
     }
-    if (list.length < 2) continue;
-    const last = Number(latest.closePrice);
-    const prev = Number(list[1]!.closePrice);
-    if (!(prev > 0)) continue;
-    const gapDays = (latest.date.getTime() - list[1]!.date.getTime()) / (24 * 3600 * 1000);
-    if (gapDays > 14) continue;
-    out[ticker] = Math.round(((last - prev) / prev) * 1000) / 10;
+    const prev = list[1]!;
+    const prevDate = prev.date.toISOString().slice(0, 10);
+    const lastDate = latest.date.toISOString().slice(0, 10);
+    const gapDays = (latest.date.getTime() - prev.date.getTime()) / (24 * 3600 * 1000);
+    const acrossSplit = splitBetween(tickerActions, prevDate, lastDate);
+    if (!acrossSplit && stored != null) {
+      out[ticker] = stored;
+      continue;
+    }
+    if (!acrossSplit && gapDays > 14) continue;
+    out[ticker] = sessionChangePercent(
+      { date: prevDate, close: Number(prev.closePrice) },
+      { date: lastDate, close: Number(latest.closePrice) },
+      acrossSplit ? null : stored,
+      tickerActions
+    );
   }
 
   return out;
