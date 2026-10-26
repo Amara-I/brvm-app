@@ -635,6 +635,13 @@
   color: var(--c-textdim);
 }
 
+.splitNote {
+  margin: -4px 0 8px;
+  font-size: 0.68rem;
+  color: var(--c-textdim);
+  letter-spacing: 0.01em;
+}
+
 .ohlc {
   display: flex;
   flex-wrap: wrap;

@@ -111,6 +111,16 @@ enum UserRole {
   @@map("user_role")
 }
 
+/// Opération sur titre. SPLIT = plus de titres, cours plus bas.
+/// REVERSE_SPLIT = regroupement. BONUS = attribution (même mathématique qu'un split).
+enum CorporateActionType {
+  SPLIT
+  REVERSE_SPLIT
+  BONUS
+
+  @@map("corporate_action_type")
+}
+
 /// Type de portefeuille pédagogique (Croissance, Rente, Trading, Croissance Max).
 /// Préférence utilisateur uniquement — n'altère pas les cours ni les signaux.
 enum PortfolioType {
@@ -297,6 +307,7 @@ model Company {
   documents         CompanyDocument[]
   events            CompanyEvent[]
   chartSeries       ChartSeries[]
+  corporateActions  CorporateAction[]
 
   @@index([sectorId])
   @@index([countryId])
@@ -343,6 +354,32 @@ model CompanyEvent {
   @@unique([companyId, eventDate, title])
   @@index([companyId, eventDate])
   @@map("company_events")
+}
+
+/// Fractionnement, regroupement ou attribution.
+/// Les cours bruts (`price_history`) restent ceux publiés par la source.
+/// `adjustPrices` = false quand l'historique stocké est déjà sur la nouvelle base.
+model CorporateAction {
+  id            String              @id @default(cuid())
+  companyId     String              @map("company_id")
+  company       Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  type          CorporateActionType
+  /// Première séance sur la nouvelle base. Les cours strictement antérieurs sont ajustés.
+  effectiveDate DateTime            @map("effective_date") @db.Date
+  /// Titres nouveaux pour `oldShares` titres anciens. Split 10 pour 1 → 10 / 1.
+  newShares     Decimal             @map("new_shares") @db.Decimal(12, 4)
+  oldShares     Decimal             @map("old_shares") @db.Decimal(12, 4)
+  nominalBefore Decimal?            @map("nominal_before") @db.Decimal(14, 2)
+  nominalAfter  Decimal?            @map("nominal_after") @db.Decimal(14, 2)
+  sourceUrl     String?             @map("source_url")
+  note          String?
+  adjustPrices  Boolean             @default(true) @map("adjust_prices")
+  createdAt     DateTime            @default(now()) @map("created_at")
+  updatedAt     DateTime            @updatedAt @map("updated_at")
+
+  @@unique([companyId, effectiveDate, type], name: "uniq_corporate_action")
+  @@index([companyId, effectiveDate])
+  @@map("corporate_actions")
 }
 
 // ─────────────────────────────────────────────────────────────────────────

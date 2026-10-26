@@ -102,6 +102,11 @@ export function filterCanonicalByCollar(
     previousByTicker?: Map<string, CollarPreviousClose>;
     rawQuotes?: RawPriceQuote[];
     config?: ReturnType<typeof getCollarConfig>;
+    /**
+     * Diviseur d'un fractionnement (1 = pas d'ajustement). Le collier compare
+     * les cours déjà ramenés sur la même base ; les prix stockés restent bruts.
+     */
+    priceDivisor?: (ticker: string, date: string) => number;
   } = {}
 ): CollarFilterResult {
   const config = opts.config ?? getCollarConfig();
@@ -157,7 +162,10 @@ export function filterCanonicalByCollar(
       continue;
     }
 
-    const pct = movePercent(prev.closePrice, row.closePrice);
+    const divide = opts.priceDivisor ?? (() => 1);
+    const prevAdj = prev.closePrice / divide(ticker, prev.date);
+    const nextAdj = row.closePrice / divide(ticker, row.date);
+    const pct = movePercent(prevAdj, nextAdj);
     if (pct == null || Math.abs(pct) <= limit) {
       accepted.push(row);
       lastByTicker.set(ticker, { date: row.date, closePrice: row.closePrice });
