@@ -129,7 +129,7 @@ export default function MarketBoardClient({
         co.ticker,
         calcMetrics({
           years,
-          prices: pricesSyncedToLatestClose(co.prices, closes),
+          prices: pricesSyncedToLatestClose(co.prices, closes, co.priceAsOf),
           dividends: co.dividends,
           per: co.per,
           mktcap: co.mktcap,

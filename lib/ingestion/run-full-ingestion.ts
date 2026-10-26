@@ -33,7 +33,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { IngestionStatus } from "@prisma/client";
-import { refreshChartSeries, type RefreshChartSeriesSummary } from "../charts/refresh-chart-series";
+import { tipLatestChartPoints, type RefreshChartSeriesSummary } from "../charts/refresh-chart-series";
 import { prisma } from "../prisma";
 import { sendIngestionAlert } from "./alerts";
 import { getConnectorFeatureFlags, getHistoryBackfillFlags, getIndexEnrichmentFlags } from "./connector-config";
@@ -41,7 +41,13 @@ import { brvmConnector } from "./connectors/brvm_connector";
 import { richbourseConnector } from "./connectors/richbourse_connector";
 import { sikafinanceConnector } from "./connectors/sikafinance_connector";
 import { runWithFetchDeadline } from "./fetch-budget";
-import { persistDiscrepancies, persistIndexQuotes, persistPriceQuotes } from "./persist";
+import {
+  persistDiscrepancies,
+  persistIndexQuotes,
+  persistPriceQuotes,
+  promoteIndexDaysWithoutCanonical,
+  promotePriceDaysWithoutCanonical,
+} from "./persist";
 import { toPrismaDataSource } from "./prisma-mappers";
 import { DISCREPANCY_THRESHOLD_PERCENT, reconcileIndexQuotes, reconcilePriceBatch } from "./reconciliation";
 import type { ReconciledIndex, ReconciledPrice } from "./reconciliation";
@@ -107,6 +113,42 @@ interface ConnectorEnabled {
 }
 
 const MIN_CONNECTOR_CALL_MS = 8_000;
+
+/** Séances avec une source mais zéro ligne canonique (collier, lot interrompu). */
+async function repairCanonicalHoles(logger: (msg: string) => void): Promise<void> {
+  const since = new Date();
+  since.setUTCDate(since.getUTCDate() - 120);
+  try {
+    const prices = await promotePriceDaysWithoutCanonical(prisma, since);
+    const indices = await promoteIndexDaysWithoutCanonical(prisma, since);
+    logger(`[ingest] canoniques réparés prix=${prices} indices=${indices}`);
+  } catch (err) {
+    logger(`[ingest] réparation canonique ignorée : ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+
+/**
+ * Pointe `chart_series` sur les dernières clôtures déjà en base.
+ * Les indices ne sont tipés qu'après l'enrichissement : un tip avant
+ * GetHistos avancerait `lastDate` au cours du jour et laisserait le trou.
+ */
+async function tipIngestCharts(
+  logger: (msg: string) => void,
+  budget: TimeBudget,
+  companies: string[],
+  indices: string[],
+  capMs: number
+): Promise<RefreshChartSeriesSummary | null> {
+  const live = Math.min(capMs, budget.remainingMs() - INGEST_SAFETY_MS);
+  if (live < 3_000) return null;
+  if (companies.length === 0 && indices.length === 0) return null;
+  return tipLatestChartPoints({
+    companyTickers: companies,
+    indexCodes: indices,
+    timeBudgetMs: live,
+    logger: (msg) => logger(`[ingest→charts] ${msg}`),
+  });
+}
 
 async function runOneConnectorCalls(
   connector: MarketDataConnector,
@@ -361,6 +403,21 @@ export async function runFullIngestion(options: RunFullIngestionOptions = {}): P
     let snapshot = await timed("persist", () =>
       persistCollected(allPriceQuotes, allIndexQuotes, companyIdByTicker, budget)
     );
+    await repairCanonicalHoles(logger);
+
+    let chartSeries: RefreshChartSeriesSummary | null = null;
+    let indexCodesToTip: string[] = [];
+    // Réserve ~36s pour l'enrichissement d'indices avant de tiper les sociétés.
+    const earlyCap = Math.min(22_000, budget.remainingMs() - INGEST_SAFETY_MS - 36_000);
+    if (earlyCap >= 3_000) {
+      chartSeries = await tipIngestCharts(
+        logger,
+        budget,
+        [...new Set(snapshot.reconciledPrices.map((row) => row.ticker))],
+        [],
+        earlyCap
+      );
+    }
 
     const quotesOf = (source: DataSourceCode) => perSource.find((s) => s.source === source)?.quotesFetched ?? 0;
     const brvmQuotesOk = !flags.brvmQuotes || quotesOf("BRVM_OFFICIEL") > 0;
@@ -496,6 +553,14 @@ export async function runFullIngestion(options: RunFullIngestionOptions = {}): P
           indexEnrichment = await timed("index-enrichment", () =>
             runIndexEnrichmentOnDailyCron(ms, (msg) => logger(`[ingest→indices] ${msg}`))
           );
+          if (indexEnrichment) {
+            indexCodesToTip = [
+              ...new Set([
+                ...snapshot.reconciledIndices.map((row) => row.code),
+                ...indexEnrichment.perCode.filter((row) => row.upserted > 0).map((row) => row.code),
+              ]),
+            ];
+          }
         } catch (err) {
           logger(`[ingest→indices] enrichissement ignoré : ${err instanceof Error ? err.message : String(err)}`);
         }
@@ -545,66 +610,40 @@ export async function runFullIngestion(options: RunFullIngestionOptions = {}): P
       }
     }
 
-    let chartSeries: RefreshChartSeriesSummary | null = null;
-    if (!plan.chartSeries.run) {
-      skip("chart-series", plan.chartSeries.reason ?? "budget épuisé", false);
+    const followCompanies = plan.chartSeries.run
+      ? [...new Set(snapshot.reconciledPrices.map((r) => r.ticker))]
+      : [];
+    if (followCompanies.length === 0 && indexCodesToTip.length === 0) {
+      skip(
+        "chart-series",
+        chartSeries
+          ? "incrémental déjà exécuté après la persistance"
+          : (plan.chartSeries.reason ?? "budget épuisé"),
+        false
+      );
     } else {
-      const ms = liveSlice(plan.chartSeries.budgetMs, 8_000);
-      if (ms <= 0) skip("chart-series", "reste insuffisant au moment de démarrer", false);
+      const ms = followCompanies.length > 0 ? liveSlice(plan.chartSeries.budgetMs, 4_000) : Math.min(8_000, Math.max(0, budget.remainingMs() - INGEST_SAFETY_MS));
+      if (ms < 3_000) skip("chart-series", "reste insuffisant au moment de démarrer", false);
       else {
         try {
-          chartSeries = await timed("chart-series", async () => {
-            const touched = [...new Set(snapshot.reconciledPrices.map((r) => r.ticker))];
-            const indexReserve = ms >= 14_000 ? 6_000 : 0;
-            const companyBudget = ms - indexReserve;
-            const maxCompanies = Math.max(1, Math.floor(companyBudget / 2_500));
-            const companySlice = sliceTickersForRun(touched, utcEpochDay(budget.startedAtMs), maxCompanies);
-            let summary: RefreshChartSeriesSummary | null = null;
-            if (companySlice.selected.length > 0) {
-              summary = await refreshChartSeries({
-                symbols: companySlice.selected,
-                kinds: ["COMPANY"],
-                timeBudgetMs: companyBudget,
-                logger: (msg) => logger(`[ingest→charts] ${msg}`),
-              });
-            }
-            if (indexReserve >= 6_000) {
-              const indices = await refreshChartSeries({
-                kinds: ["INDEX"],
-                timeBudgetMs: indexReserve,
-                logger: (msg) => logger(`[ingest→charts] ${msg}`),
-              });
-              summary = summary
-                ? {
-                    ...summary,
-                    indicesUpdated: indices.indicesUpdated,
-                    rowsUpserted: summary.rowsUpserted + indices.rowsUpserted,
-                    incomplete: summary.incomplete || indices.incomplete,
-                    nextSymbol: summary.nextSymbol ?? indices.nextSymbol,
-                    durationMs: summary.durationMs + indices.durationMs,
-                    skippedMissingTable: summary.skippedMissingTable || indices.skippedMissingTable,
-                  }
-                : indices;
-            }
-            if (companySlice.deferred.length > 0) {
-              logger(`[ingest→charts] sociétés différées=${companySlice.deferred.length} (fenêtre du jour)`);
-            }
-            if (!summary) {
-              const nowIso = new Date().toISOString();
-              return {
-                startedAt: nowIso,
-                finishedAt: nowIso,
-                durationMs: 0,
-                incomplete: false,
-                nextSymbol: null,
-                companiesUpdated: 0,
-                indicesUpdated: 0,
-                rowsUpserted: 0,
-                skippedMissingTable: false,
-              };
-            }
-            return summary;
-          });
+          const followUp = await timed("chart-series", () =>
+            tipIngestCharts(logger, budget, followCompanies, indexCodesToTip, ms)
+          );
+          if (followUp) {
+            chartSeries = chartSeries
+              ? {
+                  ...chartSeries,
+                  companiesUpdated: chartSeries.companiesUpdated + followUp.companiesUpdated,
+                  indicesUpdated: chartSeries.indicesUpdated + followUp.indicesUpdated,
+                  rowsUpserted: chartSeries.rowsUpserted + followUp.rowsUpserted,
+                  incomplete: chartSeries.incomplete || followUp.incomplete,
+                  nextSymbol: followUp.nextSymbol ?? chartSeries.nextSymbol,
+                  durationMs: chartSeries.durationMs + followUp.durationMs,
+                  skippedMissingTable: chartSeries.skippedMissingTable || followUp.skippedMissingTable,
+                  finishedAt: followUp.finishedAt,
+                }
+              : followUp;
+          }
         } catch (err) {
           logger(`[ingest→charts] refresh ignoré : ${err instanceof Error ? err.message : String(err)}`);
         }

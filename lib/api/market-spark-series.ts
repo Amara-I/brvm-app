@@ -4,9 +4,11 @@ import { prisma } from "@/lib/prisma";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 import { readCachedSparkSeriesByTicker } from "@/lib/charts/refresh-chart-series";
-import { adjustSeries, sessionChangePercent, splitBetween } from "@/lib/corporate-actions/adjust";
+import { adjustSeries } from "@/lib/corporate-actions/adjust";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
 import type { AdjustmentAction } from "@/lib/corporate-actions/types";
+import { sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
+import type { DataSourceCode } from "@/lib/ingestion/types";
 
 function sparkFromRows(
   companies: Array<{ id: string; ticker: string }>,
@@ -88,10 +90,10 @@ export async function getMarketSparkSeriesByTicker(): Promise<Record<string, Cha
 }
 
 /**
- * Variation journalière par ticker pour le tableau Marché.
- * Priorité : `change_percent` officiel de la dernière clôture canonique
- * (colonne BRVM « Variation (%) ») ; sinon recalcul vs séance précédente
- * (écart ≤ 14 jours).
+ * Variation journalière (portefeuille, listes, screener).
+ * Séance de bourse précédente, même sans ligne canonique, ou variation
+ * officielle publiée. Ne saute pas un jour seulement parce que
+ * `is_canonical` est faux.
  */
 export async function getMarketDayChangeByTicker(): Promise<Record<string, number | null>> {
   const companies = await prisma.company.findMany({
@@ -109,11 +111,17 @@ export async function getMarketDayChangeByTicker(): Promise<Record<string, numbe
   const rows = await prisma.priceHistory.findMany({
     where: {
       companyId: { in: companies.map((c) => c.id) },
-      isCanonical: true,
       date: { lte: now, gte: from },
     },
     orderBy: [{ companyId: "asc" }, { date: "desc" }],
-    select: { companyId: true, date: true, closePrice: true, changePercent: true },
+    select: {
+      companyId: true,
+      date: true,
+      closePrice: true,
+      changePercent: true,
+      source: true,
+      isCanonical: true,
+    },
   });
 
   let actions = new Map<string, AdjustmentAction[]>();
@@ -124,40 +132,25 @@ export async function getMarketDayChangeByTicker(): Promise<Record<string, numbe
   }
 
   const idToTicker = new Map(companies.map((c) => [c.id, c.ticker]));
-  const byCompany = new Map<string, typeof rows>();
+  const byCompany = new Map<string, SessionCloseRow[]>();
   for (const row of rows) {
+    const close = Number(row.closePrice);
+    if (!(close > 0)) continue;
     const list = byCompany.get(row.companyId) ?? [];
-    list.push(row);
+    list.push({
+      date: row.date.toISOString().slice(0, 10),
+      close,
+      source: row.source as DataSourceCode,
+      changePercent: row.changePercent != null ? Number(row.changePercent) : null,
+      isCanonical: row.isCanonical,
+    });
     byCompany.set(row.companyId, list);
   }
 
   for (const [companyId, list] of byCompany) {
     const ticker = idToTicker.get(companyId);
     if (!ticker || list.length === 0) continue;
-    const latest = list[0]!;
-    const stored =
-      latest.changePercent != null ? Math.round(Number(latest.changePercent) * 100) / 100 : null;
-    const tickerActions = actions.get(ticker) ?? [];
-    if (list.length < 2) {
-      out[ticker] = stored;
-      continue;
-    }
-    const prev = list[1]!;
-    const prevDate = prev.date.toISOString().slice(0, 10);
-    const lastDate = latest.date.toISOString().slice(0, 10);
-    const gapDays = (latest.date.getTime() - prev.date.getTime()) / (24 * 3600 * 1000);
-    const acrossSplit = splitBetween(tickerActions, prevDate, lastDate);
-    if (!acrossSplit && stored != null) {
-      out[ticker] = stored;
-      continue;
-    }
-    if (!acrossSplit && gapDays > 14) continue;
-    out[ticker] = sessionChangePercent(
-      { date: prevDate, close: Number(prev.closePrice) },
-      { date: lastDate, close: Number(latest.closePrice) },
-      acrossSplit ? null : stored,
-      tickerActions
-    );
+    out[ticker] = sessionDayChangePercent(list, actions.get(ticker) ?? []);
   }
 
   return out;

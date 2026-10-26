@@ -10,73 +10,80 @@
 // jusqu'à l'étape 6. C'est un comportement ATTENDU, pas un bug : l'endpoint
 // est conçu et testé dès maintenant pour ne pas avoir à le retoucher ensuite.
 //
-// "Top hausses/baisses" : calculé à partir des DEUX points de cours
-// CANONIQUES les plus récents de chaque société. Avec les données seedées
-// (étape 2, un point par année), cela reflète une variation annuelle plutôt
-// que journalière — cela deviendra une vraie variation quotidienne dès que
-// le cron alimentera `price_history` au jour le jour (étape 6).
+// "Top hausses/baisses" : variation de la dernière séance de bourse contre
+// la séance précédente (ligne canonique ou, à défaut, source prioritaire),
+// ou la variation officielle publiée. Les cours sont ajustés des fractionnements.
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { prisma } from "@/lib/prisma";
 import { apiSuccess, cacheHeaders } from "@/lib/api/response";
+import { closeForSession, sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
+import { loadRecentIndexLevels } from "@/lib/api/market-summary-snapshot";
 import { isHeadlineIndex } from "@/lib/markets/index-catalog";
+import { priceDivisor } from "@/lib/corporate-actions/adjust";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import type { DataSourceCode } from "@/lib/ingestion/types";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const indices = await prisma.marketIndex.findMany({
-    include: {
-      values: {
-        where: { isCanonical: true },
-        orderBy: { date: "desc" },
-        take: 1,
-      },
-    },
-  });
+  const levels = await loadRecentIndexLevels();
+  const headline = levels.filter((row) => isHeadlineIndex(row.code));
+  const otherIndices = levels.filter((row) => !isHeadlineIndex(row.code));
 
-  const serializedIndices = indices
-    .filter((idx) => idx.values.length > 0)
-    .map((idx) => ({
-      code: idx.code,
-      name: idx.name,
-      value: Number(idx.values[0].value),
-      changePercent: idx.values[0].changePercent !== null ? Number(idx.values[0].changePercent) : null,
-      date: idx.values[0].date.toISOString().slice(0, 10),
-      source: idx.values[0].source,
-    }));
-
-  const headline = serializedIndices.filter((i) => isHeadlineIndex(i.code));
-  const otherIndices = serializedIndices.filter((i) => !isHeadlineIndex(i.code));
-
-  // Top hausses / baisses : dernier + avant-dernier cours canonique par société.
+  // Top hausses / baisses : séance précédente réelle (canonique ou non).
   const companies = await prisma.company.findMany({
     where: { isActive: true },
     select: { id: true, ticker: true, name: true, color: true },
   });
+  const now = new Date();
+  const from = new Date(now);
+  from.setUTCDate(from.getUTCDate() - 21);
   const priceRows = await prisma.priceHistory.findMany({
-    where: { companyId: { in: companies.map((c) => c.id) }, isCanonical: true },
+    where: { companyId: { in: companies.map((c) => c.id) }, date: { lte: now, gte: from } },
     orderBy: [{ companyId: "asc" }, { date: "desc" }],
+    select: {
+      companyId: true,
+      date: true,
+      closePrice: true,
+      changePercent: true,
+      source: true,
+      isCanonical: true,
+    },
   });
-
-  const byCompany = new Map<string, typeof priceRows>();
+  const actions = await actionsByTicker().catch(() => new Map());
+  const byCompany = new Map<string, SessionCloseRow[]>();
   for (const row of priceRows) {
+    const close = Number(row.closePrice);
+    if (!(close > 0)) continue;
     const list = byCompany.get(row.companyId) ?? [];
-    if (list.length < 2) list.push(row);
+    list.push({
+      date: row.date.toISOString().slice(0, 10),
+      close,
+      source: row.source as DataSourceCode,
+      changePercent: row.changePercent != null ? Number(row.changePercent) : null,
+      isCanonical: row.isCanonical,
+    });
     byCompany.set(row.companyId, list);
   }
 
   const movers = companies
     .map((c) => {
-      const [latest, previous] = byCompany.get(c.id) ?? [];
-      if (!latest || !previous) return null;
-      const changePercent = ((Number(latest.closePrice) - Number(previous.closePrice)) / Number(previous.closePrice)) * 100;
+      const list = byCompany.get(c.id) ?? [];
+      if (list.length === 0) return null;
+      const changePercent = sessionDayChangePercent(list, actions.get(c.ticker) ?? []);
+      if (changePercent == null) return null;
+      const dates = [...new Set(list.map((row) => row.date.slice(0, 10)))].sort();
+      const last = closeForSession(list, dates[dates.length - 1]!);
+      if (!last) return null;
+      const divisor = priceDivisor(actions.get(c.ticker) ?? [], last.date);
       return {
         ticker: c.ticker,
         name: c.name,
         color: c.color,
-        price: Number(latest.closePrice),
-        date: latest.date.toISOString().slice(0, 10),
-        changePercent: Math.round(changePercent * 100) / 100,
+        price: Math.round((last.close / divisor) * 100) / 100,
+        date: last.date.slice(0, 10),
+        changePercent,
       };
     })
     .filter((m): m is NonNullable<typeof m> => m !== null);

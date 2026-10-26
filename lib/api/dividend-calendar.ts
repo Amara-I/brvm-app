@@ -6,6 +6,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import { presentDividend } from "@/lib/corporate-actions/present-quotes";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 
 export type DividendDatePrecision = "payment" | "ex" | "exercice";
 
@@ -128,6 +131,13 @@ async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
     mergedDates.set(key, cur);
   }
 
+  let actions = new Map<string, AdjustmentAction[]>();
+  try {
+    actions = await actionsByTicker();
+  } catch {
+    actions = new Map();
+  }
+
   const events: DividendCalendarEvent[] = [];
   const yearSet = new Set<number>();
   const calendarYearSet = new Set<number>();
@@ -137,8 +147,8 @@ async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
   const today = toIsoDate(new Date());
 
   for (const row of rows) {
-    const amount = Number(row.amount);
-    if (!Number.isFinite(amount) || amount <= 0) continue;
+    const rawAmount = Number(row.amount);
+    if (!Number.isFinite(rawAmount) || rawAmount <= 0) continue;
 
     const merged = mergedDates.get(`${row.companyId}:${row.year}`);
     const paymentDate = merged?.paymentDate
@@ -151,6 +161,9 @@ async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
       : row.exDate
         ? toIsoDate(row.exDate)
         : null;
+    const tickerActions = actions.get(row.company.ticker) ?? [];
+    const amount = presentDividend(rawAmount, row.year, exDate, tickerActions);
+    if (!(amount > 0)) continue;
 
     let precision: DividendDatePrecision;
     let displayDate: string;

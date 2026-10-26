@@ -1,8 +1,9 @@
 // GET /api/cron/refresh-chart-series — rebuild borné des séries précalculées.
-// Non listé dans vercel.json (quota Hobby = 2 crons). Appelé après /api/cron/ingest
-// et manuellement :
+// Non listé dans vercel.json (quota Hobby = 2 crons). Les séries déjà à jour
+// (dernière date + empreinte de fractionnement) sont sautées : relancer la
+// même URL fait converger le reste. `after=TICKER` reprend après un symbole.
 //   curl -H "Authorization: Bearer $CRON_SECRET" \
-//     "https://<host>/api/cron/refresh-chart-series?budgetMs=45000"
+//     "https://<host>/api/cron/refresh-chart-series?budgetMs=45000&after=SNTS"
 
 import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
@@ -24,6 +25,7 @@ export async function GET(request: NextRequest) {
     ?.split(",")
     .map((s) => s.trim().toUpperCase())
     .filter(Boolean);
+  const after = q.get("after")?.trim().toUpperCase() || undefined;
   const kindsRaw = q.get("kinds");
   const kinds = kindsRaw
     ? kindsRaw
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest) {
     const summary = await refreshChartSeries({
       symbols: symbols?.length ? symbols : undefined,
       kinds,
+      after,
       timeBudgetMs: Number.isFinite(budgetMs) && budgetMs > 0 ? budgetMs : 45_000,
     });
     return NextResponse.json({ ok: true, data: summary });

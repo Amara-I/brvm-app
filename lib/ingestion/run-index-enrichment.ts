@@ -12,7 +12,7 @@ import { HEADLINE_INDEX_CODES } from "../markets/index-catalog";
 import { sikafinanceConnector, loadSikaIndexSymbols } from "./connectors/sikafinance_connector";
 import { getIndexEnrichmentFlags } from "./connector-config";
 import { fetchBrvm30Composition } from "./fetch-brvm-30-composition";
-import { persistIndexConstituents, persistIndexQuotes } from "./persist";
+import { persistIndexConstituents, persistIndexQuotes, promoteIndexDaysWithoutCanonical } from "./persist";
 import { toIsoDate, shiftIsoDate } from "./parse-utils";
 import { reconcileIndexBatch } from "./reconciliation";
 import { indexHistoryCompatible } from "./sika-market-parser";
@@ -35,6 +35,29 @@ export const MIN_CANONICAL_POINTS_TO_SKIP = 80;
 
 export function shouldSkipIndexHistory(canonicalCount: number, force = false): boolean {
   return !force && canonicalCount >= MIN_CANONICAL_POINTS_TO_SKIP;
+}
+
+function calendarGapDays(fromIso: string, toIso: string): number {
+  const from = Date.parse(`${fromIso.slice(0, 10)}T00:00:00.000Z`);
+  const to = Date.parse(`${toIso.slice(0, 10)}T00:00:00.000Z`);
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return Number.POSITIVE_INFINITY;
+  return Math.round((to - from) / 86_400_000);
+}
+
+/**
+ * Une série dense mais arrêtée (ex. dernier point le 18/09) doit être
+ * retéléchargée. Le seul décompte de points ne suffit pas.
+ */
+export function indexHistoryNeedsRefresh(input: {
+  canonicalCount: number;
+  lastCanonicalDate: string | null;
+  today: string;
+  force?: boolean;
+  freshGapDays?: number;
+}): boolean {
+  if (input.force) return true;
+  if (!input.lastCanonicalDate || input.canonicalCount < MIN_CANONICAL_POINTS_TO_SKIP) return true;
+  return calendarGapDays(input.lastCanonicalDate, input.today) > (input.freshGapDays ?? 4);
 }
 
 export function mergeSikaIndexSymbols(fetched: SikaIndexSymbol[]): SikaIndexSymbol[] {
@@ -186,6 +209,17 @@ export async function runIndexEnrichment(
   const annualFrom = options.annualFromYear ?? DEFAULT_ANNUAL_FROM;
   const deadline = options.timeBudgetMs ? started + options.timeBudgetMs : null;
 
+  try {
+    const sinceIso = shiftIsoDate(toDate, -120) ?? "2026-09-01";
+    const promoted = await promoteIndexDaysWithoutCanonical(db, new Date(`${sinceIso}T00:00:00.000Z`));
+    if (promoted > 0) log(options.logger, `canoniques indices réparés : ${promoted}`);
+  } catch (err) {
+    log(
+      options.logger,
+      `réparation canonique indices ignorée : ${err instanceof Error ? err.message : String(err)}`
+    );
+  }
+
   const summary: IndexEnrichmentSummary = {
     startedAt,
     finishedAt: startedAt,
@@ -275,15 +309,21 @@ export async function runIndexEnrichment(
 
     try {
       const already = canonicalCounts.get(symbol.code) ?? 0;
-      if (shouldSkipIndexHistory(already, options.force === true)) {
-        row.skippedReason = `historique déjà suffisant (${already} points)`;
+      const official = officialByCode.get(symbol.code) ?? null;
+      if (
+        !indexHistoryNeedsRefresh({
+          canonicalCount: already,
+          lastCanonicalDate: official?.date ?? null,
+          today: toDate,
+          force: options.force === true,
+        })
+      ) {
+        row.skippedReason = `historique déjà à jour (${already} points, dernier ${official?.date ?? "n/d"})`;
         summary.codesOk++;
         log(options.logger, `${symbol.code} : ${row.skippedReason}`);
         summary.perCode.push(row);
         continue;
       }
-
-      const official = officialByCode.get(symbol.code) ?? null;
       const add = async (quotes: RawIndexQuote[]) => {
         const persisted = await persistCompatible(db, quotes, official);
         if (persisted.skipped) {
@@ -405,7 +445,7 @@ export async function runIndexEnrichment(
   return summary;
 }
 
-/** Refresh composition + 21 derniers jours Composite / BRVM 30 (cron quotidien). */
+/** Composition + ~50 jours de tous les indices (sauf CAPIBRVM). Une fenêtre GetHistos < 89 j. */
 export async function runIndexEnrichmentOnDailyCron(
   remainingMs: number,
   logger?: (msg: string) => void
@@ -416,7 +456,7 @@ export async function runIndexEnrichmentOnDailyCron(
   const flags = getIndexEnrichmentFlags();
   if (!flags.compositionOnDailyCron && !flags.recentHistoryOnDailyCron) return null;
   const toDate = toIsoDate(new Date());
-  const dailyFrom = shiftIsoDate(toDate, -21) ?? toDate;
+  const dailyFrom = shiftIsoDate(toDate, -50) ?? toDate;
   return runIndexEnrichment({
     includeComposition: flags.compositionOnDailyCron,
     includeHistory: flags.recentHistoryOnDailyCron,
@@ -424,7 +464,6 @@ export async function runIndexEnrichmentOnDailyCron(
     includeMonthly: false,
     includeDaily: flags.recentHistoryOnDailyCron,
     dailyFrom,
-    codes: flags.recentHistoryOnDailyCron ? [...HEADLINE_INDEX_CODES] : [],
     timeBudgetMs: remainingMs,
     logger,
   });
