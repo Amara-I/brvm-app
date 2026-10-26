@@ -50,6 +50,7 @@ import {
   isFibExtensionLevel,
 } from "@/lib/charts/fib-levels";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeSplitLabel } from "@/lib/i18n/split-label";
 import { measureText, ohlcLegend } from "./chart-locale";
 import {
   cloneDrawings,
@@ -655,7 +656,7 @@ export default function TradingChart({
           position: "aboveBar" as const,
           color: TV.textDim,
           shape: "circle" as const,
-          text: mark.label,
+          text: localizeSplitLabel(mark.label, t, format),
           size: 0.6,
         },
       ];

@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { negotiateLocale } from "./config";
+import { createI18n } from "./create-i18n";
 import { displayReason, displaySignal } from "./labels";
 import { diffMessageKeys } from "./message-keys";
 import { en } from "./messages/en";
 import { fr } from "./messages/fr";
+import { localizeSplitLabel } from "./split-label";
 import type { SignalReason } from "@/lib/calc/calc-metrics";
 
 describe("négociation de langue", () => {
@@ -23,6 +25,18 @@ describe("négociation de langue", () => {
 describe("dictionnaires FR / EN", () => {
   it("aligne les clés et refuse les traductions vides ou oubliées", () => {
     expect(diffMessageKeys(fr, en)).toEqual([]);
+  });
+});
+
+describe("fractionnement", () => {
+  it("garde le libellé français et formule l'anglais avec une date en-GB", () => {
+    const label = "Fractionnement 1:10 le 26/10/2026";
+    const french = createI18n("fr");
+    const english = createI18n("en");
+    expect(localizeSplitLabel(label, french.t, french.format)).toBe(label);
+    expect(localizeSplitLabel(label, english.t, english.format)).toBe(
+      "1-for-10 stock split on 26/10/2026"
+    );
   });
 });
 

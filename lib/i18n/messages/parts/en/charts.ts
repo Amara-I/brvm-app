@@ -231,4 +231,9 @@ export const charts = {
     saved: "Analysis saved.",
     deleted: "Analysis deleted.",
   },
+  split: {
+    ratio: "{old}-for-{new}",
+    withDate: "{ratio} stock split on {date}",
+    bare: "{ratio} stock split",
+  },
 } as const;

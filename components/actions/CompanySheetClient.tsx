@@ -20,6 +20,7 @@ import {
   ReferenceLine,
 } from "recharts";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeSplitLabel } from "@/lib/i18n/split-label";
 import type { FormatApi } from "@/lib/i18n/format";
 import { C } from "@/lib/theme/colors";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
@@ -340,11 +341,11 @@ export default function CompanySheetClient({
         return [
           {
             key: marker.effectiveDate,
-            x: shortChart ? formatListingDate(point.time) : point.time.slice(0, 7),
+            x: shortChart ? formatListingDate(point.time, format, nd) : point.time.slice(0, 7),
           },
         ];
       }),
-    [splitMarkers, chartSeries, shortChart]
+    [splitMarkers, chartSeries, shortChart, format, nd]
   );
   const last = rangedSeries[rangedSeries.length - 1] ?? series[series.length - 1];
   const prev = rangedSeries.length >= 2 ? rangedSeries[rangedSeries.length - 2] : null;
@@ -746,7 +747,7 @@ export default function CompanySheetClient({
               </p>
               {splitMarkers.map((marker) => (
                 <p key={marker.effectiveDate} className={styles.splitNote}>
-                  {marker.label}
+                  {localizeSplitLabel(marker.label, t, format)}
                 </p>
               ))}
               <div className={styles.ohlc}>
