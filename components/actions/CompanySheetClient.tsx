@@ -17,6 +17,7 @@ import {
   Tooltip,
   CartesianGrid,
   Legend,
+  ReferenceLine,
 } from "recharts";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { FormatApi } from "@/lib/i18n/format";
@@ -206,6 +207,7 @@ export default function CompanySheetClient({
     series: initialSeries,
     seriesFromChartCache,
     seriesCacheStale,
+    splitMarkers,
     performance,
     sessionDate,
     dayChangePercent,
@@ -239,6 +241,7 @@ export default function CompanySheetClient({
   }, [initialTab, setTab]);
   const [range, setRange] = usePersistedState<ChartRange>(`ouestbourse:sheet:${company.ticker}:range`, "1A");
   const [series, setSeries] = useState<ChartClosePoint[]>(initialSeries);
+  const [liveChange, setLiveChange] = useState<{ pct: number | null; abs: number | null } | null>(null);
   const [denseLoading, setDenseLoading] = useState(false);
   const [documents, setDocuments] = useState(initialDocuments);
   const [incomeStatement, setIncomeStatement] = useState(initialIncomeStatement);
@@ -265,6 +268,13 @@ export default function CompanySheetClient({
             const nextLast = incoming[incoming.length - 1]?.time ?? "";
             return nextLast > prevLast ? incoming : prev;
           });
+          const stats = json.data.stats as { dayChangePercent?: number | null; dayChangeAbs?: number | null } | undefined;
+          if (stats) {
+            setLiveChange({
+              pct: stats.dayChangePercent ?? null,
+              abs: stats.dayChangeAbs ?? null,
+            });
+          }
         }
       } catch {
         /* conserve la série serveur */
@@ -322,11 +332,32 @@ export default function CompanySheetClient({
     return bounds ? ([bounds.min, bounds.max] as [number, number]) : (["auto", "auto"] as ["auto", "auto"]);
   }, [chartSeries]);
   const shortChart = chartSeries.length > 0 && chartSeries.length <= 12;
+  const splitGuides = useMemo(
+    () =>
+      splitMarkers.flatMap((marker) => {
+        const point = chartSeries.find((p) => p.time.slice(0, 10) >= marker.effectiveDate);
+        if (!point) return [];
+        return [
+          {
+            key: marker.effectiveDate,
+            x: shortChart ? formatListingDate(point.time) : point.time.slice(0, 7),
+          },
+        ];
+      }),
+    [splitMarkers, chartSeries, shortChart]
+  );
   const last = rangedSeries[rangedSeries.length - 1] ?? series[series.length - 1];
   const prev = rangedSeries.length >= 2 ? rangedSeries[rangedSeries.length - 2] : null;
-  const price = metrics.currentPrice || last?.value || 0;
-  const chgPct = dayChangePercent ?? (last && prev && prev.value ? ((last.value - prev.value) / prev.value) * 100 : null);
-  const chgAbs = dayChangeAbs ?? (last && prev ? last.value - prev.value : null);
+  const quote = series[series.length - 1];
+  const quotePrev = series.length >= 2 ? series[series.length - 2] : null;
+  const price = quote && quote.value > 0 ? quote.value : metrics.currentPrice || 0;
+  const seriesChg =
+    quote && quotePrev && quotePrev.value > 0
+      ? Math.round(((quote.value - quotePrev.value) / quotePrev.value) * 10000) / 100
+      : null;
+  const seriesAbs = quote && quotePrev ? Math.round((quote.value - quotePrev.value) * 100) / 100 : null;
+  const chgPct = liveChange?.pct ?? dayChangePercent ?? seriesChg;
+  const chgAbs = liveChange?.abs ?? dayChangeAbs ?? seriesAbs;
   const up = (chgPct ?? 0) >= 0;
 
   const ohlc = useMemo(() => {
@@ -713,6 +744,11 @@ export default function CompanySheetClient({
                   {t("company.chart.openCharts")}
                 </button>
               </p>
+              {splitMarkers.map((marker) => (
+                <p key={marker.effectiveDate} className={styles.splitNote}>
+                  {marker.label}
+                </p>
+              ))}
               <div className={styles.ohlc}>
                 <span>
                   <em>{t("company.chart.o")}</em> {ohlc.o}
@@ -753,6 +789,15 @@ export default function CompanySheetClient({
                         contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8 }}
                         labelStyle={{ color: C.text }}
                       />
+                      {splitGuides.map((guide) => (
+                        <ReferenceLine
+                          key={guide.key}
+                          x={guide.x}
+                          stroke={C.gold}
+                          strokeDasharray="3 3"
+                          strokeOpacity={0.7}
+                        />
+                      ))}
                       <Area
                         type="monotone"
                         dataKey="value"

@@ -145,6 +145,8 @@ export interface IndicatorOverlayChip {
   color: string;
 }
 
+const EMPTY_SPLIT_MARKERS: Array<{ effectiveDate: string; label: string }> = [];
+
 export interface TradingChartProps {
   /** Ticker pour persister les tracés (localStorage) entre les visites. */
   ticker: string;
@@ -159,6 +161,8 @@ export interface TradingChartProps {
   compareSeries?: Array<{ id: string; color: string; points: ChartClosePoint[] }>;
   indicators?: ChartIndicatorsState;
   showVolume?: boolean;
+  /** Fractionnements à marquer (libellé déjà formulé côté serveur). */
+  splitMarkers?: Array<{ effectiveDate: string; label: string }>;
   percentScale?: boolean;
   logScale?: boolean;
   height?: number;
@@ -219,6 +223,7 @@ export default function TradingChart({
   compareSeries = [],
   indicators = DEFAULT_INDICATORS,
   showVolume = true,
+  splitMarkers = EMPTY_SPLIT_MARKERS,
   percentScale = false,
   logScale = false,
   height = 560,
@@ -639,18 +644,38 @@ export default function TradingChart({
     candleSeries.setData(candleData);
 
     if (candles.length === 1) {
-      const only = candles[0]!;
-      candleSeries.setMarkers([
-        {
-          time: only.time as Time,
-          position: "inBar",
-          color: only.close >= only.open ? TV.green : TV.red,
-          shape: "circle",
-          size: 2,
-        },
-      ]);
       chart.timeScale().applyOptions({ barSpacing: 14, minBarSpacing: 6, rightOffset: 6 });
     }
+    const splitMarks = splitMarkers.flatMap((mark) => {
+      const hit = candles.find((candle) => String(candle.time) >= mark.effectiveDate);
+      if (!hit) return [];
+      return [
+        {
+          time: hit.time as Time,
+          position: "aboveBar" as const,
+          color: TV.textDim,
+          shape: "circle" as const,
+          text: mark.label,
+          size: 0.6,
+        },
+      ];
+    });
+    const singleMark =
+      candles.length === 1
+        ? [
+            {
+              time: candles[0]!.time as Time,
+              position: "inBar" as const,
+              color: candles[0]!.close >= candles[0]!.open ? TV.green : TV.red,
+              shape: "circle" as const,
+              size: 2,
+            },
+          ]
+        : [];
+    const chartMarkers = [...singleMark, ...splitMarks].sort((a, b) =>
+      String(a.time).localeCompare(String(b.time))
+    );
+    if (chartMarkers.length > 0) candleSeries.setMarkers(chartMarkers);
 
     function applyAutoscaleWithDrawings() {
       // Les tracés (fib inclus) ne doivent PAS élargir l'échelle :
@@ -1329,6 +1354,7 @@ export default function TradingChart({
     compareSeries,
     indicators,
     showVolume,
+    splitMarkers,
     percentScale,
     logScale,
     height,

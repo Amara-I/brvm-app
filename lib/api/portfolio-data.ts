@@ -22,6 +22,10 @@ import {
   type PortfolioHeadline,
 } from "@/lib/calc/other-holding-metrics";
 import { isMissingOtherHoldingsTable } from "@/lib/portfolio/other-holdings-errors";
+import { priceDivisor } from "@/lib/corporate-actions/adjust";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import { displayPosition, type PositionTrade } from "@/lib/corporate-actions/positions";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 
 export type EnrichedHoldingMetrics = HoldingMetrics & {
   buyDate: string | null;
@@ -62,12 +66,46 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
   const allCompanyIds = [...new Set(portfolios.flatMap((p) => p.holdings.map((h) => h.companyId)))];
   const currentYear = new Date().getUTCFullYear();
 
-  const [prices, yearStartPrices, fullDataset, sparkSeries] = await Promise.all([
+  const [prices, yearStartPrices, fullDataset, sparkSeries, splitActions, tradeRows] = await Promise.all([
     getLatestCanonicalPrices(allCompanyIds),
     getYearStartCanonicalPrices(allCompanyIds, currentYear),
     getCompaniesFullDataset(),
     getMarketSparkSeriesByTicker().catch(() => ({})),
+    actionsByTicker().catch(() => new Map<string, AdjustmentAction[]>()),
+    portfolios.length > 0
+      ? prisma.portfolioTrade.findMany({
+          where: { portfolioId: { in: portfolios.map((p) => p.id) } },
+          select: {
+            portfolioId: true,
+            companyId: true,
+            side: true,
+            quantity: true,
+            price: true,
+            tradedAt: true,
+            notes: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
+
+  const tradesByHolding = new Map<string, PositionTrade[]>();
+  for (const trade of tradeRows) {
+    const key = `${trade.portfolioId}:${trade.companyId}`;
+    const list = tradesByHolding.get(key) ?? [];
+    list.push({
+      side: trade.side,
+      quantity: Number(trade.quantity),
+      price: Number(trade.price),
+      tradedAt: trade.tradedAt.toISOString().slice(0, 10),
+      notes: trade.notes,
+    });
+    tradesByHolding.set(key, list);
+  }
+
+  const adjustedClose = (ticker: string, date: Date, close: unknown): number => {
+    const raw = Number(close);
+    return raw / priceDivisor(splitActions.get(ticker) ?? [], date.toISOString().slice(0, 10));
+  };
 
   // Même formule que /marche, screener et fiches : cours alignés + série journalière.
   const metricsByTicker = new Map(
@@ -79,20 +117,40 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
 
   return Promise.all(
     portfolios.map(async (p) => {
+      const displayedById = new Map(
+        p.holdings.map((h) => {
+          const shown = displayPosition(
+            {
+              quantity: Number(h.quantity),
+              avgBuyPrice: Number(h.avgBuyPrice),
+              createdAt: h.createdAt.toISOString(),
+              targetPrice: h.targetPrice != null ? Number(h.targetPrice) : null,
+              stopPrice: h.stopPrice != null ? Number(h.stopPrice) : null,
+            },
+            tradesByHolding.get(`${p.id}:${h.companyId}`) ?? [],
+            splitActions.get(h.company.ticker) ?? []
+          );
+          return [h.id, shown] as const;
+        })
+      );
+
       const metrics = computePortfolioMetrics(
         p.holdings.map((h) => {
           const price = prices.get(h.companyId);
           const yearStartPrice = yearStartPrices.get(h.companyId);
+          const shown = displayedById.get(h.id)!;
           return {
             id: h.id,
             ticker: h.company.ticker,
             name: h.company.name,
             sector: h.company.sector.name,
-            quantity: Number(h.quantity),
-            avgBuyPrice: Number(h.avgBuyPrice),
-            currentPrice: price ? Number(price.closePrice) : null,
+            quantity: shown.quantity,
+            avgBuyPrice: shown.avgBuyPrice,
+            currentPrice: price ? adjustedClose(h.company.ticker, price.date, price.closePrice) : null,
             currentPriceDate: price ? price.date.toISOString().slice(0, 10) : null,
-            yearStartPrice: yearStartPrice ? Number(yearStartPrice.closePrice) : null,
+            yearStartPrice: yearStartPrice
+              ? adjustedClose(h.company.ticker, yearStartPrice.date, yearStartPrice.closePrice)
+              : null,
           };
         })
       );
@@ -131,15 +189,16 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
           buyHorizon,
           analysisScore: analysis?.score ?? null,
           advice,
-          targetPrice: meta?.targetPrice ?? null,
-          stopPrice: meta?.stopPrice ?? null,
+          targetPrice: (hm.id ? displayedById.get(hm.id)?.targetPrice : null) ?? null,
+          stopPrice: (hm.id ? displayedById.get(hm.id)?.stopPrice : null) ?? null,
         };
       });
 
       const navSeries: PortfolioNavPoint[] = await getPortfolioNavSeries(
         p.holdings.map((h) => ({
           companyId: h.companyId,
-          quantity: Number(h.quantity),
+          ticker: h.company.ticker,
+          quantity: displayedById.get(h.id)?.quantity ?? Number(h.quantity),
           sinceDate:
             h.buyDate?.toISOString().slice(0, 10) ?? h.createdAt.toISOString().slice(0, 10),
         }))
@@ -160,17 +219,20 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
         id: p.id,
         name: p.name,
         createdAt: p.createdAt.toISOString(),
-        holdings: p.holdings.map((h) => ({
-          id: h.id,
-          ticker: h.company.ticker,
-          companyName: h.company.name,
-          sector: h.company.sector.name,
-          quantity: Number(h.quantity),
-          avgBuyPrice: Number(h.avgBuyPrice),
-          buyDate: h.buyDate?.toISOString().slice(0, 10) ?? null,
-          buyHorizon: (h.buyHorizon ?? "MOYEN") as BuyHorizonCode,
-          notes: h.notes,
-        })),
+        holdings: p.holdings.map((h) => {
+          const shown = displayedById.get(h.id);
+          return {
+            id: h.id,
+            ticker: h.company.ticker,
+            companyName: h.company.name,
+            sector: h.company.sector.name,
+            quantity: shown?.quantity ?? Number(h.quantity),
+            avgBuyPrice: shown?.avgBuyPrice ?? Number(h.avgBuyPrice),
+            buyDate: h.buyDate?.toISOString().slice(0, 10) ?? null,
+            buyHorizon: (h.buyHorizon ?? "MOYEN") as BuyHorizonCode,
+            notes: h.notes,
+          };
+        }),
         metrics: {
           ...metrics,
           holdings: enrichedHoldings,

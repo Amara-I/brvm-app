@@ -161,6 +161,7 @@ interface ChartApiPayload {
   };
   /** Série déjà peinte (fiche) — remplacée quand l'API renvoie une fenêtre différente. */
   provisional?: boolean;
+  corporateActions?: Array<{ effectiveDate: string; label: string }>;
 }
 
 function buildProvisionalPayload(
@@ -1169,7 +1170,12 @@ export default function ChartWorkbench({
 
         <div className={styles.chartCol}>
           <div className={styles.legendBar}>{ohlcLegend ?? defaultLegend ?? "—"}</div>
-          {intervalNote && <div className={styles.intervalNote}>{localizeIntervalNote(intervalNote, t)}</div>}
+{intervalNote && <div className={styles.intervalNote}>{localizeIntervalNote(intervalNote, t)}</div>}
+{payload?.corporateActions?.map((action) => (
+  <div key={action.effectiveDate} className={styles.splitNote}>
+    {action.label}
+  </div>
+))} main
           <div className={styles.chartShell}>
             {payload ? (
               <TradingChart
@@ -1177,6 +1183,7 @@ export default function ChartWorkbench({
                 series={mainSeries}
                 fullSeries={historySeries}
                 interval={interval}
+                splitMarkers={payload.corporateActions}
                 compareSeries={compareSeries}
                 indicators={indicators}
                 showVolume={hasRealVolume}
