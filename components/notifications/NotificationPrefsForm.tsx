@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { BRVM_DAILY_COLLAR_PCT, DEFAULT_PREFS, type PrefsSnapshot } from "@/lib/notifications/types";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeSharedApiMessage } from "@/lib/i18n/localize-api";
+import { BRVM_DAILY_COLLAR_MAX_PCT, BRVM_DAILY_COLLAR_PCT, DEFAULT_PREFS, type PrefsSnapshot } from "@/lib/notifications/types";
 import styles from "./NotificationPrefsForm.module.css";
 
 export default function NotificationPrefsForm() {
+  const { t, labels } = useI18n();
   const [prefs, setPrefs] = useState<PrefsSnapshot>(DEFAULT_PREFS);
   const [emailAvailable, setEmailAvailable] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -21,10 +24,10 @@ export default function NotificationPrefsForm() {
           setEmailAvailable(Boolean(json.data.emailAvailable));
         }
       } catch {
-        setError("Impossible de charger les préférences.");
+        setError(t("notifications.prefs.loadError"));
       }
     })();
-  }, []);
+  }, [t]);
 
   function toggle<K extends keyof PrefsSnapshot>(key: K, value: PrefsSnapshot[K]) {
     setPrefs((p) => ({ ...p, [key]: value }));
@@ -42,17 +45,31 @@ export default function NotificationPrefsForm() {
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Enregistrement impossible.");
+        setError(
+          typeof json.error === "string"
+            ? localizeSharedApiMessage(json.error, t)
+            : t("notifications.prefs.saveError")
+        );
         return;
       }
       setPrefs(json.data.prefs as PrefsSnapshot);
-      setMessage("Préférences enregistrées.");
+      setMessage(t("notifications.prefs.saved"));
     } catch {
-      setError("Enregistrement impossible.");
+      setError(t("notifications.prefs.saveError"));
     } finally {
       setSaving(false);
     }
   }
+
+  const buy = labels.signal("ACHAT");
+  const strong = labels.signal("ACHAT FORT");
+  const rows = [
+    ["priceEnabled", t("notifications.types.price"), t("notifications.prefs.priceHint")],
+    ["signalEnabled", t("notifications.types.signals"), t("notifications.prefs.signalHint", { buy, strong })],
+    ["portfolioEnabled", t("notifications.types.portfolio"), t("notifications.prefs.portfolioHint")],
+    ["indexEnabled", t("notifications.types.indices"), t("notifications.prefs.indexHint")],
+    ["systemEnabled", t("notifications.types.system"), t("notifications.prefs.systemHint")],
+  ] as const;
 
   return (
     <form
@@ -64,17 +81,9 @@ export default function NotificationPrefsForm() {
       }}
     >
       <section className={styles.section}>
-        <h2 className={styles.title}>Types d&apos;alertes</h2>
-        <p className={styles.lead}>Désactivez un type pour ne plus recevoir ces événements (in-app et e-mail).</p>
-        {(
-          [
-            ["priceEnabled", "Prix", "Seuils FCFA, variation journalière, horizon 1S/1M"],
-            ["signalEnabled", "Signaux", "Entrée en ACHAT / ACHAT FORT (max. 1/jour/titre)"],
-            ["portfolioEnabled", "Portefeuille", "Mouvement fort, objectif / stop"],
-            ["indexEnabled", "Indices", "BRVM Composite et BRVM 30"],
-            ["systemEnabled", "Système", "Rappels d'ouverture / clôture"],
-          ] as const
-        ).map(([key, label, hint]) => (
+        <h2 className={styles.title}>{t("notifications.prefs.typesTitle")}</h2>
+        <p className={styles.lead}>{t("notifications.prefs.typesLead")}</p>
+        {rows.map(([key, label, hint]) => (
           <label key={key} className={styles.row}>
             <span className={styles.label}>
               {label}
@@ -90,11 +99,11 @@ export default function NotificationPrefsForm() {
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.title}>Canaux et rythme</h2>
+        <h2 className={styles.title}>{t("notifications.prefs.channelsTitle")}</h2>
         <label className={styles.row}>
           <span className={styles.label}>
-            In-app
-            <span className={styles.hint}>Centre de notifications et cloche du header</span>
+            {t("notifications.prefs.inApp")}
+            <span className={styles.hint}>{t("notifications.prefs.inAppHint")}</span>
           </span>
           <input
             type="checkbox"
@@ -104,11 +113,9 @@ export default function NotificationPrefsForm() {
         </label>
         <label className={styles.row}>
           <span className={styles.label}>
-            E-mail
+            {t("notifications.prefs.email")}
             <span className={styles.hint}>
-              {emailAvailable
-                ? "Envoi à l'adresse du compte lorsque le courrier est configuré"
-                : "Non configuré sur ce déploiement — l'in-app reste actif"}
+              {emailAvailable ? t("notifications.prefs.emailOn") : t("notifications.prefs.emailOff")}
             </span>
           </span>
           <input
@@ -119,59 +126,59 @@ export default function NotificationPrefsForm() {
           />
         </label>
         <label className={styles.row}>
-          <span className={styles.label}>Mode e-mail</span>
+          <span className={styles.label}>{t("notifications.prefs.emailMode")}</span>
           <select
             className={styles.input}
             value={prefs.deliveryMode}
             onChange={(e) => toggle("deliveryMode", e.target.value as PrefsSnapshot["deliveryMode"])}
           >
-            <option value="REALTIME">Temps réel (hors heures calmes)</option>
-            <option value="DIGEST">Digest (envoi groupé en fin de séance)</option>
+            <option value="REALTIME">{t("notifications.prefs.realtime")}</option>
+            <option value="DIGEST">{t("notifications.prefs.digest")}</option>
           </select>
         </label>
         <div className={styles.fields}>
           <label className={styles.field}>
-            Début heures calmes
+            {t("notifications.prefs.quietStart")}
             <select
               className={styles.input}
               value={prefs.quietHoursStart ?? ""}
               onChange={(e) => toggle("quietHoursStart", e.target.value === "" ? null : Number(e.target.value))}
             >
-              <option value="">Aucune</option>
+              <option value="">{t("notifications.prefs.quietNone")}</option>
               {Array.from({ length: 24 }, (_, h) => (
                 <option key={h} value={h}>
-                  {String(h).padStart(2, "0")} h
+                  {t("notifications.prefs.hour", { hour: String(h).padStart(2, "0") })}
                 </option>
               ))}
             </select>
           </label>
           <label className={styles.field}>
-            Fin heures calmes
+            {t("notifications.prefs.quietEnd")}
             <select
               className={styles.input}
               value={prefs.quietHoursEnd ?? ""}
               onChange={(e) => toggle("quietHoursEnd", e.target.value === "" ? null : Number(e.target.value))}
             >
-              <option value="">Aucune</option>
+              <option value="">{t("notifications.prefs.quietNone")}</option>
               {Array.from({ length: 24 }, (_, h) => (
                 <option key={h} value={h}>
-                  {String(h).padStart(2, "0")} h
+                  {t("notifications.prefs.hour", { hour: String(h).padStart(2, "0") })}
                 </option>
               ))}
             </select>
           </label>
         </div>
         <p className={styles.lead} style={{ marginTop: 10 }}>
-          Fuseau Africa/Abidjan. Les heures calmes différent uniquement l&apos;e-mail — l&apos;in-app reste immédiat.
+          {t("notifications.prefs.quietNote")}
         </p>
       </section>
 
       <section className={styles.section}>
-        <h2 className={styles.title}>Seuils portefeuille / indices</h2>
+        <h2 className={styles.title}>{t("notifications.prefs.thresholdsTitle")}</h2>
         <label className={styles.row}>
           <span className={styles.label}>
-            Rappel ouverture / clôture
-            <span className={styles.hint}>Si l&apos;évaluateur tourne vers 9h ou 15h–17h Abidjan</span>
+            {t("notifications.prefs.session")}
+            <span className={styles.hint}>{t("notifications.prefs.sessionHint")}</span>
           </span>
           <input
             type="checkbox"
@@ -181,7 +188,7 @@ export default function NotificationPrefsForm() {
         </label>
         <div className={styles.fields}>
           <label className={styles.field}>
-            Mouvement ligne portefeuille (%)
+            {t("notifications.prefs.portfolioMove")}
             <input
               className={styles.input}
               type="number"
@@ -193,7 +200,7 @@ export default function NotificationPrefsForm() {
             />
           </label>
           <label className={styles.field}>
-            Mouvement indice (%)
+            {t("notifications.prefs.indexMove")}
             <input
               className={styles.input}
               type="number"
@@ -206,12 +213,12 @@ export default function NotificationPrefsForm() {
           </label>
         </div>
         <p className={styles.lead} style={{ marginTop: 10 }}>
-          Collier BRVM typique : ±{BRVM_DAILY_COLLAR_PCT} % par séance (plafond saisi 10 %).
+          {t("notifications.prefs.collar", { collar: BRVM_DAILY_COLLAR_PCT, max: BRVM_DAILY_COLLAR_MAX_PCT })}
         </p>
       </section>
 
       <button type="submit" className={styles.save} disabled={saving}>
-        {saving ? "Enregistrement…" : "Enregistrer les préférences"}
+        {saving ? t("notifications.prefs.saving") : t("notifications.prefs.save")}
       </button>
       {message ? <p className={styles.ok}>{message}</p> : null}
       {error ? <p className={styles.err}>{error}</p> : null}

@@ -7,10 +7,12 @@ import { resetPasswordSchema } from "@/lib/auth/schemas";
 import { consumeAuthToken } from "@/lib/auth/tokens";
 import { hashPassword } from "@/lib/auth/password";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  const { t } = getI18n();
   const body = await request.json().catch(() => null);
   const parsed = resetPasswordSchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);
@@ -18,7 +20,7 @@ export async function POST(request: NextRequest) {
   try {
     const consumed = await consumeAuthToken(parsed.data.token, "PASSWORD_RESET");
     if (!consumed) {
-      return apiError("Ce lien de réinitialisation est invalide ou a expiré. Demandez-en un nouveau.", 400);
+      return apiError(t("common.api.resetLinkInvalid"), 400);
     }
 
     const passwordHash = await hashPassword(parsed.data.password);
@@ -32,7 +34,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
-      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+      return apiError(t("common.unavailable"), 503);
     }
     throw error;
   }

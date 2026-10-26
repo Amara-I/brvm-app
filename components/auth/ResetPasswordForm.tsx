@@ -3,7 +3,9 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { messageFromAuthJson } from "./api-message";
 import PasswordField from "./PasswordField";
 import styles from "./AuthForm.module.css";
 
@@ -12,6 +14,7 @@ type Props = {
 };
 
 export default function ResetPasswordForm({ token }: Props) {
+  const { t } = useI18n();
   const router = useRouter();
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -23,11 +26,11 @@ export default function ResetPasswordForm({ token }: Props) {
     setError(null);
 
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`);
+      setError(t("auth.passwordMin", { count: MIN_PASSWORD_LENGTH }));
       return;
     }
     if (password !== confirm) {
-      setError("Les deux mots de passe ne correspondent pas.");
+      setError(t("auth.passwordMismatch"));
       return;
     }
 
@@ -41,7 +44,7 @@ export default function ResetPasswordForm({ token }: Props) {
     setLoading(false);
 
     if (!res.ok) {
-      setError(json?.error ?? "Ce lien est invalide ou a expiré.");
+      setError(messageFromAuthJson(json, t, t("auth.reset.expired")));
       return;
     }
 
@@ -52,7 +55,7 @@ export default function ResetPasswordForm({ token }: Props) {
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
       <PasswordField
         id="password"
-        label={`Nouveau mot de passe (${MIN_PASSWORD_LENGTH} caractères minimum)`}
+        label={t("auth.reset.password", { count: MIN_PASSWORD_LENGTH })}
         value={password}
         onChange={setPassword}
         autoComplete="new-password"
@@ -60,7 +63,7 @@ export default function ResetPasswordForm({ token }: Props) {
       />
       <PasswordField
         id="confirm"
-        label="Confirmer le nouveau mot de passe"
+        label={t("auth.reset.confirm")}
         value={confirm}
         onChange={setConfirm}
         autoComplete="new-password"
@@ -74,11 +77,11 @@ export default function ResetPasswordForm({ token }: Props) {
       ) : null}
 
       <button type="submit" className={styles.submit} disabled={loading}>
-        {loading ? "Enregistrement…" : "Enregistrer le mot de passe"}
+        {loading ? t("auth.saving") : t("auth.reset.submit")}
       </button>
 
       <p className={styles.footer}>
-        <Link href="/mot-de-passe-oublie">Demander un nouveau lien</Link>
+        <Link href="/mot-de-passe-oublie">{t("auth.reset.requestNew")}</Link>
       </p>
     </form>
   );

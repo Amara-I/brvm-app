@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState, type ReactNode } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { C } from "@/lib/theme/colors";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import {
@@ -35,6 +36,7 @@ export default function FilterableSheetTable({
       })),
     [columns]
   );
+  const { t } = useI18n();
   const [colSort, setColSort] = useState<ColumnSortState | null>(null);
   const filtered = useMemo(() => applyColumnSort(rows, defs, colSort), [rows, defs, colSort]);
 
@@ -47,7 +49,7 @@ export default function FilterableSheetTable({
         {filtered.length === 0 ? (
           <tr>
             <td colSpan={columns.length} style={{ color: C.textDim }}>
-              Aucune ligne.
+              {t("company.noRows")}
             </td>
           </tr>
         ) : (

@@ -35,8 +35,16 @@ import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import { trackFeature } from "@/components/analytics/track-client";
 import EducationTermLink from "@/components/education/EducationTermLink";
-import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
-import { educationSlugForRiskPillar } from "@/lib/education/analysis-terms";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import {
+  displayPillarNote,
+  displayRiskSummary,
+  translateExchangeName,
+  translateExchangeRegion,
+} from "@/components/marche/market-copy";
+import { educationSlugForAnalysisLabel, educationSlugForRiskPillar } from "@/lib/education/analysis-terms";
+import type { TFunc } from "@/lib/i18n/create-i18n";
+import type { FormatApi } from "@/lib/i18n/format";
 import { frameCompanyForPortfolioType, type PortfolioTypeId } from "@/lib/portfolio-types";
 import { usePortfolioType } from "@/lib/portfolio-types/use-portfolio-type";
 import PortfolioTypeSelector from "@/components/portfolio-types/PortfolioTypeSelector";
@@ -54,12 +62,23 @@ export interface MarketBoardClientProps {
 
 const COL_COUNT = 11;
 const PAGE_SIZE = 20;
+const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+};
 
 type MarketRow = CompanyFullDataset;
 
-function formatMktCap(mktcap: number): string {
+function formatCap(mktcap: number, format: FormatApi, t: TFunc): string {
   if (!(mktcap > 0)) return "N/D";
-  return `${mktcap.toLocaleString("fr-FR")} Mds`;
+  return t("market.cap", { amount: format.number(mktcap) });
+}
+
+function AnalysisLabel({ french, text }: { french: string; text: string }) {
+  const slug = educationSlugForAnalysisLabel(french);
+  if (!slug) return <>{text}</>;
+  return <EducationTermLink slug={slug}>{text}</EducationTermLink>;
 }
 
 export default function MarketBoardClient({
@@ -69,6 +88,7 @@ export default function MarketBoardClient({
   initialDayChanges = {},
   preferredPortfolioType = null,
 }: MarketBoardClientProps) {
+  const { t, format, labels } = useI18n();
   const pathname = usePathname();
   const router = useRouter();
   const pageKey = `ouestbourse:marche:${pathname}`;
@@ -95,9 +115,7 @@ export default function MarketBoardClient({
   const [colSort, setColSort] = useState<ColumnSortState | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [lastUpdate, setLastUpdate] = useState(() =>
-    new Date(initialData.generatedAt).toLocaleDateString("fr-FR")
-  );
+  const [lastUpdate, setLastUpdate] = useState(() => format.date(initialData.generatedAt, NUMERIC_DATE));
 
   const exchange = getExchange(DEFAULT_EXCHANGE_CODE);
   const companies = dataset.companies;
@@ -179,17 +197,17 @@ export default function MarketBoardClient({
 
   const marketColDefs = useMemo<ColumnFilterDef<MarketRow>[]>(
     () => [
-      { key: "ticker", label: "Ticker", getValue: (co) => co.ticker, sortKind: "text" },
-      { key: "name", label: "Société", getValue: (co) => co.name, sortKind: "text" },
+      { key: "ticker", label: t("market.columns.ticker"), getValue: (co) => co.ticker, sortKind: "text" },
+      { key: "name", label: t("market.columns.company"), getValue: (co) => co.name, sortKind: "text" },
       {
         key: "sector",
-        label: "Domaine d'activité",
+        label: t("market.columns.activity"),
         getValue: (co) => co.sector || "N/D",
         sortKind: "text",
       },
       {
         key: "dayChg",
-        label: "Var. j.",
+        label: t("market.columns.dayChange"),
         sortKind: "number",
         getValue: (co) => {
           const d = dayChangeByTicker.get(co.ticker);
@@ -198,7 +216,7 @@ export default function MarketBoardClient({
       },
       {
         key: "apercu",
-        label: "Aperçu",
+        label: t("market.columns.preview"),
         sortKind: "number",
         getValue: (co) => {
           const chg = sparkByTicker.get(co.ticker)?.changePct;
@@ -207,7 +225,7 @@ export default function MarketBoardClient({
       },
       {
         key: "price",
-        label: "Cours",
+        label: t("market.columns.price"),
         sortKind: "number",
         getValue: (co) => {
           const p = metricsByTicker.get(co.ticker)?.currentPrice ?? 0;
@@ -216,36 +234,36 @@ export default function MarketBoardClient({
       },
       {
         key: "mktcap",
-        label: "Cap. boursière",
+        label: t("market.columns.mktCap"),
         sortKind: "number",
-        getValue: (co) => formatMktCap(co.mktcap),
+        getValue: (co) => (!(co.mktcap > 0) ? "N/D" : String(co.mktcap)),
       },
       {
         key: "yield",
-        label: "Rend. div.",
+        label: t("market.columns.divYieldShort"),
         sortKind: "number",
         getValue: (co) => String(metricsByTicker.get(co.ticker)?.dividendYieldPercent ?? ""),
       },
       {
         key: "score",
-        label: "Score",
+        label: t("market.columns.score"),
         sortKind: "number",
         getValue: (co) => String(metricsByTicker.get(co.ticker)?.score ?? ""),
       },
       {
         key: "signal",
-        label: "Signal",
+        label: t("market.columns.signal"),
         sortKind: "text",
         getValue: (co) => metricsByTicker.get(co.ticker)?.signal.label ?? "",
       },
       {
         key: "confidence",
-        label: "Confiance",
+        label: t("market.columns.confidence"),
         sortKind: "text",
         getValue: (co) => metricsByTicker.get(co.ticker)?.confidence ?? "",
       },
     ],
-    [metricsByTicker, sparkByTicker, dayChangeByTicker]
+    [metricsByTicker, sparkByTicker, dayChangeByTicker, t]
   );
 
   const displayRows = useMemo(
@@ -276,7 +294,7 @@ export default function MarketBoardClient({
         const json = await res.json();
         if (json.ok && json.data?.dataset) {
           setDataset(json.data.dataset as CompaniesFullDataset);
-          setLastUpdate(new Date(json.data.dataset.generatedAt).toLocaleDateString("fr-FR"));
+          setLastUpdate(format.date(json.data.dataset.generatedAt, NUMERIC_DATE));
         }
         if (json.ok && json.data?.sparkSeries) {
           setSparkSeriesByTicker(json.data.sparkSeries as Record<string, ChartClosePoint[]>);
@@ -297,7 +315,7 @@ export default function MarketBoardClient({
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [format]);
 
   /** Recharge cours + séries depuis la base (sans re-scraper BRVM) pour recalculer le score. */
   const reloadFromDb = useCallback(async () => {
@@ -311,7 +329,7 @@ export default function MarketBoardClient({
         const sparkJson = await sparkRes.json();
         if (fullJson.ok && fullJson.data) {
           setDataset(fullJson.data as CompaniesFullDataset);
-          setLastUpdate(new Date(fullJson.data.generatedAt).toLocaleDateString("fr-FR"));
+          setLastUpdate(format.date(fullJson.data.generatedAt, NUMERIC_DATE));
         }
         if (sparkJson.ok && sparkJson.data?.sparkSeries) {
           setSparkSeriesByTicker(sparkJson.data.sparkSeries as Record<string, ChartClosePoint[]>);
@@ -323,7 +341,7 @@ export default function MarketBoardClient({
         // best-effort : le prochain cycle ou Actualiser suffira
       }
     });
-  }, []);
+  }, [format]);
 
   useEffect(() => {
     const SOFT_MS = 3 * 60_000;
@@ -373,6 +391,7 @@ export default function MarketBoardClient({
         avgYield={avgYield}
         indexPills={indexPills}
         currency={exchange.currency}
+        exchangeCode={exchange.code}
         exchangeName={exchange.name}
         region={exchange.region}
       />
@@ -381,47 +400,45 @@ export default function MarketBoardClient({
         <div className={styles.boardHead}>
           <div>
             <h2 className={styles.boardTitle}>
-              Positions · {displayRows.length}
-              {displayRows.length > PAGE_SIZE ? ` (affichées ${pagedRows.length})` : ""}
+              {t("market.board.positions", { count: displayRows.length })}
+              {displayRows.length > PAGE_SIZE
+                ? ` ${t("market.board.shown", { count: pagedRows.length })}`
+                : ""}
             </h2>
-            <p className={styles.boardSub}>
-              Données clés et éléments d&apos;analyse — cliquez une ligne pour déplier les indices.
-              L&apos;aperçu suit le cours sur l&apos;horizon choisi ; les horizons courts affichent N/D
-              si l&apos;historique journalier est insuffisant.
-            </p>
+            <p className={styles.boardSub}>{t("market.board.subtitle")}</p>
           </div>
           <div className={styles.filters}>
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Rechercher (ticker, nom)…"
-              aria-label="Rechercher une position"
+              placeholder={t("market.board.searchPlaceholder")}
+              aria-label={t("market.board.searchAria")}
               className={styles.search}
             />
             <select
               value={sectorFilter}
               onChange={(e) => setSectorFilter(e.target.value)}
-              aria-label="Secteur"
+              aria-label={t("market.board.sectorAria")}
               className={styles.select}
             >
               {sectors.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {s === "Tous" ? t("market.all") : labels.sector(s)}
                 </option>
               ))}
             </select>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-              aria-label="Tri"
+              aria-label={t("market.board.sortAria")}
               className={styles.select}
             >
-              <option value="score">Trier par Score</option>
-              <option value="mktcap">Trier par Capitalisation</option>
-              <option value="yield">Trier par Dividende</option>
-              <option value="price">Trier par Cours</option>
-              <option value="perf5">Trier par Perf. 5 ans</option>
+              <option value="score">{t("market.board.sortScore")}</option>
+              <option value="mktcap">{t("market.board.sortCap")}</option>
+              <option value="yield">{t("market.board.sortYield")}</option>
+              <option value="price">{t("market.board.sortPrice")}</option>
+              <option value="perf5">{t("market.board.sortPerf5")}</option>
             </select>
           </div>
         </div>
@@ -445,9 +462,9 @@ export default function MarketBoardClient({
                         ...d,
                         header: (
                           <span className={styles.apercuHead}>
-                            <span>Aperçu</span>
+                            <span>{t("market.columns.preview")}</span>
                             <label className={styles.horizonInline}>
-                              <span className={styles.srOnly}>Horizon historique</span>
+                              <span className={styles.srOnly}>{t("market.board.horizonLabel")}</span>
                               <HorizonSelect value={horizon} onChange={handleHorizon} />
                             </label>
                           </span>
@@ -464,9 +481,9 @@ export default function MarketBoardClient({
                 <tr>
                   <td colSpan={COL_COUNT} className={styles.empty}>
                     {companies.length === 0 ? (
-                      <span className={styles.skeletonHint}>Chargement des positions…</span>
+                      <span className={styles.skeletonHint}>{t("market.board.loading")}</span>
                     ) : (
-                      "Aucune position ne correspond."
+                      t("market.board.empty")
                     )}
                   </td>
                 </tr>
@@ -497,8 +514,8 @@ export default function MarketBoardClient({
                             expanded={open}
                             label={
                               open
-                                ? `Masquer le détail de ${co.ticker}`
-                                : `Afficher le détail de ${co.ticker}`
+                                ? t("market.board.hideDetail", { ticker: co.ticker })
+                                : t("market.board.showDetail", { ticker: co.ticker })
                             }
                             onClick={(event) => {
                               event.stopPropagation();
@@ -513,19 +530,16 @@ export default function MarketBoardClient({
                         <td>
                           <div className={styles.name}>{co.name}</div>
                         </td>
-                        <td className={styles.sectorCell} title="Domaine d'activité">
-                          {co.sector?.trim() ? co.sector : "N/D"}
+                        <td className={styles.sectorCell} title={t("market.board.activityTitle")}>
+                          {co.sector?.trim() ? labels.sector(co.sector) : "N/D"}
                         </td>
                         <td className={styles.dayChg}>
-                          <ChangeValue
-                            value={dayChg}
-                            title="Variation journalière (vs séance précédente)"
-                          />
+                          <ChangeValue value={dayChg} title={t("market.board.dayChangeTitle")} />
                         </td>
                         <td>
                           <div className={styles.sparkCell}>
                             <MarketSparkline values={spark.values} width={140} height={36} />
-                            <span className={styles.sparkChg} title="Variation début → fin sur l'horizon">
+                            <span className={styles.sparkChg} title={t("market.board.horizonChangeTitle")}>
                               {chg == null ? (
                                 <span className="ob-nd">N/D</span>
                               ) : (
@@ -536,11 +550,11 @@ export default function MarketBoardClient({
                         </td>
                         <td className={styles.num}>
                           {m.currentPrice > 0
-                            ? `${m.currentPrice.toLocaleString("fr-FR")} ${exchange.currency}`
+                            ? `${format.number(m.currentPrice)} ${exchange.currency}`
                             : "N/D"}
                         </td>
                         <td className={styles.num} style={{ color: C.gold }}>
-                          {formatMktCap(co.mktcap)}
+                          {formatCap(co.mktcap, format, t)}
                         </td>
                         <td className={styles.num} style={{ color: C.teal }}>
                           {m.dividendYieldPercent}%
@@ -554,9 +568,18 @@ export default function MarketBoardClient({
                           </span>
                         </td>
                         <td>
-                          <SignalBadge label={m.signal.label} title={m.signalSummary} />
+                          <SignalBadge
+                            label={m.signal.label}
+                            title={labels.signalSummary({
+                              label: m.signal.label,
+                              score: m.score,
+                              confidence: m.confidence,
+                              signalSummary: m.signalSummary,
+                              signalReasons: m.signalReasons,
+                            })}
+                          />
                         </td>
-                        <td className={styles.meta}>{m.confidence}</td>
+                        <td className={styles.meta}>{labels.confidence(m.confidence)}</td>
                       </tr>
                       {open && (
                         <tr className={styles.detailRow}>
@@ -585,7 +608,7 @@ export default function MarketBoardClient({
               className={styles.moreBtn}
               onClick={() => setVisibleCount((n) => Math.min(n + PAGE_SIZE, displayRows.length))}
             >
-              Afficher la suite ({displayRows.length - visibleCount} restantes)
+              {t("market.board.showMore", { count: displayRows.length - visibleCount })}
             </button>
           </div>
         ) : null}
@@ -609,64 +632,89 @@ function ExpandedPanel({
   portfolioType: PortfolioTypeId;
   onPrefetch?: (href: string) => void;
 }) {
+  const { t, format, labels, locale } = useI18n();
   const perf10 = m.perf10Percent === "N/D" ? null : parseFloat(m.perf10Percent);
   const vol = m.volatilityPercent === "N/D" ? null : parseFloat(m.volatilityPercent);
 
-  const cards: Array<{ label: string; value: string; color?: string }> = [
+  const cards: Array<{ key: string; label: string; text: string; value: string; color?: string }> = [
     {
+      key: "price",
       label: "Cours actuel",
-      value: m.currentPrice > 0 ? `${m.currentPrice.toLocaleString("fr-FR")} ${currency}` : "N/D",
+      text: t("market.cards.price"),
+      value: m.currentPrice > 0 ? `${format.number(m.currentPrice)} ${currency}` : "N/D",
     },
     {
+      key: "mktcap",
       label: "Cap. boursière",
-      value: formatMktCap(company.mktcap),
+      text: t("market.cards.mktCap"),
+      value: formatCap(company.mktcap, format, t),
       color: C.gold,
     },
     {
+      key: "perf5",
       label: "Perf. 5 ans",
+      text: t("market.cards.perf5"),
       value: m.perf5Percent === "N/D" ? "N/D" : `${parseFloat(m.perf5Percent) >= 0 ? "+" : ""}${m.perf5Percent}%`,
       color: m.perf5Percent === "N/D" ? C.textDim : parseFloat(m.perf5Percent) >= 0 ? C.green : C.red,
     },
     {
+      key: "perf10",
       label: "Perf. 10 ans",
+      text: t("market.cards.perf10"),
       value: perf10 == null ? "N/D" : `${perf10 >= 0 ? "+" : ""}${m.perf10Percent}%`,
       color: perf10 == null ? C.textDim : perf10 >= 0 ? C.green : C.red,
     },
     {
+      key: "yield",
       label: "Rendement div.",
+      text: t("market.cards.divYield"),
       value: `${m.dividendYieldPercent}%`,
       color: C.teal,
     },
     {
+      key: "per",
       label: "PER",
+      text: t("market.cards.per"),
       value: company.per > 0 ? company.per.toFixed(2) : "N/D",
       color: C.blue,
     },
     {
+      key: "vol",
       label: "Volatilité",
+      text: t("market.cards.volatility"),
       value: vol == null ? "N/D" : `${m.volatilityPercent}%`,
     },
     {
+      key: "risk",
       label: "Risque (volatilité)",
-      value: m.riskLevel,
+      text: t("market.cards.riskVol"),
+      value: labels.riskLevel(m.riskLevel),
     },
     {
+      key: "riskMgmt",
       label: "Gestion du risque",
-      value: `${m.riskAnalysis.riskTier} · ${m.riskAnalysis.riskScore}/100`,
+      text: t("market.cards.riskMgmt"),
+      value: `${labels.riskTier(m.riskAnalysis.riskTier)} · ${m.riskAnalysis.riskScore}/100`,
       color:
         m.riskAnalysis.riskScore < 40 ? C.green : m.riskAnalysis.riskScore > 65 ? C.red : C.gold,
     },
     {
+      key: "horizons",
       label: "Horizons C/M/L",
+      text: t("market.cards.horizons"),
       value: `${m.horizonScores.court} / ${m.horizonScores.moyen} / ${m.horizonScores.long}`,
     },
     {
+      key: "confidence",
       label: "Confiance",
-      value: m.confidence,
+      text: t("market.cards.confidence"),
+      value: labels.confidence(m.confidence),
     },
     {
+      key: "score",
       label: "Score / Signal",
-      value: `${m.score}/100 · ${m.signal.label}`,
+      text: t("market.cards.scoreSignal"),
+      value: `${m.score}/100 · ${labels.signal(m.signal.label)}`,
       color: m.signal.color,
     },
   ];
@@ -682,16 +730,24 @@ function ExpandedPanel({
         })}
         compact
       />
-      <p className={styles.detailSummary}>{m.signalSummary}</p>
+      <p className={styles.detailSummary}>
+        {labels.signalSummary({
+          label: m.signal.label,
+          score: m.score,
+          confidence: m.confidence,
+          signalSummary: m.signalSummary,
+          signalReasons: m.signalReasons,
+        })}
+      </p>
       <p className={styles.detailSummary} style={{ color: C.textDim, fontSize: "0.78rem" }}>
-        {m.riskAnalysis.summary}
+        {displayRiskSummary(m.riskAnalysis, locale, labels)}
       </p>
       <div className={styles.detailGrid}>
         {cards.map((c) => {
           return (
-            <div key={c.label} className={styles.detailCard}>
+            <div key={c.key} className={styles.detailCard}>
               <div className={styles.detailLabel}>
-                <LinkedAnalysisLabel text={c.label} />
+                <AnalysisLabel french={c.label} text={c.text} />
               </div>
               <div className={styles.detailValue} style={c.color ? { color: c.color } : undefined} title={c.value}>
                 {c.value}
@@ -704,11 +760,12 @@ function ExpandedPanel({
         <ul className={styles.reasonList}>
           {m.riskAnalysis.pillars.map((p) => {
             const slug = educationSlugForRiskPillar(p.key);
+            const pillarLabel = labels.riskPillar(p.key, p.label);
             return (
               <li key={p.key}>
                 <span aria-hidden="true">●</span>{" "}
-                {slug ? <EducationTermLink slug={slug}>{p.label}</EducationTermLink> : p.label} :{" "}
-                {p.score == null ? "N/D" : `${p.score}/100`} — {p.note}
+                {slug ? <EducationTermLink slug={slug}>{pillarLabel}</EducationTermLink> : pillarLabel} :{" "}
+                {p.score == null ? "N/D" : `${p.score}/100`} — {displayPillarNote(p.note, locale, labels)}
               </li>
             );
           })}
@@ -719,7 +776,7 @@ function ExpandedPanel({
           {m.signalReasons.map((r, i) => (
             <li key={`${r.kind}-${i}`}>
               <span aria-hidden="true">{r.kind === "positif" ? "▲" : r.kind === "negatif" ? "▼" : "●"}</span>{" "}
-              {r.text}
+              {labels.reason(r)}
             </li>
           ))}
         </ul>
@@ -733,7 +790,7 @@ function ExpandedPanel({
           onMouseEnter={() => onPrefetch?.(`/actions/${company.ticker}`)}
           onFocus={() => onPrefetch?.(`/actions/${company.ticker}`)}
         >
-          Détails société cotée
+          {t("market.board.companyDetails")}
         </Link>
         <Link
           href={`/graphes?ticker=${company.ticker}`}
@@ -743,7 +800,7 @@ function ExpandedPanel({
           onMouseEnter={() => onPrefetch?.(`/graphes?ticker=${company.ticker}`)}
           onFocus={() => onPrefetch?.(`/graphes?ticker=${company.ticker}`)}
         >
-          Analyse graphique
+          {t("market.board.chartAnalysis")}
         </Link>
       </div>
     </div>
@@ -751,49 +808,50 @@ function ExpandedPanel({
 }
 
 function ScoreExplainer() {
+  const { t, labels } = useI18n();
+  const levels = {
+    low: labels.confidence("Faible"),
+    mid: labels.confidence("Moyenne"),
+    high: labels.confidence("Élevée"),
+  };
   return (
     <section className={styles.scoreBox} aria-labelledby="score-how">
       <h3 id="score-how" className={styles.scoreBoxTitle}>
-        Comment le score est calculé
+        {t("market.score.title")}
       </h3>
-      <p className={styles.scoreBoxLead}>
-        Le score (0–100) combine un volet technique multi-horizons (court / moyen / long), un volet
-        fondamental (dividendes, PER) et un garde-fou de risque (marché, liquidité, fondamental,
-        opérationnel). Il se recalcule dès qu’un nouveau cours est en base (cron horaire, bouton
-        « Actualiser », ou rechargement auto de la page). Il alimente le signal (ACHAT FORT / ACHAT /
-        CONSERVER / ALLÉGER / VENDRE).
-      </p>
+      <p className={styles.scoreBoxLead}>{t("market.score.lead")}</p>
       <ol className={styles.scoreList}>
         <li>
           <strong>
-            <EducationTermLink slug="score-technique">Technique multi-horizons</EducationTermLink> (40 %)
+            <EducationTermLink slug="score-technique">{t("market.score.tech")}</EducationTermLink>{" "}
+            {t("market.score.weight40")}
           </strong>{" "}
-          — court ~1 an, moyen ~5 ans, long ~10 ans + valorisation.
+          {t("market.score.techBody")}
         </li>
         <li>
           <strong>
-            <EducationTermLink slug="score-fondamental">Fondamental</EducationTermLink> (40 %)
+            <EducationTermLink slug="score-fondamental">{t("market.score.fundamental")}</EducationTermLink>{" "}
+            {t("market.score.weight40")}
           </strong>{" "}
-          — rendement et régularité des dividendes, PER.
+          {t("market.score.fundamentalBody")}
         </li>
         <li>
           <strong>
-            <EducationTermLink slug="gestion-du-risque">Risque inversé</EducationTermLink> (20 %)
+            <EducationTermLink slug="gestion-du-risque">{t("market.score.risk")}</EducationTermLink>{" "}
+            {t("market.score.weight20")}
           </strong>{" "}
-          — plus le score de risque est bas, plus la contribution est favorable (VaR / drawdown / cap. /
-          secteur quand disponibles).
+          {t("market.score.riskBody")}
         </li>
         <li>
           <strong>
-            <EducationTermLink slug="confiance-du-signal">Confiance</EducationTermLink>
+            <EducationTermLink slug="confiance-du-signal">{t("market.score.confidence")}</EducationTermLink>
           </strong>{" "}
-          — historique court : les signaux extrêmes sont plafonnés.
+          {t("market.score.confidenceBody")}
         </li>
       </ol>
       <p className={styles.scoreBoxNote}>
-        La <strong>confiance</strong> (Faible / Moyenne / Élevée) dépend de la profondeur d&apos;historique
-        de cours. Une confiance faible peut plafonner les signaux extrêmes. Analyse informative
-        uniquement — ce n&apos;est pas un conseil en investissement.
+        {t("market.score.noteLead")} <strong>{t("market.score.noteWord")}</strong>{" "}
+        {t("market.score.noteRest", levels)}
       </p>
     </section>
   );
@@ -809,58 +867,61 @@ function MarketChrome(props: {
   avgYield: string;
   indexPills: MarketSummarySnapshot["headlineIndices"];
   currency: string;
+  exchangeCode: string;
   exchangeName: string;
   region: string;
 }) {
+  const { t, format } = useI18n();
+  const region = translateExchangeRegion(props.exchangeCode, props.region, t);
+  const kpis = [
+    { key: "listed", l: t("market.kpi.listed"), v: String(props.companiesCount), c: C.blue },
+    {
+      key: "cap",
+      l: t("market.kpi.totalCap"),
+      v:
+        props.totalMktCap > 0
+          ? t("market.capCurrency", { amount: format.number(props.totalMktCap), currency: props.currency })
+          : "N/D",
+      c: C.gold,
+    },
+    { key: "yield", l: t("market.kpi.avgYield"), v: props.avgYield, c: C.green },
+    { key: "buy", l: t("market.kpi.buySignals"), v: String(props.buySignals), c: C.green },
+  ];
   return (
     <div className={marketStyles.shell}>
       <div className={marketStyles.topBar}>
         <div className={marketStyles.topRow}>
           <div>
-            <div className={marketStyles.label}>Marché</div>
-            <h1 className={marketStyles.pageTitle}>Vue d&apos;ensemble</h1>
-            <p className={marketStyles.marketIdentity}>{props.exchangeName}</p>
+            <div className={marketStyles.label}>{t("market.title")}</div>
+            <h1 className={marketStyles.pageTitle}>{t("market.overview")}</h1>
+            <p className={marketStyles.marketIdentity}>
+              {translateExchangeName(props.exchangeCode, props.exchangeName, t)}
+            </p>
             <p className={marketStyles.marketMeta}>
-              {props.region} · Devise {props.currency}
+              {t("market.exchange.meta", { region, currency: props.currency })}
             </p>
           </div>
           <div className={marketStyles.actions}>
             <div style={{ fontSize: "0.72rem", color: C.textDim }}>
               <span className="ob-live-dot ob-pulse" aria-hidden="true" />
-              Dernière MAJ : <span style={{ color: C.gold }}>{props.lastUpdate}</span>
+              {t("market.lastUpdate")} <span style={{ color: C.gold }}>{props.lastUpdate}</span>
             </div>
             <button
               type="button"
               className={styles.primaryBtn}
               onClick={props.onRefresh}
               disabled={props.refreshing}
-              aria-label={
-                props.refreshing
-                  ? "Actualisation des cours BRVM en cours"
-                  : "Actualiser les cours BRVM"
-              }
+              aria-label={props.refreshing ? t("market.refreshingAria") : t("market.refreshAria")}
             >
-              {props.refreshing ? "⟳ Actualisation..." : "⟳ Actualiser les cours"}
+              {props.refreshing ? t("market.refreshing") : t("market.refresh")}
             </button>
           </div>
         </div>
       </div>
 
       <div className={marketStyles.kpiStrip}>
-        {[
-          { l: "Sociétés cotées", v: String(props.companiesCount), c: C.blue },
-          {
-            l: "Capitalisation totale",
-            v:
-              props.totalMktCap > 0
-                ? `${props.totalMktCap.toLocaleString("fr-FR")} Mds ${props.currency}`
-                : "N/D",
-            c: C.gold,
-          },
-          { l: "Rend. moyen marché", v: props.avgYield, c: C.green },
-          { l: "Signaux ACHAT", v: String(props.buySignals), c: C.green },
-        ].map((k) => (
-          <div key={k.l} className={marketStyles.kpiCard}>
+        {kpis.map((k) => (
+          <div key={k.key} className={marketStyles.kpiCard}>
             <div className={marketStyles.kpiLabel}>{k.l}</div>
             <div className={`${marketStyles.kpiValue} ob-num`} style={{ color: k.c }}>
               {k.v === "N/D" ? <span className="ob-nd">N/D</span> : k.v}
@@ -868,10 +929,10 @@ function MarketChrome(props: {
           </div>
         ))}
       </div>
-      <div className={marketStyles.indicesStrip} aria-label="Indices">
+      <div className={marketStyles.indicesStrip} aria-label={t("market.indicesAria")}>
         {props.indexPills.length === 0 ? (
           <Link href="/indices" className={marketStyles.indexPill}>
-            <div className={marketStyles.indexName}>Indices</div>
+            <div className={marketStyles.indexName}>{t("market.indices.title")}</div>
             <div className={marketStyles.indexValue} style={{ color: C.textDim }}>
               N/D
             </div>
@@ -881,7 +942,7 @@ function MarketChrome(props: {
             <Link key={idx.code} href={`/indices/${idx.code}`} className={marketStyles.indexPill}>
               <div className={marketStyles.indexName}>{idx.name}</div>
               <div className={`${marketStyles.indexValue} ob-num`}>
-                {idx.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}
+                {format.number(idx.value, { maximumFractionDigits: 2 })}
               </div>
               <div className={marketStyles.indexChg}>
                 <ChangeValue value={idx.changePercent} />

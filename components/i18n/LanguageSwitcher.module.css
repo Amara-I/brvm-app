@@ -1,0 +1,45 @@
+.group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--c-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c-panel) 82%, transparent);
+  flex-shrink: 0;
+}
+
+.btn {
+  appearance: none;
+  border: 0;
+  margin: 0;
+  background: transparent;
+  color: var(--c-textdim);
+  font-family: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  padding: 6px 9px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  color: var(--c-text);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--c-gold);
+  outline-offset: 1px;
+}
+
+.btn[aria-pressed="true"] {
+  background: var(--c-gold);
+  color: #1a1206;
+}
+
+.groupLanding .btn[aria-pressed="true"] {
+  background: var(--c-gold);
+  color: #1a1206;
+}

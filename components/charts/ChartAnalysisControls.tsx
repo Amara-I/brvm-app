@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { ChartDrawing } from "@/lib/charts/chart-drawings-storage";
 import type { ChartIndicatorsState } from "@/components/charts/TradingChart";
 import type { ChartRange } from "@/lib/charts/indicators";
 import type { CandleInterval } from "@/lib/charts/ohlc-aggregate";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { formatSavedAt, localizeApiMessage } from "./chart-locale";
 import styles from "./ChartWorkbench.module.css";
 
 export interface SavedAnalysisSummary {
@@ -51,6 +53,7 @@ export default function ChartAnalysisControls({
   onOpenChange?: (open: boolean) => void;
   savedCount?: number;
 }) {
+  const { t, format } = useI18n();
   const [internalOpen, setInternalOpen] = useState(false);
   const panelOpen = open ?? internalOpen;
   const setPanelOpen = onOpenChange ?? setInternalOpen;
@@ -60,6 +63,8 @@ export default function ChartAnalysisControls({
   const [name, setName] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const defaultNameRef = useRef("");
+  const tickerRef = useRef(ticker);
 
   const listCount = savedCount ?? analyses.length;
 
@@ -73,34 +78,43 @@ export default function ChartAnalysisControls({
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Impossible de charger les analyses.");
+        setError(localizeApiMessage(json.error ?? "Impossible de charger les analyses.", t));
         setAnalyses([]);
         return;
       }
       setAnalyses((json.data?.analyses ?? []) as SavedAnalysisSummary[]);
     } catch {
-      setError("Impossible de charger les analyses.");
+      setError(t("charts.errors.loadAnalyses"));
       setAnalyses([]);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, ticker]);
+  }, [isAuthenticated, ticker, t]);
 
   useEffect(() => {
     if (panelOpen && isAuthenticated) void loadList();
   }, [panelOpen, isAuthenticated, loadList]);
 
   useEffect(() => {
-    setName(`Analyse ${ticker}`);
-    setMessage(null);
-    setError(null);
-  }, [ticker]);
+    const nextDefault = t("charts.analysis.defaultName", { ticker });
+    const tickerChanged = tickerRef.current !== ticker;
+    tickerRef.current = ticker;
+    const previousDefault = defaultNameRef.current;
+    defaultNameRef.current = nextDefault;
+    setName((current) =>
+      tickerChanged || current === "" || current === previousDefault ? nextDefault : current
+    );
+    if (tickerChanged) {
+      setMessage(null);
+      setError(null);
+    }
+  }, [ticker, t]);
 
   async function saveAnalysis() {
     if (!isAuthenticated) return;
     const trimmed = name.trim();
     if (!trimmed) {
-      setError("Indiquez un nom pour l'analyse.");
+      setError(t("charts.errors.analysisNameRequired"));
       return;
     }
     setSaving(true);
@@ -122,18 +136,15 @@ export default function ChartAnalysisControls({
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
-        const detail =
-          typeof json?.details?.reason === "string"
-            ? ` (${json.details.reason})`
-            : "";
-        setError((json?.error ?? "Enregistrement impossible.") + detail);
+        const detail = typeof json?.details?.reason === "string" ? ` (${json.details.reason})` : "";
+        setError(localizeApiMessage(json?.error ?? "Enregistrement impossible.", t) + detail);
         return;
       }
-      setMessage("Analyse enregistrée.");
+      setMessage(t("charts.analysis.saved"));
       await loadList();
       onSaved?.();
     } catch {
-      setError("Enregistrement impossible.");
+      setError(t("charts.errors.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -145,27 +156,26 @@ export default function ChartAnalysisControls({
       const res = await fetch(`/api/charts/analyses/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Suppression impossible.");
+        setError(localizeApiMessage(json.error ?? "Suppression impossible.", t));
         return;
       }
       setAnalyses((prev) => prev.filter((a) => a.id !== id));
-      setMessage("Analyse supprimée.");
+      setMessage(t("charts.analysis.deleted"));
       onSaved?.();
     } catch {
-      setError("Suppression impossible.");
+      setError(t("charts.errors.deleteFailed"));
     }
   }
 
   if (!isAuthenticated) {
-    const callback =
-      loginCallbackPath ?? `/graphes?ticker=${encodeURIComponent(ticker)}`;
+    const callback = loginCallbackPath ?? `/graphes?ticker=${encodeURIComponent(ticker)}`;
     return (
       <Link
         href={`/connexion?callbackUrl=${encodeURIComponent(callback)}`}
         className={styles.ghostBtnEnabled}
-        title="Connectez-vous pour enregistrer et rouvrir vos analyses graphiques"
+        title={t("charts.analysis.signIn")}
       >
-        Mes analyses
+        {t("charts.analysis.button")}
       </Link>
     );
   }
@@ -177,45 +187,36 @@ export default function ChartAnalysisControls({
         className={panelOpen ? styles.toolPillActive : styles.ghostBtnEnabled}
         aria-expanded={panelOpen}
         aria-haspopup="dialog"
-        title="Ouvrir, charger ou enregistrer une analyse graphique"
+        title={t("charts.analysis.openTitle")}
         onClick={() => setPanelOpen(!panelOpen)}
       >
-        Mes analyses
+        {t("charts.analysis.button")}
         {listCount > 0 ? <span className={styles.analysisBadge}>{listCount}</span> : null}
       </button>
       {panelOpen && (
-        <div className={styles.analysisPanel} role="dialog" aria-label="Analyses graphiques sauvegardées">
+        <div className={styles.analysisPanel} role="dialog" aria-label={t("charts.analysis.dialog")}>
           <p className={styles.analysisLead}>
-            Rouvrez une analyse enregistrée avec le bouton <strong>Charger</strong> — tracés,
-            indicateurs, plage et comparaisons sont restaurés.
+            {t("charts.analysis.leadBefore")}
+            <strong>{t("charts.analysis.load")}</strong>
+            {t("charts.analysis.leadAfter")}
           </p>
           <div className={styles.analysisListHead}>
-            <span>Analyses enregistrées ({ticker})</span>
+            <span>{t("charts.analysis.savedFor", { ticker })}</span>
             <button type="button" className={styles.analysisLinkBtn} onClick={() => void loadList()}>
-              Actualiser
+              {t("charts.analysis.refresh")}
             </button>
           </div>
           {loading ? (
-            <p className={styles.analysisHint}>Chargement…</p>
+            <p className={styles.analysisHint}>{t("common.loading")}</p>
           ) : analyses.length === 0 ? (
-            <p className={styles.analysisHint}>
-              Aucune analyse enregistrée pour ce titre. Configurez le graphique puis enregistrez-la
-              ci-dessous.
-            </p>
+            <p className={styles.analysisHint}>{t("charts.analysis.none")}</p>
           ) : (
             <ul className={styles.analysisList}>
               {analyses.map((a) => (
                 <li key={a.id} className={styles.analysisItem}>
                   <div>
                     <strong>{a.name}</strong>
-                    <span>
-                      {new Date(a.updatedAt).toLocaleString("fr-FR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                    <span>{formatSavedAt(a.updatedAt, format, false)}</span>
                   </div>
                   <div className={styles.analysisItemActions}>
                     <button
@@ -224,17 +225,17 @@ export default function ChartAnalysisControls({
                       onClick={() => {
                         onApply(a);
                         setPanelOpen(false);
-                        setMessage(`Analyse « ${a.name} » chargée.`);
+                        setMessage(t("charts.analysis.loaded", { name: a.name }));
                       }}
                     >
-                      Charger
+                      {t("charts.analysis.load")}
                     </button>
                     <button
                       type="button"
                       className={styles.analysisDangerBtn}
                       onClick={() => void removeAnalysis(a.id)}
                     >
-                      Supprimer
+                      {t("charts.analysis.delete")}
                     </button>
                   </div>
                 </li>
@@ -242,12 +243,10 @@ export default function ChartAnalysisControls({
             </ul>
           )}
           <div className={styles.analysisDivider} aria-hidden />
-          <p className={styles.analysisSectionTitle}>Enregistrer l&apos;analyse actuelle</p>
-          <p className={styles.analysisHint}>
-            Sauvegarde cloud liée à votre compte — tracés, indicateurs, plage et intervalle.
-          </p>
+          <p className={styles.analysisSectionTitle}>{t("charts.analysis.saveTitle")}</p>
+          <p className={styles.analysisHint}>{t("charts.analysis.saveHint")}</p>
           <label className={styles.analysisLabel}>
-            Nom
+            {t("charts.analysis.name")}
             <input
               className={styles.analysisInput}
               value={name}
@@ -261,7 +260,7 @@ export default function ChartAnalysisControls({
             disabled={saving}
             onClick={() => void saveAnalysis()}
           >
-            {saving ? "Enregistrement…" : "Enregistrer maintenant"}
+            {saving ? t("charts.analysis.saving") : t("charts.analysis.saveNow")}
           </button>
           {message && <p className={styles.analysisOk}>{message}</p>}
           {error && <p className={styles.analysisErr}>{error}</p>}

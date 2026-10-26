@@ -2,9 +2,15 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type DragEvent } from "react";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import {
+  errorFromPayload,
+  formatIso,
+  ignoreReasonLabel,
+  localizeStatementNote,
+} from "@/components/portfolio/portfolio-i18n";
 import { parseFrNumber } from "@/lib/portfolio/sgi-statement/french-number";
-import { STATEMENT_ERRORS, STATEMENT_MAX_BYTES } from "@/lib/portfolio/sgi-statement/messages";
-import { IGNORE_REASON_LABEL } from "@/lib/portfolio/sgi-statement/noise";
+import { STATEMENT_MAX_BYTES } from "@/lib/portfolio/sgi-statement/messages";
 import type {
   InstrumentKind,
   MatchConfidence,
@@ -54,18 +60,18 @@ type Draft = {
   priceMode: "FCFA" | "PERCENT";
 };
 
-const KIND_LABEL: Record<InstrumentKind, string> = {
-  action: "Action",
-  obligation: "Obligation",
-  fcp: "FCP",
-};
+function kindLabel(kind: InstrumentKind, t: ReturnType<typeof useI18n>["t"]): string {
+  if (kind === "obligation") return t("portfolio.statement.kindBond");
+  if (kind === "fcp") return t("portfolio.statement.kindFund");
+  return t("portfolio.statement.kindAction");
+}
 
-const CONFIDENCE_LABEL: Record<MatchConfidence, string> = {
-  haute: "Haute",
-  moyenne: "Moyenne",
-  faible: "Faible",
-  aucune: "Aucune",
-};
+function confidenceLabel(level: MatchConfidence, t: ReturnType<typeof useI18n>["t"]): string {
+  if (level === "haute") return t("portfolio.statement.confidenceHigh");
+  if (level === "moyenne") return t("portfolio.statement.confidenceMid");
+  if (level === "faible") return t("portfolio.statement.confidenceLow");
+  return t("portfolio.statement.confidenceNone");
+}
 
 function toInput(value: number | null): string {
   if (value == null) return "";
@@ -73,9 +79,9 @@ function toInput(value: number | null): string {
   return String(value).replace(".", ",");
 }
 
-function formatFcfa(value: number | null): string {
+function formatFcfa(value: number | null, format: ReturnType<typeof useI18n>["format"]): string {
   if (value == null) return "N/D";
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 }).format(value)} FCFA`;
+  return format.fcfa(value);
 }
 
 const STATEMENT_EXTENSIONS = [".pdf", ".csv", ".xlsx", ".xls", ".png", ".jpg", ".jpeg", ".webp", ".heic", ".heif"];
@@ -128,14 +134,18 @@ async function downscaleImage(file: File): Promise<File> {
   }
 }
 
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} o`;
+function formatBytes(
+  bytes: number,
+  format: ReturnType<typeof useI18n>["format"],
+  translate: ReturnType<typeof useI18n>["t"]
+): string {
+  if (bytes < 1024) return translate("portfolio.statement.bytes", { n: format.integer(bytes) });
   const kilo = bytes / 1024;
   if (kilo < 1024) {
-    return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: kilo < 10 ? 1 : 0 }).format(kilo)} Ko`;
+    return translate("portfolio.statement.kilo", { n: format.decimal(kilo, kilo < 10 ? 1 : 0) });
   }
-  const mega = bytes / (1024 * 1024);
-  return `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: mega < 10 ? 1 : 0 }).format(mega)} Mo`;
+  const mega = kilo / 1024;
+  return translate("portfolio.statement.mega", { n: format.decimal(mega, mega < 10 ? 1 : 0) });
 }
 
 function includeByDefault(row: StatementRowDraft): boolean {
@@ -183,6 +193,7 @@ export default function PortfolioStatementImport({
   onImported,
   highlighted = false,
 }: Props) {
+  const { t, format, locale } = useI18n();
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const dragDepth = useRef(0);
@@ -265,7 +276,7 @@ export default function PortfolioStatementImport({
     if (!isStatementFile(file)) {
       setSelected({ name: file.name, size: file.size });
       resetReview();
-      setError(STATEMENT_ERRORS.UNSUPPORTED);
+      setError(t("portfolio.statement.errors.UNSUPPORTED"));
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
@@ -273,7 +284,7 @@ export default function PortfolioStatementImport({
     if (isHeicFile(file)) {
       setSelected({ name: file.name, size: file.size });
       resetReview();
-      setError(STATEMENT_ERRORS.HEIC);
+      setError(t("portfolio.statement.errors.HEIC"));
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
@@ -284,14 +295,14 @@ export default function PortfolioStatementImport({
 
     if (prepared.size <= 0) {
       resetReview();
-      setError(STATEMENT_ERRORS.EMPTY);
+      setError(t("portfolio.statement.errors.EMPTY"));
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
     }
     if (prepared.size > STATEMENT_MAX_BYTES) {
       resetReview();
-      setError(STATEMENT_ERRORS.TOO_LARGE);
+      setError(t("portfolio.statement.errors.TOO_LARGE"));
       inflight.current = null;
       if (inputRef.current) inputRef.current.value = "";
       return;
@@ -303,7 +314,7 @@ export default function PortfolioStatementImport({
       body.append("file", prepared);
       const res = await fetch(`/api/portfolio/${portfolioId}/import-statement`, { method: "POST", body });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Lecture du relevé impossible.");
+      if (!res.ok || !json?.ok) throw new Error(errorFromPayload(t, json, t("portfolio.statement.readFailed")));
       const data = json.data as StatementPreview;
       setPreview(data);
       setRows(data.rows.map(toDraft));
@@ -312,7 +323,7 @@ export default function PortfolioStatementImport({
       setReplaceAck(false);
     } catch (err) {
       resetReview();
-      setError(err instanceof Error ? err.message : "Lecture du relevé impossible.");
+      setError(err instanceof Error ? err.message : t("portfolio.statement.readFailed"));
     } finally {
       setBusy(null);
       inflight.current = null;
@@ -362,15 +373,15 @@ export default function PortfolioStatementImport({
     setError(null);
     setMessage(null);
     if (included.length === 0) {
-      setError("Cochez au moins une ligne à enregistrer.");
+      setError(t("portfolio.statement.pickOne"));
       return;
     }
     if (blocked.length > 0) {
-      setError("Complétez la quantité et le prix des lignes cochées. Une action doit aussi avoir une société.");
+      setError(t("portfolio.statement.completeRows"));
       return;
     }
     if (mode === "replace" && !replaceAck) {
-      setError("Cochez la confirmation pour remplacer les positions actuelles.");
+      setError(t("portfolio.statement.confirmReplace"));
       return;
     }
 
@@ -414,22 +425,25 @@ export default function PortfolioStatementImport({
         }),
       });
       const json = await res.json().catch(() => null);
-      if (!res.ok || !json?.ok) throw new Error(json?.error ?? "Enregistrement impossible.");
+      if (!res.ok || !json?.ok) throw new Error(errorFromPayload(t, json, t("portfolio.statement.saveFailed")));
       const data = json.data as { created: number; updated: number; deleted: number; skipped?: number };
       const parts = [
-        mode === "replace" ? `${data.deleted} position(s) retirée(s)` : null,
-        data.created ? `${data.created} créée(s)` : null,
-        data.updated ? `${data.updated} renforcée(s)` : null,
-        data.skipped ? `${data.skipped} non fusionnée(s) (unité de prix différente)` : null,
+        mode === "replace" ? t("portfolio.statement.removed", { count: data.deleted }) : null,
+        data.created ? t("portfolio.statement.created", { count: data.created }) : null,
+        data.updated ? t("portfolio.statement.reinforced", { count: data.updated }) : null,
+        data.skipped ? t("portfolio.statement.skipped", { count: data.skipped }) : null,
       ].filter(Boolean);
-      const done = `Relevé importé dans « ${portfolioName} » — ${parts.join(" · ") || "aucune modification"}.`;
+      const done = t("portfolio.statement.imported", {
+        name: portfolioName,
+        parts: parts.join(" · ") || t("portfolio.statement.noChange"),
+      });
       if (onImported) onImported(done);
       else setMessage(done);
       resetReview();
       dismissFile();
       notifyPortfolioChanged(portfolioId);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Enregistrement impossible.");
+      setError(err instanceof Error ? err.message : t("portfolio.statement.saveFailed"));
     } finally {
       setBusy(null);
     }
@@ -440,17 +454,17 @@ export default function PortfolioStatementImport({
   return (
     <section className={styles.card} data-testid="sgi-import" aria-labelledby={`${inputId}-title`}>
       <ol className={styles.steps}>
-        <li data-state={phase === "upload" ? "current" : "done"}>1. Déposer</li>
-        <li data-state={phase === "review" ? "current" : phase === "done" ? "done" : "todo"}>2. Vérifier</li>
-        <li data-state={phase === "done" ? "current" : "todo"}>3. Enregistrer</li>
+        <li data-state={phase === "upload" ? "current" : "done"}>{t("portfolio.statement.stepDrop")}</li>
+        <li data-state={phase === "review" ? "current" : phase === "done" ? "done" : "todo"}>{t("portfolio.statement.stepReview")}</li>
+        <li data-state={phase === "done" ? "current" : "todo"}>{t("portfolio.statement.stepSave")}</li>
       </ol>
 
       <div className={styles.intro}>
         <h3 id={`${inputId}-title`} className={styles.heading}>
-          Importer un relevé SGI
+          {t("portfolio.statement.heading")}
         </h3>
         <p className={styles.privacy} id={`${inputId}-hint`}>
-          Rien n’est enregistré tant que vous n’avez pas vérifié les lignes, et le fichier n’est pas conservé.
+          {t("portfolio.statement.privacy")}
         </p>
       </div>
 
@@ -472,7 +486,7 @@ export default function PortfolioStatementImport({
             type="file"
             className={styles.fileHit}
             accept={ACCEPT}
-            aria-label="Glissez-déposez votre relevé ici, ou choisissez un PDF, un Excel, un CSV ou une image"
+            aria-label={t("portfolio.statement.dropAria")}
             aria-describedby={`${inputId}-hint ${inputId}-formats`}
             disabled={busy != null}
             onChange={(event) => {
@@ -496,17 +510,17 @@ export default function PortfolioStatementImport({
                 </svg>
               )}
             </div>
-            <p className={styles.touchCue}>Appuyez pour choisir votre relevé</p>
+            <p className={styles.touchCue}>{t("portfolio.statement.tap")}</p>
             <p className={styles.headline}>
               {busy === "parse"
-                ? "Lecture du relevé…"
+                ? t("portfolio.statement.reading")
                 : dragOver || highlighted
-                  ? "Relâchez pour analyser le relevé"
-                  : "Glissez-déposez votre relevé ici"}
+                  ? t("portfolio.statement.release")
+                  : t("portfolio.statement.drop")}
             </p>
-            {busy !== "parse" && !dragOver && !highlighted ? <p className={styles.or}>ou</p> : null}
+            {busy !== "parse" && !dragOver && !highlighted ? <p className={styles.or}>{t("portfolio.statement.or")}</p> : null}
             {busy !== "parse" && !dragOver && !highlighted ? (
-              <span className={`ob-btn-gold ${styles.choose}`}>Choisir un fichier</span>
+              <span className={`ob-btn-gold ${styles.choose}`}>{t("portfolio.statement.choose")}</span>
             ) : null}
             <ul className={styles.formats} id={`${inputId}-formats`}>
               <li>PDF</li>
@@ -516,7 +530,7 @@ export default function PortfolioStatementImport({
               <li>JPEG</li>
               <li>PNG</li>
               <li>WEBP</li>
-              <li data-kind="limit">4 Mo max</li>
+              <li data-kind="limit">{t("portfolio.statement.max")}</li>
             </ul>
           </div>
         </div>
@@ -524,11 +538,11 @@ export default function PortfolioStatementImport({
           <div className={styles.fileChip}>
             <span className={styles.fileName}>{selected.name}</span>
             <span className={styles.fileMeta}>
-              {formatBytes(selected.size)}
-              {busy === "parse" ? " · Lecture en cours…" : ""}
+              {formatBytes(selected.size, format, t)}
+              {busy === "parse" ? t("portfolio.statement.readingShort") : ""}
             </span>
             <button type="button" className={`ob-btn-ghost ${styles.remove}`} onClick={clearSelection} disabled={busy != null}>
-              Retirer
+              {t("portfolio.statement.remove")}
             </button>
           </div>
         ) : null}
@@ -554,23 +568,25 @@ export default function PortfolioStatementImport({
         >
           <div className={styles.summary}>
             <strong>
-              {rows.length} position(s)
-              {preview.ignoredCount > 0 ? ` · ${preview.ignoredCount} ligne(s) ignorée(s)` : ""}
+              {t("portfolio.statement.positions", { count: rows.length })}
+              {preview.ignoredCount > 0 ? ` · ${t("portfolio.statement.ignored", { count: preview.ignoredCount })}` : ""}
               {" · "}
-              {rows.filter((row) => row.tracked && (row.confidence === "haute" || row.confidence === "moyenne")).length} reconnue(s)
+              {t("portfolio.statement.recognized", {
+                count: rows.filter((row) => row.tracked && (row.confidence === "haute" || row.confidence === "moyenne")).length,
+              })}
             </strong>
             <span className={styles.meta}>
-              {preview.issuer ?? "SGI non identifiée"}
-              {statementDate ? ` · arrêté au ${statementDate.split("-").reverse().join("/")}` : ""}
+              {preview.issuer ?? t("portfolio.statement.issuerNd")}
+              {statementDate ? ` · ${t("portfolio.statement.asOf", { date: formatIso(format, statementDate) })}` : ""}
               {" · "}
-              {preview.layoutLabel}
+              {localizeStatementNote(preview.layoutLabel, locale, t)}
             </span>
           </div>
 
           {preview.warnings.length > 0 ? (
             <ul className={styles.warnList}>
               {preview.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
+                <li key={warning}>{localizeStatementNote(warning, locale, t)}</li>
               ))}
             </ul>
           ) : null}
@@ -578,13 +594,15 @@ export default function PortfolioStatementImport({
           {preview.ignoredCount > 0 ? (
             <details className={styles.ignored}>
               <summary>
-                {preview.ignoredCount} ligne(s) ignorée(s)
-                {preview.ignored.length < preview.ignoredCount ? ` — ${preview.ignored.length} affichée(s)` : ""}
+                {t("portfolio.statement.ignored", { count: preview.ignoredCount })}
+                {preview.ignored.length < preview.ignoredCount
+                  ? t("portfolio.statement.shown", { count: preview.ignored.length })
+                  : ""}
               </summary>
               <ul>
                 {preview.ignored.map((line, index) => (
                   <li key={`${line.reason}-${index}`}>
-                    <strong>{IGNORE_REASON_LABEL[line.reason]}</strong>
+                    <strong>{ignoreReasonLabel(line.reason, t)}</strong>
                     <span>{line.raw}</span>
                   </li>
                 ))}
@@ -592,7 +610,7 @@ export default function PortfolioStatementImport({
             </details>
           ) : null}
 
-          <div className={styles.modes} role="radiogroup" aria-label="Mode d’import">
+          <div className={styles.modes} role="radiogroup" aria-label={t("portfolio.statement.modeAria")}>
             <button
               type="button"
               className={styles.mode}
@@ -601,8 +619,8 @@ export default function PortfolioStatementImport({
               data-active={mode === "merge" ? "true" : "false"}
               onClick={() => setMode("merge")}
             >
-              <strong>Fusionner</strong>
-              <span>Ajoute les quantités aux positions déjà ouvertes et recalcule le PRU moyen.</span>
+              <strong>{t("portfolio.statement.merge")}</strong>
+              <span>{t("portfolio.statement.mergeHelp")}</span>
             </button>
             <button
               type="button"
@@ -612,34 +630,31 @@ export default function PortfolioStatementImport({
               data-active={mode === "replace" ? "true" : "false"}
               onClick={() => setMode("replace")}
             >
-              <strong>Remplacer</strong>
-              <span>
-                Retire les {holdingCount} position(s) actuelle(s) de ce portefeuille, puis enregistre les lignes cochées.
-                L’historique des mouvements déjà saisis est conservé.
-              </span>
+              <strong>{t("portfolio.statement.replace")}</strong>
+              <span>{t("portfolio.statement.replaceHelp", { count: holdingCount })}</span>
             </button>
           </div>
 
           <div className={styles.toolbar}>
             <button type="button" className="ob-btn-ghost" onClick={applyMissingPrices}>
-              Utiliser le cours comme PRU manquant
+              {t("portfolio.statement.useMissing")}
             </button>
           </div>
 
           <div className={styles.tableWrap}>
             <table className={styles.table}>
-              <caption className={styles.caption}>Une position par titre, à corriger avant enregistrement</caption>
+              <caption className={styles.caption}>{t("portfolio.statement.caption")}</caption>
               <thead>
                 <tr>
-                  <th>Inclure</th>
-                  <th>Type</th>
-                  <th>Ligne du relevé</th>
-                  <th>Société</th>
-                  <th>Confiance</th>
-                  <th>Quantité</th>
+                  <th>{t("portfolio.statement.include")}</th>
+                  <th>{t("portfolio.statement.kind")}</th>
+                  <th>{t("portfolio.statement.line")}</th>
+                  <th>{t("portfolio.statement.company")}</th>
+                  <th>{t("portfolio.statement.confidence")}</th>
+                  <th>{t("portfolio.statement.quantity")}</th>
                   <th>PRU</th>
-                  <th>Date</th>
-                  <th>Cours</th>
+                  <th>{t("portfolio.statement.date")}</th>
+                  <th>{t("portfolio.statement.price")}</th>
                   <th />
                 </tr>
               </thead>
@@ -659,12 +674,12 @@ export default function PortfolioStatementImport({
                         <input
                           type="checkbox"
                           checked={row.include}
-                          aria-label={`Inclure ${row.label}`}
+                          aria-label={t("portfolio.statement.includeAria", { label: row.label })}
                           onChange={(event) => patch(row.id, { include: event.target.checked })}
                         />
                       </td>
                       <td>
-                        <span className={styles.kind}>{KIND_LABEL[row.instrumentKind]}</span>
+                        <span className={styles.kind}>{kindLabel(row.instrumentKind, t)}</span>
                       </td>
                       <td>
                         <span className={styles.label}>{row.label}</span>
@@ -675,59 +690,59 @@ export default function PortfolioStatementImport({
                           <div className={styles.instrumentFields}>
                             <input
                               className="ob-input"
-                              aria-label={`Nom pour ${row.label}`}
+                              aria-label={t("portfolio.statement.nameAria", { label: row.label })}
                               value={row.label}
                               onChange={(event) => patch(row.id, { label: event.target.value })}
                             />
                             <input
                               className="ob-input"
-                              aria-label={`ISIN pour ${row.label}`}
+                              aria-label={t("portfolio.statement.isinAria", { label: row.label })}
                               value={row.isin}
-                              placeholder="ISIN — N/D"
+                              placeholder={t("portfolio.statement.isinPh")}
                               onChange={(event) => patch(row.id, { isin: event.target.value })}
                             />
                             {row.instrumentKind === "obligation" ? (
                               <>
                                 <select
                                   className="ob-select"
-                                  aria-label={`Unité du prix pour ${row.label}`}
+                                  aria-label={t("portfolio.statement.unitAria", { label: row.label })}
                                   value={row.priceMode}
                                   onChange={(event) =>
                                     patch(row.id, { priceMode: event.target.value === "PERCENT" ? "PERCENT" : "FCFA" })
                                   }
                                 >
-                                  <option value="FCFA">Prix en FCFA</option>
-                                  <option value="PERCENT">% du nominal</option>
+                                  <option value="FCFA">{t("portfolio.statement.priceFcfa")}</option>
+                                  <option value="PERCENT">{t("portfolio.statement.pricePercent")}</option>
                                 </select>
                                 <input
                                   className="ob-input ob-num"
                                   inputMode="decimal"
-                                  aria-label={`Nominal pour ${row.label}`}
+                                  aria-label={t("portfolio.statement.nominalAria", { label: row.label })}
                                   value={row.nominal}
-                                  placeholder="Nominal — N/D"
+                                  placeholder={t("portfolio.statement.nominalPh")}
                                   onChange={(event) => patch(row.id, { nominal: event.target.value })}
                                 />
                                 <input
                                   className="ob-input ob-num"
                                   inputMode="decimal"
-                                  aria-label={`Coupon pour ${row.label}`}
+                                  aria-label={t("portfolio.statement.couponAria", { label: row.label })}
                                   value={row.couponRate}
-                                  placeholder="Coupon % — N/D"
+                                  placeholder={t("portfolio.statement.couponPh")}
                                   onChange={(event) => patch(row.id, { couponRate: event.target.value })}
                                 />
                                 <input
                                   className="ob-input"
                                   type="date"
-                                  aria-label={`Échéance pour ${row.label}`}
+                                  aria-label={t("portfolio.statement.maturityAria", { label: row.label })}
                                   value={row.maturityDate}
                                   onChange={(event) => patch(row.id, { maturityDate: event.target.value })}
                                 />
                                 <input
                                   className="ob-input ob-num"
                                   inputMode="decimal"
-                                  aria-label={`Dernier prix connu pour ${row.label}`}
+                                  aria-label={t("portfolio.statement.lastPriceAria", { label: row.label })}
                                   value={row.latestValue}
-                                  placeholder="Dernier prix — N/D"
+                                  placeholder={t("portfolio.statement.lastPricePh")}
                                   onChange={(event) => patch(row.id, { latestValue: event.target.value })}
                                 />
                               </>
@@ -735,42 +750,44 @@ export default function PortfolioStatementImport({
                               <>
                                 <input
                                   className="ob-input"
-                                  aria-label={`Société de gestion pour ${row.label}`}
+                                  aria-label={t("portfolio.statement.managerAria", { label: row.label })}
                                   value={row.manager}
-                                  placeholder="Société de gestion — N/D"
+                                  placeholder={t("portfolio.statement.managerPh")}
                                   onChange={(event) => patch(row.id, { manager: event.target.value })}
                                 />
                                 <input
                                   className="ob-input ob-num"
                                   inputMode="decimal"
-                                  aria-label={`Dernière VL pour ${row.label}`}
+                                  aria-label={t("portfolio.statement.navAria", { label: row.label })}
                                   value={row.latestValue}
-                                  placeholder="Dernière VL — N/D"
+                                  placeholder={t("portfolio.statement.navPh")}
                                   onChange={(event) => patch(row.id, { latestValue: event.target.value })}
                                 />
                               </>
                             )}
-                            <span className={styles.hint}>Enregistrée comme {KIND_LABEL[row.instrumentKind].toLowerCase()}</span>
+                            <span className={styles.hint}>
+                              {t("portfolio.statement.savedAs", { kind: kindLabel(row.instrumentKind, t).toLowerCase() })}
+                            </span>
                           </div>
                         ) : (
                           <>
                             <select
                               className={`ob-select ${styles.select}`}
-                              aria-label={`Société pour ${row.label}`}
+                              aria-label={t("portfolio.statement.companyAria", { label: row.label })}
                               value={row.companyId}
                               onChange={(event) =>
                                 patch(row.id, {
                                   companyId: event.target.value,
                                   confidence: event.target.value ? "haute" : "aucune",
                                   confidenceWhy: event.target.value
-                                    ? "Société choisie manuellement."
-                                    : "Aucune société choisie.",
+                                    ? t("portfolio.statement.chosen")
+                                    : t("portfolio.statement.noneChosen"),
                                   ambiguous: false,
                                   manual: true,
                                 })
                               }
                             >
-                              <option value="">— Choisir —</option>
+                              <option value="">{t("portfolio.statement.chooseCompany")}</option>
                               {companies.map((company: StatementCompanyOption) => (
                                 <option key={company.id} value={company.id}>
                                   {company.ticker} — {company.name}
@@ -779,25 +796,27 @@ export default function PortfolioStatementImport({
                             </select>
                             {row.companyId && companyById.get(row.companyId) ? (
                               <span className={styles.hint}>
-                                {row.manual ? "Corrigé manuellement" : companyById.get(row.companyId)?.name}
+                                {row.manual ? t("portfolio.statement.manualFix") : companyById.get(row.companyId)?.name}
                               </span>
                             ) : (
-                              <span className={styles.hint}>Société non reconnue</span>
+                              <span className={styles.hint}>{t("portfolio.statement.unknownCompany")}</span>
                             )}
                           </>
                         )}
                       </td>
                       <td>
                         <span className={styles.badge} data-confidence={other || row.manual ? "haute" : row.confidence}>
-                          {other ? "Identifiée" : row.manual ? "Corrigé" : CONFIDENCE_LABEL[row.confidence]}
+                          {other ? t("portfolio.statement.identified") : row.manual ? t("portfolio.statement.corrected") : confidenceLabel(row.confidence, t)}
                         </span>
-                        {row.confidenceWhy ? <span className={styles.hint}>{row.confidenceWhy}</span> : null}
+                        {row.confidenceWhy ? (
+                          <span className={styles.hint}>{localizeStatementNote(row.confidenceWhy, locale, t)}</span>
+                        ) : null}
                         {row.warnings
                           .filter((warning) => warning !== row.confidenceWhy)
                           .slice(0, 1)
                           .map((warning) => (
                             <span key={warning} className={styles.hint}>
-                              {warning}
+                              {localizeStatementNote(warning, locale, t)}
                             </span>
                           ))}
                       </td>
@@ -805,7 +824,7 @@ export default function PortfolioStatementImport({
                         <input
                           className={`ob-input ob-num ${styles.numInput}`}
                           inputMode="decimal"
-                          aria-label={`Quantité pour ${row.label}`}
+                          aria-label={t("portfolio.statement.qtyAria", { label: row.label })}
                           value={row.quantity}
                           placeholder="N/D"
                           onChange={(event) => patch(row.id, { quantity: event.target.value })}
@@ -815,14 +834,14 @@ export default function PortfolioStatementImport({
                         <input
                           className={`ob-input ob-num ${styles.numInput}`}
                           inputMode="decimal"
-                          aria-label={`PRU pour ${row.label}`}
+                          aria-label={t("portfolio.statement.pruAria", { label: row.label })}
                           value={row.avgBuyPrice}
                           placeholder="N/D"
                           onChange={(event) => patch(row.id, { avgBuyPrice: event.target.value })}
                         />
                         {row.lastPrice && !row.avgBuyPrice.trim() ? (
                           <button type="button" className={styles.linkish} onClick={() => applyLastPrice(row.id)}>
-                            Utiliser le cours
+                            {t("portfolio.statement.usePrice")}
                           </button>
                         ) : null}
                       </td>
@@ -830,16 +849,16 @@ export default function PortfolioStatementImport({
                         <input
                           className={`ob-input ${styles.dateInput}`}
                           type="date"
-                          aria-label={`Date d’achat pour ${row.label}`}
+                          aria-label={t("portfolio.statement.buyDateAria", { label: row.label })}
                           value={row.tradeDate}
                           onChange={(event) => patch(row.id, { tradeDate: event.target.value })}
                         />
                         {!row.tradeDate ? <span className={styles.hint}>N/D</span> : null}
                       </td>
-                      <td className="ob-num">{formatFcfa(row.lastPrice)}</td>
+                      <td className="ob-num">{formatFcfa(row.lastPrice, format)}</td>
                       <td>
                         <button type="button" className={`ob-btn-ghost ${styles.rowRemove}`} onClick={() => removeRow(row.id)}>
-                          Retirer
+                          {t("portfolio.statement.remove")}
                         </button>
                       </td>
                     </tr>
@@ -851,7 +870,7 @@ export default function PortfolioStatementImport({
 
           <div className={styles.footer}>
             <label className={styles.dateField}>
-              Date du relevé
+              {t("portfolio.statement.statementDate")}
               <input
                 className="ob-input"
                 type="date"
@@ -863,15 +882,15 @@ export default function PortfolioStatementImport({
               {mode === "replace" ? (
                 <label className={styles.check}>
                   <input type="checkbox" checked={replaceAck} onChange={(event) => setReplaceAck(event.target.checked)} />
-                  <span>Je confirme le remplacement des positions actuelles de « {portfolioName} ».</span>
+                  <span>{t("portfolio.statement.confirmBox", { name: portfolioName })}</span>
                 </label>
               ) : null}
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
                 <button type="button" className="ob-btn-ghost" onClick={clearSelection} disabled={busy != null}>
-                  Annuler
+                  {t("common.cancel")}
                 </button>
                 <button type="submit" className="ob-btn-gold" disabled={busy != null || included.length === 0}>
-                  {busy === "save" ? "Enregistrement…" : `Enregistrer ${included.length} ligne(s)`}
+                  {busy === "save" ? t("portfolio.statement.saving") : t("portfolio.statement.saveCount", { count: included.length })}
                 </button>
               </div>
             </div>

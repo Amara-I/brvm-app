@@ -2,19 +2,21 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import AuthPage from "@/components/auth/AuthPage";
 import { verifyEmailWithToken } from "@/lib/auth/verify-email";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Confirmation d’email — OuestBourse",
-  description: "Confirmez l’adresse email de votre compte OuestBourse.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return { title: t("auth.verify.metaTitle"), description: t("auth.verify.metaDescription") };
+}
 
 type Props = {
   searchParams: { token?: string };
 };
 
 export default async function VerifierEmailPage({ searchParams }: Props) {
+  const { t } = getI18n();
   const result = await verifyEmailWithToken(searchParams.token);
 
   if (result.ok) {
@@ -22,17 +24,11 @@ export default async function VerifierEmailPage({ searchParams }: Props) {
   }
 
   return (
-    <AuthPage
-      title="Lien de confirmation"
-      lead="Ce lien est invalide ou a déjà été utilisé."
-    >
-      <p style={{ margin: "0 0 12px", color: "var(--c-text)" }}>
-        Demandez un nouvel email depuis votre compte, ou reconnectez-vous puis cliquez sur « Renvoyer
-        l’email ».
-      </p>
+    <AuthPage title={t("auth.verify.heading")} lead={t("auth.verify.lead")}>
+      <p style={{ margin: "0 0 12px", color: "var(--c-text)" }}>{t("auth.verify.invalidBody")}</p>
       <p style={{ margin: 0 }}>
         <Link href="/connexion" style={{ color: "var(--c-gold)" }}>
-          Aller à la connexion
+          {t("auth.verify.goToLogin")}
         </Link>
       </p>
     </AuthPage>

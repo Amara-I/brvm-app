@@ -3,7 +3,10 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import type { TFunc } from "@/lib/i18n/create-i18n";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { isPlausibleEmail, messageFromAuthJson } from "@/components/auth/api-message";
 import PasswordField from "@/components/auth/PasswordField";
 import styles from "@/components/auth/AuthForm.module.css";
 import profileStyles from "./Profile.module.css";
@@ -12,6 +15,39 @@ import {
   writeStoredPortfolioType,
   type PortfolioTypeId,
 } from "@/lib/portfolio-types";
+
+function portfolioTypeCopy(id: PortfolioTypeId, t: TFunc) {
+  switch (id) {
+    case "CROISSANCE":
+      return {
+        label: t("auth.profile.types.croissance.label"),
+        horizon: t("auth.profile.types.croissance.horizon"),
+        risk: t("auth.profile.types.croissance.risk"),
+        tagline: t("auth.profile.types.croissance.tagline"),
+      };
+    case "RENTE":
+      return {
+        label: t("auth.profile.types.rente.label"),
+        horizon: t("auth.profile.types.rente.horizon"),
+        risk: t("auth.profile.types.rente.risk"),
+        tagline: t("auth.profile.types.rente.tagline"),
+      };
+    case "TRADING":
+      return {
+        label: t("auth.profile.types.trading.label"),
+        horizon: t("auth.profile.types.trading.horizon"),
+        risk: t("auth.profile.types.trading.risk"),
+        tagline: t("auth.profile.types.trading.tagline"),
+      };
+    case "CROISSANCE_MAX":
+      return {
+        label: t("auth.profile.types.croissanceMax.label"),
+        horizon: t("auth.profile.types.croissanceMax.horizon"),
+        risk: t("auth.profile.types.croissanceMax.risk"),
+        tagline: t("auth.profile.types.croissanceMax.tagline"),
+      };
+  }
+}
 
 export type ProfilePayload = {
   name: string | null;
@@ -29,6 +65,7 @@ export default function ProfileClient({
   initial: ProfilePayload;
   mailNotice?: string | null;
 }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [name, setName] = useState(initial.name ?? "");
   const [email, setEmail] = useState(initial.email);
@@ -53,6 +90,10 @@ export default function ProfileClient({
     e.preventDefault();
     setProfileError(null);
     setProfileMsg(null);
+    if (!isPlausibleEmail(email)) {
+      setProfileError(t("auth.invalidEmail"));
+      return;
+    }
     setSavingProfile(true);
     const res = await fetch("/api/auth/profile", {
       method: "PATCH",
@@ -62,15 +103,17 @@ export default function ProfileClient({
     const json = await res.json().catch(() => null);
     setSavingProfile(false);
     if (!res.ok) {
-      setProfileError(json?.error ?? "La mise à jour a échoué.");
+      setProfileError(messageFromAuthJson(json, t, t("auth.profile.updateFailed")));
       return;
     }
     if (typeof json?.data?.mailError === "string") {
       setProfileError(json.data.mailError);
     } else {
-      setProfileMsg(json?.data?.emailVerified === false && email !== initial.email
-        ? "Profil mis à jour. Un email de confirmation a été envoyé à la nouvelle adresse."
-        : "Profil mis à jour.");
+      setProfileMsg(
+        json?.data?.emailVerified === false && email !== initial.email
+          ? t("auth.profile.updatedEmail")
+          : t("auth.profile.updated")
+      );
     }
     router.refresh();
   }
@@ -89,10 +132,10 @@ export default function ProfileClient({
     const json = await res.json().catch(() => null);
     setSavingType(false);
     if (!res.ok) {
-      setTypeError(json?.error ?? "La préférence n’a pas pu être enregistrée.");
+      setTypeError(messageFromAuthJson(json, t, t("auth.profile.typeFailed")));
       return;
     }
-    setTypeMsg("Type de portefeuille préféré enregistré. Vous pouvez toujours le changer sur une fiche d’analyse.");
+    setTypeMsg(t("auth.profile.typeSaved"));
     router.refresh();
   }
 
@@ -100,8 +143,12 @@ export default function ProfileClient({
     e.preventDefault();
     setPasswordError(null);
     setPasswordMsg(null);
+    if (newPassword.length < MIN_PASSWORD_LENGTH) {
+      setPasswordError(t("auth.passwordMin", { count: MIN_PASSWORD_LENGTH }));
+      return;
+    }
     if (newPassword !== confirmPassword) {
-      setPasswordError("Les deux mots de passe ne correspondent pas.");
+      setPasswordError(t("auth.passwordMismatch"));
       return;
     }
     setSavingPassword(true);
@@ -116,10 +163,10 @@ export default function ProfileClient({
     const json = await res.json().catch(() => null);
     setSavingPassword(false);
     if (!res.ok) {
-      setPasswordError(json?.error ?? "Le mot de passe n'a pas pu être modifié.");
+      setPasswordError(messageFromAuthJson(json, t, t("auth.profile.passwordFailed")));
       return;
     }
-    setPasswordMsg("Mot de passe mis à jour.");
+    setPasswordMsg(t("auth.profile.passwordUpdated"));
     setCurrentPassword("");
     setNewPassword("");
     setConfirmPassword("");
@@ -128,17 +175,17 @@ export default function ProfileClient({
   return (
     <div className={profileStyles.grid}>
       <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
-        <h2 className={profileStyles.sectionTitle}>Identité</h2>
+        <h2 className={profileStyles.sectionTitle}>{t("auth.profile.identity")}</h2>
         <p className={profileStyles.meta}>
-          Statut email :{" "}
+          {t("auth.profile.emailStatus")}{" "}
           <strong className={initial.emailVerified ? profileStyles.ok : profileStyles.warn}>
-            {initial.emailVerified ? "Confirmée" : "Non confirmée"}
+            {initial.emailVerified ? t("auth.profile.confirmed") : t("auth.profile.unconfirmed")}
           </strong>
         </p>
         <form className={styles.form} onSubmit={(e) => void saveProfile(e)}>
           <div className={styles.field}>
             <label htmlFor="profile-name" className={styles.label}>
-              Nom
+              {t("auth.profile.name")}
             </label>
             <input
               id="profile-name"
@@ -150,7 +197,7 @@ export default function ProfileClient({
           </div>
           <div className={styles.field}>
             <label htmlFor="profile-email" className={styles.label}>
-              Adresse email
+              {t("auth.email")}
             </label>
             <input
               id="profile-email"
@@ -173,23 +220,23 @@ export default function ProfileClient({
             </div>
           ) : null}
           <button type="submit" className={styles.submit} disabled={savingProfile}>
-            {savingProfile ? "Enregistrement…" : "Enregistrer le profil"}
+            {savingProfile ? t("auth.saving") : t("auth.profile.save")}
           </button>
         </form>
       </section>
 
       <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
-        <h2 className={profileStyles.sectionTitle}>Type de portefeuille préféré</h2>
+        <h2 className={profileStyles.sectionTitle}>{t("auth.profile.preferredTitle")}</h2>
         <p className={profileStyles.meta}>
-          Valeur par défaut pour les fiches d’analyse et les simulations. Sur une fiche société,
-          vous pouvez changer d’angle à tout moment sans revenir ici.{" "}
+          {t("auth.profile.preferredLead")}{" "}
           <Link href="/education/types-de-portefeuille" className={styles.inlineLink}>
-            Lire les types de portefeuille
+            {t("auth.profile.readTypes")}
           </Link>
         </p>
-        <div className={profileStyles.typeGrid} role="radiogroup" aria-label="Type de portefeuille préféré">
+        <div className={profileStyles.typeGrid} role="radiogroup" aria-label={t("auth.profile.preferredTitle")}>
           {PORTFOLIO_TYPE_LIST.map((d) => {
             const selected = portfolioType === d.id;
+            const copy = portfolioTypeCopy(d.id, t);
             return (
               <button
                 key={d.id}
@@ -200,11 +247,9 @@ export default function ProfileClient({
                 disabled={savingType}
                 onClick={() => void savePortfolioType(d.id)}
               >
-                <strong>{d.label}</strong>
-                <span>
-                  {d.horizon} · risque {d.risk}
-                </span>
-                <span>{d.tagline}</span>
+                <strong>{copy.label}</strong>
+                <span>{t("auth.profile.typeMeta", { horizon: copy.horizon, risk: copy.risk })}</span>
+                <span>{copy.tagline}</span>
               </button>
             );
           })}
@@ -222,17 +267,15 @@ export default function ProfileClient({
       </section>
 
       <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
-        <h2 className={profileStyles.sectionTitle}>Mot de passe</h2>
+        <h2 className={profileStyles.sectionTitle}>{t("auth.profile.passwordTitle")}</h2>
         <p className={profileStyles.meta}>
-          {initial.hasPassword
-            ? "Modifiez le mot de passe utilisé pour la connexion email."
-            : "Compte Google : vous pouvez aussi définir un mot de passe pour vous connecter par email."}
+          {initial.hasPassword ? t("auth.profile.passwordHas") : t("auth.profile.passwordGoogle")}
         </p>
         <form className={styles.form} onSubmit={(e) => void savePassword(e)}>
           {initial.hasPassword ? (
             <PasswordField
               id="current-password"
-              label="Mot de passe actuel"
+              label={t("auth.profile.currentPassword")}
               value={currentPassword}
               onChange={setCurrentPassword}
               autoComplete="current-password"
@@ -240,7 +283,7 @@ export default function ProfileClient({
           ) : null}
           <PasswordField
             id="new-password"
-            label={`Nouveau mot de passe (${MIN_PASSWORD_LENGTH} caractères minimum)`}
+            label={t("auth.profile.newPassword", { count: MIN_PASSWORD_LENGTH })}
             value={newPassword}
             onChange={setNewPassword}
             autoComplete="new-password"
@@ -248,7 +291,7 @@ export default function ProfileClient({
           />
           <PasswordField
             id="confirm-password"
-            label="Confirmer le nouveau mot de passe"
+            label={t("auth.profile.confirmPassword")}
             value={confirmPassword}
             onChange={setConfirmPassword}
             autoComplete="new-password"
@@ -265,17 +308,21 @@ export default function ProfileClient({
             </div>
           ) : null}
           <button type="submit" className={styles.submit} disabled={savingPassword}>
-            {savingPassword ? "Enregistrement…" : initial.hasPassword ? "Changer le mot de passe" : "Définir un mot de passe"}
+            {savingPassword
+              ? t("auth.saving")
+              : initial.hasPassword
+                ? t("auth.profile.changePassword")
+                : t("auth.profile.setPassword")}
           </button>
         </form>
       </section>
 
       {initial.isAdmin ? (
         <section className={`ob-card ob-card-pad ${profileStyles.card}`}>
-          <h2 className={profileStyles.sectionTitle}>Administration</h2>
-          <p className={profileStyles.meta}>Votre compte a le rôle administrateur.</p>
+          <h2 className={profileStyles.sectionTitle}>{t("auth.profile.adminTitle")}</h2>
+          <p className={profileStyles.meta}>{t("auth.profile.adminLead")}</p>
           <Link href="/admin/analytics" className={styles.inlineLink}>
-            Ouvrir l’analytique
+            {t("auth.profile.openAnalytics")}
           </Link>
         </section>
       ) : null}

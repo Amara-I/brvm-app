@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
-import { NOTIFICATION_TYPES, NOTIFICATION_TYPE_LABELS, type NotificationTypeCode } from "@/lib/notifications/types";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeSharedApiMessage } from "@/lib/i18n/localize-api";
+import { NOTIFICATION_TYPES, type NotificationTypeCode } from "@/lib/notifications/types";
+import { notificationTypeLabel } from "./type-label";
 import styles from "./NotificationCenter.module.css";
 
 type Notif = {
@@ -20,18 +23,14 @@ type Notif = {
   createdAt: string;
 };
 
-const FILTERS: Array<{ key: "TOUS" | NotificationTypeCode; label: string }> = [
-  { key: "TOUS", label: "Tous" },
-  ...NOTIFICATION_TYPES.map((key) => ({ key, label: NOTIFICATION_TYPE_LABELS[key] })),
-];
-
-function fmtWhen(iso: string): string {
+function fmtWhen(iso: string, tag: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "N/D";
-  return d.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+  return d.toLocaleString(tag, { dateStyle: "short", timeStyle: "short" });
 }
 
 export default function NotificationCenter() {
+  const { t, format } = useI18n();
   const [filter, setFilter] = useState<"TOUS" | NotificationTypeCode>("TOUS");
   const [items, setItems] = useState<Notif[]>([]);
   const [unread, setUnread] = useState(0);
@@ -46,24 +45,28 @@ export default function NotificationCenter() {
       const res = await fetch(`/api/notifications${qs}`, { cache: "no-store" });
       const json = await res.json();
       if (res.status === 401) {
-        setError("Connectez-vous pour voir vos notifications.");
+        setError(t("notifications.center.authRequired"));
         setItems([]);
         return;
       }
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Impossible de charger les notifications.");
+        setError(
+          typeof json.error === "string"
+            ? localizeSharedApiMessage(json.error, t)
+            : t("notifications.center.loadError")
+        );
         setItems([]);
         return;
       }
       setItems((json.data?.notifications ?? []) as Notif[]);
       setUnread(Number(json.data?.unreadCount ?? 0));
     } catch {
-      setError("Impossible de charger les notifications.");
+      setError(t("notifications.center.loadError"));
       setItems([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void load(filter);
@@ -87,21 +90,26 @@ export default function NotificationCenter() {
     await load(filter);
   }
 
+  const filters: Array<{ key: "TOUS" | NotificationTypeCode; label: string }> = [
+    { key: "TOUS", label: t("notifications.center.all") },
+    ...NOTIFICATION_TYPES.map((key) => ({ key, label: notificationTypeLabel(key, t) })),
+  ];
+
   return (
     <div className={`${styles.root} ob-page`}>
       <PageHeader
-        kicker="Compte"
-        title="Notifications"
-        lead="Historique de vos alertes (prix, signaux, portefeuille, indices, système). Un clic ouvre la fiche, le graphe, le portefeuille ou l'indice concerné."
+        kicker={t("auth.kicker")}
+        title={t("notifications.title")}
+        lead={t("notifications.center.lead")}
         actions={
           <Link href="/profil#alertes" className={styles.ghost}>
-            Préférences
+            {t("notifications.center.prefs")}
           </Link>
         }
       />
 
-      <div className={styles.filters} role="group" aria-label="Filtrer par type">
-        {FILTERS.map((f) => (
+      <div className={styles.filters} role="group" aria-label={t("notifications.center.filter")}>
+        {filters.map((f) => (
           <button
             key={f.key}
             type="button"
@@ -115,23 +123,24 @@ export default function NotificationCenter() {
       </div>
 
       <div className={styles.toolbar}>
-        <span className={styles.note}>{unread} non lue{unread > 1 ? "s" : ""}</span>
+        <span className={styles.note}>
+          {unread > 1
+            ? t("notifications.center.unreadMany", { count: unread })
+            : t("notifications.center.unreadOne", { count: unread })}
+        </span>
         <button type="button" className={styles.ghost} onClick={() => void markAll(true)}>
-          Tout marquer lu
+          {t("notifications.center.markRead")}
         </button>
         <button type="button" className={styles.ghost} onClick={() => void markAll(false)}>
-          Tout marquer non lu
+          {t("notifications.center.markUnread")}
         </button>
       </div>
 
       {error ? <p className={styles.note}>{error}</p> : null}
-      {loading && items.length === 0 ? <p className={styles.note}>Chargement…</p> : null}
+      {loading && items.length === 0 ? <p className={styles.note}>{t("common.loading")}</p> : null}
 
       {!loading && items.length === 0 && !error ? (
-        <EmptyState
-          title="Aucune notification"
-          body="Créez une alerte de cours depuis un graphe ou une fiche société — elle apparaîtra ici lorsqu'elle se déclenche."
-        />
+        <EmptyState title={t("notifications.center.emptyTitle")} body={t("notifications.center.emptyBody")} />
       ) : null}
 
       <ul className={styles.list}>
@@ -139,8 +148,8 @@ export default function NotificationCenter() {
           <li key={n.id}>
             <article className={`${styles.card} ${n.readAt ? "" : styles.cardUnread}`}>
               <div className={styles.meta}>
-                <span className={styles.type}>{n.typeLabel}</span>
-                <span className={styles.time}>{fmtWhen(n.createdAt)}</span>
+                <span className={styles.type}>{notificationTypeLabel(n.type, t, n.typeLabel)}</span>
+                <span className={styles.time}>{fmtWhen(n.createdAt, format.tag)}</span>
               </div>
               <h2 className={styles.title}>{n.title}</h2>
               <p className={styles.body}>{n.body}</p>
@@ -151,11 +160,11 @@ export default function NotificationCenter() {
                     className={styles.ghost}
                     onClick={() => void mark(n.id, true)}
                   >
-                    Ouvrir
+                    {t("notifications.center.open")}
                   </Link>
                 ) : null}
                 <button type="button" className={styles.ghost} onClick={() => void mark(n.id, !n.readAt)}>
-                  {n.readAt ? "Marquer non lu" : "Marquer lu"}
+                  {n.readAt ? t("notifications.center.markOneUnread") : t("notifications.center.markOneRead")}
                 </button>
               </div>
             </article>

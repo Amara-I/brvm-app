@@ -12,15 +12,12 @@ import {
 import { C } from "@/lib/theme/colors";
 import type { PortfolioNavPoint } from "@/lib/api/portfolio-nav-series";
 import EducationTermLink from "@/components/education/EducationTermLink";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { formatIso } from "@/components/portfolio/portfolio-i18n";
 import { DISCRETE_AMOUNT_LABEL } from "@/lib/portfolio/discrete-mode";
 
-function fmtFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
-
-function fmtDay(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${d}/${m}`;
+function fmtDay(iso: string, format: ReturnType<typeof useI18n>["format"]): string {
+  return formatIso(format, iso, false);
 }
 
 /** Domaine Y resserré autour des données pour rendre visibles les petites variations journalières. */
@@ -56,10 +53,11 @@ export default function PortfolioNavChart({
   titleSlug?: string;
   discrete?: boolean;
 }) {
+  const { t, format } = useI18n();
   if (series.length < 2) {
     return (
       <p style={{ color: C.textDim, fontSize: "0.82rem", margin: "8px 0 0" }}>
-        Pas encore assez d&apos;historique de cours pour tracer l&apos;évolution quotidienne (N/D).
+        {t("portfolio.nav.empty")}
       </p>
     );
   }
@@ -86,13 +84,13 @@ export default function PortfolioNavChart({
       >
         <div style={{ color: C.gold, fontSize: "0.85rem", fontWeight: 700 }}>
           {titleSlug ? (
-            <EducationTermLink slug={titleSlug}>Évolution quotidienne</EducationTermLink>
+            <EducationTermLink slug={titleSlug}>{t("portfolio.nav.title")}</EducationTermLink>
           ) : (
-            "Évolution quotidienne"
+            t("portfolio.nav.title")
           )}
         </div>
         <div style={{ fontSize: "0.75rem", color: C.textDim }}>
-          {fmtDay(first.date)} → {fmtDay(last.date)}
+          {fmtDay(first.date, format)} → {fmtDay(last.date, format)}
           {totalChange != null ? (
             <span style={{ marginLeft: 8, color: totalChange >= 0 ? C.green : C.red, fontWeight: 700 }}>
               {totalChange >= 0 ? "+" : ""}
@@ -101,7 +99,7 @@ export default function PortfolioNavChart({
           ) : null}
           {dayChange != null ? (
             <span style={{ marginLeft: 8 }}>
-              · veille{" "}
+              {t("portfolio.nav.prev")}{" "}
               <span style={{ color: dayChange >= 0 ? C.green : C.red, fontWeight: 700 }}>
                 {dayChange >= 0 ? "+" : ""}
                 {dayChange}%
@@ -116,7 +114,7 @@ export default function PortfolioNavChart({
             <CartesianGrid stroke={C.border} strokeDasharray="3 3" />
             <XAxis
               dataKey="date"
-              tickFormatter={fmtDay}
+              tickFormatter={(iso) => fmtDay(String(iso), format)}
               tick={{ fill: C.textDim, fontSize: 11 }}
               minTickGap={28}
             />
@@ -133,16 +131,18 @@ export default function PortfolioNavChart({
                 borderRadius: 8,
                 fontSize: "0.78rem",
               }}
-              labelFormatter={(l) => `Séance du ${String(l).split("-").reverse().join("/")}`}
+              labelFormatter={(l) =>
+                t("portfolio.nav.session", { date: formatIso(format, String(l), true) })
+              }
               formatter={(value, _name, item) => {
                 const pt = item?.payload as PortfolioNavPoint | undefined;
                 const day =
                   pt?.changePercent != null
-                    ? ` (${pt.changePercent >= 0 ? "+" : ""}${pt.changePercent}% vs veille)`
+                    ? t("portfolio.nav.vsPrev", { pct: format.percent(pt.changePercent, 2, true) })
                     : "";
                 return [
-                  discrete ? `${DISCRETE_AMOUNT_LABEL}${day}` : `${fmtFcfa(Number(value))}${day}`,
-                  "Valeur",
+                  discrete ? `${DISCRETE_AMOUNT_LABEL}${day}` : `${format.fcfa(Number(value))}${day}`,
+                  t("portfolio.nav.value"),
                 ];
               }}
             />
@@ -158,8 +158,7 @@ export default function PortfolioNavChart({
         </ResponsiveContainer>
       </div>
       <p style={{ color: C.textMeta, fontSize: "0.68rem", margin: "6px 0 0" }}>
-        Axe vertical resserré sur la période affichée pour mettre en évidence les variations journalières.
-        Calculé avec les quantités actuelles × cours de clôture canoniques (hors dates futures).
+        {t("portfolio.nav.footnote")}
       </p>
     </div>
   );

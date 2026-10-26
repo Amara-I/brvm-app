@@ -6,6 +6,9 @@ import { useState } from "react";
 import { C } from "@/lib/theme/colors";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
 import EducationTermLink from "@/components/education/EducationTermLink";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { showPortfolioApiError } from "@/components/portfolio/portfolio-i18n";
+import type { BuyHorizonCode } from "@/lib/calc/portfolio-advice";
 
 interface AddHoldingFormProps {
   portfolioId: string;
@@ -23,10 +26,11 @@ const inputStyle: React.CSSProperties = {
 };
 
 export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormProps) {
+  const { t, labels } = useI18n();
   const [ticker, setTicker] = useState(tickers[0] ?? "");
   const [quantity, setQuantity] = useState("");
   const [avgBuyPrice, setAvgBuyPrice] = useState("");
-  const [buyHorizon, setBuyHorizon] = useState<"COURT" | "MOYEN" | "LONG">("MOYEN");
+  const [buyHorizon, setBuyHorizon] = useState<BuyHorizonCode>("MOYEN");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -49,7 +53,7 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
     setLoading(false);
     if (!res.ok) {
       const json = await res.json().catch(() => null);
-      setError(json?.error ?? "Impossible d'ajouter cette position.");
+      setError(showPortfolioApiError(t, json?.error, t("portfolio.holdings.addFailed")));
       return;
     }
     setQuantity("");
@@ -65,7 +69,7 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
     >
       <div>
         <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
-          Société
+          {t("portfolio.holdings.company")}
         </label>
         <select value={ticker} onChange={(e) => setTicker(e.target.value)} style={inputStyle}>
           {tickers.map((t) => (
@@ -77,7 +81,7 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
       </div>
       <div>
         <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
-          Quantité
+          {t("portfolio.holdings.quantity")}
         </label>
         <input
           type="number"
@@ -91,7 +95,7 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
       </div>
       <div>
         <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
-          <EducationTermLink slug="pru">Prix d&apos;achat / PRU (FCFA)</EducationTermLink>
+          <EducationTermLink slug="pru">{t("portfolio.holdings.pruPrice")}</EducationTermLink>
         </label>
         <input
           type="number"
@@ -105,17 +109,17 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
       </div>
       <div>
         <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
-          <EducationTermLink slug="horizon-d-achat">Horizon d&apos;achat</EducationTermLink>
+          <EducationTermLink slug="horizon-d-achat">{t("portfolio.holdings.horizon")}</EducationTermLink>
         </label>
         <select
           value={buyHorizon}
-          onChange={(e) => setBuyHorizon(e.target.value as "COURT" | "MOYEN" | "LONG")}
+          onChange={(e) => setBuyHorizon(e.target.value as BuyHorizonCode)}
           style={inputStyle}
-          aria-label="Horizon d'achat"
+          aria-label={t("portfolio.holdings.horizonAria")}
         >
-          <option value="COURT">Court terme</option>
-          <option value="MOYEN">Moyen terme</option>
-          <option value="LONG">Long terme</option>
+          <option value="COURT">{labels.horizon("COURT", "full")}</option>
+          <option value="MOYEN">{labels.horizon("MOYEN", "full")}</option>
+          <option value="LONG">{labels.horizon("LONG", "full")}</option>
         </select>
       </div>
       <button
@@ -133,7 +137,7 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
           opacity: loading ? 0.7 : 1,
         }}
       >
-        {loading ? "Ajout…" : "+ Ajouter / renforcer"}
+        {loading ? t("portfolio.holdings.adding") : t("portfolio.holdings.add")}
       </button>
       {error && (
         <div role="alert" style={{ color: C.red, fontSize: "0.78rem", width: "100%" }}>

@@ -16,12 +16,15 @@ import { issueAuthToken } from "@/lib/auth/tokens";
 import { buildAuthLink } from "@/lib/auth/app-url";
 import { isDevAuthPreviewEnabled, sendAuthEmail, userMessageForMailFailure } from "@/lib/auth/email";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { createI18n } from "@/lib/i18n/create-i18n";
+import { localeFromRequest } from "@/lib/i18n/locale-from-request";
 
 export const dynamic = "force-dynamic";
 // nodemailer (SMTP) a besoin de net/tls : runtime Node, pas Edge.
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const { t, locale } = createI18n(localeFromRequest(request));
   const body = await request.json().catch(() => null);
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);
@@ -32,11 +35,11 @@ export async function POST(request: NextRequest) {
     existing = await prisma.user.findUnique({ where: { email } });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
-      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+      return apiError(t("common.unavailable"), 503);
     }
     throw error;
   }
-  if (existing) return apiError("Un compte existe déjà avec cette adresse email", 409);
+  if (existing) return apiError(t("common.api.emailTaken"), 409);
 
   const passwordHash = await hashPassword(parsed.data.password);
   let user;
@@ -46,7 +49,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
-      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+      return apiError(t("common.unavailable"), 503);
     }
     throw error;
   }
@@ -55,13 +58,13 @@ export async function POST(request: NextRequest) {
   let verificationEmailSent = false;
   let mailError: string | undefined;
   if (!rawToken) {
-    mailError = "Impossible de générer le lien de confirmation. Réessayez depuis votre profil.";
+    mailError = t("common.api.verifyLinkFailed");
   } else {
-    const mailed = await sendAuthEmail("verify", email, rawToken);
+    const mailed = await sendAuthEmail("verify", email, rawToken, locale);
     verificationEmailSent = mailed.ok;
     if (!mailed.ok) {
       console.error("[auth] envoi email de confirmation échoué", mailed.error);
-      mailError = userMessageForMailFailure(mailed);
+      mailError = userMessageForMailFailure(mailed, locale);
     }
   }
 

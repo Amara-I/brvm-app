@@ -11,6 +11,7 @@ import { sanitizeAnalyticsBatch } from "@/lib/analytics/sanitize";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   const limited = checkRateLimit(`analytics:${clientIp(request)}`, { limit: 30, windowMs: 60_000 });
   if (!limited.allowed) {
-    return apiError("Trop de requêtes. Veuillez réessayer dans quelques instants.", 429);
+    return apiError(getI18n().t("chrome.rateLimit"), 429);
   }
 
   const json = await request.json().catch(() => null);

@@ -11,48 +11,47 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import ChangeValue from "@/components/ui/ChangeValue";
 import KpiStat from "@/components/ui/KpiStat";
+import { translateCompositionNote, translateIndexDescription, translateIndexFamily } from "@/components/indices/index-copy";
+import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import type { MarketIndexDetail } from "@/lib/api/market-indices";
 import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
 import type { ChartRange } from "@/lib/charts/indicators";
+import type { FormatApi } from "@/lib/i18n/format";
 import { C } from "@/lib/theme/colors";
 import styles from "./Indices.module.css";
 
-const RANGES: Array<{ key: ChartRange; label: string }> = [
-  { key: "1M", label: "1M" },
-  { key: "3M", label: "3M" },
-  { key: "6M", label: "6M" },
-  { key: "YTD", label: "YTD" },
-  { key: "1A", label: "1A" },
-  { key: "5A", label: "5A" },
-  { key: "MAX", label: "Tout" },
-];
+const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+};
 
-function formatLevel(value: number | null | undefined): string {
+function formatLevel(value: number | null | undefined, format: FormatApi): string {
   if (value == null || Number.isNaN(value)) return "N/D";
-  return value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return format.decimal(value, 2);
 }
 
-function formatDate(iso: string | null | undefined): string {
+function formatSessionDate(iso: string | null | undefined, format: FormatApi): string {
   if (!iso) return "N/D";
-  const parsed = new Date(`${iso}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) return "N/D";
-  return parsed.toLocaleDateString("fr-FR");
-}
-
-function formatPrice(value: number | null): string {
-  if (value == null || !(value > 0)) return "N/D";
-  return value.toLocaleString("fr-FR", { maximumFractionDigits: 0 });
-}
-
-function formatWeight(value: number | null | undefined): string {
-  if (value == null || Number.isNaN(value)) return "N/D";
-  return `${value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} %`;
+  return format.date(`${iso}T00:00:00.000Z`, NUMERIC_DATE);
 }
 
 export default function IndexDetailClient({ detail }: { detail: MarketIndexDetail }) {
+  const { t, format, labels } = useI18n();
   const [range, setRange] = useState<ChartRange>("1A");
+  const ranges: Array<{ key: ChartRange; label: string }> = [
+    { key: "1M", label: "1M" },
+    { key: "3M", label: "3M" },
+    { key: "6M", label: "6M" },
+    { key: "YTD", label: t("market.indices.kpi.ytd") },
+    { key: "1A", label: t("market.indices.range1A") },
+    { key: "5A", label: t("market.indices.range5A") },
+    { key: "MAX", label: t("market.indices.rangeAll") },
+  ];
   const windowed = useMemo(
     () => applyChartSeriesWindow(detail.series, { range, defaultTo1A: false }),
     [detail.series, range]
@@ -62,54 +61,66 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
     label: point.time.slice(0, 7),
   }));
   const { stats, composition } = detail;
+  const history =
+    stats.historyPoints > 0
+      ? t(stats.historyPoints > 1 ? "market.indices.pointsMany" : "market.indices.pointsOne", {
+          count: stats.historyPoints,
+        })
+      : t("market.indices.historyNd");
+  const sectorName = (name: string) => labels.sector(name);
 
   return (
     <>
       <header className={styles.detailHead}>
         <Link href="/indices" className={styles.back}>
-          ← Tous les indices BRVM
+          {t("market.indices.back")}
         </Link>
         <p className="ob-kicker">
-          {detail.familyLabel} · {detail.code.replace(/_/g, " ")}
+          {translateIndexFamily(detail.family, t)} · {detail.code.replace(/_/g, " ")}
         </p>
         <h1 className="ob-page-title">{detail.name}</h1>
         <div className={styles.levelRow}>
-          <span className={styles.level}>{formatLevel(stats.lastValue)}</span>
+          <span className={styles.level}>{formatLevel(stats.lastValue, format)}</span>
           <ChangeValue value={stats.sessionChangePercent} pill />
         </div>
         <p className={styles.meta}>
-          Séance du {formatDate(stats.lastDate)} · Source : {detail.sourceLabel} ·{" "}
-          {stats.historyPoints > 0 ? `${stats.historyPoints} points` : "Historique N/D"}
+          {t("market.indices.sessionMeta", {
+            date: formatSessionDate(stats.lastDate, format),
+            source: translateDataSourceLabel(detail.sourceLabel, t),
+            history,
+          })}
         </p>
-        <p className={styles.note}>{detail.description}</p>
+        <p className={styles.note}>
+          {translateIndexDescription(detail.code, detail.description, t, sectorName)}
+        </p>
       </header>
 
       <div className={styles.kpiGrid}>
-        <KpiStat label="Variation séance" value={<ChangeValue value={stats.sessionChangePercent} />} />
-        <KpiStat label="1 mois" value={<ChangeValue value={stats.change1MPercent} />} />
-        <KpiStat label="3 mois" value={<ChangeValue value={stats.change3MPercent} />} />
-        <KpiStat label="YTD" value={<ChangeValue value={stats.changeYtdPercent} />} />
-        <KpiStat label="1 an" value={<ChangeValue value={stats.change1YPercent} />} />
+        <KpiStat label={t("market.indices.kpi.session")} value={<ChangeValue value={stats.sessionChangePercent} />} />
+        <KpiStat label={t("market.indices.kpi.month")} value={<ChangeValue value={stats.change1MPercent} />} />
+        <KpiStat label={t("market.indices.kpi.threeMonths")} value={<ChangeValue value={stats.change3MPercent} />} />
+        <KpiStat label={t("market.indices.kpi.ytd")} value={<ChangeValue value={stats.changeYtdPercent} />} />
+        <KpiStat label={t("market.indices.kpi.year")} value={<ChangeValue value={stats.change1YPercent} />} />
         <KpiStat
-          label="Plus haut 52 sem."
-          value={formatLevel(stats.high52w)}
-          hint={stats.high52w == null ? "N/D — historique insuffisant" : undefined}
+          label={t("market.indices.kpi.high52")}
+          value={formatLevel(stats.high52w, format)}
+          hint={stats.high52w == null ? t("market.indices.historyShort") : undefined}
         />
         <KpiStat
-          label="Plus bas 52 sem."
-          value={formatLevel(stats.low52w)}
-          hint={stats.low52w == null ? "N/D — historique insuffisant" : undefined}
+          label={t("market.indices.kpi.low52")}
+          value={formatLevel(stats.low52w, format)}
+          hint={stats.low52w == null ? t("market.indices.historyShort") : undefined}
         />
-        <KpiStat label="Premier point" value={formatDate(stats.firstDate)} />
+        <KpiStat label={t("market.indices.kpi.first")} value={formatSessionDate(stats.firstDate, format)} />
       </div>
 
       <section className={styles.card} aria-labelledby="index-chart-title">
         <div className={styles.cardHead}>
           <h2 id="index-chart-title" className={styles.cardTitle}>
-            Historique
+            {t("market.indices.historyTitle")}
           </h2>
-          <div className={styles.rangeRow} role="group" aria-label="Période">
-            {RANGES.map((item) => (
+          <div className={styles.rangeRow} role="group" aria-label={t("market.indices.period")}>
+            {ranges.map((item) => (
               <button
                 key={item.key}
                 type="button"
@@ -137,12 +148,15 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
                 <Tooltip
                   contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8 }}
                   labelStyle={{ color: C.text }}
-                  formatter={(value) => [formatLevel(typeof value === "number" ? value : null), "Niveau"]}
+                  formatter={(value) => [
+                    formatLevel(typeof value === "number" ? value : null, format),
+                    t("market.indices.level"),
+                  ]}
                 />
                 <Area
                   type="monotone"
                   dataKey="value"
-                  name="Niveau"
+                  name={t("market.indices.level")}
                   stroke={C.gold}
                   fill="url(#indexGold)"
                   strokeWidth={2}
@@ -151,29 +165,29 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
             </ResponsiveContainer>
           </div>
         ) : (
-          <p className={styles.empty}>Historique insuffisant (N/D). Les points s’afficheront après ingestion.</p>
+          <p className={styles.empty}>{t("market.indices.historyEmpty")}</p>
         )}
       </section>
 
       <section className={styles.card} aria-labelledby="index-compo-title">
         <div className={styles.cardHead}>
           <h2 id="index-compo-title" className={styles.cardTitle}>
-            Composition
+            {t("market.indices.composition")}
           </h2>
         </div>
-        <p className={styles.note}>{composition.note}</p>
+        <p className={styles.note}>{translateCompositionNote(composition.note, t, sectorName)}</p>
         {composition.constituents.length === 0 ? (
-          <p className={styles.empty}>Composantes N/D.</p>
+          <p className={styles.empty}>{t("market.indices.constituentsNd")}</p>
         ) : (
           <div className={styles.tableWrap}>
             <table className="ob-table">
               <thead>
                 <tr>
-                  <th scope="col">Ticker</th>
-                  <th scope="col">Société</th>
-                  <th scope="col">Secteur</th>
-                  <th scope="col">Poids</th>
-                  <th scope="col">Cours</th>
+                  <th scope="col">{t("market.indices.col.ticker")}</th>
+                  <th scope="col">{t("market.indices.col.company")}</th>
+                  <th scope="col">{t("market.indices.col.sector")}</th>
+                  <th scope="col">{t("market.indices.col.weight")}</th>
+                  <th scope="col">{t("market.indices.col.price")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -185,9 +199,13 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
                       </Link>
                     </td>
                     <td>{row.name}</td>
-                    <td>{row.sector || "N/D"}</td>
-                    <td className="ob-num">{formatWeight(row.weight)}</td>
-                    <td className="ob-num">{formatPrice(row.lastPrice)}</td>
+                    <td>{row.sector ? labels.sector(row.sector) : "N/D"}</td>
+                    <td className="ob-num">
+                      {row.weight == null || Number.isNaN(row.weight) ? "N/D" : format.percent(row.weight, 2)}
+                    </td>
+                    <td className="ob-num">
+                      {row.lastPrice == null || !(row.lastPrice > 0) ? "N/D" : format.integer(row.lastPrice)}
+                    </td>
                   </tr>
                 ))}
               </tbody>

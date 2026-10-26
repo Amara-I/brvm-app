@@ -4,25 +4,29 @@ import DividendCalendarClient from "@/components/dividendes/DividendCalendarClie
 import SiteFooter from "@/components/layout/SiteFooter";
 import PageHeader from "@/components/ui/PageHeader";
 import { getDividendCalendarDataset } from "@/lib/api/dividend-calendar";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Calendrier des dividendes — OuestBourse",
-  description:
-    "Calendrier des dividendes des sociétés cotées à la BRVM : dates de détachement, mise en paiement et montants par exercice.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return {
+    title: t("market.dividends.metaTitle"),
+    description: t("market.dividends.metaDescription"),
+  };
+}
 
 export default async function CalendrierDividendesPage() {
+  const { t } = getI18n();
   const data = await getDividendCalendarDataset();
 
   return (
     <AppHeader>
       <div className="ob-page">
         <PageHeader
-          kicker="Calendrier"
-          title="Calendrier des dividendes"
-          lead="Montants et dates de dividendes des sociétés cotées à la BRVM. Si la date de détachement ou de paiement n’est pas connue, elle s’affiche N/D."
+          kicker={t("market.dividends.kicker")}
+          title={t("market.dividends.title")}
+          lead={t("market.dividends.lead")}
         />
         <DividendCalendarClient data={data} />
       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import type { ColumnSortDir, ColumnSortState } from "@/lib/ui/column-filters";
 import styles from "./ColumnFilterRow.module.css";
 
@@ -11,16 +12,6 @@ export interface SortableHeaderColumn {
   /** Contenu personnalisé à la place du label (ex. sélecteur d'horizon). */
   header?: ReactNode;
 }
-
-const MENU_OPTIONS: Array<{
-  dir: ColumnSortDir | null;
-  symbol: string;
-  title: string;
-}> = [
-  { dir: "asc", symbol: "↑", title: "Croissant / A → Z" },
-  { dir: "desc", symbol: "↓", title: "Décroissant / Z → A" },
-  { dir: null, symbol: "✕", title: "Annuler le tri" },
-];
 
 function SortMenu({
   columnKey,
@@ -33,11 +24,17 @@ function SortMenu({
   sort: ColumnSortState | null;
   onSortChange: (next: ColumnSortState | null) => void;
 }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
   const active = sort?.key === columnKey ? sort.dir : null;
   const triggerSymbol = active === "asc" ? "↑" : active === "desc" ? "↓" : "▾";
+  const menuOptions: Array<{ dir: ColumnSortDir | null; symbol: string; title: string }> = [
+    { dir: "asc", symbol: "↑", title: t("common.sortAsc") },
+    { dir: "desc", symbol: "↓", title: t("common.sortDesc") },
+    { dir: null, symbol: "✕", title: t("common.sortClear") },
+  ];
 
   useEffect(() => {
     if (!open) return;
@@ -60,7 +57,7 @@ function SortMenu({
       <button
         type="button"
         className={active ? styles.triggerActive : styles.trigger}
-        aria-label={`Trier la colonne ${label}`}
+        aria-label={t("common.sortColumn", { label })}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={menuId}
@@ -73,7 +70,7 @@ function SortMenu({
       </button>
       {open ? (
         <ul id={menuId} role="menu" className={styles.menu} onClick={(e) => e.stopPropagation()}>
-          {MENU_OPTIONS.map((o) => {
+          {menuOptions.map((o) => {
             const isCancel = o.dir === null;
             const selected = !isCancel && active === o.dir;
             return (

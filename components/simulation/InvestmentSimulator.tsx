@@ -13,6 +13,8 @@ import {
 } from "recharts";
 import { C } from "@/lib/theme/colors";
 import { SECTION_TITLE, PANEL_TEXT } from "@/lib/theme/typography";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizedTypeDef } from "@/lib/i18n/portfolio-type-copy";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import {
   simulateInvestmentScenarios,
@@ -27,8 +29,8 @@ import PortfolioTypeSelector from "@/components/portfolio-types/PortfolioTypeSel
 import Link from "next/link";
 import styles from "./InvestmentSimulator.module.css";
 
-function fmtFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+function fmtMoney(n: number, format: ReturnType<typeof useI18n>["format"]): string {
+  return format.fcfa(n);
 }
 
 function parseAmount(raw: string): number {
@@ -36,20 +38,28 @@ function parseAmount(raw: string): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-const FREQ_OPTIONS: Array<{ value: ContributionFrequency; label: string }> = [
-  { value: "mensuel", label: "Mensuel" },
-  { value: "trimestriel", label: "Trimestriel" },
-  { value: "annuel", label: "Annuel" },
-];
+function percentDigits(n: number): number {
+  const frac = String(Math.abs(n)).split(".")[1];
+  return frac ? Math.min(frac.length, 2) : 0;
+}
+
+const FREQ_VALUES: ContributionFrequency[] = ["mensuel", "trimestriel", "annuel"];
 
 export default function InvestmentSimulator({
   preferredPortfolioType = null,
 }: {
   preferredPortfolioType?: PortfolioTypeId | null;
 }) {
+  const { t, format, locale } = useI18n();
   const { type, setType, profileDefault, isOverride, resetToProfile } =
     usePortfolioType(preferredPortfolioType);
-  const def = getPortfolioTypeDef(type);
+  const def = localizedTypeDef(getPortfolioTypeDef(type), locale);
+  const freqLabel = (value: ContributionFrequency) =>
+    value === "trimestriel"
+      ? t("tools.simulation.quarterly")
+      : value === "annuel"
+        ? t("tools.simulation.yearly")
+        : t("tools.simulation.monthly");
   const [initial, setInitial] = usePersistedState("ouestbourse:sim:initial", "1000000");
   const [contribution, setContribution] = usePersistedState("ouestbourse:sim:contrib", "50000");
   const [frequency, setFrequency] = usePersistedState<ContributionFrequency>(
@@ -80,7 +90,7 @@ export default function InvestmentSimulator({
       central: p.value,
       optimistic: optimistic.points[i]?.value ?? p.value,
       pessimistic: pessimistic.points[i]?.value ?? p.value,
-      versé: p.totalContributed,
+      contributed: p.totalContributed,
     }));
   }, [scenarios]);
 
@@ -98,7 +108,7 @@ export default function InvestmentSimulator({
       />
       <aside className={styles.perspective} aria-live="polite">
         <p className={styles.perspectiveKicker}>
-          {def.label} · {def.horizon} · risque {def.risk}
+          {t("portfolio.types.kicker", { label: def.label, horizon: def.horizon, risk: def.risk })}
         </p>
         <p className={styles.perspectiveLead}>{def.simulationLead}</p>
         <ul className={styles.perspectiveList}>
@@ -125,23 +135,23 @@ export default function InvestmentSimulator({
             setSpread(def.simulationSuggest.spread);
           }}
         >
-          Appliquer les paramètres pédagogiques (durée, frais, écart)
+          {t("tools.simulation.apply")}
         </button>
         <p className={styles.perspectiveFoot}>
-          Les rendements saisis restent les vôtres — aucun taux n’est inventé.{" "}
-          <Link href={def.educationHref}>Guide {def.label}</Link>
+          {t("tools.simulation.ratesNote")}{" "}
+          <Link href={def.educationHref}>{t("portfolio.types.guide", { label: def.label })}</Link>
         </p>
       </aside>
       <div className={styles.grid}>
         <form
           className={styles.form}
           onSubmit={(e) => e.preventDefault()}
-          aria-label="Paramètres de simulation"
+          aria-label={t("tools.simulation.formAria")}
         >
-          <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 14 }}>Paramètres</h2>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 14 }}>{t("tools.simulation.parameters")}</h2>
 
           <label className={styles.label}>
-            Capital initial (FCFA)
+            {t("tools.simulation.initial")}
             <input
               className={styles.input}
               inputMode="decimal"
@@ -151,7 +161,7 @@ export default function InvestmentSimulator({
           </label>
 
           <label className={styles.label}>
-            Versement périodique (FCFA)
+            {t("tools.simulation.contribution")}
             <input
               className={styles.input}
               inputMode="decimal"
@@ -161,22 +171,22 @@ export default function InvestmentSimulator({
           </label>
 
           <label className={styles.label}>
-            Fréquence des versements
+            {t("tools.simulation.frequency")}
             <select
               className={styles.input}
               value={frequency}
               onChange={(e) => setFrequency(e.target.value as ContributionFrequency)}
             >
-              {FREQ_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
+              {FREQ_VALUES.map((value) => (
+                <option key={value} value={value}>
+                  {freqLabel(value)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className={styles.label}>
-            Durée (années)
+            {t("tools.simulation.years")}
             <input
               className={styles.input}
               type="number"
@@ -188,7 +198,7 @@ export default function InvestmentSimulator({
           </label>
 
           <label className={styles.label}>
-            Rendement annuel attendu (%)
+            {t("tools.simulation.rate")}
             <input
               className={styles.input}
               inputMode="decimal"
@@ -198,7 +208,7 @@ export default function InvestmentSimulator({
           </label>
 
           <label className={styles.label}>
-            Frais annuels (%)
+            {t("tools.simulation.fees")}
             <input
               className={styles.input}
               inputMode="decimal"
@@ -208,7 +218,7 @@ export default function InvestmentSimulator({
           </label>
 
           <label className={styles.label}>
-            Écart scénarios ± (%)
+            {t("tools.simulation.spread")}
             <input
               className={styles.input}
               inputMode="decimal"
@@ -218,44 +228,46 @@ export default function InvestmentSimulator({
           </label>
 
           <p className={styles.hint} style={PANEL_TEXT}>
-            Rendement effectif utilisé :{" "}
-            <strong style={{ color: C.text }}>{central.effectiveAnnualRate} %</strong> / an
-            (après frais). Hypothèse pédagogique — pas un conseil d&apos;investissement.
+            {t("tools.simulation.effectiveBefore")}{" "}
+            <strong style={{ color: C.text }}>{format.percent(central.effectiveAnnualRate, 2)}</strong>{" "}
+            {t("tools.simulation.effectiveAfter")}
           </p>
         </form>
 
         <div className={styles.results}>
-          <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 14 }}>Résultats</h2>
+          <h2 style={{ ...SECTION_TITLE, textAlign: "left", marginBottom: 14 }}>{t("tools.simulation.results")}</h2>
           <div className={styles.kpis}>
             <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Capital final (central)</span>
-              <span className={styles.kpiValue}>{fmtFcfa(central.finalValue)}</span>
+              <span className={styles.kpiLabel}>{t("tools.simulation.final")}</span>
+              <span className={styles.kpiValue}>{fmtMoney(central.finalValue, format)}</span>
             </div>
             <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Total versé</span>
-              <span className={styles.kpiValue}>{fmtFcfa(central.totalContributed)}</span>
+              <span className={styles.kpiLabel}>{t("tools.simulation.contributed")}</span>
+              <span className={styles.kpiValue}>{fmtMoney(central.totalContributed, format)}</span>
             </div>
             <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Gain estimé</span>
+              <span className={styles.kpiLabel}>{t("tools.simulation.gain")}</span>
               <span
                 className={styles.kpiValue}
                 style={{ color: central.totalGain >= 0 ? C.green : C.red }}
               >
                 {central.totalGain >= 0 ? "+" : ""}
-                {fmtFcfa(central.totalGain)}
-                {central.gainPercent !== "N/D" ? ` (${central.gainPercent} %)` : ""}
+                {fmtMoney(central.totalGain, format)}
+                {central.gainPercent !== "N/D"
+                  ? ` (${format.percent(central.gainPercent, percentDigits(central.gainPercent))})`
+                  : ""}
               </span>
             </div>
             <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Scénario optimiste</span>
+              <span className={styles.kpiLabel}>{t("tools.simulation.optimistic")}</span>
               <span className={styles.kpiValue} style={{ color: C.green }}>
-                {fmtFcfa(scenarios.optimistic.finalValue)}
+                {fmtMoney(scenarios.optimistic.finalValue, format)}
               </span>
             </div>
             <div className={styles.kpi}>
-              <span className={styles.kpiLabel}>Scénario pessimiste</span>
+              <span className={styles.kpiLabel}>{t("tools.simulation.pessimistic")}</span>
               <span className={styles.kpiValue} style={{ color: C.red }}>
-                {fmtFcfa(scenarios.pessimistic.finalValue)}
+                {fmtMoney(scenarios.pessimistic.finalValue, format)}
               </span>
             </div>
           </div>
@@ -267,7 +279,7 @@ export default function InvestmentSimulator({
                 <XAxis
                   dataKey="year"
                   tick={{ fill: C.textDim, fontSize: 11 }}
-                  label={{ value: "Année", position: "insideBottom", offset: -2, fill: C.textDim }}
+                  label={{ value: t("tools.simulation.yearAxis"), position: "insideBottom", offset: -2, fill: C.textDim }}
                 />
                 <YAxis
                   tickFormatter={(v) =>
@@ -286,28 +298,28 @@ export default function InvestmentSimulator({
                     fontSize: "0.78rem",
                   }}
                   formatter={(value, name) => [
-                    fmtFcfa(Number(value)),
+                    fmtMoney(Number(value), format),
                     name === "central"
-                      ? "Central"
+                      ? t("tools.simulation.central")
                       : name === "optimistic"
-                        ? "Optimiste"
+                        ? t("tools.simulation.optimisticShort")
                         : name === "pessimistic"
-                          ? "Pessimiste"
-                          : "Versé",
+                          ? t("tools.simulation.pessimisticShort")
+                          : t("tools.simulation.contributedShort"),
                   ]}
-                  labelFormatter={(y) => `Année ${y}`}
+                  labelFormatter={(y) => t("tools.simulation.yearLabel", { year: String(y) })}
                 />
                 <Legend
                   wrapperStyle={{ fontSize: "0.65rem", paddingTop: 4 }}
                   iconSize={8}
                   formatter={(value) =>
                     value === "central"
-                      ? "Central"
+                      ? t("tools.simulation.central")
                       : value === "optimistic"
-                        ? "Optimiste"
+                        ? t("tools.simulation.optimisticShort")
                         : value === "pessimistic"
-                          ? "Pessimiste"
-                          : "Total versé"
+                          ? t("tools.simulation.pessimisticShort")
+                          : t("tools.simulation.contributedLegend")
                   }
                 />
                 <Area
@@ -338,7 +350,7 @@ export default function InvestmentSimulator({
                 />
                 <Area
                   type="monotone"
-                  dataKey="versé"
+                  dataKey="contributed"
                   stroke={C.blue}
                   fill="transparent"
                   strokeWidth={1.5}
@@ -348,34 +360,35 @@ export default function InvestmentSimulator({
           </div>
 
           <div className={styles.chartLegendBox}>
-            <h3 className={styles.chartLegendTitle}>Légende des courbes</h3>
+            <h3 className={styles.chartLegendTitle}>{t("tools.simulation.legendTitle")}</h3>
             <p className={styles.chartLegendLine}>
               <span className={styles.legendSwatch} style={{ background: C.gold }} aria-hidden />
               <span>
-                <strong>Central :</strong> évolution du capital avec le rendement annuel saisi
-                ({parseAmount(rate)} % avant frais, soit {central.effectiveAnnualRate} % effectif après frais).
+                {t("tools.simulation.centralLegend", {
+                  rate: format.number(parseAmount(rate)),
+                  effective: format.number(central.effectiveAnnualRate),
+                })}
               </span>
             </p>
             <p className={styles.chartLegendLine}>
               <span className={styles.legendSwatch} style={{ background: C.green }} aria-hidden />
               <span>
-                <strong>Optimiste :</strong> même simulation avec un rendement plus élevé
-                (+{parseAmount(spread) || 3} points de pourcentage par rapport au scénario central).
+                {t("tools.simulation.optimisticLegend", {
+                  spread: format.number(parseAmount(spread) || 3),
+                })}
               </span>
             </p>
             <p className={styles.chartLegendLine}>
               <span className={styles.legendSwatch} style={{ background: C.red }} aria-hidden />
               <span>
-                <strong>Pessimiste :</strong> même simulation avec un rendement plus faible
-                (−{parseAmount(spread) || 3} points de pourcentage par rapport au scénario central).
+                {t("tools.simulation.pessimisticLegend", {
+                  spread: format.number(parseAmount(spread) || 3),
+                })}
               </span>
             </p>
             <p className={styles.chartLegendLine}>
               <span className={styles.legendSwatch} style={{ background: C.blue }} aria-hidden />
-              <span>
-                <strong>Total versé :</strong> somme du capital initial et de tous les versements périodiques,
-                sans aucun rendement (référence de ce que vous avez réellement mis de côté).
-              </span>
+              <span>{t("tools.simulation.contributedLegendText")}</span>
             </p>
           </div>
         </div>

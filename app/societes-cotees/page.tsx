@@ -5,45 +5,48 @@ import SiteFooter from "@/components/layout/SiteFooter";
 import AnalysisRecap from "@/components/analysis/AnalysisRecap";
 import { C } from "@/lib/theme/colors";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
-import { calcMetrics } from "@/lib/calc/calc-metrics";
+import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
 import { fundamentalRecapLines, truncateSummary } from "@/lib/calc/analysis-recap";
+import { getI18n } from "@/lib/i18n/get-i18n";
+import type { LabelsApi } from "@/lib/i18n/labels";
+import type { FormatApi } from "@/lib/i18n/format";
+import type { Locale } from "@/lib/i18n/config";
+import type { TFunc } from "@/lib/i18n/create-i18n";
 import styles from "@/components/societes/SocietesCotees.module.css";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Sociétés cotées — OuestBourse",
-  description:
-    "Liste des sociétés cotées à la BRVM, classées par secteur, avec cours, capitalisation et signaux d'analyse.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return {
+    title: t("directory.companies.metaTitle"),
+    description: t("directory.companies.metaDescription"),
+  };
+}
 
-/** Courtes présentations factuelles des secteurs BRVM (pas de chiffres inventés). */
-const SECTOR_CONTEXT: Record<string, string> = {
-  Banques:
-    "Établissements bancaires de l'UEMOA cotés à la BRVM : activité de crédit, collecte de dépôts et services financiers. Souvent suivis pour le rendement du dividende et la solidité du bilan.",
-  "Conso. Base":
-    "Biens de consommation courante (alimentaire, boissons, produits d'hygiène). Demande relativement stable, titres souvent regardés pour la récurrence des revenus.",
-  "Conso. Discrétionnaire":
-    "Biens et services non essentiels (distribution, équipements, loisirs). Plus sensibles au cycle économique et au pouvoir d'achat des ménages.",
-  Divertissement:
-    "Activités de médias, loisirs et divertissement cotées sur la place. Univers restreint à la BRVM — chaque titre doit être lu individuellement.",
-  Énergie:
-    "Producteurs et distributeurs d'énergie (hydrocarbures, gaz, services associés). Sensibles aux prix des matières et à la régulation nationale.",
-  Industrie:
-    "Industries manufacturières et transformation. Performance liée à l'investissement productif, aux coûts d'intrants et à la demande régionale.",
-  "Services Publics":
-    "Services d'intérêt général (eau, électricité, infrastructures). Profil souvent défensif, avec une composante réglementaire importante.",
-  Télécoms:
-    "Opérateurs de télécommunications. Forte présence dans les indices BRVM, suivis pour la croissance des abonnés, le cash-flow et la politique de dividende.",
-  Autres:
-    "Sociétés dont le secteur officiel ne rentre pas dans les catégories ci-dessus, ou classification encore partielle en base.",
-};
-
-function sectorBlurb(sector: string): string {
-  return (
-    SECTOR_CONTEXT[sector] ??
-    `Sociétés classées dans le secteur « ${sector} » selon la nomenclature retenue en base (sources BRVM / Richbourse).`
-  );
+function sectorBlurb(sector: string, t: TFunc, labels: LabelsApi): string {
+  switch (sector) {
+    case "Banques":
+      return t("directory.companies.sectorsBlurb.banques");
+    case "Conso. Base":
+      return t("directory.companies.sectorsBlurb.consoBase");
+    case "Conso. Discrétionnaire":
+      return t("directory.companies.sectorsBlurb.consoDiscretionnaire");
+    case "Divertissement":
+      return t("directory.companies.sectorsBlurb.divertissement");
+    case "Énergie":
+      return t("directory.companies.sectorsBlurb.energie");
+    case "Industrie":
+      return t("directory.companies.sectorsBlurb.industrie");
+    case "Services Publics":
+      return t("directory.companies.sectorsBlurb.servicesPublics");
+    case "Télécoms":
+      return t("directory.companies.sectorsBlurb.telecoms");
+    case "Autres":
+      return t("directory.companies.sectorsBlurb.autres");
+    default:
+      return t("directory.companies.sectorsBlurb.fallback", { sector: labels.sector(sector) });
+  }
 }
 
 function lastPrice(prices: Record<number, number>, years: number[]): number | null {
@@ -54,11 +57,46 @@ function lastPrice(prices: Record<number, number>, years: number[]): number | nu
   return null;
 }
 
+function recapLines(
+  m: CalcMetricsResult,
+  per: number,
+  locale: Locale,
+  t: TFunc,
+  labels: LabelsApi,
+  format: FormatApi
+): string[] {
+  if (locale !== "en") return fundamentalRecapLines(m, per);
+  const perTxt = per > 0 ? format.decimal(per, 1) : "N/D";
+  const lines: string[] = [
+    t("directory.companies.recapDividend", { yield: m.dividendYieldPercent, per: perTxt }),
+    t("directory.companies.recapRisk", {
+      tier: labels.riskTier(m.riskAnalysis.riskTier),
+      score: m.riskAnalysis.riskScore,
+      vol:
+        m.volatilityPercent !== "N/D"
+          ? t("directory.companies.recapVol", { vol: m.volatilityPercent })
+          : "",
+    }),
+    t("directory.companies.recapHorizons", {
+      court: m.horizonScores.court,
+      moyen: m.horizonScores.moyen,
+      long: m.horizonScores.long,
+      fundamental: m.fundamentalScore,
+    }),
+  ];
+  const top = m.signalReasons.filter((r) => r.kind !== "neutre").slice(0, 2);
+  for (const reason of top) {
+    lines.push(`${reason.kind === "positif" ? "▲" : "▼"} ${labels.reason(reason)}`);
+  }
+  return lines.slice(0, 5);
+}
+
 export default async function SocietesCoteesPage() {
+  const { t, format, labels, locale } = getI18n();
   const dataset = await getCompaniesFullDataset();
   const { companies, years } = dataset;
   const yearSpan =
-    years.length >= 2 ? `${years[0]} → ${years[years.length - 1]}` : years[0] != null ? String(years[0]) : "N/D";
+    years.length >= 2 ? `${years[0]} → ${years[years.length - 1]}` : years[0] != null ? String(years[0]) : t("common.nd");
 
   const countries = new Set(companies.map((c) => c.country));
 
@@ -87,28 +125,28 @@ export default async function SocietesCoteesPage() {
     <AppHeader>
       <main className={styles.page}>
         <header className={styles.hero}>
-          <p className={styles.eyebrow}>La cote BRVM</p>
-          <h1 className={styles.title}>Sociétés cotées</h1>
+          <p className={styles.eyebrow}>{t("directory.companies.eyebrow")}</p>
+          <h1 className={styles.title}>{t("directory.companies.title")}</h1>
           <p className={styles.lead}>
-            Ensemble des émetteurs suivis sur la <strong style={{ color: C.text }}>BRVM</strong> (Bourse
-            Régionale des Valeurs Mobilières, zone UEMOA). Les sociétés sont regroupées par{" "}
-            <strong style={{ color: C.text }}>catégorie sectorielle</strong> pour faciliter la comparaison
-            entre pairs. Chaque fiche détaille le signal d&apos;analyse, l&apos;historique et les
-            projections.
+            {t("directory.companies.leadBefore")}
+            <strong style={{ color: C.text }}>BRVM</strong>
+            {t("directory.companies.leadMid")}
+            <strong style={{ color: C.text }}>{t("directory.companies.leadSector")}</strong>
+            {t("directory.companies.leadAfter")}
           </p>
           <div className={styles.metaStrip}>
-            <span className={styles.metaChip}>{companies.length} émetteurs</span>
-            <span className={styles.metaChip}>{sectors.length} secteurs</span>
-            <span className={styles.metaChip}>{countries.size} pays</span>
-            <span className={styles.metaChip}>Historique {yearSpan}</span>
+            <span className={styles.metaChip}>{t("directory.companies.issuers", { count: companies.length })}</span>
+            <span className={styles.metaChip}>{t("directory.companies.sectors", { count: sectors.length })}</span>
+            <span className={styles.metaChip}>{t("directory.companies.countries", { count: countries.size })}</span>
+            <span className={styles.metaChip}>{t("directory.companies.history", { span: yearSpan })}</span>
           </div>
         </header>
 
-        <nav className={styles.toc} aria-label="Catégories sectorielles">
-          <div className={styles.tocLabel}>Aller à une catégorie</div>
+        <nav className={styles.toc} aria-label={t("directory.companies.tocAria")}>
+          <div className={styles.tocLabel}>{t("directory.companies.tocLabel")}</div>
           {sectors.map(({ sector, companies: list }) => (
             <a key={sector} href={`#secteur-${sectorSlug(sector)}`} className={styles.tocLink}>
-              {sector} ({list.length})
+              {labels.sector(sector)} ({list.length})
             </a>
           ))}
         </nav>
@@ -125,16 +163,19 @@ export default async function SocietesCoteesPage() {
             >
               <div className={styles.sectionHead}>
                 <h2 id={`h-${sectorSlug(sector)}`} className={styles.sectionTitle}>
-                  {sector} <span className={styles.sectionCount}>({list.length})</span>
+                  {labels.sector(sector)} <span className={styles.sectionCount}>({list.length})</span>
                 </h2>
                 <div className={styles.sectionStats}>
-                  Cap. renseignée :{" "}
                   {mktSum > 0
-                    ? `${mktSum.toLocaleString("fr-FR")} Mds FCFA (${withCap}/${list.length})`
-                    : "N/D"}
+                    ? t("directory.companies.capReported", {
+                        amount: format.mdsFcfa(mktSum),
+                        withCap,
+                        total: list.length,
+                      })
+                    : t("directory.companies.capReportedNd")}
                 </div>
               </div>
-              <p className={styles.sectionBlurb}>{sectorBlurb(sector)}</p>
+              <p className={styles.sectionBlurb}>{sectorBlurb(sector, t, labels)}</p>
 
               <div className={styles.grid}>
                 {list.map((co) => {
@@ -147,6 +188,18 @@ export default async function SocietesCoteesPage() {
                     mktcap: co.mktcap,
                     sector: co.sector,
                   });
+                  const summary =
+                    locale === "en"
+                      ? truncateSummary(
+                          labels.signalSummary({
+                            label: m.signal.label,
+                            score: m.score,
+                            confidence: m.confidence,
+                            signalSummary: m.signalSummary,
+                            signalReasons: m.signalReasons,
+                          })
+                        )
+                      : truncateSummary(m.signalSummary);
                   return (
                     <article key={co.ticker} id={co.ticker} className={styles.card}>
                       <Link href={`/actions/${co.ticker}`} className={styles.cardMain}>
@@ -158,31 +211,33 @@ export default async function SocietesCoteesPage() {
                             <span className={styles.ticker}>{co.ticker}</span>
                             <span className={styles.name}>{co.name}</span>
                             <span className={styles.country}>
-                              {co.countryFlag} {co.country}
+                              {co.countryFlag} {labels.country(co.country)}
                             </span>
                           </div>
                         </div>
                         <div className={styles.cardMetrics}>
                           <div className={styles.metric}>
-                            <span className={styles.metricLabel}>Cours</span>
+                            <span className={styles.metricLabel}>{t("directory.companies.price")}</span>
                             <span className={styles.metricValue}>
-                              {price != null ? `${price.toLocaleString("fr-FR")} FCFA` : "N/D"}
+                              {price != null ? format.fcfa(price) : t("common.nd")}
                             </span>
                           </div>
                           <div className={styles.metric}>
-                            <span className={styles.metricLabel}>Cap. boursière</span>
+                            <span className={styles.metricLabel}>{t("directory.companies.mktCap")}</span>
                             <span className={styles.metricValue}>
-                              {co.mktcap > 0 ? `${co.mktcap.toLocaleString("fr-FR")} Mds` : "N/D"}
+                              {co.mktcap > 0
+                                ? t("directory.companies.mktCapShort", { amount: format.integer(co.mktcap) })
+                                : t("common.nd")}
                             </span>
                           </div>
                           <div className={styles.metric}>
-                            <span className={styles.metricLabel}>Rend. div.</span>
+                            <span className={styles.metricLabel}>{t("directory.companies.dividendYield")}</span>
                             <span className={styles.metricValue} style={{ color: C.teal }}>
                               {m.dividendYieldPercent}%
                             </span>
                           </div>
                           <div className={styles.metric}>
-                            <span className={styles.metricLabel}>Score</span>
+                            <span className={styles.metricLabel}>{t("directory.companies.score")}</span>
                             <span className={styles.metricValue}>{m.score}/100</span>
                           </div>
                         </div>
@@ -194,21 +249,21 @@ export default async function SocietesCoteesPage() {
                               background: `color-mix(in srgb, ${m.signal.color} 18%, transparent)`,
                             }}
                           >
-                            {m.signal.label}
+                            {labels.signal(m.signal.label)}
                           </span>
-                          <span className={styles.more}>Fiche →</span>
+                          <span className={styles.more}>{t("directory.companies.sheet")}</span>
                         </div>
                       </Link>
                       <AnalysisRecap
                         kind="fundamental"
-                        signalLabel={m.signal.label}
+                        signalLabel={labels.signal(m.signal.label)}
                         signalColor={m.signal.color}
                         score={m.fundamentalScore}
-                        confidence={m.confidence}
-                        summary={truncateSummary(m.signalSummary)}
-                        lines={fundamentalRecapLines(m, co.per)}
+                        confidence={labels.confidence(m.confidence)}
+                        summary={summary}
+                        lines={recapLines(m, co.per, locale, t, labels, format)}
                         href={`/actions/${co.ticker}`}
-                        hrefLabel="Fiche & analyse complète →"
+                        hrefLabel={t("directory.companies.fullSheet")}
                       />
                     </article>
                   );
@@ -219,11 +274,9 @@ export default async function SocietesCoteesPage() {
         })}
 
         <p className={styles.note}>
-          Sources : données canoniques BRVM / Sikafinance / Richbourse réconciliées en base. Les
-          capitalisations ou PER absents s&apos;affichent « N/D ». Analyse informative uniquement —
-          ne constitue pas un conseil en investissement.{" "}
+          {t("directory.companies.note")}{" "}
           <Link href="/mentions-legales" style={{ color: C.textDim }}>
-            Mentions légales
+            {t("directory.companies.legalLink")}
           </Link>
         </p>
       </main>

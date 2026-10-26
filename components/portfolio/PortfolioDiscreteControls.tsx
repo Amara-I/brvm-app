@@ -2,10 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import { C } from "@/lib/theme/colors";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { discreteMaskLabel } from "@/components/portfolio/portfolio-i18n";
 import {
   DEFAULT_DISCRETE_MASKS,
   DISCRETE_MASK_KEYS,
-  DISCRETE_MASK_LABELS,
   type DiscreteMaskConfig,
   type DiscreteMaskKey,
 } from "@/lib/portfolio/discrete-mode";
@@ -23,6 +24,7 @@ export default function PortfolioDiscreteControls({
   masks,
   onMasksChange,
 }: Props) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -64,11 +66,7 @@ export default function PortfolioDiscreteControls({
           type="button"
           onClick={() => onDiscreteChange(!discrete)}
           aria-pressed={discrete}
-          title={
-            discrete
-              ? "Désactiver le mode discret"
-              : "Activer le mode discret (masque les champs choisis)"
-          }
+          title={discrete ? t("portfolio.discrete.onTitle") : t("portfolio.discrete.offTitle")}
           style={{
             background: discrete ? C.gold : C.bg,
             color: discrete ? "#080b12" : C.text,
@@ -82,14 +80,14 @@ export default function PortfolioDiscreteControls({
             whiteSpace: "nowrap",
           }}
         >
-          {discrete ? "👁 Mode discret ON" : "🙈 Mode discret"}
+          {discrete ? t("portfolio.discrete.on") : t("portfolio.discrete.off")}
         </button>
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="dialog"
-          title="Choisir les informations masquées"
+          title={t("portfolio.discrete.chooseTitle")}
           style={{
             background: C.bg,
             color: C.text,
@@ -103,7 +101,7 @@ export default function PortfolioDiscreteControls({
             whiteSpace: "nowrap",
           }}
         >
-          Masquer… ▾
+          {t("portfolio.discrete.choose")}
         </button>
       </div>
       {discrete ? (
@@ -116,13 +114,13 @@ export default function PortfolioDiscreteControls({
             lineHeight: 1.35,
           }}
         >
-          Mode discret actif — utilisez « Masquer… » pour choisir les champs.
+          {t("portfolio.discrete.active")}
         </p>
       ) : null}
       {open ? (
         <div
           role="dialog"
-          aria-label="Informations masquées en mode discret"
+          aria-label={t("portfolio.discrete.dialog")}
           style={{
             position: "absolute",
             left: 0,
@@ -137,8 +135,7 @@ export default function PortfolioDiscreteControls({
           }}
         >
           <p style={{ margin: "0 0 10px", fontSize: "0.78rem", color: C.textDim, lineHeight: 1.4 }}>
-            Cochez ce qui doit être masqué lorsque le mode discret est actif. Les pourcentages
-            (YTD, allocation, variation) restent visibles sauf s&apos;ils sont listés ci-dessous.
+            {t("portfolio.discrete.help")}
           </p>
           <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
             {DISCRETE_MASK_KEYS.map((key) => (
@@ -158,7 +155,7 @@ export default function PortfolioDiscreteControls({
                     checked={masks[key]}
                     onChange={() => toggleMask(key)}
                   />
-                  <span>{DISCRETE_MASK_LABELS[key]}</span>
+                  <span>{discreteMaskLabel(key, t)}</span>
                 </label>
               </li>
             ))}
@@ -179,7 +176,7 @@ export default function PortfolioDiscreteControls({
               cursor: "pointer",
             }}
           >
-            Réinitialiser les masques par défaut
+            {t("portfolio.discrete.reset")}
           </button>
         </div>
       ) : null}

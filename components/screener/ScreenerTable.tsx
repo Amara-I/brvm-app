@@ -5,6 +5,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { displayRiskSummary } from "@/components/marche/market-copy";
 import { C } from "@/lib/theme/colors";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import type { CompanyWithMetrics } from "@/lib/calc/market-summary-stats";
@@ -20,58 +22,13 @@ import styles from "./Screener.module.css";
 
 type FilterKey = "rentabilite" | "dividendes" | "croissance" | "valorisation" | "solidite";
 
-const FILTERS: Array<{ key: FilterKey; label: string }> = [
-  { key: "rentabilite", label: "Rentabilité" },
-  { key: "dividendes", label: "Dividendes" },
-  { key: "croissance", label: "Croissance" },
-  { key: "valorisation", label: "Valorisation" },
-  { key: "solidite", label: "Solidité" },
-];
-
 function num(v: string | number): number {
   const n = typeof v === "number" ? v : parseFloat(v);
   return Number.isNaN(n) ? -Infinity : n;
 }
 
-const COL_DEFS: ColumnFilterDef<CompanyWithMetrics>[] = [
-  {
-    key: "company",
-    label: "Société",
-    sortKind: "text",
-    getValue: ({ co }) => `${co.ticker} ${co.name}`,
-  },
-  { key: "sector", label: "Secteur", sortKind: "text", getValue: ({ co }) => co.sector },
-  { key: "country", label: "Pays", sortKind: "text", getValue: ({ co }) => co.country },
-  { key: "score", label: "Score", sortKind: "number", getValue: ({ metrics }) => String(metrics.score) },
-  {
-    key: "perf5",
-    label: "Perf. 5 ans",
-    sortKind: "number",
-    getValue: ({ metrics }) => String(metrics.perf5Percent),
-  },
-  {
-    key: "yield",
-    label: "Rend. div.",
-    sortKind: "number",
-    getValue: ({ metrics }) => String(metrics.dividendYieldPercent),
-  },
-  {
-    key: "per",
-    label: "PER",
-    sortKind: "number",
-    getValue: ({ co }) => (co.per > 0 ? co.per.toFixed(1) : "N/D"),
-  },
-  { key: "signal", label: "Signal", sortKind: "text", getValue: ({ metrics }) => metrics.signal.label },
-  {
-    key: "risk",
-    label: "Risque",
-    sortKind: "number",
-    getValue: ({ metrics }) => String(metrics.riskAnalysis.riskScore),
-  },
-  { key: "confidence", label: "Confiance", sortKind: "text", getValue: ({ metrics }) => metrics.confidence },
-];
-
 export default function ScreenerTable({ companies }: { companies: CompanyWithMetrics[] }) {
+  const { t, labels, locale } = useI18n();
   const pathname = usePathname();
   const pageKey = `ouestbourse:screener:${pathname}`;
   const [active, setActive] = usePersistedState<FilterKey>(`${pageKey}:active`, "rentabilite");
@@ -79,6 +36,60 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
   const [country, setCountry] = usePersistedState(`${pageKey}:country`, "Tous");
   const [query, setQuery] = usePersistedState(`${pageKey}:query`, "");
   const [colSort, setColSort] = useState<ColumnSortState | null>(null);
+
+  const filters: Array<{ key: FilterKey; label: string }> = [
+    { key: "rentabilite", label: t("screener.filters.profitability") },
+    { key: "dividendes", label: t("screener.filters.dividends") },
+    { key: "croissance", label: t("screener.filters.growth") },
+    { key: "valorisation", label: t("screener.filters.valuation") },
+    { key: "solidite", label: t("screener.filters.quality") },
+  ];
+
+  const colDefs = useMemo<ColumnFilterDef<CompanyWithMetrics>[]>(
+    () => [
+      {
+        key: "company",
+        label: t("screener.columns.company"),
+        sortKind: "text",
+        getValue: ({ co }) => `${co.ticker} ${co.name}`,
+      },
+      { key: "sector", label: t("screener.columns.sector"), sortKind: "text", getValue: ({ co }) => co.sector },
+      { key: "country", label: t("screener.columns.country"), sortKind: "text", getValue: ({ co }) => co.country },
+      { key: "score", label: t("screener.columns.score"), sortKind: "number", getValue: ({ metrics }) => String(metrics.score) },
+      {
+        key: "perf5",
+        label: t("screener.columns.perf5"),
+        sortKind: "number",
+        getValue: ({ metrics }) => String(metrics.perf5Percent),
+      },
+      {
+        key: "yield",
+        label: t("screener.columns.yield"),
+        sortKind: "number",
+        getValue: ({ metrics }) => String(metrics.dividendYieldPercent),
+      },
+      {
+        key: "per",
+        label: t("screener.columns.per"),
+        sortKind: "number",
+        getValue: ({ co }) => (co.per > 0 ? co.per.toFixed(1) : "N/D"),
+      },
+      { key: "signal", label: t("screener.columns.signal"), sortKind: "text", getValue: ({ metrics }) => metrics.signal.label },
+      {
+        key: "risk",
+        label: t("screener.columns.risk"),
+        sortKind: "number",
+        getValue: ({ metrics }) => String(metrics.riskAnalysis.riskScore),
+      },
+      {
+        key: "confidence",
+        label: t("screener.columns.confidence"),
+        sortKind: "text",
+        getValue: ({ metrics }) => metrics.confidence,
+      },
+    ],
+    [t]
+  );
 
   const sectors = useMemo(
     () => ["Tous", ...Array.from(new Set(companies.map((c) => c.co.sector))).sort((a, b) => a.localeCompare(b, "fr"))],
@@ -127,14 +138,14 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
     if (active === "valorisation") {
       list = list.filter((c) => c.co.per > 0);
     }
-    return applyColumnSort(list, COL_DEFS, colSort);
-  }, [companies, active, sector, country, query, colSort]);
+    return applyColumnSort(list, colDefs, colSort);
+  }, [companies, active, sector, country, query, colSort, colDefs]);
 
   return (
     <div className={styles.shell} data-align-left>
       <div className={styles.toolbar}>
         <div className={styles.chips}>
-          {FILTERS.map((f) => (
+          {filters.map((f) => (
             <button
               key={f.key}
               type="button"
@@ -151,51 +162,51 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
         </div>
         <div className={styles.filters}>
           <label className={styles.filterLabel}>
-            Secteur
+            {t("screener.sector")}
             <select value={sector} onChange={(e) => setSector(e.target.value)} className={styles.select}>
               {sectors.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {s === "Tous" ? t("screener.all") : labels.sector(s)}
                 </option>
               ))}
             </select>
           </label>
           <label className={styles.filterLabel}>
-            Pays
+            {t("screener.country")}
             <select value={country} onChange={(e) => setCountry(e.target.value)} className={styles.select}>
               {countries.map((c) => (
                 <option key={c} value={c}>
-                  {c}
+                  {c === "Tous" ? t("screener.all") : labels.country(c)}
                 </option>
               ))}
             </select>
           </label>
           <label className={styles.filterLabel}>
-            Recherche
+            {t("screener.search")}
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ticker ou nom…"
+              placeholder={t("screener.searchPlaceholder")}
               className={styles.search}
             />
           </label>
         </div>
         <div className={styles.resultCount}>
-          {filtered.length} résultat{filtered.length > 1 ? "s" : ""}
+          {t(filtered.length > 1 ? "screener.resultsMany" : "screener.resultsOne", { count: filtered.length })}
         </div>
       </div>
 
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
-            <ColumnFilterRow columns={COL_DEFS} sort={colSort} onSortChange={setColSort} />
+            <ColumnFilterRow columns={colDefs} sort={colSort} onSortChange={setColSort} />
           </thead>
           <tbody>
             {filtered.length === 0 ? (
               <tr>
                 <td colSpan={10} className={styles.empty}>
-                  Aucun titre ne correspond à ces filtres.
+                  {t("screener.emptyRow")}
                 </td>
               </tr>
             ) : (
@@ -207,8 +218,8 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                       <span className={styles.nameDim}> — {co.name}</span>
                     </Link>
                   </td>
-                  <td className={styles.dim}>{co.sector}</td>
-                  <td className={styles.dim}>{co.country}</td>
+                  <td className={styles.dim}>{labels.sector(co.sector)}</td>
+                  <td className={styles.dim}>{labels.country(co.country)}</td>
                   <td className="ob-num" style={{ color: C.blue, fontWeight: 700 }}>
                     {metrics.score}
                   </td>
@@ -224,10 +235,19 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                   </td>
                   <td className="ob-num">{co.per > 0 ? co.per.toFixed(1) : <span className="ob-nd">N/D</span>}</td>
                   <td>
-                    <SignalBadge label={metrics.signal.label} title={metrics.signalSummary} />
+                    <SignalBadge
+                      label={metrics.signal.label}
+                      title={labels.signalSummary({
+                        label: metrics.signal.label,
+                        score: metrics.score,
+                        confidence: metrics.confidence,
+                        signalSummary: metrics.signalSummary,
+                        signalReasons: metrics.signalReasons,
+                      })}
+                    />
                   </td>
                   <td
-                    title={metrics.riskAnalysis.summary}
+                    title={displayRiskSummary(metrics.riskAnalysis, locale, labels)}
                     style={{
                       color:
                         metrics.riskAnalysis.riskScore < 40
@@ -240,9 +260,9 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                       cursor: "help",
                     }}
                   >
-                    {metrics.riskAnalysis.riskTier}
+                    {labels.riskTier(metrics.riskAnalysis.riskTier)}
                   </td>
-                  <td className={styles.dim}>{metrics.confidence}</td>
+                  <td className={styles.dim}>{labels.confidence(metrics.confidence)}</td>
                 </tr>
               ))
             )}

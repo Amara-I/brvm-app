@@ -3,15 +3,17 @@ import AppHeader from "@/components/AppHeader";
 import AnalyticsDashboard from "@/components/admin/AnalyticsDashboard";
 import PageHeader from "@/components/ui/PageHeader";
 import { requireAdmin } from "@/lib/auth/require-admin";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Analytique — Administration — OuestBourse",
-  description: "Vue admin des pages et fonctionnalités les plus utilisées.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return { title: t("auth.analytics.metaTitle"), description: t("auth.analytics.metaDescription") };
+}
 
 export default async function AdminAnalyticsPage() {
+  const { t } = getI18n();
   const admin = await requireAdmin();
   if (!admin.ok && admin.status === 401) {
     redirect("/connexion?callbackUrl=/admin/analytics");
@@ -21,9 +23,9 @@ export default async function AdminAnalyticsPage() {
       <AppHeader>
         <div className="ob-page">
           <PageHeader
-            kicker="Administration"
-            title="Accès refusé"
-            lead="Cette vue est réservée aux administrateurs."
+            kicker={t("auth.analytics.kicker")}
+            title={t("auth.analytics.deniedTitle")}
+            lead={t("auth.analytics.deniedLead")}
           />
         </div>
       </AppHeader>

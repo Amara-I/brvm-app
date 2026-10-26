@@ -6,6 +6,7 @@ import CompanySheetClient from "@/components/actions/CompanySheetClient";
 import { getCompanySheetPayload } from "@/lib/api/company-sheet-dataset";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { getPreferredPortfolioType } from "@/lib/auth/preferred-portfolio-type";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import { normalizeSheetTab } from "@/lib/ui/company-sheet-tabs";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +16,11 @@ interface PageProps {
 }
 
 export async function generateMetadata({ params }: PageProps) {
+  const { t } = getI18n();
   const ticker = params.ticker.toUpperCase();
   return {
-    title: `${ticker} — Fiche société · OuestBourse`,
-    description: `Cours, performances, santé financière et dividendes pour ${ticker} à la BRVM.`,
+    title: t("company.meta.title", { ticker }),
+    description: t("company.meta.description", { ticker }),
   };
 }
 

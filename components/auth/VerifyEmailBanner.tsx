@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeAuthApiMessage } from "./api-message";
 import styles from "./AuthForm.module.css";
 
 export default function VerifyEmailBanner() {
+  const { t } = useI18n();
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [devUrl, setDevUrl] = useState<string | null>(null);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -15,7 +18,11 @@ export default function VerifyEmailBanner() {
       const res = await fetch("/api/auth/resend-verification", { method: "POST" });
       const json = await res.json().catch(() => null);
       if (!res.ok) {
-        setErrorText(typeof json?.error === "string" ? json.error : "L’envoi a échoué — réessayez dans un instant.");
+        setErrorText(
+          typeof json?.error === "string"
+            ? localizeAuthApiMessage(json.error, t)
+            : t("auth.verify.sendFailed")
+        );
         setState("error");
         return;
       }
@@ -31,18 +38,17 @@ export default function VerifyEmailBanner() {
   return (
     <div className={styles.banner} role="status">
       <p>
-        Confirmez votre adresse email pour sécuriser votre compte. Consultez votre boîte de réception
-        (et les indésirables).
-        {state === "sent" ? " Un nouveau lien vient d’être envoyé." : null}
-        {state === "error" ? ` ${errorText ?? "L’envoi a échoué — réessayez dans un instant."}` : null}{" "}
+        {t("auth.verify.banner")}
+        {state === "sent" ? ` ${t("auth.verify.resent")}` : null}
+        {state === "error" ? ` ${errorText ?? t("auth.verify.sendFailed")}` : null}{" "}
         {devUrl ? (
           <a href={devUrl} className={styles.inlineLink}>
-            Lien de développement
+            {t("auth.devLink")}
           </a>
         ) : null}
       </p>
       <button type="button" onClick={() => void resend()} disabled={state === "sending" || state === "sent"}>
-        {state === "sending" ? "Envoi…" : state === "sent" ? "Email renvoyé" : "Renvoyer l’email"}
+        {state === "sending" ? t("auth.sending") : state === "sent" ? t("auth.verify.resentButton") : t("auth.verify.resend")}
       </button>
     </div>
   );

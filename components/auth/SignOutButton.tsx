@@ -3,6 +3,7 @@
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
 import { signOut } from "next-auth/react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import styles from "./SignOutButton.module.css";
 
 type Props = {
@@ -23,6 +24,7 @@ function fallbackSignOut() {
 }
 
 export default function SignOutButton({ className, open, onOpenChange, hideTrigger }: Props) {
+  const { t } = useI18n();
   const titleId = useId();
   const descId = useId();
   const [internalOpen, setInternalOpen] = useState(false);
@@ -86,12 +88,12 @@ export default function SignOutButton({ className, open, onOpenChange, hideTrigg
               aria-describedby={descId}
               onClick={(e) => e.stopPropagation()}
             >
-              <p className={styles.kicker}>Compte</p>
+              <p className={styles.kicker}>{t("auth.kicker")}</p>
               <h2 id={titleId} className={styles.title}>
-                Déconnexion
+                {t("auth.signOut.heading")}
               </h2>
               <p id={descId} className={styles.body}>
-                Voulez-vous vraiment vous déconnecter ?
+                {t("auth.signOut.question")}
               </p>
               <div className={styles.actions}>
                 <button
@@ -100,7 +102,7 @@ export default function SignOutButton({ className, open, onOpenChange, hideTrigg
                   disabled={busy}
                   onClick={() => setDialogOpen(false)}
                 >
-                  Annuler
+                  {t("common.cancel")}
                 </button>
                 <button
                   type="button"
@@ -108,7 +110,7 @@ export default function SignOutButton({ className, open, onOpenChange, hideTrigg
                   disabled={busy}
                   onClick={() => void confirmSignOut()}
                 >
-                  {busy ? "Déconnexion…" : "Se déconnecter"}
+                  {busy ? t("auth.signOut.busy") : t("auth.signOut.confirm")}
                 </button>
               </div>
             </div>
@@ -127,7 +129,7 @@ export default function SignOutButton({ className, open, onOpenChange, hideTrigg
           aria-haspopup="dialog"
           aria-expanded={dialogOpen}
         >
-          Déconnexion
+          {t("auth.signOut.button")}
         </button>
       )}
       {dialog}

@@ -21,6 +21,16 @@
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import {
+  isLocale,
+  LOCALE_COOKIE,
+  LOCALE_HEADER,
+  LOCALE_MAX_AGE,
+  negotiateLocale,
+  type Locale,
+} from "./lib/i18n/config";
+import { chrome as enChrome } from "./lib/i18n/messages/parts/en/chrome";
+import { chrome as frChrome } from "./lib/i18n/messages/parts/fr/chrome";
 import { checkRateLimit, type RateLimitResult } from "./lib/security/rate-limit";
 
 const DEFAULT_API_LIMIT = { limit: 60, windowMs: 60_000 };
@@ -43,14 +53,42 @@ function rateLimitHeaders(result: RateLimitResult): Record<string, string> {
   };
 }
 
+function requestLocale(request: NextRequest): Locale {
+  const cookie = request.cookies.get(LOCALE_COOKIE)?.value;
+  if (isLocale(cookie)) return cookie;
+  return negotiateLocale(request.headers.get("accept-language"));
+}
+
+function withLocale(request: NextRequest, locale: Locale, responseHeaders?: Record<string, string>) {
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(LOCALE_HEADER, locale);
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  if (responseHeaders) {
+    for (const [key, value] of Object.entries(responseHeaders)) response.headers.set(key, value);
+  }
+  if (!isLocale(request.cookies.get(LOCALE_COOKIE)?.value)) {
+    response.cookies.set(LOCALE_COOKIE, locale, {
+      path: "/",
+      maxAge: LOCALE_MAX_AGE,
+      sameSite: "lax",
+    });
+  }
+  return response;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const locale = requestLocale(request);
 
   // Sonde d'uptime (`GET /api/health`) : requête légère, pas de secrets.
   // On la laisse hors quota pour qu'un monitor (UptimeRobot, cron) ne
   // reçoive jamais un 429 même si l'IP est partagée.
   if (pathname === "/api/health") {
     return NextResponse.next();
+  }
+
+  if (!pathname.startsWith("/api/")) {
+    return withLocale(request, locale);
   }
 
   const isAuthRoute = pathname.startsWith("/api/auth/");
@@ -62,17 +100,19 @@ export function middleware(request: NextRequest) {
   const headers = rateLimitHeaders(result);
 
   if (!result.allowed) {
+    const message = locale === "en" ? enChrome.rateLimit : frChrome.rateLimit;
     return NextResponse.json(
-      { ok: false, error: "Trop de requêtes. Veuillez réessayer dans quelques instants." },
+      { ok: false, error: message },
       { status: 429, headers: { ...headers, "Retry-After": String(Math.ceil((result.resetAt - Date.now()) / 1000)) } }
     );
   }
 
-  const response = NextResponse.next();
-  for (const [k, v] of Object.entries(headers)) response.headers.set(k, v);
-  return response;
+  return withLocale(request, locale, headers);
 }
 
 export const config = {
-  matcher: ["/api/:path*"],
+  matcher: [
+    "/api/:path*",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)",
+  ],
 };

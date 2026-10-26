@@ -8,18 +8,19 @@ import { buildAuthLink } from "@/lib/auth/app-url";
 import {
   isDevAuthPreviewEnabled,
   isEmailConfigured,
-  MAIL_USER_MESSAGES,
   sendAuthEmail,
   userMessageForMailFailure,
 } from "@/lib/auth/email";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST() {
+  const { t, locale } = getI18n();
   const user = await getCurrentUser();
-  if (!user?.id) return apiError("Connexion requise", 401);
+  if (!user?.id) return apiError(t("common.api.authRequired"), 401);
 
   let dbUser;
   try {
@@ -29,26 +30,26 @@ export async function POST() {
     });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
-      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+      return apiError(t("common.unavailable"), 503);
     }
     throw error;
   }
-  if (!dbUser?.email) return apiError("Compte introuvable", 404);
+  if (!dbUser?.email) return apiError(t("common.api.accountMissing"), 404);
   if (dbUser.emailVerified) return apiSuccess({ alreadyVerified: true });
 
   if (!isEmailConfigured()) {
-    return apiError(MAIL_USER_MESSAGES.not_configured, 503);
+    return apiError(t("mail.notConfigured"), 503);
   }
 
   const rawToken = await issueAuthToken(user.id, "EMAIL_VERIFY");
   if (!rawToken) {
-    return apiError("Impossible de générer un lien de confirmation pour le moment.", 503);
+    return apiError(t("common.api.verifyLinkFailedShort"), 503);
   }
 
-  const mailed = await sendAuthEmail("verify", dbUser.email, rawToken);
+  const mailed = await sendAuthEmail("verify", dbUser.email, rawToken, locale);
   if (!mailed.ok) {
     console.error("[auth] renvoi email de confirmation échoué", mailed.error);
-    return apiError(userMessageForMailFailure(mailed), 502);
+    return apiError(userMessageForMailFailure(mailed, locale), 502);
   }
 
   return apiSuccess({

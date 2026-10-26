@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import SignOutButton from "./SignOutButton";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import styles from "./AccountMenu.module.css";
@@ -20,6 +21,7 @@ export default function AccountMenu({
   user: HeaderNavUser;
   variant?: "app" | "landing";
 }) {
+  const { t } = useI18n();
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -54,7 +56,11 @@ export default function AccountMenu({
         <span className={styles.avatar} aria-hidden="true">
           {initials(user)}
         </span>
-        <span className={styles.label}>{user.name ?? user.email ?? "Compte"}</span>
+        <span className={styles.label}>
+          {user.name?.trim()
+            ? t("auth.menu.hello", { name: user.name.trim() })
+            : (user.email ?? t("auth.menu.account"))}
+        </span>
         <span className={styles.chevron} aria-hidden="true">
           ▾
         </span>
@@ -63,13 +69,13 @@ export default function AccountMenu({
       {open ? (
         <div id={menuId} role="menu" className={`${styles.menu} ${variant === "landing" ? styles.landingMenu : ""}`}>
           <Link href="/profil" role="menuitem" className={styles.item} onClick={() => setOpen(false)}>
-            Mon profil
+            {t("auth.menu.profile")}
           </Link>
           <Link href="/notifications" role="menuitem" className={styles.item} onClick={() => setOpen(false)}>
-            Notifications
+            {t("auth.menu.notifications")}
           </Link>
           <Link href="/profil#alertes" role="menuitem" className={styles.item} onClick={() => setOpen(false)}>
-            Préférences d’alertes
+            {t("auth.menu.alertPrefs")}
           </Link>
           {user.isAdmin ? (
             <Link
@@ -78,7 +84,7 @@ export default function AccountMenu({
               className={styles.item}
               onClick={() => setOpen(false)}
             >
-              Analytique
+              {t("auth.menu.analytics")}
             </Link>
           ) : null}
           <button
@@ -90,7 +96,7 @@ export default function AccountMenu({
               setSignOutOpen(true);
             }}
           >
-            Déconnexion
+            {t("auth.menu.signOut")}
           </button>
         </div>
       ) : null}

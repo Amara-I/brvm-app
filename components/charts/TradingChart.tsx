@@ -49,6 +49,8 @@ import {
   formatFibLevel,
   isFibExtensionLevel,
 } from "@/lib/charts/fib-levels";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { measureText, ohlcLegend } from "./chart-locale";
 import {
   cloneDrawings,
   cloneZoom,
@@ -235,6 +237,8 @@ export default function TradingChart({
   onDrawingsChange,
   onSeedConsumed,
 }: TradingChartProps) {
+  const { t, format, locale } = useI18n();
+  const fmt = (n: number) => format.integer(n);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -727,7 +731,7 @@ export default function TradingChart({
             id: drawing.id,
             left: (x1 + x2) / 2,
             top: (y1 + y2) / 2,
-            text: label.text,
+            text: measureText(drawing.p1, drawing.p2, locale, format),
             up: label.up,
           });
         }
@@ -782,7 +786,7 @@ export default function TradingChart({
       if (drawing.type === "measure") {
         const up = drawing.p2 >= drawing.p1;
         const color = up ? TV.measureUp : TV.measureDown;
-        const label = formatMeasureLabel(drawing.p1, drawing.p2);
+        const measureLabel = measureText(drawing.p1, drawing.p2, locale, format);
         const line = chart.addLineSeries({
           color,
           lineWidth: 2,
@@ -809,7 +813,7 @@ export default function TradingChart({
             position: "inBar",
             color,
             shape: up ? "arrowUp" : "arrowDown",
-            text: label.text,
+            text: measureLabel,
             size: 2,
           },
         ]);
@@ -886,7 +890,7 @@ export default function TradingChart({
       if (last) {
         chips.push({
           key,
-          label: `SMA ${period} ${last.value.toLocaleString("fr-FR")}`,
+          label: `SMA ${period} ${format.number(last.value)}`,
           color,
         });
       }
@@ -1218,7 +1222,7 @@ export default function TradingChart({
         flow.setData(flowPts.map((p) => ({ time: p.time as Time, value: p.value })) as LineData[]);
         chips.push({
           key: indicators.volumeFlow ? "volumeFlow" : "obv",
-          label: indicators.volumeFlow ? "Flux volume" : "OBV",
+          label: indicators.volumeFlow ? t("charts.indicators.volumeFlowShort") : "OBV",
           color: TV.obv,
         });
       }
@@ -1253,10 +1257,7 @@ export default function TradingChart({
       const prev = i > 0 ? candles[i - 1]!.close : raw.open;
       const chg = prev > 0 ? ((raw.close - prev) / prev) * 100 : 0;
       const vol = i >= 0 ? candles[i]!.volume : null;
-      const volTxt = vol && vol > 0 ? ` Vol ${vol.toLocaleString("fr-FR")}` : " Vol N/D";
-      onCrosshair(
-        `O ${fmt(raw.open)} H ${fmt(raw.high)} L ${fmt(raw.low)} C ${fmt(raw.close)} ${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%${volTxt}`
-      );
+      onCrosshair(ohlcLegend(raw.open, raw.high, raw.low, raw.close, chg, vol, locale, format));
     };
     chart.subscribeCrosshairMove(handler);
 
@@ -1333,10 +1334,13 @@ export default function TradingChart({
     height,
     onCrosshair,
     onIntervalNote,
+    locale,
+    format,
+    t,
   ]);
 
   if (series.length === 0) {
-    return <div className={styles.empty}>Historique insuffisant pour afficher le graphique (N/D).</div>;
+    return <div className={styles.empty}>{t("charts.overlay.insufficient")}</div>;
   }
 
   const zoomMode = drawTool === "zoom";
@@ -1434,14 +1438,14 @@ export default function TradingChart({
   return (
     <div className={styles.wrap}>
       {overlayChips.length > 0 && (
-        <div className={styles.overlayStack} aria-label="Indicateurs superposés">
+        <div className={styles.overlayStack} aria-label={t("charts.overlay.aria")}>
           {overlayChips.map((chip) => (
             <button
               key={chip.key}
               type="button"
               className={styles.overlayChip}
               style={{ color: chip.color, borderColor: `${chip.color}66` }}
-              title="Clic ou clic droit pour retirer cet indicateur"
+              title={t("charts.overlay.remove")}
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
@@ -1462,7 +1466,7 @@ export default function TradingChart({
         </div>
       )}
       {zoomMode && (
-        <div className={styles.zoomHint}>Glisser pour zoomer · Double-clic pour tout afficher</div>
+        <div className={styles.zoomHint}>{t("charts.overlay.zoomHint")}</div>
       )}
       <div className={styles.chartStage} style={{ height }}>
         <div ref={containerRef} className={styles.canvas} style={{ height }} />
@@ -1483,8 +1487,8 @@ export default function TradingChart({
               type="button"
               className={styles.drawHandle}
               style={{ left: h.left, top: h.top }}
-              title="Glisser pour déplacer"
-              aria-label="Déplacer l'extrémité du tracé"
+              title={t("charts.overlay.drag")}
+              aria-label={t("charts.overlay.moveEnd")}
               onPointerDown={(e) => beginHandleDrag(e, h)}
               onPointerMove={onHandlePointerMove}
               onPointerUp={endHandleDrag}
@@ -1559,6 +1563,3 @@ export default function TradingChart({
   );
 }
 
-function fmt(n: number): string {
-  return Math.round(n).toLocaleString("fr-FR");
-}

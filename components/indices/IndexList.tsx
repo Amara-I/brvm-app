@@ -1,29 +1,24 @@
 import Link from "next/link";
 import ChangeValue from "@/components/ui/ChangeValue";
 import EmptyState from "@/components/ui/EmptyState";
+import { translateIndexFamily } from "@/components/indices/index-copy";
+import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import { groupIndicesByFamily, type MarketIndexListItem } from "@/lib/api/market-indices";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import styles from "./Indices.module.css";
 
-function formatLevel(value: number | null): string {
-  if (value == null || Number.isNaN(value)) return "N/D";
-  return value.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function formatDate(iso: string | null): string {
-  if (!iso) return "N/D";
-  const parsed = new Date(`${iso}T00:00:00.000Z`);
-  if (Number.isNaN(parsed.getTime())) return "N/D";
-  return parsed.toLocaleDateString("fr-FR");
-}
+const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "UTC",
+};
 
 export default function IndexList({ items }: { items: MarketIndexListItem[] }) {
+  const { t, format } = getI18n();
+
   if (items.length === 0) {
-    return (
-      <EmptyState
-        title="Aucun indice en base"
-        body="Les niveaux BRVM (Composite, BRVM 30, sectoriels) s’afficheront après ingestion. Aucun chiffre n’est inventé."
-      />
-    );
+    return <EmptyState title={t("market.indices.emptyTitle")} body={t("market.indices.emptyBody")} />;
   }
 
   const groups = groupIndicesByFamily(items);
@@ -33,19 +28,19 @@ export default function IndexList({ items }: { items: MarketIndexListItem[] }) {
       {groups.map((group) => (
         <section key={group.family} className={styles.group} aria-labelledby={`idx-${group.family}`}>
           <h2 id={`idx-${group.family}`} className={styles.groupTitle}>
-            {group.label}
+            {translateIndexFamily(group.family, t)}
             <span className={styles.groupCount}>{group.items.length}</span>
           </h2>
           <div className={styles.tableWrap}>
             <table className="ob-table">
               <thead>
                 <tr>
-                  <th scope="col">Indice</th>
-                  <th scope="col">Dernier</th>
-                  <th scope="col">Variation</th>
-                  <th scope="col">Séance</th>
-                  <th scope="col">Source</th>
-                  <th scope="col">Historique</th>
+                  <th scope="col">{t("market.indices.col.index")}</th>
+                  <th scope="col">{t("market.indices.col.last")}</th>
+                  <th scope="col">{t("market.indices.col.change")}</th>
+                  <th scope="col">{t("market.indices.col.session")}</th>
+                  <th scope="col">{t("common.source")}</th>
+                  <th scope="col">{t("market.indices.col.history")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -57,12 +52,18 @@ export default function IndexList({ items }: { items: MarketIndexListItem[] }) {
                         <span className={styles.name}>{item.name}</span>
                       </Link>
                     </td>
-                    <td className="ob-num">{formatLevel(item.lastValue)}</td>
+                    <td className="ob-num">
+                      {item.lastValue == null ? "N/D" : format.decimal(item.lastValue, 2)}
+                    </td>
                     <td>
                       <ChangeValue value={item.changePercent} />
                     </td>
-                    <td>{formatDate(item.date)}</td>
-                    <td>{item.sourceLabel}</td>
+                    <td>
+                      {item.date
+                        ? format.date(`${item.date}T00:00:00.000Z`, NUMERIC_DATE)
+                        : "N/D"}
+                    </td>
+                    <td>{translateDataSourceLabel(item.sourceLabel, t)}</td>
                     <td className="ob-num">{item.historyPoints > 0 ? item.historyPoints : "N/D"}</td>
                   </tr>
                 ))}

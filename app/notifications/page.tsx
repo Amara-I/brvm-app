@@ -2,13 +2,14 @@ import { redirect } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import NotificationCenter from "@/components/notifications/NotificationCenter";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Notifications — OuestBourse",
-  description: "Centre de notifications : alertes de prix, signaux, portefeuille et indices BRVM.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return { title: t("notifications.metaTitle"), description: t("notifications.metaDescription") };
+}
 
 export default async function NotificationsPage() {
   const userId = await getCurrentUserId();

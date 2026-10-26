@@ -5,6 +5,8 @@
 
 import { getAppBaseUrl } from "@/lib/auth/app-url";
 import { isEmailConfigured as authEmailConfigured, sendAppEmail } from "@/lib/auth/email";
+import type { Locale } from "@/lib/i18n/config";
+import { createI18n } from "@/lib/i18n/create-i18n";
 import { BRAND_NAME } from "@/lib/theme/brand";
 
 export function isEmailConfigured(env: Record<string, string | undefined> = process.env): boolean {
@@ -16,6 +18,8 @@ export async function sendNotificationEmail(input: {
   title: string;
   body: string;
   href?: string | null;
+  /** Défaut français : le cron n'a pas de préférence utilisateur stockée. */
+  locale?: Locale;
 }): Promise<{ sent: boolean; skipped?: string; error?: string }> {
   if (!isEmailConfigured()) return { sent: false, skipped: "email_not_configured" };
   if (!input.to.includes("@")) return { sent: false, skipped: "invalid_recipient" };
@@ -28,17 +32,20 @@ export async function sendNotificationEmail(input: {
     : "/notifications";
   const link = `${origin}${path}`;
 
+  const { t } = createI18n(input.locale ?? "fr");
+  const openLabel = t("mail.notificationOpen", { brand: BRAND_NAME });
+  const disclaimer = t("mail.notificationDisclaimer");
   const result = await sendAppEmail({
     to: input.to,
     subject: `${BRAND_NAME} — ${input.title}`,
-    text: `${input.title}\n\n${input.body}\n\n${link}`,
+    text: `${input.title}\n\n${input.body}\n\n${openLabel} : ${link}\n\n${disclaimer}`,
     html: `
     <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;color:#1a1a1a">
       <p style="color:#C9A227;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;font-size:12px">${escapeHtml(BRAND_NAME)}</p>
       <h1 style="font-size:20px;margin:8px 0 12px">${escapeHtml(input.title)}</h1>
       <p style="font-size:15px;line-height:1.5">${escapeHtml(input.body)}</p>
-      <p><a href="${escapeHtml(link)}" style="color:#1B4D3E;font-weight:700">Ouvrir dans ${escapeHtml(BRAND_NAME)}</a></p>
-      <p style="font-size:12px;color:#666">Ceci n'est pas un conseil d'investissement. Données de marché BRVM, hors horaires calmes si configurés.</p>
+      <p><a href="${escapeHtml(link)}" style="color:#1B4D3E;font-weight:700">${escapeHtml(openLabel)}</a></p>
+      <p style="font-size:12px;color:#666">${escapeHtml(disclaimer)}</p>
     </div>
   `,
   });

@@ -8,12 +8,13 @@ import {
   summarizeRealizedPnlClient,
 } from "@/lib/api/portfolio-trades-client";
 import { C } from "@/lib/theme/colors";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { formatIso, showPortfolioApiError } from "@/components/portfolio/portfolio-i18n";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import {
   DEFAULT_DISCRETE_MASKS,
   DISCRETE_AMOUNT_LABEL,
-  fmtFcfaOrMasked,
   isMasked,
   type DiscreteMaskConfig,
 } from "@/lib/portfolio/discrete-mode";
@@ -30,16 +31,6 @@ export interface PortfolioTradesHistoryProps {
   };
 }
 
-function fmtFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
-
-function fmtDay(iso: string): string {
-  const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return iso;
-  return `${d}/${m}/${y}`;
-}
-
 export default function PortfolioTradesHistory({
   portfolioId,
   initialTrades,
@@ -47,6 +38,7 @@ export default function PortfolioTradesHistory({
   discrete = false,
   masks = DEFAULT_DISCRETE_MASKS,
 }: PortfolioTradesHistoryProps & { discrete?: boolean; masks?: DiscreteMaskConfig }) {
+  const { t, format } = useI18n();
   const hideTrades = isMasked(discrete, masks, "tradeAmounts");
   const hideRealized = isMasked(discrete, masks, "realizedPnl");
   const [filter, setFilter] = usePersistedState<"TOUS" | "VENTE" | "ACHAT">(
@@ -66,7 +58,7 @@ export default function PortfolioTradesHistory({
         const res = await fetch(`/api/portfolio/${portfolioId}/trades`, { cache: "no-store" });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
-          setLoadError(json?.error ?? "Impossible de charger l'historique.");
+          setLoadError(showPortfolioApiError(t, json?.error, t("portfolio.trades.loadFailed")));
           return;
         }
         const nextTrades = (json.data?.trades ?? []) as PortfolioTradeRow[];
@@ -74,12 +66,12 @@ export default function PortfolioTradesHistory({
         setTrades(nextTrades);
         setSummary(nextSummary);
       } catch {
-        setLoadError("Impossible de charger l'historique.");
+        setLoadError(t("portfolio.trades.loadFailed"));
       } finally {
         setBusy(false);
       }
     });
-  }, [portfolioId]);
+  }, [portfolioId, t]);
 
   useEffect(() => {
     setTrades(initialTrades);
@@ -124,11 +116,10 @@ export default function PortfolioTradesHistory({
       <div className={styles.head}>
         <div>
           <h3 id="trades-history-title" className={styles.title}>
-            Historique — ventes, gains &amp; pertes
+            {t("portfolio.trades.title")}
           </h3>
           <p className={styles.sub}>
-            Chaque vente (partielle ou totale) conserve le PRU, le prix de cession et la
-            plus/moins-value réalisée. Les achats et renforcements sont aussi listés.
+            {t("portfolio.trades.sub")}
           </p>
         </div>
         <div className={styles.filters}>
@@ -140,7 +131,7 @@ export default function PortfolioTradesHistory({
               onClick={() => setFilter(f)}
               disabled={busy}
             >
-              {f === "TOUS" ? "Tous" : f === "VENTE" ? "Ventes" : "Achats"}
+              {f === "TOUS" ? t("portfolio.trades.all") : f === "VENTE" ? t("portfolio.trades.sells") : t("portfolio.trades.buys")}
             </button>
           ))}
           <button
@@ -148,7 +139,7 @@ export default function PortfolioTradesHistory({
             className={styles.chip}
             onClick={() => void load()}
             disabled={busy}
-            title="Actualiser"
+            title={t("portfolio.trades.refresh")}
           >
             ↻
           </button>
@@ -157,28 +148,28 @@ export default function PortfolioTradesHistory({
 
       <div className={styles.kpis}>
         <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>P&amp;L réalisé</span>
+          <span className={styles.kpiLabel}>{t("portfolio.trades.realized")}</span>
           <span
             className={styles.kpiValue}
             style={{ color: summary.totalRealizedPnl >= 0 ? C.green : C.red }}
           >
             {hideRealized
               ? DISCRETE_AMOUNT_LABEL
-              : `${summary.totalRealizedPnl >= 0 ? "+" : ""}${fmtFcfa(summary.totalRealizedPnl)}`}
+              : `${summary.totalRealizedPnl >= 0 ? "+" : ""}${format.fcfa(summary.totalRealizedPnl)}`}
           </span>
         </div>
         <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>Ventes</span>
+          <span className={styles.kpiLabel}>{t("portfolio.trades.sales")}</span>
           <span className={styles.kpiValue}>{summary.salesCount}</span>
         </div>
         <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>Pertes</span>
+          <span className={styles.kpiLabel}>{t("portfolio.trades.losses")}</span>
           <span className={styles.kpiValue} style={{ color: C.red }}>
             {summary.lossCount}
           </span>
         </div>
         <div className={styles.kpi}>
-          <span className={styles.kpiLabel}>Gains</span>
+          <span className={styles.kpiLabel}>{t("portfolio.trades.gains")}</span>
           <span className={styles.kpiValue} style={{ color: C.green }}>
             {summary.gainCount}
           </span>
@@ -191,9 +182,7 @@ export default function PortfolioTradesHistory({
         </p>
       ) : visible.length === 0 ? (
         <p className={styles.empty}>
-          Aucune opération dans ce filtre. Utilisez « Vendre » sur une ligne pour alléger ou
-          clôturer une position — le gain ou la perte apparaîtra ici. « Renforcer » enregistre
-          aussi un achat.
+          {t("portfolio.trades.empty")}
         </p>
       ) : (
         <>
@@ -201,35 +190,37 @@ export default function PortfolioTradesHistory({
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Titre</th>
-                  <th>Qté</th>
-                  <th>Prix</th>
-                  <th>PRU</th>
-                  <th>P&amp;L réalisé</th>
+                  <th>{t("portfolio.trades.date")}</th>
+                  <th>{t("portfolio.trades.type")}</th>
+                  <th>{t("portfolio.trades.security")}</th>
+                  <th>{t("portfolio.trades.qty")}</th>
+                  <th>{t("portfolio.trades.price")}</th>
+                  <th>{t("portfolio.trades.pru")}</th>
+                  <th>{t("portfolio.trades.pnl")}</th>
                 </tr>
               </thead>
               <tbody>
-                {shown.map((t) => {
-                  const pnl = t.realizedPnl;
+                {shown.map((row) => {
+                  const pnl = row.realizedPnl;
                   return (
-                    <tr key={t.id}>
-                      <td>{fmtDay(t.tradedAt)}</td>
+                    <tr key={row.id}>
+                      <td>{formatIso(format, row.tradedAt)}</td>
                       <td>
-                        <span className={t.side === "VENTE" ? styles.badgeSell : styles.badgeBuy}>
-                          {t.side === "VENTE" ? "Vente" : "Achat"}
+                        <span className={row.side === "VENTE" ? styles.badgeSell : styles.badgeBuy}>
+                          {row.side === "VENTE" ? t("portfolio.trades.sell") : t("portfolio.trades.buy")}
                         </span>
                       </td>
                       <td>
-                        <strong>{t.ticker}</strong>
-                        <div className={styles.name}>{t.name}</div>
+                        <strong>{row.ticker}</strong>
+                        <div className={styles.name}>{row.name}</div>
                       </td>
                       <td>
-                        {hideTrades ? DISCRETE_AMOUNT_LABEL : t.quantity.toLocaleString("fr-FR")}
+                        {hideTrades
+                          ? DISCRETE_AMOUNT_LABEL
+                          : format.decimal(row.quantity, Number.isInteger(row.quantity) ? 0 : 2)}
                       </td>
-                      <td>{fmtFcfaOrMasked(t.price, hideTrades)}</td>
-                      <td>{t.costBasis != null ? fmtFcfaOrMasked(t.costBasis, hideTrades) : "—"}</td>
+                      <td>{hideTrades ? DISCRETE_AMOUNT_LABEL : format.fcfa(row.price)}</td>
+                      <td>{row.costBasis != null ? (hideTrades ? DISCRETE_AMOUNT_LABEL : format.fcfa(row.costBasis)) : "—"}</td>
                       <td
                         style={{
                           color: pnl == null ? C.textDim : pnl >= 0 ? C.green : C.red,
@@ -240,7 +231,7 @@ export default function PortfolioTradesHistory({
                           ? "—"
                           : hideTrades || hideRealized
                             ? DISCRETE_AMOUNT_LABEL
-                            : `${pnl >= 0 ? "+" : ""}${fmtFcfa(pnl)}`}
+                            : `${pnl >= 0 ? "+" : ""}${format.fcfa(pnl)}`}
                       </td>
                     </tr>
                   );
@@ -256,14 +247,14 @@ export default function PortfolioTradesHistory({
               aria-expanded={expanded}
             >
               {expanded
-                ? "Masquer les transactions plus anciennes"
-                : `Voir les ${hiddenCount} transaction${hiddenCount > 1 ? "s" : ""} plus ancienne${hiddenCount > 1 ? "s" : ""}`}
+                ? t("portfolio.trades.hideOlder")
+                : t("portfolio.trades.showOlder", { count: hiddenCount, s: hiddenCount > 1 ? "s" : "" })}
             </button>
           ) : null}
         </>
       )}
       <p className={styles.foot}>
-        Les ventes restent visibles même après sortie totale d&apos;une ligne.
+        {t("portfolio.trades.foot")}
       </p>
     </section>
   );
