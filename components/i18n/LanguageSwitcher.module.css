@@ -39,7 +39,20 @@
   color: #1a1206;
 }
 
+.groupLanding {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.groupLanding .btn {
+  color: #f7f1e4;
+}
+
+.groupLanding .btn:hover {
+  color: #ffffff;
+}
+
 .groupLanding .btn[aria-pressed="true"] {
-  background: var(--c-gold);
+  background: #d4a843;
   color: #1a1206;
 }
