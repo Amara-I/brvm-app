@@ -22,6 +22,9 @@ import { prisma } from "@/lib/prisma";
 import { apiSuccess, apiValidationError, cacheHeaders } from "@/lib/api/response";
 import { companiesListQuerySchema } from "@/lib/api/query-schemas";
 import { getLatestCanonicalPrices, getLatestFinancialRatios } from "@/lib/api/latest-data";
+import { priceDivisor } from "@/lib/corporate-actions/adjust";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic"; // dépend de la base — jamais pré-rendu statiquement
@@ -29,8 +32,14 @@ export const dynamic = "force-dynamic"; // dépend de la base — jamais pré-re
 function serializeCompany(
   company: Prisma.CompanyGetPayload<{ include: { country: true; sector: true } }>,
   price: Awaited<ReturnType<typeof getLatestCanonicalPrices>> extends Map<string, infer V> ? V | undefined : never,
-  ratio: Awaited<ReturnType<typeof getLatestFinancialRatios>> extends Map<string, infer V> ? V | undefined : never
+  ratio: Awaited<ReturnType<typeof getLatestFinancialRatios>> extends Map<string, infer V> ? V | undefined : never,
+  actions: AdjustmentAction[]
 ) {
+  const rawClose = price ? Number(price.closePrice) : null;
+  const currentPrice =
+    rawClose != null && price
+      ? Math.round((rawClose / priceDivisor(actions, price.date.toISOString().slice(0, 10))) * 100) / 100
+      : "N/D";
   return {
     ticker: company.ticker,
     name: company.name,
@@ -40,7 +49,7 @@ function serializeCompany(
     country: { code: company.country.code, name: company.country.name, flag: company.country.flagEmoji },
     sector: { name: company.sector.name, slug: company.sector.slug },
     // Cf. contrainte non négociable : donnée manquante → "N/D", jamais null brut côté client.
-    currentPrice: price ? Number(price.closePrice) : "N/D",
+    currentPrice,
     currentPriceDate: price ? price.date.toISOString().slice(0, 10) : null,
     per: ratio?.per !== undefined && ratio.per !== null ? Number(ratio.per) : "N/D",
     mktCap: ratio?.mktCap !== undefined && ratio.mktCap !== null ? Number(ratio.mktCap) : "N/D",
@@ -52,6 +61,8 @@ export async function GET(request: NextRequest) {
   const parsed = companiesListQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
   const { page, pageSize, sector, country, sortBy, sortDir } = parsed.data;
+
+  const actionsBySymbol = await actionsByTicker().catch(() => new Map<string, AdjustmentAction[]>());
 
   const where: Prisma.CompanyWhereInput = {
     isActive: true,
@@ -79,7 +90,9 @@ export async function GET(request: NextRequest) {
 
     const totalItems = sorted.length;
     const pageItems = sorted.slice((page - 1) * pageSize, page * pageSize);
-    const data = pageItems.map(({ company, ratio }) => serializeCompany(company, prices.get(company.id), ratio));
+    const data = pageItems.map(({ company, ratio }) =>
+      serializeCompany(company, prices.get(company.id), ratio, actionsBySymbol.get(company.ticker) ?? [])
+    );
 
     return apiSuccess(
       { items: data, pagination: { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) } },
@@ -102,7 +115,9 @@ export async function GET(request: NextRequest) {
   const companyIds = companies.map((c) => c.id);
   const [prices, ratios] = await Promise.all([getLatestCanonicalPrices(companyIds), getLatestFinancialRatios(companyIds)]);
 
-  const data = companies.map((c) => serializeCompany(c, prices.get(c.id), ratios.get(c.id)));
+  const data = companies.map((c) =>
+    serializeCompany(c, prices.get(c.id), ratios.get(c.id), actionsBySymbol.get(c.ticker) ?? [])
+  );
 
   return apiSuccess(
     { items: data, pagination: { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) } },

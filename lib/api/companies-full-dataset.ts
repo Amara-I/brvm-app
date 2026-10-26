@@ -21,6 +21,31 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { seedCompaniesFullDataset } from "@/lib/api/offline-seed-dataset";
+import {
+  activeActions,
+  adjustPerShareAmount,
+  adjustSeries,
+  dividendBasisDate,
+  mergeSplitSessionQuotes,
+  priceDivisor,
+  type SessionQuote,
+} from "@/lib/corporate-actions/adjust";
+import { loadCorporateActions } from "@/lib/corporate-actions/load";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
+import type { ChartClosePoint } from "@/lib/charts/indicators";
+
+const SPLIT_SOURCE_RANK: Record<string, number> = {
+  BRVM_OFFICIEL: 0,
+  SIKAFINANCE: 1,
+  OUESTBOURSE: 2,
+  RICHBOURSE: 3,
+  MANUEL: 4,
+};
+
+function isoDay(value: Date | string): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value).slice(0, 10);
+}
 
 export interface CompanyFullDataset {
   ticker: string;
@@ -197,11 +222,12 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
 
   // Un seul point de cours / société / année (dernier non futur) —
   // évite de charger ~160k lignes quotidiennes à chaque page.
-  const [priceRows, dividendRows, ratioRows] = await Promise.all([
+  const [priceRows, dividendRows, ratioRows, corporateActions] = await Promise.all([
     prisma.$queryRaw<
       Array<{
         company_id: string;
         year: number;
+        price_date: Date;
         close_price: unknown;
         source: string;
         ingested_at: Date;
@@ -210,6 +236,7 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
       SELECT DISTINCT ON (ph.company_id, EXTRACT(YEAR FROM ph.date)::int)
         ph.company_id,
         EXTRACT(YEAR FROM ph.date)::int AS year,
+        ph.date AS price_date,
         ph.close_price,
         ph.source::text AS source,
         ph.ingested_at
@@ -225,7 +252,7 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
     `,
     prisma.dividend.findMany({
       where: { companyId: { in: companyIds }, isCanonical: true },
-      select: { companyId: true, year: true, amount: true, source: true, createdAt: true },
+      select: { companyId: true, year: true, amount: true, exDate: true, source: true, createdAt: true },
     }),
     prisma.financialRatio.findMany({
       where: { companyId: { in: companyIds }, year: { gte: ratioYearMin } },
@@ -244,7 +271,14 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
         fcf: true,
       },
     }),
+    loadCorporateActions().catch(() => [] as AdjustmentAction[]),
   ]);
+
+  const actionsForCompany = new Map<string, AdjustmentAction[]>();
+  for (const company of companies) {
+    const rows = corporateActions.filter((action) => action.ticker === company.ticker);
+    if (rows.length > 0) actionsForCompany.set(company.id, rows);
+  }
 
   const yearsSet = new Set<number>();
   const pricesByCompany = new Map<string, Record<number, number>>();
@@ -253,7 +287,8 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
   for (const row of priceRows) {
     const year = Number(row.year);
     yearsSet.add(year);
-    const close = Number(row.close_price);
+    const actions = actionsForCompany.get(row.company_id) ?? [];
+    const close = Number(row.close_price) / priceDivisor(actions, isoDay(row.price_date));
     const bucket = pricesByCompany.get(row.company_id) ?? {};
     bucket[year] = close;
     pricesByCompany.set(row.company_id, bucket);
@@ -278,11 +313,67 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
   const dividendsByCompany = new Map<string, Record<number, number>>();
   for (const row of dividendRows) {
     yearsSet.add(row.year);
+    const actions = actionsForCompany.get(row.companyId) ?? [];
+    const basis = dividendBasisDate(row.year, row.exDate ? isoDay(row.exDate) : null, actions);
     const bucket = dividendsByCompany.get(row.companyId) ?? {};
-    bucket[row.year] = Number(row.amount);
+    bucket[row.year] = adjustPerShareAmount(Number(row.amount), basis, actions);
     dividendsByCompany.set(row.companyId, bucket);
     if (!syncFromDisplayedPrice.has(row.companyId)) {
       syncFromDisplayedPrice.set(row.companyId, { source: row.source, at: row.createdAt });
+    }
+  }
+
+  // Séance de fractionnement : le canonique annuel peut encore être le vendredi
+  // (collier) alors qu'une impression non canonique est déjà sur la nouvelle base.
+  const splitIds = [...actionsForCompany.entries()]
+    .filter(([, actions]) => activeActions(actions).length > 0)
+    .map(([id]) => id);
+  if (splitIds.length > 0) {
+    const from = new Date();
+    from.setUTCDate(from.getUTCDate() - 40);
+    try {
+      const recent = await prisma.priceHistory.findMany({
+        where: { companyId: { in: splitIds }, date: { gte: from, lte: new Date() } },
+        select: {
+          companyId: true,
+          date: true,
+          closePrice: true,
+          volume: true,
+          isCanonical: true,
+          source: true,
+        },
+      });
+      for (const companyId of splitIds) {
+        const actions = actionsForCompany.get(companyId) ?? [];
+        const rows = recent.filter((row) => row.companyId === companyId);
+        if (rows.length === 0) continue;
+        const canonical: ChartClosePoint[] = rows
+          .filter((row) => row.isCanonical)
+          .map((row) => ({
+            time: isoDay(row.date),
+            value: Number(row.closePrice),
+            volume: row.volume != null ? Number(row.volume) : null,
+          }));
+        const extras: SessionQuote[] = rows
+          .filter((row) => !row.isCanonical)
+          .map((row) => ({
+            time: isoDay(row.date),
+            value: Number(row.closePrice),
+            volume: row.volume != null ? Number(row.volume) : null,
+            sourceRank: SPLIT_SOURCE_RANK[row.source] ?? 9,
+          }));
+        const presented = adjustSeries(mergeSplitSessionQuotes(canonical, extras, actions), actions);
+        const last = presented[presented.length - 1];
+        if (!last || !(last.value > 0)) continue;
+        const year = Number(last.time.slice(0, 4));
+        if (!Number.isFinite(year)) continue;
+        const bucket = pricesByCompany.get(companyId) ?? {};
+        bucket[year] = last.value;
+        pricesByCompany.set(companyId, bucket);
+        yearsSet.add(year);
+      }
+    } catch {
+      /* historique récent indisponible — les cours annuels ajustés restent */
     }
   }
 

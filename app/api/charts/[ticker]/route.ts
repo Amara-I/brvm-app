@@ -47,17 +47,25 @@ import {
 } from "@/lib/charts/chart-densify-strategy";
 import { loadCompanyChartSeries } from "@/lib/charts/load-company-chart-series";
 import { refreshChartSeries } from "@/lib/charts/refresh-chart-series";
+import { adjustPerShareAmount, adjustSeries, dividendBasisDate, splitBetween } from "@/lib/corporate-actions/adjust";
+import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 
 export const dynamic = "force-dynamic";
 
 /** Complète uniquement les séances après le dernier point — ne réécrit pas l'historique. */
-async function appendSikaTip(ticker: string, series: ChartClosePoint[]): Promise<ChartClosePoint[]> {
+async function appendSikaTip(
+  ticker: string,
+  series: ChartClosePoint[],
+  actions: AdjustmentAction[]
+): Promise<ChartClosePoint[]> {
   const last = series[series.length - 1]?.time;
   if (!last || last >= todayIsoUtc()) return series;
   const tipPromise = fetchSikafinanceCloseSeries(ticker, {
     dailyFromIso: addCalendarDays(last, -3),
     includeAnnual: false,
-  }).then((tip) => (tip.length > 0 ? mergeChartPointsPrefer(series, tip) : series));
+  }).then((tip) =>
+    tip.length > 0 ? mergeChartPointsPrefer(series, adjustSeries(tip, actions)) : series
+  );
   const raced = await withTimeout(tipPromise, CHART_DENSIFY_TIMEOUT_MS);
   if (!raced.ok) {
     console.warn(`[charts] ${ticker}: tip périmé abandonné après ${CHART_DENSIFY_TIMEOUT_MS}ms`);
@@ -93,10 +101,11 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     }),
     prisma.dividend.findMany({
       where: { companyId: company.id, isCanonical: true },
-      select: { year: true, amount: true },
+      select: { year: true, amount: true, exDate: true },
     }),
   ]);
 
+  const splitActions = loaded.corporateActions;
   const dbSeries = loaded.dbSeries;
 
   let series: ChartClosePoint[] = dbSeries.map(({ time, value, volume }) => ({
@@ -138,7 +147,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         if (tip.length > 0) {
           series = mergeChartPointsPrefer(
             series.map((p) => ({ time: p.time, value: p.value, volume: p.volume })),
-            tip
+            adjustSeries(tip, splitActions)
           );
           seriesSourceNote = "multi_source_merged";
           if (!densifySources.includes("SIKAFINANCE")) densifySources = [...densifySources, "SIKAFINANCE"];
@@ -177,9 +186,9 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         ]).then(([sika, rich, ob]) =>
           reconcileChartSeries({
             canonical: dbSeries.map(({ time, value, volume }) => ({ time, value, volume })),
-            sikafinance: sika,
-            ouestbourse: ob,
-            richbourse: rich,
+            sikafinance: adjustSeries(sika, splitActions),
+            ouestbourse: adjustSeries(ob, splitActions),
+            richbourse: adjustSeries(rich, splitActions),
             thresholdPercent: DISCREPANCY_THRESHOLD_PERCENT,
           })
         );
@@ -258,7 +267,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     }
   } else if (loaded.fromCache && loaded.stale && !shouldSkipLiveDensify()) {
     // Cache chaud mais en retard : seulement le tip, la courbe historique reste `chart_series`.
-    const tipped = await appendSikaTip(ticker, series);
+    const tipped = await appendSikaTip(ticker, series, splitActions);
     if (tipped.length > series.length) {
       series = tipped;
       seriesSourceNote = "multi_source_merged";
@@ -294,9 +303,22 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       pricesByYear[y] = p.value;
     }
   }
+  const seriesLast = series[series.length - 1];
+  if (seriesLast && seriesLast.value > 0) {
+    const y = Number(seriesLast.time.slice(0, 4));
+    if (Number.isFinite(y)) {
+      yearsSet.add(y);
+      pricesByYear[y] = seriesLast.value;
+    }
+  }
   for (const d of dividends) {
     yearsSet.add(d.year);
-    dividendsByYear[d.year] = Number(d.amount);
+    const ex = d.exDate ? d.exDate.toISOString().slice(0, 10) : null;
+    dividendsByYear[d.year] = adjustPerShareAmount(
+      Number(d.amount),
+      dividendBasisDate(d.year, ex, splitActions),
+      splitActions
+    );
   }
   const years = [...yearsSet].sort((a, b) => a - b);
   const metrics = calcMetrics({
@@ -322,16 +344,35 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   const windowed = applyChartSeriesWindow(series, windowQuery);
   const last = series[series.length - 1] ?? null;
   const prev = series.length >= 2 ? series[series.length - 2]! : null;
-  const dayChange =
-    loaded.meta?.dayChangePercent ??
-    (last && prev && prev.value > 0
+  const splitAcross = last && prev ? splitBetween(splitActions, prev.time, last.time) : false;
+  const metaCoversLast = loaded.meta?.historyLastDate === last?.time;
+  const computedDay =
+    last && prev && prev.value > 0
       ? Math.round(((last.value - prev.value) / prev.value) * 10000) / 100
-      : null);
+      : null;
+  const official = loaded.officialDayChangePercent;
+  const officialInCollar = official != null && Math.abs(official) <= 8;
+  const dayChange = splitAcross
+    ? officialInCollar
+      ? official
+      : computedDay
+    : metaCoversLast && loaded.meta?.dayChangePercent != null
+      ? loaded.meta.dayChangePercent
+      : (official ?? computedDay);
+  const impliedAbs =
+    splitAcross && officialInCollar && last && official != null
+      ? Math.round((last.value - last.value / (1 + official / 100)) * 100) / 100
+      : null;
   const dayChangeAbs =
-    loaded.meta?.dayChangeAbs ??
-    (last && prev ? Math.round((last.value - prev.value) * 100) / 100 : null);
+    impliedAbs ??
+    (!splitAcross && metaCoversLast && loaded.meta?.dayChangeAbs != null
+      ? loaded.meta.dayChangeAbs
+      : last && prev
+        ? Math.round((last.value - prev.value) * 100) / 100
+        : null);
 
-  let change1Y: number | null = loaded.meta?.change1YPercent ?? null;
+  let change1Y: number | null =
+    metaCoversLast && loaded.meta?.change1YPercent != null ? loaded.meta.change1YPercent : null;
   if (change1Y == null && last) {
     const target = new Date(last.time);
     target.setUTCFullYear(target.getUTCFullYear() - 1);
@@ -413,6 +454,9 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
           priority: ["BRVM_OFFICIEL", "SIKAFINANCE", "RICHBOURSE"],
         },
       },
+      corporateActions: splitActions
+        .filter((action) => action.adjustPrices)
+        .map((action) => ({ effectiveDate: action.effectiveDate, label: action.label })),
       analysis: {
         signalLabel: metrics.signal.label,
         signalColor: metrics.signal.color,

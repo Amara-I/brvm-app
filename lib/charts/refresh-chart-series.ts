@@ -17,6 +17,9 @@ import {
   type ChartSeriesMetaPayload,
   type ChartSeriesRangeKey,
 } from "./chart-series-cache";
+import { presentCompanyCloses } from "../corporate-actions/present-series";
+import { adjustSeries, adjustmentFingerprint } from "../corporate-actions/adjust";
+import { actionsByTicker } from "../corporate-actions/load";
 
 export interface RefreshChartSeriesOptions {
   symbols?: string[];
@@ -113,9 +116,13 @@ async function upsertRangeRows(opts: {
   companyId: string | null;
   full: ChartClosePoint[];
   sources: string[];
+  adjustmentFingerprint?: string;
 }): Promise<number> {
   const { db, kind, symbol, companyId, full, sources } = opts;
-  const meta = buildChartSeriesMeta(full, sources);
+  const meta: ChartSeriesMetaPayload = {
+    ...buildChartSeriesMeta(full, sources),
+    ...(opts.adjustmentFingerprint ? { adjustmentFingerprint: opts.adjustmentFingerprint } : {}),
+  };
   const fingerprint = fingerprintForSeries(full);
   let upserted = 0;
   for (const rangeKey of CHART_SERIES_RANGE_KEYS) {
@@ -189,13 +196,18 @@ export async function readCachedSparkSeriesByTicker(
   try {
     const rows = await db.chartSeries.findMany({
       where: { kind: "COMPANY", rangeKey: "SPARK" },
-      select: { symbol: true, points: true, pointCount: true },
+      select: { symbol: true, points: true, pointCount: true, meta: true },
     });
     if (rows.length === 0) return null;
+    const byTicker = await actionsByTicker();
     const out: Record<string, ChartClosePoint[]> = {};
     for (const row of rows) {
       if (row.pointCount === 0) continue;
-      out[row.symbol] = fromCompactPoints(row.points);
+      const actions = byTicker.get(row.symbol) ?? [];
+      const fp = adjustmentFingerprint(actions);
+      const meta = (row.meta ?? null) as ChartSeriesMetaPayload | null;
+      const points = fromCompactPoints(row.points);
+      out[row.symbol] = meta?.adjustmentFingerprint === fp ? points : adjustSeries(points, actions);
     }
     return Object.keys(out).length > 0 ? out : null;
   } catch (err) {
@@ -235,13 +247,15 @@ export async function refreshChartSeries(
           break;
         }
         const { points, sources } = await loadCanonicalCompanyCloses(db, co.id);
+        const presented = await presentCompanyCloses(db, co.id, co.ticker, dedupeChartPointsByDay(points));
         const n = await upsertRangeRows({
           db,
           kind: "COMPANY",
           symbol: co.ticker,
           companyId: co.id,
-          full: dedupeChartPointsByDay(points),
+          full: presented.points,
           sources,
+          adjustmentFingerprint: presented.fingerprint,
         });
         rowsUpserted += n;
         companiesUpdated++;

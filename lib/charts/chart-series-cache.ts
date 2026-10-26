@@ -35,6 +35,8 @@ export interface ChartSeriesMetaPayload {
   lastVolume: number | null;
   sources: string[];
   yearlyCloses: Record<string, number>;
+  /** Empreinte des fractionnements appliqués aux points. Absent = série brute. */
+  adjustmentFingerprint?: string;
 }
 
 export interface CompactChartPoint {
