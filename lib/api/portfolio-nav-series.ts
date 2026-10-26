@@ -3,9 +3,11 @@
 // les quantités actuelles à chaque jour de l'historique (comme le YTD).
 
 import { prisma } from "@/lib/prisma";
+import { closeForSession, type SessionCloseRow } from "@/lib/api/session-day-change";
 import { priceDivisor } from "@/lib/corporate-actions/adjust";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
 import type { AdjustmentAction } from "@/lib/corporate-actions/types";
+import type { DataSourceCode } from "@/lib/ingestion/types";
 
 export interface PortfolioNavPoint {
   date: string; // YYYY-MM-DD
@@ -55,11 +57,10 @@ export async function getPortfolioNavSeries(
   const rows = await prisma.priceHistory.findMany({
     where: {
       companyId: { in: companyIds },
-      isCanonical: true,
       date: { gte: start, lte: todayUtc },
     },
     orderBy: [{ date: "asc" }],
-    select: { companyId: true, date: true, closePrice: true },
+    select: { companyId: true, date: true, closePrice: true, source: true, isCanonical: true },
   });
 
   const qtyByCompany = new Map<string, number>();
@@ -68,19 +69,35 @@ export async function getPortfolioNavSeries(
   }
 
   const tickerByCompany = new Map(active.filter((h) => h.ticker).map((h) => [h.companyId, h.ticker!]));
-  return buildNavSeriesFromCloses(
-    qtyByCompany,
-    rows.map((r) => {
-      const date = r.date.toISOString().slice(0, 10);
-      const ticker = tickerByCompany.get(r.companyId);
-      const factor = ticker ? priceDivisor(splitActions.get(ticker) ?? [], date) : 1;
-      return {
-        companyId: r.companyId,
-        date,
-        closePrice: Number(r.closePrice) / factor,
-      };
-    })
-  );
+  const grouped = new Map<string, SessionCloseRow[]>();
+  const companyOf = new Map<string, string>();
+  for (const row of rows) {
+    const close = Number(row.closePrice);
+    if (!(close > 0)) continue;
+    const date = row.date.toISOString().slice(0, 10);
+    const key = `${row.companyId}__${date}`;
+    companyOf.set(key, row.companyId);
+    const list = grouped.get(key) ?? [];
+    list.push({
+      date,
+      close,
+      source: row.source as DataSourceCode,
+      changePercent: null,
+      isCanonical: row.isCanonical,
+    });
+    grouped.set(key, list);
+  }
+  const elected: Array<{ companyId: string; date: string; closePrice: number }> = [];
+  for (const [key, list] of grouped) {
+    const picked = closeForSession(list, list[0]!.date);
+    const companyId = companyOf.get(key);
+    if (!picked || !companyId) continue;
+    const date = picked.date.slice(0, 10);
+    const ticker = tickerByCompany.get(companyId);
+    const factor = ticker ? priceDivisor(splitActions.get(ticker) ?? [], date) : 1;
+    elected.push({ companyId, date, closePrice: picked.close / factor });
+  }
+  return buildNavSeriesFromCloses(qtyByCompany, elected);
 }
 
 /**

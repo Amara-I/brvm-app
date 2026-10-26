@@ -13,6 +13,8 @@
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiSuccess, apiNotFound, cacheHeaders } from "@/lib/api/response";
+import { actionsForTicker } from "@/lib/corporate-actions/load";
+import { presentClose, presentDividend } from "@/lib/corporate-actions/present-quotes";
 
 export const dynamic = "force-dynamic";
 
@@ -59,6 +61,8 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
     return !latest || iso > latest ? iso : latest;
   }, null);
 
+  const actions = await actionsForTicker(ticker).catch(() => []);
+
   return apiSuccess(
     {
       company: {
@@ -75,15 +79,19 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
       },
       // Donnée manquante → tableau vide (le front affiche déjà "N/D" pour
       // les années sans cours, cf. contrainte non négociable du JSX).
-      priceHistory: priceHistory.map((p) => ({
-        date: p.date.toISOString().slice(0, 10),
-        closePrice: Number(p.closePrice),
-        volume: p.volume !== null ? Number(p.volume) : null,
-        source: p.source,
-      })),
+      priceHistory: priceHistory.map((p) => {
+        const date = p.date.toISOString().slice(0, 10);
+        const shown = presentClose(Number(p.closePrice), p.volume !== null ? Number(p.volume) : null, date, actions);
+        return {
+          date,
+          closePrice: shown.closePrice,
+          volume: shown.volume,
+          source: p.source,
+        };
+      }),
       dividends: dividends.map((d) => ({
         year: d.year,
-        amount: Number(d.amount),
+        amount: presentDividend(Number(d.amount), d.year, d.exDate?.toISOString().slice(0, 10) ?? null, actions),
         exDate: d.exDate?.toISOString().slice(0, 10) ?? null,
         paymentDate: d.paymentDate?.toISOString().slice(0, 10) ?? null,
         source: d.source,

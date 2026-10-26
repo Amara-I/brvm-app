@@ -42,7 +42,7 @@ export function computeMarketSummaryStats(
         co.ticker,
         calcMetrics({
           years,
-          prices: pricesSyncedToLatestClose(co.prices, closes),
+          prices: pricesSyncedToLatestClose(co.prices, closes, co.priceAsOf),
           dividends: co.dividends,
           per: co.per,
           mktcap: co.mktcap,
@@ -97,7 +97,7 @@ export function allCompaniesWithMetrics(
       co,
       metrics: calcMetrics({
         years,
-        prices: pricesSyncedToLatestClose(co.prices, closes),
+        prices: pricesSyncedToLatestClose(co.prices, closes, co.priceAsOf),
         dividends: co.dividends,
         per: co.per,
         mktcap: co.mktcap,

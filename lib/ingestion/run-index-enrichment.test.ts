@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   HEADLINE_SIKA_FALLBACKS,
   MIN_CANONICAL_POINTS_TO_SKIP,
+  indexHistoryNeedsRefresh,
   mergeSikaIndexSymbols,
   runIndexEnrichmentOnDailyCron,
   shouldSkipIndexHistory,
@@ -31,6 +32,39 @@ describe("shouldSkipIndexHistory", () => {
     expect(shouldSkipIndexHistory(MIN_CANONICAL_POINTS_TO_SKIP)).toBe(true);
     expect(shouldSkipIndexHistory(MIN_CANONICAL_POINTS_TO_SKIP, true)).toBe(false);
     expect(shouldSkipIndexHistory(1)).toBe(false);
+  });
+});
+
+describe("indexHistoryNeedsRefresh", () => {
+  it("retélécharge une série dense dont le dernier point a plus de 4 jours", () => {
+    expect(
+      indexHistoryNeedsRefresh({
+        canonicalCount: MIN_CANONICAL_POINTS_TO_SKIP,
+        lastCanonicalDate: "2026-09-18",
+        today: "2026-10-26",
+      })
+    ).toBe(true);
+  });
+
+  it("laisse une série fraîche et dense", () => {
+    expect(
+      indexHistoryNeedsRefresh({
+        canonicalCount: 120,
+        lastCanonicalDate: "2026-10-23",
+        today: "2026-10-26",
+      })
+    ).toBe(false);
+  });
+
+  it("force le téléchargement même si la série est fraîche", () => {
+    expect(
+      indexHistoryNeedsRefresh({
+        canonicalCount: 120,
+        lastCanonicalDate: "2026-10-26",
+        today: "2026-10-26",
+        force: true,
+      })
+    ).toBe(true);
   });
 });
 

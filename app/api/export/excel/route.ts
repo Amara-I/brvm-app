@@ -22,6 +22,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api/response";
 import { buildBrvmWorkbook, buildExportFileName, type ExportCompanyRow } from "@/lib/calc/export-workbook";
+import { actionsByTicker } from "@/lib/corporate-actions/load";
+import { presentClose, presentDividend } from "@/lib/corporate-actions/present-quotes";
 import type { Prisma } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
@@ -52,7 +54,7 @@ export async function GET(request: NextRequest) {
     }),
     prisma.dividend.findMany({
       where: { companyId: { in: companyIds }, isCanonical: true },
-      select: { companyId: true, year: true, amount: true },
+      select: { companyId: true, year: true, amount: true, exDate: true },
     }),
     // Ratio le plus récent par société (comme `getLatestFinancialRatios`,
     // dupliqué ici en `select` minimal pour éviter un aller-retour Prisma
@@ -68,21 +70,37 @@ export async function GET(request: NextRequest) {
   // Reconstitue `prices[year]`/`dividends[year]` par société, comme dans le
   // JSX d'origine (`PriceHistory.date` est le 31/12 de chaque année pour les
   // données seedées, cf. prisma/seed.ts).
+  const splitActions = await actionsByTicker().catch(() => new Map());
+  const tickerById = new Map(companies.map((co) => [co.id, co.ticker]));
+
   const yearsSet = new Set<number>();
   const pricesByCompany = new Map<string, Record<number, number>>();
+  const priceDateByCompany = new Map<string, Record<number, string>>();
   for (const row of priceRows) {
     const year = row.date.getUTCFullYear();
+    const iso = row.date.toISOString().slice(0, 10);
     yearsSet.add(year);
+    const dates = priceDateByCompany.get(row.companyId) ?? {};
+    if (dates[year] && dates[year] > iso) continue;
+    dates[year] = iso;
+    priceDateByCompany.set(row.companyId, dates);
+    const actions = splitActions.get(tickerById.get(row.companyId) ?? "") ?? [];
     const bucket = pricesByCompany.get(row.companyId) ?? {};
-    bucket[year] = Number(row.closePrice);
+    bucket[year] = presentClose(Number(row.closePrice), null, iso, actions).closePrice;
     pricesByCompany.set(row.companyId, bucket);
   }
 
   const dividendsByCompany = new Map<string, Record<number, number>>();
   for (const row of dividendRows) {
     yearsSet.add(row.year);
+    const actions = splitActions.get(tickerById.get(row.companyId) ?? "") ?? [];
     const bucket = dividendsByCompany.get(row.companyId) ?? {};
-    bucket[row.year] = Number(row.amount);
+    bucket[row.year] = presentDividend(
+      Number(row.amount),
+      row.year,
+      row.exDate ? row.exDate.toISOString().slice(0, 10) : null,
+      actions
+    );
     dividendsByCompany.set(row.companyId, bucket);
   }
 

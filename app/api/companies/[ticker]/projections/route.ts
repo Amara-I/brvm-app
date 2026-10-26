@@ -16,6 +16,8 @@ import { prisma } from "@/lib/prisma";
 import { apiSuccess, apiNotFound, apiValidationError, cacheHeaders } from "@/lib/api/response";
 import { projectionsQuerySchema } from "@/lib/api/query-schemas";
 import { projectPrices } from "@/lib/calc/project-prices";
+import { priceDivisor } from "@/lib/corporate-actions/adjust";
+import { actionsForTicker } from "@/lib/corporate-actions/load";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +41,11 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     return apiSuccess({ ticker, baseYear: null, projections: [] }, { headers: cacheHeaders(60) });
   }
 
-  const historicalPrices = priceHistory.map((p) => ({ year: p.date.getUTCFullYear(), price: Number(p.closePrice) }));
+  const actions = await actionsForTicker(ticker).catch(() => []);
+  const historicalPrices = priceHistory.map((p) => ({
+    year: p.date.getUTCFullYear(),
+    price: Number(p.closePrice) / priceDivisor(actions, p.date.toISOString().slice(0, 10)),
+  }));
   const baseYear = historicalPrices[historicalPrices.length - 1].year;
   const projections = projectPrices(historicalPrices, { futureYears: parsed.data.years, baseYear });
 

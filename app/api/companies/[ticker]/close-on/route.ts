@@ -5,6 +5,8 @@ import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCanonicalCloseOnOrBefore } from "@/lib/api/latest-data";
 import { apiError, apiSuccess, apiNotFound } from "@/lib/api/response";
+import { actionsForTicker } from "@/lib/corporate-actions/load";
+import { presentClose } from "@/lib/corporate-actions/present-quotes";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +35,14 @@ export async function GET(
     return apiError("Aucun cours canonique disponible pour cette date", 404);
   }
 
+  const actions = await actionsForTicker(company.ticker).catch(() => []);
+  const sessionDate = row.date.toISOString().slice(0, 10);
+  const shown = presentClose(Number(row.closePrice), null, sessionDate, actions);
+
   return apiSuccess({
     ticker: company.ticker,
     requestedDate: date,
-    date: row.date.toISOString().slice(0, 10),
-    close: Number(row.closePrice),
+    date: sessionDate,
+    close: shown.closePrice,
   });
 }

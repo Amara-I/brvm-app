@@ -25,8 +25,10 @@ const result = spawnSync("npx", ["prisma", "migrate", "deploy"], {
 
 if (result.status !== 0) {
   console.warn(
-    `[migrate] prisma migrate deploy a échoué (code ${result.status}) — le build continue. Relancer manuellement si une table manque.`
+    `[migrate] ÉCHEC prisma migrate deploy (code ${result.status}) — le build continue. Relancer manuellement si une table manque.`
   );
+} else {
+  console.log("[migrate] OK — migrations à jour");
 }
 
 process.exit(0);

@@ -512,7 +512,7 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
 
   const metrics = calcMetrics({
     years: dataset.years,
-    prices: pricesSyncedToLatestClose(company.prices, series),
+    prices: pricesSyncedToLatestClose(company.prices, series, company.priceAsOf),
     dividends: company.dividends,
     per: company.per,
     mktcap: company.mktcap,

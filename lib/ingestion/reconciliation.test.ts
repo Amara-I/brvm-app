@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
+import { BRVM_SESSION_COLLAR_PERCENT, filterCanonicalByCollar } from "./price-collar";
 import {
+  canonicalRowsForPersist,
+  canonicalSourceForDay,
   reconcilePriceQuotes,
   reconcilePriceBatch,
   reconcileIndexQuotes,
@@ -133,5 +136,56 @@ describe("reconcileIndexQuotes", () => {
     expect(canElevateCanonical("SIKAFINANCE", ["BRVM_OFFICIEL", "SIKAFINANCE"])).toBe(false);
     expect(canElevateCanonical("SIKAFINANCE", ["SIKAFINANCE"])).toBe(true);
     expect(canElevateCanonical("BRVM_OFFICIEL", ["SIKAFINANCE"])).toBe(true);
+  });
+});
+
+describe("invariant canonique — une séance, une ligne", () => {
+  it("élit exactement une source dès qu'il en existe une", () => {
+    expect(canonicalSourceForDay([])).toBeNull();
+    expect(canonicalSourceForDay(["SIKAFINANCE"])).toBe("SIKAFINANCE");
+    expect(canonicalSourceForDay(["SIKAFINANCE", "BRVM_OFFICIEL"])).toBe("BRVM_OFFICIEL");
+    expect(canonicalSourceForDay(["RICHBOURSE", "MANUEL", "SIKAFINANCE"])).toBe("SIKAFINANCE");
+  });
+
+  it("garde le 23/10 SNTS même si le collier le refuse contre un cours lointain", () => {
+    const quotes = [
+      priceQuote({
+        ticker: "SNTS",
+        date: "2026-10-22",
+        closePrice: 42000,
+        source: "BRVM_OFFICIEL",
+      }),
+      priceQuote({
+        ticker: "SNTS",
+        date: "2026-10-23",
+        closePrice: 43850,
+        source: "BRVM_OFFICIEL",
+        changePercent: 4.4,
+      }),
+      priceQuote({
+        ticker: "SNTS",
+        date: "2026-10-23",
+        closePrice: 43850,
+        source: "SIKAFINANCE",
+      }),
+    ];
+    const { reconciled } = reconcilePriceBatch(quotes);
+    const collar = filterCanonicalByCollar(reconciled, {
+      previousByTicker: new Map([["SNTS", { date: "2026-09-16", closePrice: 20000 }]]),
+      config: {
+        enabled: true,
+        collarPercent: BRVM_SESSION_COLLAR_PERCENT,
+        slackPercent: 0.5,
+        maxGapDays: 40,
+        overrideTickers: new Set(),
+      },
+    });
+    expect(collar.rejected.some((row) => row.date === "2026-10-23")).toBe(true);
+
+    const marked = canonicalRowsForPersist(reconciled);
+    const keys = marked.map((row) => `${row.ticker}__${row.date}`);
+    expect(new Set(keys).size).toBe(marked.length);
+    expect(marked).toHaveLength(2);
+    expect(marked.find((row) => row.date === "2026-10-23")?.resolvedSource).toBe("BRVM_OFFICIEL");
   });
 });

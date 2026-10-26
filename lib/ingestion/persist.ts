@@ -24,7 +24,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { toPrismaDataSource } from "./prisma-mappers";
 import type { DiscrepancyReport, ReconciledIndex, ReconciledPrice } from "./reconciliation";
-import { canElevateCanonical, sourcesOutranking, sourceOutranks } from "./reconciliation";
+import { canonicalRowsForPersist, canonicalSourceForDay, sourceOutranks } from "./reconciliation";
 import { filterCanonicalByCollar } from "./price-collar";
 import { priceDivisor } from "@/lib/corporate-actions/adjust";
 import { loadCorporateActions } from "@/lib/corporate-actions/load";
@@ -259,7 +259,7 @@ export async function persistPriceQuotes(
   });
   if (collar.rejected.length > 0) {
     console.warn(
-      `[collar] ${collar.rejected.length} cours hors collier BRVM (~±7,5 %) — bruts conservés, non canoniques. Ex. ` +
+      `[collar] ${collar.rejected.length} cours hors collier BRVM (~±7,5 %) — écart journalisé, séance quand même canonique. Ex. ` +
         collar.rejected
           .slice(0, 4)
           .map((r) => `${r.ticker} ${r.date}: ${r.previousClose}→${r.closePrice} (${r.deltaPercent}%)`)
@@ -283,49 +283,35 @@ export async function persistPriceQuotes(
     }
   }
 
-  const acceptedByTicker = new Map<string, ReconciledPrice[]>();
-  for (const r of collar.accepted) {
-    const arr = acceptedByTicker.get(r.ticker) ?? [];
+  // Le collier ne retire pas le canonique : chaque séance réconciliée
+  // (y compris un écart journalisé) reçoit exactement une ligne canonique.
+  const markByTicker = new Map<string, ReconciledPrice[]>();
+  for (const r of canonicalRowsForPersist(reconciled)) {
+    const arr = markByTicker.get(r.ticker) ?? [];
     arr.push(r);
-    acceptedByTicker.set(r.ticker, arr);
+    markByTicker.set(r.ticker, arr);
   }
 
   let markedCanonical = 0;
-  for (const [ticker, rows] of acceptedByTicker) {
+  for (const [ticker, rows] of markByTicker) {
     const companyId = companyIdByTicker.get(ticker);
     if (!companyId) continue;
-
-    const blockedDates = new Set<string>();
-    const dateObjs = rows.map((r) => new Date(`${r.date}T00:00:00.000Z`));
-    const higherSources = [
-      ...new Set(rows.flatMap((r) => sourcesOutranking(r.resolvedSource).map(toPrismaDataSource))),
-    ];
-    if (higherSources.length > 0 && dateObjs.length > 0) {
-      const higherRows = await db.priceHistory.findMany({
-        where: { companyId, date: { in: dateObjs }, source: { in: higherSources } },
-        select: { date: true },
-      });
-      for (const h of higherRows) {
-        blockedDates.add(h.date.toISOString().slice(0, 10));
-      }
-    }
 
     for (const r of rows) {
       const date = new Date(`${r.date}T00:00:00.000Z`);
       const dayEnd = new Date(date);
       dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
-      const winningSource = toPrismaDataSource(r.resolvedSource);
-      if (blockedDates.has(r.date)) {
-        // Une source supérieure existe déjà : ne jamais élever celle-ci,
-        // et rétrograder un canonique Sika/OB erroné le cas échéant.
-        await db.priceHistory.updateMany({
-          where: { companyId, date, source: winningSource },
-          data: { isCanonical: false },
-        });
-        continue;
-      }
-      // Jour calendaire entier : évite 2 canoniques si timestamps UTC diffèrent
-      // (ex. seed « date du jour » vs clôture à minuit).
+      const existing = await db.priceHistory.findMany({
+        where: { companyId, date: { gte: date, lt: dayEnd } },
+        select: { source: true },
+      });
+      const winner = canonicalSourceForDay([
+        ...existing.map((row) => row.source as DataSourceCode),
+        r.resolvedSource,
+      ]);
+      if (!winner) continue;
+      const winningSource = toPrismaDataSource(winner);
+      // Jour calendaire entier : évite 2 canoniques si timestamps UTC diffèrent.
       await db.priceHistory.updateMany({
         where: { companyId, date: { gte: date, lt: dayEnd } },
         data: { isCanonical: false },
@@ -771,19 +757,16 @@ export async function persistIndexQuotes(
     const marketIndexId = indexIdByCode.get(r.code);
     if (!marketIndexId) continue;
     const date = new Date(`${r.date}T00:00:00.000Z`);
-    const winningSource = toPrismaDataSource(r.resolvedSource);
     const existing = await db.marketIndexValue.findMany({
       where: { marketIndexId, date },
       select: { source: true },
     });
-    const existingSources = existing.map((row) => row.source as DataSourceCode);
-    if (!canElevateCanonical(r.resolvedSource, existingSources)) {
-      await db.marketIndexValue.updateMany({
-        where: { marketIndexId, date, source: winningSource },
-        data: { isCanonical: false },
-      });
-      continue;
-    }
+    const winner = canonicalSourceForDay([
+      ...existing.map((row) => row.source as DataSourceCode),
+      r.resolvedSource,
+    ]);
+    if (!winner) continue;
+    const winningSource = toPrismaDataSource(winner);
     await db.marketIndexValue.updateMany({ where: { marketIndexId, date }, data: { isCanonical: false } });
     await db.marketIndexValue.update({
       where: { uniq_index_date_source: { marketIndexId, date, source: winningSource } },
@@ -793,6 +776,70 @@ export async function persistIndexQuotes(
   }
 
   return { upserted, markedCanonical };
+}
+
+/**
+ * Séances qui ont au moins une source mais aucune ligne canonique
+ * (collier, lot interrompu, source bloquée). On élit la source prioritaire.
+ * Postgres uniquement — no-op silencieux si le SQL est refusé.
+ */
+export async function promotePriceDaysWithoutCanonical(db: PrismaClient, since: Date): Promise<number> {
+  const n = await db.$executeRaw`
+    UPDATE "price_history" AS ph
+    SET "is_canonical" = true
+    WHERE ph."id" IN (
+      SELECT DISTINCT ON (p."company_id", p."date") p."id"
+      FROM "price_history" p
+      WHERE p."date" >= ${since}::date
+        AND p."date" <= CURRENT_DATE
+        AND NOT EXISTS (
+          SELECT 1 FROM "price_history" c
+          WHERE c."company_id" = p."company_id"
+            AND c."date" = p."date"
+            AND c."is_canonical" = true
+        )
+      ORDER BY p."company_id", p."date",
+        CASE p."source"
+          WHEN 'BRVM_OFFICIEL' THEN 0
+          WHEN 'SIKAFINANCE' THEN 1
+          WHEN 'OUESTBOURSE' THEN 2
+          WHEN 'RICHBOURSE' THEN 3
+          WHEN 'MANUEL' THEN 4
+          ELSE 5
+        END,
+        p."ingested_at" DESC
+    )
+  `;
+  return typeof n === "number" ? n : 0;
+}
+
+export async function promoteIndexDaysWithoutCanonical(db: PrismaClient, since: Date): Promise<number> {
+  const n = await db.$executeRaw`
+    UPDATE "market_index_values" AS v
+    SET "is_canonical" = true
+    WHERE v."id" IN (
+      SELECT DISTINCT ON (p."market_index_id", p."date") p."id"
+      FROM "market_index_values" p
+      WHERE p."date" >= ${since}::date
+        AND p."date" <= CURRENT_DATE
+        AND NOT EXISTS (
+          SELECT 1 FROM "market_index_values" c
+          WHERE c."market_index_id" = p."market_index_id"
+            AND c."date" = p."date"
+            AND c."is_canonical" = true
+        )
+      ORDER BY p."market_index_id", p."date",
+        CASE p."source"
+          WHEN 'BRVM_OFFICIEL' THEN 0
+          WHEN 'SIKAFINANCE' THEN 1
+          WHEN 'OUESTBOURSE' THEN 2
+          WHEN 'RICHBOURSE' THEN 3
+          WHEN 'MANUEL' THEN 4
+          ELSE 5
+        END
+    )
+  `;
+  return typeof n === "number" ? n : 0;
 }
 
 export interface PersistIndexConstituentsResult {

@@ -51,7 +51,7 @@ export interface IndexEnrichmentFlags {
   composition: boolean;
   /** Refresh composition après le cron quotidien (1 PDF — défaut true). */
   compositionOnDailyCron: boolean;
-  /** Dernières séances (≤ 21 j) Composite + BRVM 30 après le cron (défaut true). */
+  /** ~50 derniers jours, tous les indices sauf CAPIBRVM (défaut true). */
   recentHistoryOnDailyCron: boolean;
 }
 

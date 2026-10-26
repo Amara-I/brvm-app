@@ -13,10 +13,13 @@ import {
 import { chartRangeCutoffIso, parseChartRangeParam, DEFAULT_CHART_RANGE } from "./chart-window";
 import { isChartSeriesStale } from "./chart-series-cache";
 import { readCachedChartSeries } from "./refresh-chart-series";
-import { adjustmentFingerprint, splitSessionMissing } from "@/lib/corporate-actions/adjust";
+import { adjustSeries, adjustmentFingerprint, splitSessionMissing } from "@/lib/corporate-actions/adjust";
 import { actionsForTicker } from "@/lib/corporate-actions/load";
 import { presentCompanyCloses } from "@/lib/corporate-actions/present-series";
 import type { AdjustmentAction } from "@/lib/corporate-actions/types";
+import { closeForSession, sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
+import type { DataSourceCode } from "@/lib/ingestion/types";
+import { dedupeChartPointsByDay } from "./indicators";
 
 export interface LoadedCompanyChartSeries {
   series: ChartClosePoint[];
@@ -34,6 +37,7 @@ export interface LoadedCompanyChartSeries {
 
 interface LatestCanonicalClose {
   date: string;
+  close: number;
   changePercent: number | null;
 }
 
@@ -85,38 +89,72 @@ async function loadLiveCanonical(opts: {
   };
 }
 
-async function readLatestCanonicalClose(companyId: string): Promise<LatestCanonicalClose | null> {
+async function readRecentSessions(companyId: string): Promise<SessionCloseRow[]> {
   try {
-    const row = await prisma.priceHistory.findFirst({
-      where: { companyId, isCanonical: true, date: { lte: new Date() } },
+    const rows = await prisma.priceHistory.findMany({
+      where: { companyId, date: { lte: new Date() } },
       orderBy: { date: "desc" },
-      select: { date: true, changePercent: true },
+      take: 40,
+      select: { date: true, closePrice: true, changePercent: true, source: true, isCanonical: true },
     });
-    if (!row) return null;
-    return {
-      date: row.date.toISOString().slice(0, 10),
-      changePercent:
-        row.changePercent != null ? Math.round(Number(row.changePercent) * 100) / 100 : null,
-    };
+    return rows
+      .map((row) => ({
+        date: row.date.toISOString().slice(0, 10),
+        close: Number(row.closePrice),
+        source: row.source as DataSourceCode,
+        changePercent: row.changePercent != null ? Number(row.changePercent) : null,
+        isCanonical: row.isCanonical,
+      }))
+      .filter((row) => row.close > 0);
   } catch (err) {
-    if (isMissingDatabaseObject(err)) return null;
+    if (isMissingDatabaseObject(err)) return [];
     throw err;
   }
 }
 
+function latestShownClose(sessions: SessionCloseRow[]): LatestCanonicalClose | null {
+  const dates = [...new Set(sessions.map((row) => row.date))].sort();
+  const date = dates[dates.length - 1];
+  if (!date) return null;
+  const row = closeForSession(sessions, date);
+  if (!row) return null;
+  return {
+    date: row.date,
+    close: row.close,
+    changePercent: row.changePercent,
+  };
+}
+
 function withFreshness(
   base: Omit<LoadedCompanyChartSeries, "stale" | "officialDayChangePercent">,
-  latest: LatestCanonicalClose | null
+  latest: LatestCanonicalClose | null,
+  sessionChange: number | null,
+  forceStale = false
 ): LoadedCompanyChartSeries {
   const last = base.series[base.series.length - 1]?.time ?? null;
   const today = new Date().toISOString().slice(0, 10);
   const splitPending = splitSessionMissing(base.series, base.corporateActions, today);
   return {
     ...base,
-    stale: splitPending || (base.fromCache && isChartSeriesStale(last, latest?.date ?? null)),
-    // La variation officielle ne vaut que pour la séance qu'elle décrit.
-    officialDayChangePercent: latest && last === latest.date ? (latest.changePercent ?? null) : null,
+    stale: forceStale || splitPending || (base.fromCache && isChartSeriesStale(last, latest?.date ?? null)),
+    officialDayChangePercent:
+      sessionChange ?? (latest && last === latest.date ? (latest.changePercent ?? null) : null),
   };
+}
+
+/** Ajoute la dernière séance de price_history si le cache s'arrête avant. */
+function overlayFreshClose(
+  series: ChartClosePoint[],
+  actions: AdjustmentAction[],
+  latest: LatestCanonicalClose | null
+): ChartClosePoint[] {
+  if (!latest || !(latest.close > 0)) return series;
+  const last = series[series.length - 1]?.time ?? "";
+  if (last >= latest.date) return series;
+  const adjusted = adjustSeries([{ time: latest.date, value: latest.close, volume: null }], actions);
+  const point = adjusted[adjusted.length - 1];
+  if (!point || !(point.value > 0)) return series;
+  return dedupeChartPointsByDay([...series, point]);
 }
 
 export async function loadCompanyChartSeries(opts: {
@@ -127,11 +165,13 @@ export async function loadCompanyChartSeries(opts: {
   const parsed = parseChartRangeParam(opts.rangeParam ?? undefined) ?? DEFAULT_CHART_RANGE;
   const cacheRangeKey = cacheRangeKeyForQuery(parsed);
 
-  const [cached, latest, actions] = await Promise.all([
+  const [cached, sessions, actions] = await Promise.all([
     readCachedChartSeries(prisma, "COMPANY", opts.ticker, cacheRangeKey),
-    readLatestCanonicalClose(opts.companyId),
+    readRecentSessions(opts.companyId),
     actionsForTicker(opts.ticker),
   ]);
+  const latest = latestShownClose(sessions);
+  const sessionChange = sessions.length > 0 ? sessionDayChangePercent(sessions, actions) : null;
 
   async function asPresented(
     points: ChartClosePoint[],
@@ -144,18 +184,23 @@ export async function loadCompanyChartSeries(opts: {
     const presented = already
       ? { points, actions, fingerprint: fp }
       : await presentCompanyCloses(prisma, opts.companyId, opts.ticker, points);
+    const rawLast = presented.points[presented.points.length - 1]?.time ?? null;
+    const cacheWasBehind = fromCache && isChartSeriesStale(rawLast, latest?.date ?? null);
+    const series = overlayFreshClose(presented.points, presented.actions, latest);
     const sources = meta?.sources ?? [];
     return withFreshness(
       {
-        series: presented.points,
-        dbSeries: toDbSeries(presented.points, sources),
+        series,
+        dbSeries: toDbSeries(series, sources),
         fromCache,
         cacheRangeKey: rangeKey,
         // Meta recalculée sur la série brute : ne pas réutiliser les variations.
-        meta: already ? meta : null,
+        meta: already && !cacheWasBehind ? meta : null,
         corporateActions: presented.actions,
       },
-      latest
+      latest,
+      sessionChange,
+      cacheWasBehind
     );
   }
 
@@ -182,14 +227,15 @@ export async function loadCompanyChartSeries(opts: {
     if (isMissingDatabaseObject(err)) {
       return withFreshness(
         {
-          series: [],
+          series: overlayFreshClose([], actions, latest),
           dbSeries: [],
           fromCache: false,
           cacheRangeKey,
           meta: null,
           corporateActions: actions,
         },
-        latest
+        latest,
+        sessionChange
       );
     }
     throw err;

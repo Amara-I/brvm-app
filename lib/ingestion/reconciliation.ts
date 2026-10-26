@@ -184,6 +184,37 @@ export function reconcileIndexBatch(allQuotes: RawIndexQuote[]): ReconciledIndex
   return reconciled;
 }
 
+/**
+ * Source canonique d'une séance : la plus prioritaire parmi les lignes
+ * présentes. Jamais null si au moins une source existe — un collier ou un
+ * lot partiel ne doit pas laisser le jour sans canonique.
+ */
+export function canonicalSourceForDay(sources: Iterable<DataSourceCode>): DataSourceCode | null {
+  let best: DataSourceCode | null = null;
+  for (const source of sources) {
+    if (!best || sourceRank(source) < sourceRank(best)) best = source;
+  }
+  return best;
+}
+
+/**
+ * Une écriture canonique par ticker/date. Le filtre de collier journalise
+ * les écarts mais ne retire pas ces lignes : sinon la séance d'avant un
+ * fractionnement (ou un mouvement large) reste sans canonique et la variation
+ * saute un jour de bourse.
+ */
+export function canonicalRowsForPersist(reconciled: ReconciledPrice[]): ReconciledPrice[] {
+  const byKey = new Map<string, ReconciledPrice>();
+  for (const row of reconciled) {
+    const key = `${row.ticker.toUpperCase()}__${row.date.slice(0, 10)}`;
+    const prev = byKey.get(key);
+    if (!prev || sourceRank(row.resolvedSource) < sourceRank(prev.resolvedSource)) {
+      byKey.set(key, row);
+    }
+  }
+  return [...byKey.values()];
+}
+
 /** Ne pas élever une source s'il existe déjà une valeur plus prioritaire. */
 export function canElevateCanonical(
   resolvedSource: DataSourceCode,

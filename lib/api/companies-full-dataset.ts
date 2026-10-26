@@ -80,6 +80,8 @@ export interface CompanyFullDataset {
   prices: Record<number, number>;
   /// Dividende par action canonique par année.
   dividends: Record<number, number>;
+  /// Date ISO de la clôture qui alimente le dernier millésime de `prices`.
+  priceAsOf?: string | null;
   color: string;
   /// Source de la donnée canonique la plus récente pour cette société (cours
   /// OU dividende, la plus récente des deux), ou `null` si aucune donnée
@@ -282,16 +284,20 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
 
   const yearsSet = new Set<number>();
   const pricesByCompany = new Map<string, Record<number, number>>();
+  const priceAsOfByCompany = new Map<string, string>();
   const syncFromDisplayedPrice = new Map<string, { source: string; at: Date }>();
 
   for (const row of priceRows) {
     const year = Number(row.year);
     yearsSet.add(year);
     const actions = actionsForCompany.get(row.company_id) ?? [];
-    const close = Number(row.close_price) / priceDivisor(actions, isoDay(row.price_date));
+    const priceIso = isoDay(row.price_date);
+    const close = Number(row.close_price) / priceDivisor(actions, priceIso);
     const bucket = pricesByCompany.get(row.company_id) ?? {};
     bucket[year] = close;
     pricesByCompany.set(row.company_id, bucket);
+    const prevAsOf = priceAsOfByCompany.get(row.company_id);
+    if (!prevAsOf || priceIso > prevAsOf) priceAsOfByCompany.set(row.company_id, priceIso);
 
     const prev = syncFromDisplayedPrice.get(row.company_id);
     if (!prev || year > new Date(prev.at).getUTCFullYear()) {
@@ -370,6 +376,8 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
         const bucket = pricesByCompany.get(companyId) ?? {};
         bucket[year] = last.value;
         pricesByCompany.set(companyId, bucket);
+        const prevAsOf = priceAsOfByCompany.get(companyId);
+        if (!prevAsOf || last.time > prevAsOf) priceAsOfByCompany.set(companyId, last.time);
         yearsSet.add(year);
       }
     } catch {
@@ -435,6 +443,7 @@ export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> 
       prevFcf: previous.fcf,
       prices: pricesByCompany.get(co.id) ?? {},
       dividends: dividendsByCompany.get(co.id) ?? {},
+      priceAsOf: priceAsOfByCompany.get(co.id) ?? null,
       color: co.color,
       dataSource: sync?.source ?? null,
       lastSyncedAt: sync?.at.toISOString() ?? null,
