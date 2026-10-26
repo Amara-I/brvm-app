@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer } from "recharts";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import type { CompanyProfileMeta } from "@/lib/api/company-sheet-dataset";
 import styles from "./CompanySheet.module.css";
 
@@ -22,25 +23,8 @@ function isFloatName(name: string): boolean {
   return /flottant|float|public\b|bloc\s*flottant/i.test(name);
 }
 
-function displayName(name: string, isFloat: boolean): string {
-  return isFloat ? "Flottant" : name;
-}
-
-function fmtPctFr(n: number): string {
-  return `${n.toLocaleString("fr-FR", { maximumFractionDigits: 1, minimumFractionDigits: 0 })}%`;
-}
-
-function formatAsOf(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  const d = new Date(`${iso.slice(0, 10)}T12:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) return null;
-  const label = d.toLocaleDateString("fr-FR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-  return `au ${label}`;
+function displayName(name: string, isFloat: boolean, floatName: string): string {
+  return isFloat ? floatName : name;
 }
 
 export default function ShareholdingPanel({
@@ -48,6 +32,27 @@ export default function ShareholdingPanel({
 }: {
   profileMeta: CompanyProfileMeta | null;
 }) {
+  const { t, format } = useI18n();
+  const floatName = t("company.shareholding.floatName");
+
+  function fmtPct(n: number): string {
+    const body = format.number(n, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
+    return `${body}%`;
+  }
+
+  function formatAsOf(iso: string | null | undefined): string | null {
+    if (!iso) return null;
+    const d = new Date(`${iso.slice(0, 10)}T12:00:00.000Z`);
+    if (Number.isNaN(d.getTime())) return null;
+    const label = format.date(d, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+    return t("company.shareholding.asOf", { date: label });
+  }
+
   const slices = useMemo(() => {
     const raw = (profileMeta?.shareholders ?? [])
       .filter((s) => s.name && s.percent != null && s.percent > 0)
@@ -55,7 +60,7 @@ export default function ShareholdingPanel({
 
     const hasFloat = raw.some((s) => s.isFloat);
     if (!hasFloat && profileMeta?.floatPercent != null && profileMeta.floatPercent > 0) {
-      raw.push({ name: "Flottant", percent: profileMeta.floatPercent, isFloat: true });
+      raw.push({ name: floatName, percent: profileMeta.floatPercent, isFloat: true });
     }
 
     const holders = raw.filter((s) => !s.isFloat).sort((a, b) => b.percent - a.percent);
@@ -65,10 +70,10 @@ export default function ShareholdingPanel({
     let colorIdx = 0;
     return ordered.map((s) => ({
       ...s,
-      name: displayName(s.name, s.isFloat),
+      name: displayName(s.name, s.isFloat, floatName),
       color: s.isFloat ? FLOAT_BLUE : HOLDER_COLORS[colorIdx++ % HOLDER_COLORS.length]!,
     }));
-  }, [profileMeta]);
+  }, [profileMeta, floatName]);
 
   const floatCenter = useMemo(() => {
     if (profileMeta?.floatPercent != null && Number.isFinite(profileMeta.floatPercent)) {
@@ -89,8 +94,8 @@ export default function ShareholdingPanel({
   if (slices.length === 0) {
     return (
       <section className={styles.card}>
-        <h2 className={styles.cardTitle}>Actionnariat</h2>
-        <p className={styles.empty}>Répartition actionnariale non disponible (N/D).</p>
+        <h2 className={styles.cardTitle}>{t("company.shareholding.title")}</h2>
+        <p className={styles.empty}>{t("company.shareholding.empty")}</p>
       </section>
     );
   }
@@ -99,7 +104,7 @@ export default function ShareholdingPanel({
     <section className={styles.card}>
       <div className={styles.shareholdingHeader}>
         <h2 className={styles.cardTitle} style={{ margin: 0 }}>
-          Actionnariat
+          {t("company.shareholding.title")}
         </h2>
         {asOfLabel ? <p className={styles.shareholdingAsOf}>{asOfLabel}</p> : null}
       </div>
@@ -136,9 +141,9 @@ export default function ShareholdingPanel({
                 fontSize: donutSize >= 320 ? "2rem" : donutSize >= 280 ? "1.7rem" : "1.4rem",
               }}
             >
-              {floatCenter != null ? fmtPctFr(floatCenter) : "N/D"}
+              {floatCenter != null ? fmtPct(floatCenter) : t("common.nd")}
             </strong>
-            <span>flottant</span>
+            <span>{t("company.shareholding.floatCenter")}</span>
           </div>
         </div>
 
@@ -151,7 +156,7 @@ export default function ShareholdingPanel({
               <span className={styles.shareholdingName} title={s.name}>
                 {s.name}
               </span>
-              <strong>{fmtPctFr(s.percent)}</strong>
+              <strong>{fmtPct(s.percent)}</strong>
             </li>
           ))}
         </ul>

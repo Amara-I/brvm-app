@@ -1,4 +1,5 @@
 // Page "Portefeuille" — étape 16 (démo premium + KPI connectés).
+import type { Metadata } from "next";
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
@@ -17,21 +18,26 @@ import {
 } from "@/components/portfolio/PortfolioPageParts";
 import { listPortfolioTrades, summarizeRealizedPnl, ensureOpeningTrades } from "@/lib/api/portfolio-trades";
 import PageHeader from "@/components/ui/PageHeader";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 export const fetchCache = "force-no-store";
 
-export const metadata = {
-  title: "Portefeuille — OuestBourse",
-  description: "Suivez la valeur, la performance et la répartition sectorielle de votre portefeuille BRVM.",
-};
+export function generateMetadata(): Metadata {
+  const { t } = getI18n();
+  return {
+    title: t("portfolio.meta.title"),
+    description: t("portfolio.meta.description"),
+  };
+}
 
 function GuestDemo() {
+  const { t, format } = getI18n();
   const demoKpis = [
-    { l: "Total du portefeuille", v: "12 450 000 FCFA", edu: "valeur-de-marche" as const },
-    { l: "Plus-value latente", v: "+8,4 %", edu: "plus-moins-value-latente" as const },
-    { l: "PRU moyen", v: "18 200 FCFA", edu: "pru" as const },
-    { l: "Dividendes YTD", v: "245 000 FCFA", edu: "performance-ytd" as const },
+    { l: t("portfolio.guest.total"), v: format.fcfa(12_450_000), edu: "valeur-de-marche" as const },
+    { l: t("portfolio.guest.latent"), v: format.percent(8.4, 1, true), edu: "plus-moins-value-latente" as const },
+    { l: t("portfolio.guest.pru"), v: format.fcfa(18_200), edu: "pru" as const },
+    { l: t("portfolio.guest.dividends"), v: format.fcfa(245_000), edu: "performance-ytd" as const },
   ];
   const demoAlloc = [
     { sector: "Télécoms", weightPercent: 42 },
@@ -43,15 +49,15 @@ function GuestDemo() {
     <AppHeader>
       <div className="ob-page">
         <PageHeader
-          kicker="Positions"
-          title="Portefeuille"
-          lead="Suivez la valorisation, la performance latente et l’allocation de vos positions BRVM. Connectez-vous pour enregistrer un portefeuille réel."
+          kicker={t("portfolio.guest.kicker")}
+          title={t("portfolio.guest.title")}
+          lead={t("portfolio.guest.lead")}
         />
 
         <div className="ob-card ob-card-pad" style={{ marginBottom: 18, textAlign: "center" }}>
-          <strong style={{ color: C.text, fontSize: "var(--fs-body-sm)" }}>Chiffres illustratifs</strong>
+          <strong style={{ color: C.text, fontSize: "var(--fs-body-sm)" }}>{t("portfolio.guest.illustrative")}</strong>
           <p style={{ color: C.textDim, fontSize: "var(--fs-body-sm)", margin: "6px 0 0" }}>
-            L&apos;aperçu ci-dessous est une démonstration visuelle — ce ne sont pas vos positions ni des cours live.
+            {t("portfolio.guest.illustrativeBody")}
           </p>
         </div>
 
@@ -78,10 +84,10 @@ function GuestDemo() {
           </div>
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 22 }}>
             <Link href="/connexion" className="ob-btn-secondary">
-              Connexion
+              {t("chrome.auth.login")}
             </Link>
             <Link href="/inscription" className="ob-btn-gold">
-              Créer un compte
+              {t("chrome.auth.register")}
             </Link>
           </div>
         </div>

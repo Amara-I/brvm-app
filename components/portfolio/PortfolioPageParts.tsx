@@ -1,5 +1,9 @@
+"use client";
+
 import { C } from "@/lib/theme/colors";
 import EducationTermLink from "@/components/education/EducationTermLink";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeAssetType } from "@/components/portfolio/portfolio-i18n";
 
 export const panelStyle: React.CSSProperties = {
   background: C.panel,
@@ -26,10 +30,6 @@ export const allocationSectorsCol: React.CSSProperties = {
 export const allocationTickersCol: React.CSSProperties = {
   minWidth: 0,
 };
-
-export function fmtFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
 
 export function Kpi({
   label,
@@ -65,14 +65,20 @@ export function AllocationBars({
   /** Remplace le titre « Allocation sectorielle » (ex. répartition par type). */
   heading?: string;
 }) {
+  const { t, labels, format } = useI18n();
   if (items.length === 0) return null;
   return (
     <div style={{ marginTop: 16 }}>
       <div style={{ color: C.gold, fontSize: "var(--fs-body-sm)", fontWeight: 700, marginBottom: 10 }}>
-        {heading ?? <EducationTermLink slug="allocation-sectorielle">Allocation sectorielle</EducationTermLink>}
+        {heading ?? (
+          <EducationTermLink slug="allocation-sectorielle">{t("portfolio.alloc.sectors")}</EducationTermLink>
+        )}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {items.map((s) => (
+        {items.map((s) => {
+          const sectorName = labels.sector(s.sector);
+          const label = sectorName === s.sector ? localizeAssetType(s.sector, t) : sectorName;
+          return (
           <div key={s.sector}>
             <div
               style={{
@@ -83,8 +89,8 @@ export function AllocationBars({
                 marginBottom: 3,
               }}
             >
-              <span>{s.sector}</span>
-              <span>{s.weightPercent.toFixed(1)}%</span>
+              <span>{label}</span>
+              <span>{format.percent(s.weightPercent, 1)}</span>
             </div>
             <div
               style={{
@@ -98,7 +104,8 @@ export function AllocationBars({
               <div style={{ width: `${Math.min(100, s.weightPercent)}%`, height: "100%", background: C.green }} />
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

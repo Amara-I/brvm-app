@@ -11,6 +11,7 @@ import {
   userMessageForMailFailure,
 } from "@/lib/auth/email";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { parsePortfolioType } from "@/lib/portfolio-types";
 
@@ -18,8 +19,9 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
+  const { t } = getI18n();
   const user = await getCurrentUser();
-  if (!user?.id) return apiError("Connexion requise", 401);
+  if (!user?.id) return apiError(t("common.api.authRequired"), 401);
 
   try {
     const dbUser = await prisma.user.findUnique({
@@ -34,7 +36,7 @@ export async function GET() {
         preferredPortfolioType: true,
       },
     });
-    if (!dbUser) return apiError("Compte introuvable", 404);
+    if (!dbUser) return apiError(t("common.api.accountMissing"), 404);
 
     return apiSuccess(
       {
@@ -50,15 +52,16 @@ export async function GET() {
     );
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
-      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+      return apiError(t("common.unavailable"), 503);
     }
     throw error;
   }
 }
 
 export async function PATCH(request: NextRequest) {
+  const { t, locale } = getI18n();
   const user = await getCurrentUser();
-  if (!user?.id) return apiError("Connexion requise", 401);
+  if (!user?.id) return apiError(t("common.api.authRequired"), 401);
 
   const body = await request.json().catch(() => null);
   const parsed = updateProfileSchema.safeParse(body);
@@ -69,14 +72,14 @@ export async function PATCH(request: NextRequest) {
       where: { id: user.id },
       select: { email: true },
     });
-    if (!current) return apiError("Compte introuvable", 404);
+    if (!current) return apiError(t("common.api.accountMissing"), 404);
 
     const nextEmail = parsed.data.email?.toLowerCase();
     const emailChanged = Boolean(nextEmail && nextEmail !== current.email);
 
     if (emailChanged && nextEmail) {
       const taken = await prisma.user.findUnique({ where: { email: nextEmail } });
-      if (taken) return apiError("Un compte existe déjà avec cette adresse email", 409);
+      if (taken) return apiError(t("common.api.emailTaken"), 409);
     }
 
     const updated = await prisma.user.update({
@@ -98,10 +101,10 @@ export async function PATCH(request: NextRequest) {
     if (emailChanged && updated.email) {
       const rawToken = await issueAuthToken(updated.id, "EMAIL_VERIFY");
       if (!rawToken) {
-        mailError = "Adresse mise à jour, mais le lien de confirmation n'a pas pu être généré.";
+        mailError = t("common.api.emailUpdatedNoLink");
       } else {
-        const mailed = await sendAuthEmail("verify", updated.email, rawToken);
-        if (!mailed.ok) mailError = userMessageForMailFailure(mailed);
+        const mailed = await sendAuthEmail("verify", updated.email, rawToken, locale);
+        if (!mailed.ok) mailError = userMessageForMailFailure(mailed, locale);
         if (isDevAuthPreviewEnabled()) {
           devVerifyUrl = buildAuthLink("/verifier-email", rawToken);
         }
@@ -119,7 +122,7 @@ export async function PATCH(request: NextRequest) {
     });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
-      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+      return apiError(t("common.unavailable"), 503);
     }
     throw error;
   }

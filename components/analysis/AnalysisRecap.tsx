@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import styles from "./AnalysisRecap.module.css";
 
 export interface AnalysisRecapProps {
@@ -27,21 +30,35 @@ export default function AnalysisRecap({
   href,
   hrefLabel,
 }: AnalysisRecapProps) {
-  const title = kind === "fundamental" ? "Analyse fondamentale" : "Analyse graphique";
+  const { t, labels } = useI18n();
+  const title = kind === "fundamental" ? t("company.recap.fundamental") : t("company.recap.technical");
+  const shownSignal =
+    signalLabel === "ACHAT FORT" ||
+    signalLabel === "ACHAT" ||
+    signalLabel === "CONSERVER" ||
+    signalLabel === "ALLÉGER" ||
+    signalLabel === "VENDRE" ||
+    signalLabel === "N/D"
+      ? labels.signal(signalLabel)
+      : signalLabel;
+  const shownConfidence =
+    confidence === "Élevée" || confidence === "Moyenne" || confidence === "Faible"
+      ? labels.confidence(confidence)
+      : confidence;
 
   return (
     <div className={styles.wrap}>
       <div className={styles.head}>
         <span className={styles.title}>{title}</span>
         <span className={styles.signal} style={{ color: signalColor }}>
-          {signalLabel}
+          {shownSignal}
         </span>
         <span className={styles.score}>
           {score}/100
-          {confidence ? ` · ${confidence}` : ""}
+          {shownConfidence ? ` · ${shownConfidence}` : ""}
         </span>
       </div>
-      <p className={styles.summary}>{summary || "N/D"}</p>
+      <p className={styles.summary}>{summary || t("common.nd")}</p>
       {lines.length > 0 && (
         <ul className={styles.lines}>
           {lines.map((line) => (
@@ -51,7 +68,7 @@ export default function AnalysisRecap({
       )}
       {href && (
         <Link href={href} className={styles.link}>
-          {hrefLabel ?? "Voir le détail →"}
+          {hrefLabel ?? t("company.recap.detail")}
         </Link>
       )}
     </div>

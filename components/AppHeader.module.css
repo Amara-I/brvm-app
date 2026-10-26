@@ -83,6 +83,10 @@
   z-index: 90;
 }
 
+.mobileLang {
+  display: none;
+}
+
 .navArea {
   flex: 1;
   min-height: 0;
@@ -266,6 +270,12 @@
   .hamburger,
   .mobileLogo {
     display: inline-flex;
+  }
+
+  .mobileLang {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px 2px;
   }
 
   .userLine {

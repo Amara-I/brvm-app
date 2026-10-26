@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { IconSearch } from "@/components/icons/HeaderIcons";
 import { trackFeature } from "@/components/analytics/track-client";
 import styles from "./HeaderSearch.module.css";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 export interface HeaderSearchItem {
   ticker: string;
@@ -20,6 +21,7 @@ export default function HeaderSearch({
   variant?: "default" | "landing";
 }) {
   const router = useRouter();
+  const { t, labels } = useI18n();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
@@ -89,27 +91,27 @@ export default function HeaderSearch({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-label="Rechercher une société"
+        aria-label={t("chrome.search.company")}
         aria-expanded={open}
-        title="Rechercher (raccourcis / et ⌘K)"
+        title={t("chrome.search.shortcut")}
         className={`${styles.trigger} ${landing ? styles.triggerLanding : ""} ${open ? styles.triggerOpen : ""}`}
       >
         <IconSearch size={15} />
         <span className={styles.triggerLabel}>
-          {landing ? "Rechercher un ticker, une société…" : "Rechercher un ticker…"}
+          {landing ? t("chrome.search.triggerLanding") : t("chrome.search.trigger")}
         </span>
         <kbd className={styles.kbd}>{landing ? "⌘K" : "/"}</kbd>
       </button>
 
       {open && (
-        <div role="dialog" aria-label="Recherche sociétés" className={styles.panel}>
+        <div role="dialog" aria-label={t("chrome.search.dialog")} className={styles.panel}>
           <input
             ref={inputRef}
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Ticker, nom ou secteur…"
-            aria-label="Rechercher une société"
+            placeholder={t("chrome.search.placeholder")}
+            aria-label={t("chrome.search.company")}
             className={styles.input}
             onKeyDown={(e) => {
               if (e.key === "Enter" && results[0]) go(results[0].ticker);
@@ -117,7 +119,7 @@ export default function HeaderSearch({
           />
           <ul className={styles.list}>
             {results.length === 0 ? (
-              <li className={styles.empty}>Aucun résultat — N/D</li>
+              <li className={styles.empty}>{t("chrome.search.empty")}</li>
             ) : (
               results.map((c) => (
                 <li key={c.ticker}>
@@ -130,7 +132,7 @@ export default function HeaderSearch({
                   >
                     <span className={styles.ticker}>{c.ticker}</span>
                     <span> · {c.name}</span>
-                    <div className={styles.sector}>{c.sector}</div>
+                    <div className={styles.sector}>{labels.sector(c.sector)}</div>
                   </button>
                 </li>
               ))

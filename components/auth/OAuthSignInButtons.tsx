@@ -2,6 +2,8 @@
 
 import { useState, type ReactElement } from "react";
 import { signIn } from "next-auth/react";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import type { TFunc } from "@/lib/i18n/create-i18n";
 import { OAUTH_SIGN_IN_BUTTONS, type OAuthButtonId } from "@/lib/auth/oauth-errors";
 import styles from "./AuthForm.module.css";
 
@@ -85,7 +87,21 @@ const ICONS: Record<OAuthButtonId, () => ReactElement> = {
   "azure-ad": MicrosoftIcon,
 };
 
+function providerLabel(id: OAuthButtonId, t: TFunc): string {
+  switch (id) {
+    case "google":
+      return t("auth.oauth.google");
+    case "facebook":
+      return t("auth.oauth.facebook");
+    case "apple":
+      return t("auth.oauth.apple");
+    case "azure-ad":
+      return t("auth.oauth.microsoft");
+  }
+}
+
 export default function OAuthSignInButtons({ callbackUrl, providers }: Props) {
+  const { t } = useI18n();
   const [loading, setLoading] = useState<OAuthButtonId | null>(null);
   const available = OAUTH_SIGN_IN_BUTTONS.map((button) => button.id).filter(
     (id) => providers.includes(id) && isOAuthButtonId(id)
@@ -98,7 +114,7 @@ export default function OAuthSignInButtons({ callbackUrl, providers }: Props) {
   return (
     <>
       <div className={styles.divider} aria-hidden="true">
-        ou
+        {t("auth.or")}
       </div>
       <div className={styles.providers}>
         {OAUTH_SIGN_IN_BUTTONS.filter((button) => available.includes(button.id)).map((button) => {
@@ -116,7 +132,7 @@ export default function OAuthSignInButtons({ callbackUrl, providers }: Props) {
               }}
             >
               <Icon />
-              {loading === button.id ? "Redirection…" : button.label}
+              {loading === button.id ? t("auth.redirecting") : providerLabel(button.id, t)}
             </button>
           );
         })}

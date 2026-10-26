@@ -3,7 +3,9 @@
 import { useCallback, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { getTermBySlug } from "@/lib/education/catalog";
+import { localizeTerm } from "@/lib/education/localize";
 import styles from "./EducationTermLink.module.css";
 
 type Props = {
@@ -26,7 +28,9 @@ function canHoverFinePointer(): boolean {
 
 /** Lien vers la fiche Éducation : survol = définition courte, clic = page exhaustive. */
 export default function EducationTermLink({ slug, children, className, style }: Props) {
-  const term = getTermBySlug(slug);
+  const { t, locale } = useI18n();
+  const raw = getTermBySlug(slug);
+  const term = raw ? localizeTerm(raw, locale) : undefined;
   const tipId = useId();
   const wrapRef = useRef<HTMLSpanElement>(null);
   const [open, setOpen] = useState(false);
@@ -96,7 +100,7 @@ export default function EducationTermLink({ slug, children, className, style }: 
             >
               <span className={styles.tipTitle}>{term.title}</span>
               <span className={styles.tipBody}>{tip}</span>
-              <span className={styles.tipHint}>Cliquer pour la fiche Éducation</span>
+              <span className={styles.tipHint}>{t("education.openSheetHint")}</span>
             </span>,
             document.body
           )

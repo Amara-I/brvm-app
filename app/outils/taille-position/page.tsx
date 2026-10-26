@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import PositionSizeCalculator from "@/components/outils/PositionSizeCalculator";
@@ -5,20 +6,24 @@ import PageHeader from "@/components/ui/PageHeader";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { latestPositivePrice } from "@/lib/calc/position-size";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Taille de position — OuestBourse",
-  description:
-    "Calculez la quantité d’actions BRVM selon votre capital, un taux de perte acceptable et un stop. Outil pédagogique gratuit.",
-};
+export function generateMetadata(): Metadata {
+  const { t } = getI18n();
+  return {
+    title: t("tools.position.metaTitle"),
+    description: t("tools.position.metaDescription"),
+  };
+}
 
 export default async function PositionSizePage({
   searchParams,
 }: {
   searchParams?: { ticker?: string; example?: string };
 }) {
+  const { t, locale } = getI18n();
   const [dataset, userId] = await Promise.all([
     getCompaniesFullDataset(),
     getCurrentUserId().catch(() => null),
@@ -30,7 +35,7 @@ export default async function PositionSizePage({
       name: c.name,
       lastPrice: latestPositivePrice(c.prices),
     }))
-    .sort((a, b) => a.ticker.localeCompare(b.ticker, "fr"));
+    .sort((a, b) => a.ticker.localeCompare(b.ticker, locale === "en" ? "en" : "fr"));
 
   const example = searchParams?.example === "sogb" || searchParams?.example === "1";
 
@@ -38,9 +43,9 @@ export default async function PositionSizePage({
     <AppHeader>
       <div className="ob-page">
         <PageHeader
-          kicker="Outil · gratuit"
-          title="Taille de position"
-          lead="Dimensionnez une position BRVM : capital, taux de perte acceptable, prix d’entrée et stop. La quantité = (capital × taux %) / (entrée − stop). Pas un conseil d’investissement."
+          kicker={t("tools.position.kicker")}
+          title={t("tools.position.title")}
+          lead={t("tools.position.lead")}
         />
         <PositionSizeCalculator
           tickers={tickers}

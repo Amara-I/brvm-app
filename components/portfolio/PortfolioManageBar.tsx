@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { C } from "@/lib/theme/colors";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { showPortfolioApiError } from "@/components/portfolio/portfolio-i18n";
 
 type Props = {
   portfolioId: string;
@@ -11,12 +13,13 @@ type Props = {
 };
 
 export default function PortfolioManageBar({ portfolioId, name, onChanged }: Props) {
+  const { t } = useI18n();
   const [busy, setBusy] = useState<"rename" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function rename() {
     if (busy) return;
-    const next = window.prompt("Nouveau nom du portefeuille :", name);
+    const next = window.prompt(t("portfolio.manage.renamePrompt"), name);
     if (next == null) return;
     const trimmed = next.trim();
     if (!trimmed || trimmed === name) return;
@@ -33,13 +36,13 @@ export default function PortfolioManageBar({ portfolioId, name, onChanged }: Pro
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
-        setError(json?.error ?? "Renommage impossible.");
+        setError(showPortfolioApiError(t, json?.error, t("portfolio.manage.renameFailed")));
         return;
       }
       notifyPortfolioChanged(portfolioId);
       if (onChanged) await onChanged();
     } catch {
-      setError("Renommage impossible (réseau).");
+      setError(t("portfolio.manage.renameNetwork"));
     } finally {
       setBusy(null);
     }
@@ -47,9 +50,7 @@ export default function PortfolioManageBar({ portfolioId, name, onChanged }: Pro
 
   async function remove() {
     if (busy) return;
-    const ok = window.confirm(
-      `Supprimer définitivement « ${name} » ?\n\nToutes les positions et l'historique de ce portefeuille seront effacés.`
-    );
+    const ok = window.confirm(t("portfolio.manage.deleteConfirm", { name }));
     if (!ok) return;
 
     setBusy("delete");
@@ -62,13 +63,13 @@ export default function PortfolioManageBar({ portfolioId, name, onChanged }: Pro
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
-        setError(json?.error ?? "Suppression impossible.");
+        setError(showPortfolioApiError(t, json?.error, t("portfolio.manage.deleteFailed")));
         return;
       }
       notifyPortfolioChanged(portfolioId);
       if (onChanged) await onChanged();
     } catch {
-      setError("Suppression impossible (réseau).");
+      setError(t("portfolio.manage.deleteNetwork"));
     } finally {
       setBusy(null);
     }
@@ -90,7 +91,7 @@ export default function PortfolioManageBar({ portfolioId, name, onChanged }: Pro
   return (
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8, marginBottom: 10 }}>
       <button type="button" style={btnStyle} disabled={busy != null} onClick={() => void rename()}>
-        {busy === "rename" ? "…" : "Renommer"}
+        {busy === "rename" ? "…" : t("portfolio.manage.rename")}
       </button>
       <button
         type="button"
@@ -98,7 +99,7 @@ export default function PortfolioManageBar({ portfolioId, name, onChanged }: Pro
         disabled={busy != null}
         onClick={() => void remove()}
       >
-        {busy === "delete" ? "…" : "Supprimer"}
+        {busy === "delete" ? "…" : t("common.delete")}
       </button>
       {error ? (
         <span role="alert" style={{ color: C.red, fontSize: "0.72rem", fontWeight: 600 }}>

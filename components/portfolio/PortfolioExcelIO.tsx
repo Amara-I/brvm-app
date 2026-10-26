@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import { C } from "@/lib/theme/colors";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { showPortfolioApiError } from "@/components/portfolio/portfolio-i18n";
 import styles from "./PortfolioExcelIO.module.css";
 
 type Props = {
@@ -13,6 +15,7 @@ type Props = {
 };
 
 export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }: Props) {
+  const { t } = useI18n();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<"export" | "import" | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -26,7 +29,7 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }:
       const res = await fetch(`/api/portfolio/${portfolioId}/export`, { cache: "no-store" });
       if (!res.ok) {
         const json = await res.json().catch(() => null);
-        throw new Error(json?.error ?? `Export impossible (${res.status})`);
+        throw new Error(showPortfolioApiError(t, json?.error, t("portfolio.excel.exportStatus", { status: res.status })));
       }
       const blob = await res.blob();
       const cd = res.headers.get("Content-Disposition") ?? "";
@@ -38,11 +41,11 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }:
       a.download = fileName;
       a.click();
       URL.revokeObjectURL(url);
-      const done = `Export « ${portfolioName} » téléchargé.`;
+      const done = t("portfolio.excel.downloaded", { name: portfolioName });
       if (onDone) onDone(done);
       else setMessage(done);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Export échoué.");
+      setError(e instanceof Error ? e.message : t("portfolio.excel.failedExport"));
     } finally {
       setBusy(null);
     }
@@ -61,7 +64,7 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }:
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
-        throw new Error(json?.error ?? `Import impossible (${res.status})`);
+        throw new Error(showPortfolioApiError(t, json?.error, t("portfolio.excel.importStatus", { status: res.status })));
       }
       const d = json.data as {
         created: number;
@@ -71,22 +74,22 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }:
         warnings: string[];
       };
       const parts = [
-        mode === "replace" ? `${d.deleted} ligne(s) remplacée(s)` : null,
-        d.created ? `${d.created} créée(s)` : null,
-        d.updated ? `${d.updated} renforcée(s)` : null,
+        mode === "replace" ? t("portfolio.excel.replaced", { count: d.deleted }) : null,
+        d.created ? t("portfolio.excel.created", { count: d.created }) : null,
+        d.updated ? t("portfolio.excel.reinforced", { count: d.updated }) : null,
       ].filter(Boolean);
-      let msg = `Import terminé — ${parts.join(" · ") || "aucune modification"}.`;
+      let msg = t("portfolio.excel.done", { parts: parts.join(" · ") || t("portfolio.excel.none") });
       if (d.unknownTickers?.length) {
-        msg += ` Tickers inconnus ignorés : ${d.unknownTickers.join(", ")}.`;
+        msg += t("portfolio.excel.unknown", { list: d.unknownTickers.join(", ") });
       }
       if (d.warnings?.length) {
-        msg += ` (${d.warnings.length} avertissement(s))`;
+        msg += t("portfolio.excel.warnings", { count: d.warnings.length });
       }
       if (onDone) onDone(msg);
       else setMessage(msg);
       notifyPortfolioChanged(portfolioId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Import échoué.");
+      setError(e instanceof Error ? e.message : t("portfolio.excel.failedImport"));
     } finally {
       setBusy(null);
       if (inputRef.current) inputRef.current.value = "";
@@ -95,9 +98,7 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }:
 
   function onFilePicked(file: File | undefined) {
     if (!file) return;
-    const replace = window.confirm(
-      "Remplacer entièrement les positions actuelles par le fichier ?\n\nOK = remplacer\nAnnuler = fusionner (renforcer les lignes existantes)"
-    );
+    const replace = window.confirm(t("portfolio.excel.confirm"));
     void handleImport(file, replace ? "replace" : "merge");
   }
 
@@ -110,7 +111,7 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }:
           disabled={busy != null}
           onClick={() => void handleExport()}
         >
-          {busy === "export" ? "Export…" : "Exporter Excel"}
+          {busy === "export" ? t("portfolio.excel.exportBusy") : t("portfolio.excel.export")}
         </button>
         <button
           type="button"
@@ -118,19 +119,19 @@ export default function PortfolioExcelIO({ portfolioId, portfolioName, onDone }:
           disabled={busy != null}
           onClick={() => inputRef.current?.click()}
         >
-          {busy === "import" ? "Import…" : "Importer Excel"}
+          {busy === "import" ? t("portfolio.excel.importBusy") : t("portfolio.excel.import")}
         </button>
         <input
           ref={inputRef}
           type="file"
           accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
           className={styles.fileInput}
-          aria-label="Fichier Excel du portefeuille"
+          aria-label={t("portfolio.excel.fileAria")}
           onChange={(e) => onFilePicked(e.target.files?.[0])}
         />
       </div>
       <p className={styles.hint} style={{ color: C.textDim }}>
-        Export : dates en JJ/MM/AAAA + feuille Mouvements. Import « Remplacer » pour reconstituer à l&apos;identique.
+        {t("portfolio.excel.hint")}
       </p>
       {message ? (
         <p className={styles.msg} style={{ color: C.green }}>

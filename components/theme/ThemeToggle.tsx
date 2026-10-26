@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
 import { applyBrowserChromeColor, browserChromeColor } from "@/lib/theme/browser-chrome";
 import { IconMoon, IconSun } from "@/components/icons/HeaderIcons";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 type Theme = "light" | "dark";
 
 export default function ThemeToggle() {
+  const { t } = useI18n();
   const [theme, setTheme] = useState<Theme>("light");
   const [mounted, setMounted] = useState(false);
 
@@ -34,9 +36,9 @@ export default function ThemeToggle() {
 
   const label = mounted
     ? theme === "dark"
-      ? "Passer en mode clair"
-      : "Passer en mode sombre"
-    : "Bascule thème clair/sombre";
+      ? t("chrome.theme.toLight")
+      : t("chrome.theme.toDark")
+    : t("chrome.theme.toggle");
 
   return (
     <button type="button" onClick={toggleTheme} aria-label={label} title={label} className="ob-icon-btn">

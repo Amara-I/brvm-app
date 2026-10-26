@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeApiMessage } from "./chart-locale";
 import styles from "./ChartWorkbench.module.css";
 
 type AlertDirection = "ABOVE" | "BELOW";
@@ -19,10 +21,6 @@ export interface PriceAlertDto {
   createdAt: string;
 }
 
-function fmtPrice(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
-
 export default function ChartAlertControls({
   isAuthenticated,
   ticker,
@@ -34,6 +32,7 @@ export default function ChartAlertControls({
   lastClose: number | null;
   loginCallbackPath?: string;
 }) {
+  const { t, format, labels } = useI18n();
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<PriceAlertDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,18 +55,18 @@ export default function ChartAlertControls({
       const res = await fetch(`/api/alerts?ticker=${encodeURIComponent(ticker)}`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Impossible de charger les alertes.");
+        setError(localizeApiMessage(json.error ?? "Impossible de charger les alertes.", t));
         setAlerts([]);
         return;
       }
       setAlerts((json.data?.alerts ?? []) as PriceAlertDto[]);
     } catch {
-      setError("Impossible de charger les alertes.");
+      setError(t("charts.errors.loadAlerts"));
       setAlerts([]);
     } finally {
       setLoading(false);
     }
-  }, [isAuthenticated, ticker]);
+  }, [isAuthenticated, ticker, t]);
 
   useEffect(() => {
     if (open && isAuthenticated) void loadList();
@@ -103,15 +102,15 @@ export default function ChartAlertControls({
         });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
-          setError(json?.error ?? "Création impossible.");
+          setError(localizeApiMessage(json?.error ?? "Création impossible.", t));
           return;
         }
-        setMessage("Règle créée — visible aussi dans Notifications.");
+        setMessage(t("charts.alerts.ruleCreated"));
         return;
       }
       const value = Number(target.replace(",", "."));
       if (!Number.isFinite(value) || value <= 0) {
-        setError("Indiquez un seuil de cours positif.");
+        setError(t("charts.errors.positiveThreshold"));
         return;
       }
       const res = await fetch("/api/alerts", {
@@ -126,19 +125,21 @@ export default function ChartAlertControls({
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
-        setError(json?.error ?? "Création impossible.");
+        setError(localizeApiMessage(json?.error ?? "Création impossible.", t));
         return;
       }
       const alert = json.data?.alert as PriceAlertDto | undefined;
       if (alert?.status === "TRIGGERED") {
-        setMessage(`Seuil déjà atteint (${fmtPrice(alert.triggerPrice ?? value)}). Alerte déclenchée.`);
+        setMessage(
+          t("charts.alerts.alreadyReached", { price: format.fcfa(alert.triggerPrice ?? value) })
+        );
       } else {
-        setMessage("Alerte créée.");
+        setMessage(t("charts.alerts.created"));
       }
       setNote("");
       await loadList();
     } catch {
-      setError("Création impossible.");
+      setError(t("charts.errors.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -150,13 +151,13 @@ export default function ChartAlertControls({
       const res = await fetch(`/api/alerts/${id}`, { method: "DELETE" });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Suppression impossible.");
+        setError(localizeApiMessage(json.error ?? "Suppression impossible.", t));
         return;
       }
       setAlerts((prev) => prev.filter((a) => a.id !== id));
-      setMessage("Alerte supprimée.");
+      setMessage(t("charts.alerts.deleted"));
     } catch {
-      setError("Suppression impossible.");
+      setError(t("charts.errors.deleteFailed"));
     }
   }
 
@@ -170,13 +171,13 @@ export default function ChartAlertControls({
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setError(json.error ?? "Réactivation impossible.");
+        setError(localizeApiMessage(json.error ?? "Réactivation impossible.", t));
         return;
       }
-      setMessage("Alerte réactivée.");
+      setMessage(t("charts.alerts.reactivated"));
       await loadList();
     } catch {
-      setError("Réactivation impossible.");
+      setError(t("charts.errors.reactivateFailed"));
     }
   }
 
@@ -186,9 +187,9 @@ export default function ChartAlertControls({
       <Link
         href={`/connexion?callbackUrl=${encodeURIComponent(callback)}`}
         className={styles.ghostBtnEnabled}
-        title="Connectez-vous pour créer une alerte"
+        title={t("charts.alerts.signIn")}
       >
-        Alerte
+        {t("charts.alerts.button")}
       </Link>
     );
   }
@@ -203,43 +204,43 @@ export default function ChartAlertControls({
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
       >
-        Alerte{triggeredCount > 0 ? ` (${triggeredCount})` : ""}
+        {triggeredCount > 0 ? t("charts.alerts.buttonCount", { count: triggeredCount }) : t("charts.alerts.button")}
       </button>
       {open && (
-        <div className={styles.analysisPanel} role="dialog" aria-label="Alertes de cours">
+        <div className={styles.analysisPanel} role="dialog" aria-label={t("charts.alerts.dialog")}>
           <p className={styles.analysisHint}>
-            Seuil sur le dernier cours canonique de {ticker}
-            {lastClose != null ? ` (actuel ${fmtPrice(lastClose)})` : ""}. Vérifié après chaque
-            actualisation BRVM. Collier typique ±7,5 % / séance.
+            {lastClose != null
+              ? t("charts.alerts.hintWithPrice", { ticker, price: format.fcfa(lastClose) })
+              : t("charts.alerts.hint", { ticker })}
           </p>
           <label className={styles.analysisLabel}>
-            Type
+            {t("charts.alerts.type")}
             <select
               className={styles.analysisInput}
               value={kind}
               onChange={(e) => setKind(e.target.value as typeof kind)}
             >
-              <option value="PRICE">Cours ≥ / ≤ seuil FCFA</option>
-              <option value="DAILY">Variation du jour ≥ Y %</option>
-              <option value="HORIZON">Variation 1S / 1M ≥ Y %</option>
-              <option value="SIGNAL">Entrée ACHAT / ACHAT FORT</option>
+              <option value="PRICE">{t("charts.alerts.kindPrice")}</option>
+              <option value="DAILY">{t("charts.alerts.kindDaily")}</option>
+              <option value="HORIZON">{t("charts.alerts.kindHorizon")}</option>
+              <option value="SIGNAL">{t("charts.alerts.kindSignal")}</option>
             </select>
           </label>
           {kind === "PRICE" ? (
             <>
               <label className={styles.analysisLabel}>
-                Direction
+                {t("charts.alerts.direction")}
                 <select
                   className={styles.analysisInput}
                   value={direction}
                   onChange={(e) => setDirection(e.target.value as AlertDirection)}
                 >
-                  <option value="ABOVE">Cours ≥ seuil</option>
-                  <option value="BELOW">Cours ≤ seuil</option>
+                  <option value="ABOVE">{t("charts.alerts.above")}</option>
+                  <option value="BELOW">{t("charts.alerts.below")}</option>
                 </select>
               </label>
               <label className={styles.analysisLabel}>
-                Seuil (FCFA)
+                {t("charts.alerts.thresholdFcfa")}
                 <input
                   className={styles.analysisInput}
                   type="number"
@@ -250,20 +251,20 @@ export default function ChartAlertControls({
                 />
               </label>
               <label className={styles.analysisLabel}>
-                Note (optionnel)
+                {t("charts.alerts.note")}
                 <input
                   className={styles.analysisInput}
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   maxLength={200}
-                  placeholder="Ex. resistance 2024"
+                  placeholder={t("charts.alerts.notePlaceholder")}
                 />
               </label>
             </>
           ) : null}
           {kind === "DAILY" || kind === "HORIZON" ? (
             <label className={styles.analysisLabel}>
-              Seuil (%)
+              {t("charts.alerts.thresholdPercent")}
               <input
                 className={styles.analysisInput}
                 type="number"
@@ -277,27 +278,27 @@ export default function ChartAlertControls({
           ) : null}
           {kind === "HORIZON" ? (
             <label className={styles.analysisLabel}>
-              Horizon
+              {t("charts.alerts.horizon")}
               <select
                 className={styles.analysisInput}
                 value={horizon}
                 onChange={(e) => setHorizon(e.target.value as "1S" | "1M")}
               >
-                <option value="1S">1 semaine</option>
-                <option value="1M">1 mois</option>
+                <option value="1S">{t("charts.alerts.week")}</option>
+                <option value="1M">{t("charts.alerts.month")}</option>
               </select>
             </label>
           ) : null}
           {kind === "SIGNAL" ? (
             <label className={styles.analysisLabel}>
-              Signal
+              {t("charts.alerts.signal")}
               <select
                 className={styles.analysisInput}
                 value={signal}
                 onChange={(e) => setSignal(e.target.value as "ACHAT FORT" | "ACHAT")}
               >
-                <option value="ACHAT FORT">ACHAT FORT</option>
-                <option value="ACHAT">ACHAT ou ACHAT FORT</option>
+                <option value="ACHAT FORT">{labels.signal("ACHAT FORT")}</option>
+                <option value="ACHAT">{t("charts.alerts.signalBuyOrStrong")}</option>
               </select>
             </label>
           ) : null}
@@ -307,43 +308,45 @@ export default function ChartAlertControls({
             disabled={saving}
             onClick={() => void createAlert()}
           >
-            {saving ? "Création…" : "Créer l'alerte"}
+            {saving ? t("charts.alerts.creating") : t("charts.alerts.create")}
           </button>
           {message && <p className={styles.analysisOk}>{message}</p>}
           {error && <p className={styles.analysisErr}>{error}</p>}
           <div className={styles.analysisListHead}>
-            <span>Mes alertes ({ticker})</span>
+            <span>{t("charts.alerts.mine", { ticker })}</span>
             <button type="button" className={styles.analysisLinkBtn} onClick={() => void loadList()}>
-              Actualiser
+              {t("charts.alerts.refresh")}
             </button>
           </div>
           {loading ? (
-            <p className={styles.analysisHint}>Chargement…</p>
+            <p className={styles.analysisHint}>{t("common.loading")}</p>
           ) : alerts.length === 0 ? (
-            <p className={styles.analysisHint}>Aucune alerte pour ce titre.</p>
+            <p className={styles.analysisHint}>{t("charts.alerts.none")}</p>
           ) : (
             <ul className={styles.analysisList}>
               {alerts.map((a) => (
                 <li key={a.id} className={styles.analysisItem}>
                   <div>
                     <strong>
-                      {a.direction === "ABOVE" ? "≥" : "≤"} {fmtPrice(a.targetPrice)}
+                      {a.direction === "ABOVE" ? "≥" : "≤"} {format.fcfa(a.targetPrice)}
                     </strong>
                     <span>
                       {a.status === "TRIGGERED"
-                        ? `Déclenchée${a.triggerPrice != null ? ` @ ${fmtPrice(a.triggerPrice)}` : ""}`
-                        : "Active"}
+                        ? a.triggerPrice != null
+                          ? t("charts.alerts.triggeredAt", { price: format.fcfa(a.triggerPrice) })
+                          : t("charts.alerts.triggered")
+                        : t("charts.alerts.active")}
                       {a.note ? ` · ${a.note}` : ""}
                     </span>
                   </div>
                   <div className={styles.analysisItemActions}>
                     {a.status === "TRIGGERED" && (
                       <button type="button" className={styles.analysisLinkBtn} onClick={() => void reactivate(a.id)}>
-                        Réactiver
+                        {t("charts.alerts.reactivate")}
                       </button>
                     )}
                     <button type="button" className={styles.analysisDangerBtn} onClick={() => void removeAlert(a.id)}>
-                      Suppr.
+                      {t("charts.alerts.deleteShort")}
                     </button>
                   </div>
                 </li>

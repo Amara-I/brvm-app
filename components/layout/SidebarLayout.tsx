@@ -7,6 +7,8 @@ import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
 import AccountMenu from "@/components/auth/AccountMenu";
@@ -33,6 +35,7 @@ export default function SidebarLayout({
   user,
 }: Props) {
   const pathname = usePathname();
+  const { t } = useI18n();
   const [mobileOpen, setMobileOpen] = useState(false);
   const hideVerifyBanner =
     pathname === "/connexion" ||
@@ -67,7 +70,7 @@ export default function SidebarLayout({
         <button
           type="button"
           className={styles.sidebarBackdrop}
-          aria-label="Fermer le menu"
+          aria-label={t("chrome.menu.close")}
           onClick={() => setMobileOpen(false)}
         />
       ) : null}
@@ -76,7 +79,7 @@ export default function SidebarLayout({
         <Link
           href="/"
           className={styles.logoLink}
-          aria-label={`${BRAND_NAME} — accueil`}
+          aria-label={t("chrome.homeAria", { brand: BRAND_NAME })}
           onClick={() => setMobileOpen(false)}
         >
           <Image
@@ -94,13 +97,13 @@ export default function SidebarLayout({
         <button
           type="button"
           className={styles.hamburger}
-          aria-label={mobileOpen ? "Fermer le menu" : "Ouvrir le menu"}
+          aria-label={mobileOpen ? t("chrome.menu.close") : t("chrome.menu.open")}
           aria-expanded={mobileOpen}
           onClick={() => setMobileOpen((v) => !v)}
         >
           {mobileOpen ? "✕" : "☰"}
         </button>
-        <Link href="/" className={styles.mobileLogo} aria-label={`${BRAND_NAME} — accueil`}>
+        <Link href="/" className={styles.mobileLogo} aria-label={t("chrome.homeAria", { brand: BRAND_NAME })}>
           <Image
             src={BRAND_LOGO_SRC}
             alt={BRAND_NAME}
@@ -113,16 +116,17 @@ export default function SidebarLayout({
         <div className={styles.topActions}>
           <HeaderSearch companies={searchCompanies} />
           <NotificationBell isAuthenticated={Boolean(user)} />
+          <LanguageSwitcher />
           <ThemeToggle />
           {user ? (
             <AccountMenu user={user} />
           ) : (
             <>
               <Link href="/connexion" className={styles.authLink}>
-                Connexion
+                {t("chrome.auth.login")}
               </Link>
               <Link href="/inscription" className={`${styles.authLink} ${styles.authLinkPrimary}`}>
-                Créer un compte
+                {t("chrome.auth.register")}
               </Link>
             </>
           )}
@@ -130,6 +134,9 @@ export default function SidebarLayout({
       </header>
 
       <aside className={`${styles.sidebar} ${mobileOpen ? styles.sidebarOpen : ""}`} data-app-sidebar>
+        <div className={styles.mobileLang}>
+          <LanguageSwitcher />
+        </div>
         <div className={styles.navArea}>
           <HeaderNav {...navProps} />
         </div>

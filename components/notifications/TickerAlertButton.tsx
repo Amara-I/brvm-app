@@ -2,8 +2,17 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import type { TFunc } from "@/lib/i18n/create-i18n";
+import { localizeSharedApiMessage } from "@/lib/i18n/localize-api";
 import { BRVM_DAILY_COLLAR_PCT } from "@/lib/notifications/types";
 import styles from "./TickerAlertButton.module.css";
+
+function alertButtonLabel(label: string | undefined, t: TFunc): string {
+  if (!label || label === "Alerte") return t("notifications.alert.button");
+  if (label === "Alerte au stop") return t("notifications.alert.stopButton");
+  return label;
+}
 
 type Kind = "PRICE" | "DAILY" | "HORIZON" | "SIGNAL";
 
@@ -27,6 +36,10 @@ export default function TickerAlertButton({
   defaultDirection?: "ABOVE" | "BELOW";
   label?: string;
 }) {
+  const { t, format, labels } = useI18n();
+  const buttonLabel = alertButtonLabel(label, t);
+  const buy = labels.signal("ACHAT");
+  const strong = labels.signal("ACHAT FORT");
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<Kind>("PRICE");
   const [direction, setDirection] = useState<"ABOVE" | "BELOW">(defaultDirection ?? "ABOVE");
@@ -66,7 +79,7 @@ export default function TickerAlertButton({
         href={`/connexion?callbackUrl=${encodeURIComponent(callback)}`}
         className={className ?? styles.btn}
       >
-        {label ?? "Alerte"}
+        {buttonLabel}
       </Link>
     );
   }
@@ -79,7 +92,7 @@ export default function TickerAlertButton({
       if (kind === "PRICE") {
         const value = Number(String(target).replace(",", "."));
         if (!Number.isFinite(value) || value <= 0) {
-          setError("Indiquez un seuil de cours positif.");
+          setError(t("notifications.alert.invalidTarget"));
           return;
         }
         const res = await fetch("/api/alerts", {
@@ -89,10 +102,18 @@ export default function TickerAlertButton({
         });
         const json = await res.json().catch(() => null);
         if (!res.ok || !json?.ok) {
-          setError(json?.error ?? "Création impossible.");
+          setError(
+            typeof json?.error === "string"
+              ? localizeSharedApiMessage(json.error, t)
+              : t("notifications.alert.createFailed")
+          );
           return;
         }
-        setMessage(json.data?.alert?.status === "TRIGGERED" ? "Seuil déjà atteint — notification créée." : "Alerte de cours créée.");
+        setMessage(
+          json.data?.alert?.status === "TRIGGERED"
+            ? t("notifications.alert.alreadyHit")
+            : t("notifications.alert.priceCreated")
+        );
         return;
       }
 
@@ -110,12 +131,16 @@ export default function TickerAlertButton({
       });
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
-        setError(json?.error ?? "Création impossible.");
+        setError(
+            typeof json?.error === "string"
+              ? localizeSharedApiMessage(json.error, t)
+              : t("notifications.alert.createFailed")
+          );
         return;
       }
-      setMessage("Règle d'alerte créée.");
+      setMessage(t("notifications.alert.ruleCreated"));
     } catch {
-      setError("Création impossible.");
+      setError(t("notifications.alert.createFailed"));
     } finally {
       setSaving(false);
     }
@@ -124,66 +149,66 @@ export default function TickerAlertButton({
   return (
     <div className={styles.wrap}>
       <button type="button" className={className ?? styles.btn} onClick={() => setOpen(true)}>
-        {label ?? "Alerte"}
+        {buttonLabel}
       </button>
       {open ? (
         <div className={styles.overlay} role="presentation" onClick={() => setOpen(false)}>
           <div
             className={styles.sheet}
             role="dialog"
-            aria-label={`Créer une alerte ${ticker}`}
+            aria-label={t("notifications.alert.aria", { ticker })}
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className={styles.title}>Alerte {ticker}</h2>
+            <h2 className={styles.title}>{t("notifications.alert.title", { ticker })}</h2>
             <p className={styles.hint}>
-              {lastClose != null ? `Cours actuel ${Math.round(lastClose).toLocaleString("fr-FR")} FCFA. ` : ""}
-              Collier BRVM typique ±{BRVM_DAILY_COLLAR_PCT} % / séance. Évalué après actualisation des cours.
+              {lastClose != null ? `${t("notifications.alert.currentPrice", { price: format.fcfa(lastClose) })} ` : ""}
+              {t("notifications.alert.collar", { collar: BRVM_DAILY_COLLAR_PCT })}
             </p>
             <label className={styles.label}>
-              Type
+              {t("notifications.alert.type")}
               <select className={styles.input} value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
-                <option value="PRICE">Cours franchit un seuil (FCFA)</option>
-                <option value="DAILY">Variation du jour ≥ Y %</option>
-                <option value="HORIZON">Variation 1S / 1M ≥ Y %</option>
-                <option value="SIGNAL">Entre en ACHAT / ACHAT FORT</option>
+                <option value="PRICE">{t("notifications.alert.kindPrice")}</option>
+                <option value="DAILY">{t("notifications.alert.kindDaily")}</option>
+                <option value="HORIZON">{t("notifications.alert.kindHorizon")}</option>
+                <option value="SIGNAL">{t("notifications.alert.kindSignal", { buy, strong })}</option>
               </select>
             </label>
             {kind === "PRICE" ? (
               <>
                 <label className={styles.label}>
-                  Direction
+                  {t("notifications.alert.direction")}
                   <select className={styles.input} value={direction} onChange={(e) => setDirection(e.target.value as "ABOVE" | "BELOW")}>
-                    <option value="ABOVE">Cours ≥ seuil</option>
-                    <option value="BELOW">Cours ≤ seuil</option>
+                    <option value="ABOVE">{t("notifications.alert.above")}</option>
+                    <option value="BELOW">{t("notifications.alert.below")}</option>
                   </select>
                 </label>
                 <label className={styles.label}>
-                  Seuil (FCFA)
+                  {t("notifications.alert.thresholdFcfa")}
                   <input className={styles.input} type="number" min={1} value={target} onChange={(e) => setTarget(e.target.value)} />
                 </label>
               </>
             ) : null}
             {kind === "DAILY" || kind === "HORIZON" ? (
               <label className={styles.label}>
-                Seuil (%)
+                {t("notifications.alert.thresholdPct")}
                 <input className={styles.input} type="number" min={0.5} max={10} step="0.1" value={percent} onChange={(e) => setPercent(e.target.value)} />
               </label>
             ) : null}
             {kind === "HORIZON" ? (
               <label className={styles.label}>
-                Horizon
+                {t("notifications.alert.horizon")}
                 <select className={styles.input} value={horizon} onChange={(e) => setHorizon(e.target.value as "1S" | "1M")}>
-                  <option value="1S">1 semaine</option>
-                  <option value="1M">1 mois</option>
+                  <option value="1S">{t("notifications.alert.week")}</option>
+                  <option value="1M">{t("notifications.alert.month")}</option>
                 </select>
               </label>
             ) : null}
             {kind === "SIGNAL" ? (
               <label className={styles.label}>
-                Signal
+                {t("notifications.alert.signal")}
                 <select className={styles.input} value={signal} onChange={(e) => setSignal(e.target.value as "ACHAT FORT" | "ACHAT")}>
-                  <option value="ACHAT FORT">ACHAT FORT</option>
-                  <option value="ACHAT">ACHAT ou ACHAT FORT</option>
+                  <option value="ACHAT FORT">{strong}</option>
+                  <option value="ACHAT">{t("notifications.alert.signalOr", { buy, strong })}</option>
                 </select>
               </label>
             ) : null}
@@ -191,13 +216,13 @@ export default function TickerAlertButton({
             {error ? <p className={styles.err}>{error}</p> : null}
             <div className={styles.actions}>
               <button type="button" className={styles.primary} disabled={saving} onClick={() => void create()}>
-                {saving ? "Création…" : "Créer"}
+                {saving ? t("notifications.alert.creating") : t("notifications.alert.create")}
               </button>
               <button type="button" className={styles.ghost} onClick={() => setOpen(false)}>
-                Fermer
+                {t("notifications.alert.close")}
               </button>
               <Link href="/notifications" className={styles.ghost} style={{ textDecoration: "none" }}>
-                Centre
+                {t("notifications.alert.center")}
               </Link>
             </div>
           </div>

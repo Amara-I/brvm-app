@@ -43,7 +43,8 @@
     "research:run": "ts-node scripts/run-research-cli.ts",
     "email:test": "node --env-file=.env ./node_modules/.bin/ts-node --transpile-only scripts/send-test-email.ts",
     "design:proposals": "ts-node scripts/generate-design-proposals.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "i18n:check": "ts-node --transpile-only scripts/check-i18n-keys.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

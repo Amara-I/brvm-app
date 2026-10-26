@@ -120,6 +120,13 @@ describe("buildAuthEmail", () => {
     expect(mail.html).toContain("Confirmer mon email");
   });
 
+  it("rédige un email de confirmation en anglais", () => {
+    const mail = buildAuthEmail("verify", "user@example.com", "tok_verify", "en");
+    expect(mail.subject).toContain("Confirm your email");
+    expect(mail.html).toContain("Confirm my email");
+    expect(mail.html).toContain('lang="en"');
+  });
+
   it("rédige un email de reset en français", () => {
     const mail = buildAuthEmail("reset", "user@example.com", "tok_reset");
     expect(mail.subject).toContain("Réinitialisation");

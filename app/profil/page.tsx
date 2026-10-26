@@ -11,13 +11,14 @@ import { parsePortfolioType } from "@/lib/portfolio-types";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { C } from "@/lib/theme/colors";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Mon profil — OuestBourse",
-  description: "Gérez votre compte, votre mot de passe et vos alertes OuestBourse.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return { title: t("auth.profile.metaTitle"), description: t("auth.profile.metaDescription") };
+}
 
 export default async function ProfilPage({
   searchParams,
@@ -56,20 +57,14 @@ export default async function ProfilPage({
     if (!isDatabaseUnavailable(error)) throw error;
   }
 
+  const { t } = getI18n();
   const email = dbUser?.email ?? sessionUser?.email ?? "N/D";
-  const mailNotice =
-    searchParams.verify === "sent"
-      ? "Un email de confirmation vient d’être demandé. Consultez votre boîte de réception."
-      : null;
+  const mailNotice = searchParams.verify === "sent" ? t("auth.profile.verifySent") : null;
 
   return (
     <AppHeader>
       <div className="ob-page" style={{ paddingBottom: 32 }}>
-        <PageHeader
-          kicker="Compte"
-          title="Mon profil"
-          lead="Identité, confirmation d’email, mot de passe, type de portefeuille préféré et alertes — uniquement pour ce compte."
-        />
+        <PageHeader kicker={t("auth.kicker")} title={t("auth.profile.heading")} lead={t("auth.profile.lead")} />
         <ProfileClient
           initial={{
             name: dbUser?.name ?? sessionUser?.name ?? null,
@@ -87,7 +82,7 @@ export default async function ProfilPage({
 
         <p style={{ margin: "18px 0 0" }}>
           <Link href="/notifications" style={{ color: C.gold, fontWeight: 700, fontSize: "0.84rem" }}>
-            Ouvrir le centre de notifications
+            {t("auth.profile.openCenter")}
           </Link>
         </p>
 

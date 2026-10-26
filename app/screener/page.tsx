@@ -6,15 +6,20 @@ import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
 import { allCompaniesWithMetrics } from "@/lib/calc/market-summary-stats";
 import ScreenerTable from "@/components/screener/ScreenerTable";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Screener — OuestBourse",
-  description: "Filtrez les sociétés cotées à la BRVM par rentabilité, dividendes, croissance ou valorisation.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return {
+    title: t("screener.metaTitle"),
+    description: t("screener.metaDescription"),
+  };
+}
 
 export default async function ScreenerPage() {
+  const { t } = getI18n();
   const [dataset, sparkSeries] = await Promise.all([
     getCompaniesFullDataset(),
     getMarketSparkSeriesByTicker().catch(() => ({})),
@@ -25,22 +30,14 @@ export default async function ScreenerPage() {
     <AppHeader>
       <div className="ob-page">
         <PageHeader
-          kicker="BRVM · UEMOA"
-          title="Screener"
-          lead={
-            <>
-              Filtrez les {companies.length} sociétés cotées par rentabilité, dividendes, croissance, valorisation ou
-              solidité — puis affinez par secteur et pays. Cliquez un ticker pour ouvrir sa fiche détaillée.
-            </>
-          }
+          kicker={t("screener.kicker")}
+          title={t("screener.title")}
+          lead={t("screener.lead", { count: companies.length })}
         />
         {companies.length > 0 ? (
           <ScreenerTable companies={companies} />
         ) : (
-          <EmptyState
-            title="Aucune société disponible"
-            body="Les données de marché n’ont pas encore été chargées. Les champs vides s’affichent N/D — aucun cours n’est inventé."
-          />
+          <EmptyState title={t("screener.emptyTitle")} body={t("screener.emptyBody")} />
         )}
       </div>
       <SiteFooter />

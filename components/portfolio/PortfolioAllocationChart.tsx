@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
 import { C } from "@/lib/theme/colors";
 import type { TickerAllocation } from "@/lib/calc/portfolio-metrics";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { DISCRETE_AMOUNT_LABEL } from "@/lib/portfolio/discrete-mode";
 
 const SLICE_COLORS = [
@@ -21,13 +22,7 @@ const SLICE_COLORS = [
 
 const LEGEND_INLINE_MAX = 5;
 
-function fmtPct(n: number): string {
-  return `${n.toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`;
-}
-
-function fmtFcfa(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
+const ALL_SECTORS = "Tous";
 
 type Slice = {
   name: string;
@@ -41,23 +36,25 @@ type Slice = {
 
 export default function PortfolioAllocationChart({
   items,
-  title = "Répartition par action",
+  title,
   discrete = false,
 }: {
   items: TickerAllocation[];
   title?: string;
   discrete?: boolean;
 }) {
-  const [sector, setSector] = useState<string>("Tous");
+  const { t, labels, format, locale } = useI18n();
+  const chartTitle = title ?? t("portfolio.alloc.title");
+  const [sector, setSector] = useState<string>(ALL_SECTORS);
   const [legendPick, setLegendPick] = useState<string>("");
 
   const sectors = useMemo(() => {
     const set = new Set(items.map((it) => it.sector).filter(Boolean));
-    return ["Tous", ...[...set].sort((a, b) => a.localeCompare(b, "fr"))];
-  }, [items]);
+    return [ALL_SECTORS, ...[...set].sort((a, b) => a.localeCompare(b, locale === "en" ? "en" : "fr"))];
+  }, [items, locale]);
 
   const filtered = useMemo(() => {
-    if (sector === "Tous") return items;
+    if (sector === ALL_SECTORS) return items;
     return items.filter((it) => it.sector === sector);
   }, [items, sector]);
 
@@ -84,21 +81,21 @@ export default function PortfolioAllocationChart({
   if (items.length === 0) {
     return (
       <div style={{ color: C.textDim, fontSize: "0.82rem", padding: "12px 0" }}>
-        Ajoutez des positions pour visualiser la diversification.
+        {t("portfolio.alloc.empty")}
       </div>
     );
   }
 
   return (
     <div>
-      <div style={{ color: C.gold, fontSize: "0.85rem", fontWeight: 700, marginBottom: 8 }}>{title}</div>
+      <div style={{ color: C.gold, fontSize: "0.85rem", fontWeight: 700, marginBottom: 8 }}>{chartTitle}</div>
       <p style={{ color: C.textDim, fontSize: "0.75rem", margin: "0 0 10px" }}>
-        Poids de chaque titre dans la valeur de marché — utile pour ajuster la diversification.
+        {t("portfolio.alloc.lead")}
       </p>
 
       <label style={{ display: "block", marginBottom: 10 }}>
         <span style={{ color: C.textDim, fontSize: "0.72rem", display: "block", marginBottom: 4 }}>
-          Secteur
+          {t("portfolio.alloc.sector")}
         </span>
         <select
           value={sector}
@@ -107,11 +104,11 @@ export default function PortfolioAllocationChart({
             setLegendPick("");
           }}
           style={selectStyle}
-          aria-label="Filtrer le graphique par secteur"
+          aria-label={t("portfolio.alloc.filterAria")}
         >
           {sectors.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {s === ALL_SECTORS ? t("portfolio.alloc.all") : labels.sector(s)}
             </option>
           ))}
         </select>
@@ -119,7 +116,7 @@ export default function PortfolioAllocationChart({
 
       {data.length === 0 ? (
         <p style={{ color: C.textDim, fontSize: "0.78rem" }}>
-          Aucune position dans ce secteur.
+          {t("portfolio.alloc.emptySector")}
         </p>
       ) : (
         <>
@@ -147,14 +144,14 @@ export default function PortfolioAllocationChart({
                     const payload = item?.payload as Slice | undefined;
                     const v = typeof value === "number" ? value : Number(value);
                     const pct =
-                      sector === "Tous"
+                      sector === ALL_SECTORS
                         ? payload?.portfolioWeightPercent
                         : payload?.sliceWeightPercent;
                     const ticker = typeof name === "string" ? name : payload?.name ?? "N/D";
                     return [
                       discrete
-                        ? `${DISCRETE_AMOUNT_LABEL}${pct != null ? ` · ${fmtPct(pct)}` : ""}`
-                        : `${fmtFcfa(Number.isFinite(v) ? v : 0)}${pct != null ? ` · ${fmtPct(pct)}` : ""}`,
+                        ? `${DISCRETE_AMOUNT_LABEL}${pct != null ? ` · ${format.percent(pct, 1)}` : ""}`
+                        : `${format.fcfa(Number.isFinite(v) ? v : 0)}${pct != null ? ` · ${format.percent(pct, 1)}` : ""}`,
                       ticker,
                     ];
                   }}
@@ -195,22 +192,22 @@ export default function PortfolioAllocationChart({
                     }}
                   />
                   {d.name} (
-                  {fmtPct(sector === "Tous" ? d.portfolioWeightPercent : d.sliceWeightPercent)})
+                  {format.percent(sector === ALL_SECTORS ? d.portfolioWeightPercent : d.sliceWeightPercent, 1)})
                 </li>
               ))}
             </ul>
           ) : (
             <label style={{ display: "block", marginTop: 8 }}>
               <span style={{ color: C.textDim, fontSize: "0.72rem", display: "block", marginBottom: 4 }}>
-                Détail d&apos;une position ({data.length} titres)
+                {t("portfolio.alloc.detail", { count: data.length })}
               </span>
               <select
                 value={legendPick}
                 onChange={(e) => setLegendPick(e.target.value)}
                 style={selectStyle}
-                aria-label="Choisir une position pour voir son poids"
+                aria-label={t("portfolio.alloc.pickAria")}
               >
-                <option value="">Choisir un ticker…</option>
+                <option value="">{t("portfolio.alloc.pick")}</option>
                 {data.map((d) => (
                   <option key={d.name} value={d.name}>
                     {d.name}
@@ -221,7 +218,7 @@ export default function PortfolioAllocationChart({
                 ? (() => {
                     const row = data.find((d) => d.name === legendPick);
                     if (!row) return null;
-                    const pct = sector === "Tous" ? row.portfolioWeightPercent : row.sliceWeightPercent;
+                    const pct = sector === ALL_SECTORS ? row.portfolioWeightPercent : row.sliceWeightPercent;
                     return (
                       <p
                         style={{
@@ -245,8 +242,8 @@ export default function PortfolioAllocationChart({
                         />
                         <strong>{row.name}</strong>
                         <span style={{ color: C.textDim }}>
-                          {discrete ? fmtPct(pct) : `${fmtFcfa(row.value)} · ${fmtPct(pct)}`}
-                          {sector !== "Tous" ? " du secteur" : " du portefeuille"}
+                          {discrete ? format.percent(pct, 1) : `${format.fcfa(row.value)} · ${format.percent(pct, 1)}`}
+                          {sector !== ALL_SECTORS ? t("portfolio.alloc.ofSector") : t("portfolio.alloc.ofPortfolio")}
                         </span>
                       </p>
                     );

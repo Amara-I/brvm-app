@@ -5,6 +5,8 @@ import Link from "next/link";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
+import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import NotificationBell from "@/components/notifications/NotificationBell";
 
 import AccountMenu from "@/components/auth/AccountMenu";
@@ -24,11 +26,12 @@ export default function LandingTopBar({
   searchCompanies: HeaderSearchItem[];
   user: HeaderNavUser | null;
 }) {
+  const { t } = useI18n();
   return (
     <header className={styles.topBar}>
       <div className={styles.rail}>
         <div className={styles.topBarInner}>
-          <Link href="/" className={styles.topBrand} aria-label={`${BRAND_NAME} — accueil`}>
+          <Link href="/" className={styles.topBrand} aria-label={t("chrome.homeAria", { brand: BRAND_NAME })}>
             <Image
               src={BRAND_LOGO_SRC}
               alt={BRAND_NAME}
@@ -45,6 +48,7 @@ export default function LandingTopBar({
 
           <div className={styles.topActions}>
             <div className={styles.topTheme}>
+              <LanguageSwitcher landing />
               <ThemeToggle />
             </div>
             <NotificationBell isAuthenticated={Boolean(user)} />
@@ -53,10 +57,10 @@ export default function LandingTopBar({
             ) : (
               <>
                 <Link href="/connexion" className={styles.topAuth}>
-                  Connexion
+                  {t("chrome.auth.login")}
                 </Link>
                 <Link href="/inscription" className={`${styles.topAuth} ${styles.topAuthPrimary}`}>
-                  Créer un compte
+                  {t("chrome.auth.register")}
                 </Link>
               </>
             )}

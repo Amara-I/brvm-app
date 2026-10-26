@@ -4,12 +4,15 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
+import { isPlausibleEmail, messageFromAuthJson } from "./api-message";
 import PasswordField from "./PasswordField";
 import OAuthSignInButtons from "./OAuthSignInButtons";
 import styles from "./AuthForm.module.css";
 
 export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?: readonly string[] }) {
+  const { t } = useI18n();
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,12 +29,16 @@ export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?:
     setMailWarning(null);
     setDevVerifyUrl(null);
 
+    if (!isPlausibleEmail(email)) {
+      setError(t("auth.invalidEmail"));
+      return;
+    }
     if (password.length < MIN_PASSWORD_LENGTH) {
-      setError(`Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`);
+      setError(t("auth.passwordMin", { count: MIN_PASSWORD_LENGTH }));
       return;
     }
     if (password !== confirm) {
-      setError("Les deux mots de passe ne correspondent pas.");
+      setError(t("auth.passwordMismatch"));
       return;
     }
 
@@ -45,9 +52,7 @@ export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?:
     const json = await res.json().catch(() => null);
 
     if (!res.ok) {
-      const details = json?.details?.fieldErrors as Record<string, string[] | undefined> | undefined;
-      const fieldMessage = details?.password?.[0] ?? details?.email?.[0];
-      setError(fieldMessage ?? json?.error ?? "Une erreur est survenue. Réessayez.");
+      setError(messageFromAuthJson(json, t, t("common.errorGeneric")));
       setLoading(false);
       return;
     }
@@ -74,7 +79,7 @@ export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?:
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
       <div className={styles.field}>
         <label htmlFor="name" className={styles.label}>
-          Nom (facultatif)
+          {t("auth.register.name")}
         </label>
         <input
           id="name"
@@ -88,7 +93,7 @@ export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?:
 
       <div className={styles.field}>
         <label htmlFor="email" className={styles.label}>
-          Adresse email
+          {t("auth.email")}
         </label>
         <input
           id="email"
@@ -103,7 +108,7 @@ export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?:
 
       <PasswordField
         id="password"
-        label={`Mot de passe (${MIN_PASSWORD_LENGTH} caractères minimum)`}
+        label={t("auth.register.password", { count: MIN_PASSWORD_LENGTH })}
         value={password}
         onChange={setPassword}
         autoComplete="new-password"
@@ -111,7 +116,7 @@ export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?:
       />
       <PasswordField
         id="confirm"
-        label="Confirmer le mot de passe"
+        label={t("auth.register.confirm")}
         value={confirm}
         onChange={setConfirm}
         autoComplete="new-password"
@@ -126,29 +131,29 @@ export default function RegisterForm({ oauthProviders = [] }: { oauthProviders?:
 
       {mailWarning ? (
         <div role="alert" className={`${styles.alert} ${styles.alertError}`}>
-          Compte créé, mais l&apos;email de confirmation n&apos;a pas pu être envoyé. {mailWarning}
+          {t("auth.register.mailFailed")} {mailWarning}
           {devVerifyUrl ? (
             <>
               {" "}
-              <Link href={devVerifyUrl}>Lien de développement</Link>
+              <Link href={devVerifyUrl}>{t("auth.devLink")}</Link>
             </>
           ) : null}
           <div style={{ marginTop: 10 }}>
             <Link href="/profil" className={styles.inlineLink}>
-              Continuer vers mon profil
+              {t("auth.register.continueProfile")}
             </Link>
           </div>
         </div>
       ) : null}
 
       <button type="submit" className={styles.submit} disabled={loading || Boolean(mailWarning)}>
-        {loading ? "Création du compte…" : "Créer mon compte"}
+        {loading ? t("auth.register.submitting") : t("auth.register.submit")}
       </button>
 
       <OAuthSignInButtons providers={oauthProviders} callbackUrl="/portefeuille" />
 
       <p className={styles.footer}>
-        Déjà un compte ? <Link href="/connexion">Se connecter</Link>
+        {t("auth.register.already")} <Link href="/connexion">{t("auth.register.signIn")}</Link>
       </p>
     </form>
   );

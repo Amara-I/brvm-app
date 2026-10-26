@@ -11,22 +11,23 @@ import { buildAuthLink } from "@/lib/auth/app-url";
 import {
   isDevAuthPreviewEnabled,
   isEmailConfigured,
-  MAIL_USER_MESSAGES,
   sendAuthEmail,
   userMessageForMailFailure,
 } from "@/lib/auth/email";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(request: NextRequest) {
+  const { t, locale } = getI18n();
   const body = await request.json().catch(() => null);
   const parsed = forgotPasswordSchema.safeParse(body);
   if (!parsed.success) return apiValidationError(parsed.error);
 
   if (!isEmailConfigured()) {
-    return apiError(MAIL_USER_MESSAGES.not_configured, 503);
+    return apiError(t("mail.notConfigured"), 503);
   }
 
   const email = parsed.data.email.toLowerCase();
@@ -37,12 +38,12 @@ export async function POST(request: NextRequest) {
     if (user?.passwordHash) {
       const rawToken = await issueAuthToken(user.id, "PASSWORD_RESET");
       if (!rawToken) {
-        return apiError("Impossible de générer le lien de réinitialisation pour le moment.", 503);
+        return apiError(t("common.api.resetLinkFailed"), 503);
       }
-      const mailed = await sendAuthEmail("reset", email, rawToken);
+      const mailed = await sendAuthEmail("reset", email, rawToken, locale);
       if (!mailed.ok) {
         console.error("[auth] envoi email de reset échoué", mailed.error);
-        return apiError(userMessageForMailFailure(mailed), 502);
+        return apiError(userMessageForMailFailure(mailed, locale), 502);
       }
       if (isDevAuthPreviewEnabled()) {
         devResetUrl = buildAuthLink("/reinitialiser-mot-de-passe", rawToken);
@@ -50,10 +51,10 @@ export async function POST(request: NextRequest) {
     }
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
-      return apiError("Service temporairement indisponible. Réessayez dans quelques instants.", 503);
+      return apiError(t("common.unavailable"), 503);
     }
     console.error("[auth] forgot-password : impossible de traiter la demande", error);
-    return apiError(MAIL_USER_MESSAGES.send_failed, 502);
+    return apiError(t("mail.sendFailed"), 502);
   }
 
   return apiSuccess({

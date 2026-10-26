@@ -20,6 +20,7 @@ import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import { featureFromPath } from "@/lib/analytics/features";
 import { ExpandChevronMark } from "@/components/ui/ExpandChevron";
 import styles from "./HeaderNav.module.css";
+import { useI18n } from "@/components/i18n/I18nProvider";
 
 export interface HeaderNavUser {
   name: string | null | undefined;
@@ -81,6 +82,7 @@ function MarketNavGroup({
   active,
   live,
   badge,
+  pagesLabel,
   children,
 }: {
   label: string;
@@ -90,6 +92,7 @@ function MarketNavGroup({
   active: boolean;
   live?: boolean;
   badge?: string;
+  pagesLabel: string;
   children: React.ReactNode;
 }) {
   return (
@@ -111,7 +114,7 @@ function MarketNavGroup({
         </span>
       </button>
       {open ? (
-        <div id={panelId} className={styles.navNested} role="group" aria-label={`Pages ${label}`}>
+        <div id={panelId} className={styles.navNested} role="group" aria-label={pagesLabel}>
           {children}
         </div>
       ) : null}
@@ -134,6 +137,7 @@ export default function HeaderNav({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const { t } = useI18n();
   const isActive = (href: string) => pathname === href || pathname?.startsWith(`${href}/`);
   const sidebar = layout === "sidebar";
   const close = onNavigate;
@@ -164,26 +168,26 @@ export default function HeaderNav({
     <>
       <NavLink
         href="/marche"
-        label="Vue d'ensemble"
+        label={t("chrome.nav.overview")}
         active={pathname === "/marche"}
         onClick={close}
         sidebar={sidebar}
       />
       <NavLink
         href="/indices"
-        label="Indices"
+        label={t("chrome.nav.indices")}
         active={isActive("/indices")}
         onClick={close}
         sidebar={sidebar}
       />
       <NavLink
         href="/screener"
-        label="Screener"
+        label={t("chrome.nav.screener")}
         active={isActive("/screener")}
         onClick={close}
         sidebar={sidebar}
       />
-      <NavLink href="/graphes" label="Graphes" active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
+      <NavLink href="/graphes" label={t("chrome.nav.charts")} active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
       <CompanyMegaMenu
         groups={sectorGroups}
         totalCount={totalCompanies}
@@ -192,7 +196,7 @@ export default function HeaderNav({
       />
       <NavLink
         href="/calendrier-dividendes"
-        label="Dividendes"
+        label={t("chrome.nav.dividends")}
         active={isActive("/calendrier-dividendes")}
         onClick={close}
         sidebar={sidebar}
@@ -202,17 +206,17 @@ export default function HeaderNav({
 
   const links = (
     <>
-      {sidebar ? <p className={styles.navGroupLabel}>Investir</p> : null}
+      {sidebar ? <p className={styles.navGroupLabel}>{t("chrome.nav.invest")}</p> : null}
       <NavLink
         href="/portefeuille"
-        label="Portefeuille"
+        label={t("chrome.nav.portfolio")}
         active={isActive("/portefeuille")}
         onClick={close}
         sidebar={sidebar}
       />
       <NavLink
         href="/simulation"
-        label="Simulation"
+        label={t("chrome.nav.simulation")}
         active={isActive("/simulation")}
         onClick={close}
         sidebar={sidebar}
@@ -221,14 +225,14 @@ export default function HeaderNav({
         <>
           <NavLink
             href="/notifications"
-            label="Notifications"
+            label={t("chrome.nav.notifications")}
             active={isActive("/notifications")}
             onClick={close}
             sidebar={sidebar}
           />
           <NavLink
             href="/profil"
-            label="Profil"
+            label={t("chrome.nav.profile")}
             active={isActive("/profil") || isActive("/reglages")}
             onClick={close}
             sidebar={sidebar}
@@ -236,7 +240,7 @@ export default function HeaderNav({
         </>
       ) : null}
 
-      {sidebar ? <p className={styles.navGroupLabel}>Marchés</p> : null}
+      {sidebar ? <p className={styles.navGroupLabel}>{t("chrome.nav.markets")}</p> : null}
       {sidebar ? (
         <MarketNavGroup
           label="BRVM"
@@ -245,6 +249,7 @@ export default function HeaderNav({
           onToggle={() => setBrvmOpen((open) => !open)}
           active={brvmActive}
           live
+          pagesLabel={t("chrome.nav.pagesOf", { label: "BRVM" })}
         >
           {brvmPages}
         </MarketNavGroup>
@@ -267,11 +272,12 @@ export default function HeaderNav({
                 open={open}
                 onToggle={() => toggleSoonMarket(exchange.code)}
                 active={marketActive}
-                badge="bientôt"
+                badge={t("chrome.nav.soon")}
+                pagesLabel={t("chrome.nav.pagesOf", { label: exchange.shortLabel })}
               >
                 <NavLink
                   href={overviewHref}
-                  label="Vue d'ensemble"
+                  label={t("chrome.nav.overview")}
                   active={overviewActive}
                   onClick={close}
                   sidebar={sidebar}
@@ -280,7 +286,7 @@ export default function HeaderNav({
                 />
                 <NavLink
                   href={indicesHref}
-                  label="Indices"
+                  label={t("chrome.nav.indices")}
                   active={indicesActive}
                   onClick={close}
                   sidebar={sidebar}
@@ -292,16 +298,16 @@ export default function HeaderNav({
           })
         : null}
 
-      {sidebar ? <p className={styles.navGroupLabel}>Ressources</p> : null}
+      {sidebar ? <p className={styles.navGroupLabel}>{t("chrome.nav.resources")}</p> : null}
       <EducationMegaMenu variant={sidebar ? "sidebar" : "inline"} onNavigate={close} />
-      <NavLink href="/actualites" label="Actualités" active={isActive("/actualites")} onClick={close} sidebar={sidebar} />
-      <NavLink href="/outils" label="Outils" active={isActive("/outils")} onClick={close} sidebar={sidebar} />
+      <NavLink href="/actualites" label={t("chrome.nav.news")} active={isActive("/actualites")} onClick={close} sidebar={sidebar} />
+      <NavLink href="/outils" label={t("chrome.nav.tools")} active={isActive("/outils")} onClick={close} sidebar={sidebar} />
       {user?.isAdmin ? (
         <>
-          {sidebar ? <p className={styles.navGroupLabel}>Admin</p> : null}
+          {sidebar ? <p className={styles.navGroupLabel}>{t("chrome.nav.admin")}</p> : null}
           <NavLink
             href="/admin/analytics"
-            label="Analytique"
+            label={t("chrome.nav.analytics")}
             active={isActive("/admin/analytics")}
             onClick={close}
             sidebar={sidebar}
@@ -314,7 +320,7 @@ export default function HeaderNav({
 
   return (
     <div style={cssVars}>
-      <nav aria-label="Navigation principale" className={sidebar ? styles.sidebarNav : styles.desktopNav}>
+      <nav aria-label={t("chrome.nav.main")} className={sidebar ? styles.sidebarNav : styles.desktopNav}>
         {links}
       </nav>
     </div>

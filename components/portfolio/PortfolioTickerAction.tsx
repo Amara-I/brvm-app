@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { PORTFOLIO_CHANGED_EVENT } from "@/lib/api/portfolio-trades-client";
 import styles from "./PortfolioTickerAction.module.css";
 
@@ -64,21 +65,22 @@ export function usePortfolioTickers(isAuthenticated: boolean): Set<string> | nul
  * sinon le signal d'analyse (ACHAT / CONSERVER / …) avec lien vers le portefeuille.
  */
 export default function PortfolioTickerAction({ ticker, isAuthenticated, signal, addClassName }: Props) {
+  const { t, labels } = useI18n();
   const heldTickers = usePortfolioTickers(isAuthenticated);
   const inPortfolio = heldTickers?.has(ticker.toUpperCase()) === true;
 
   if (!inPortfolio) {
     return (
       <Link href="/portefeuille" className={addClassName}>
-        + Ajouter au portefeuille
+        {t("portfolio.ticker.add")}
       </Link>
     );
   }
 
   const title = [
-    "Position en portefeuille",
-    signal.label,
-    signal.score != null ? `Score ${signal.score}/100` : null,
+    t("portfolio.ticker.held"),
+    labels.signal(signal.label as "ACHAT"),
+    signal.score != null ? t("portfolio.ticker.score", { score: signal.score }) : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -94,7 +96,7 @@ export default function PortfolioTickerAction({ ticker, isAuthenticated, signal,
       }}
       title={title}
     >
-      <span className={styles.signalLabel}>{signal.label}</span>
+      <span className={styles.signalLabel}>{labels.signal(signal.label as "ACHAT")}</span>
       {signal.score != null ? <span className={styles.signalScore}>{signal.score}/100</span> : null}
     </Link>
   );

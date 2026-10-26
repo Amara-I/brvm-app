@@ -38,7 +38,7 @@
     color: var(--c-textDim);
   }
 
-  .table td[data-label="Titre"],
+  .table td[data-span="all"],
   .table td:last-child {
     grid-column: 1 / -1;
   }

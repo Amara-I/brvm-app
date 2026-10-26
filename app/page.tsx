@@ -10,6 +10,7 @@ import { EDUCATION_TERMS } from "@/lib/education/catalog";
 import { averageYearlySeries } from "@/lib/landing/price-series";
 import LandingPage from "@/components/landing/LandingPage";
 import LandingChrome from "@/components/landing/LandingChrome";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import { BROWSER_CHROME_BG } from "@/lib/theme/browser-chrome";
 
 export const dynamic = "force-dynamic";
@@ -19,11 +20,13 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export const metadata = {
-  title: "OuestBourse — Marchés, graphes et signaux pour l'Afrique",
-  description:
-    "Plateforme d'analyse des marchés africains : BRVM (données réelles), screener, graphes techniques, fiches sociétés, portefeuille et lexique — sources BRVM / Sikafinance / Richbourse.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return {
+    title: t("landing.metaTitle"),
+    description: t("landing.metaDescription"),
+  };
+}
 
 export default async function LandingRoute() {
   const dataset = await getCompaniesFullDataset();

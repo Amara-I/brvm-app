@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import styles from "./AuthForm.module.css";
 
 type Props = {
@@ -24,6 +25,7 @@ export default function PasswordField({
   required = true,
   extra,
 }: Props) {
+  const { t } = useI18n();
   const [visible, setVisible] = useState(false);
 
   return (
@@ -50,9 +52,9 @@ export default function PasswordField({
           className={styles.toggle}
           onClick={() => setVisible((v) => !v)}
           aria-pressed={visible}
-          aria-label={visible ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+          aria-label={visible ? t("auth.hidePassword") : t("auth.showPassword")}
         >
-          {visible ? "Masquer" : "Afficher"}
+          {visible ? t("auth.hide") : t("auth.show")}
         </button>
       </div>
     </div>

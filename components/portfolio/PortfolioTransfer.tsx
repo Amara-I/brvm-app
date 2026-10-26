@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import PortfolioExcelIO from "@/components/portfolio/PortfolioExcelIO";
 import PortfolioStatementImport from "@/components/portfolio/PortfolioStatementImport";
 import styles from "./PortfolioTransfer.module.css";
@@ -33,6 +34,7 @@ export default function PortfolioTransfer({
   highlighted = false,
   children,
 }: Props) {
+  const { t } = useI18n();
   const panelId = useId();
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
@@ -102,7 +104,7 @@ export default function PortfolioTransfer({
         <path d="M8 9l4-4 4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
         <path d="M5 19h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
       </svg>
-      Importer / Exporter
+      {t("portfolio.transfer.button")}
       <svg className={styles.chevron} width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
@@ -116,7 +118,7 @@ export default function PortfolioTransfer({
         type="button"
         className={styles.backdrop}
         data-open={open && sheet ? "true" : "false"}
-        aria-label="Fermer l’import"
+        aria-label={t("portfolio.transfer.closeAria")}
         tabIndex={open && sheet ? 0 : -1}
         onClick={close}
       />
@@ -129,14 +131,14 @@ export default function PortfolioTransfer({
         role={sheet && open ? "dialog" : undefined}
         aria-modal={sheet && open ? true : undefined}
         aria-hidden={open ? undefined : true}
-        aria-label={sheet && open ? "Importer ou exporter le portefeuille" : undefined}
+        aria-label={sheet && open ? t("portfolio.transfer.dialog") : undefined}
       >
         <div className={styles.panelInner}>
           <div className={styles.panelBody}>
             <div className={styles.sheetHead}>
-              <strong>Importer / Exporter</strong>
+              <strong>{t("portfolio.transfer.title")}</strong>
               <button type="button" className="ob-btn-ghost" data-sheet-close onClick={close}>
-                Fermer
+                {t("common.close")}
               </button>
             </div>
             <PortfolioStatementImport

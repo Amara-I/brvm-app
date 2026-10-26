@@ -19,6 +19,8 @@ import {
   Legend,
   ReferenceLine,
 } from "recharts";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import type { FormatApi } from "@/lib/i18n/format";
 import { C } from "@/lib/theme/colors";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import type {
@@ -33,9 +35,7 @@ import { companyChartApiPath, lastPointAsOf } from "@/lib/charts/chart-window";
 import { chartDisplayNeedsRefresh } from "@/lib/charts/chart-series-cache";
 import { flatPriceBounds } from "@/lib/charts/sparse-series";
 import {
-  chartRangeChangeLabel,
   computeWindowChange,
-  formatWindowChangeAbs,
   formatWindowChangePercent,
 } from "@/lib/charts/window-change";
 import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel";
@@ -48,7 +48,7 @@ import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction"
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
 import EducationTermLink from "@/components/education/EducationTermLink";
-import LinkedAnalysisLabel from "@/components/education/LinkedAnalysisLabel";
+import SheetTermLabel from "@/components/actions/SheetTermLabel";
 import {
   OVERVIEW_KEY_TERM_SLUGS,
   educationSlugForRiskPillar,
@@ -69,37 +69,57 @@ import {
 } from "@/lib/ui/company-sheet-tabs";
 import styles from "./CompanySheet.module.css";
 
-const DATA_SOURCE_LABELS: Record<string, string> = {
-  BRVM_OFFICIEL: "BRVM officiel",
-  SIKAFINANCE: "Sikafinance",
-  OUESTBOURSE: "OuestBourse.com",
-  RICHBOURSE: "Richbourse",
-  MANUEL: "Saisie manuelle",
+const DATA_SOURCE_KEYS = {
+  BRVM_OFFICIEL: "company.sources.BRVM_OFFICIEL",
+  SIKAFINANCE: "company.sources.SIKAFINANCE",
+  OUESTBOURSE: "company.sources.OUESTBOURSE",
+  RICHBOURSE: "company.sources.RICHBOURSE",
+  MANUEL: "company.sources.MANUEL",
+} as const;
+
+const SKIP_REASON_KEYS: Record<string, "company.docs.recentData" | "company.docs.recentDocs" | "company.docs.disabled" | "company.docs.noKey"> = {
+  "Actualisation récente — données rechargées depuis la base.": "company.docs.recentData",
+  "Actualisation récente — documents rechargés depuis la base (prochain tirage dans quelques minutes).":
+    "company.docs.recentDocs",
+  "Catalogue documents désactivé (INGESTION_ENABLE_OB_DOCUMENTS=false).": "company.docs.disabled",
+  "OUESTBOURSE_SUPABASE_ANON_KEY absent — catalogue BRVM/OB indisponible.": "company.docs.noKey",
+};
+
+const SCORECARD_KEYS: Record<string, "company.scorecard.perf5" | "company.scorecard.divYield" | "company.scorecard.risk" | "company.scorecard.confidence" | "company.scorecard.volatility" | "company.scorecard.fundamental" | "company.scorecard.technical"> = {
+  "Perf. 5 ans": "company.scorecard.perf5",
+  "Rend. div.": "company.scorecard.divYield",
+  Risque: "company.scorecard.risk",
+  Confiance: "company.scorecard.confidence",
+  Volatilité: "company.scorecard.volatility",
+  Fondamental: "company.scorecard.fundamental",
+  Technique: "company.scorecard.technical",
 };
 
 type TabKey = CompanySheetTabKey;
 
 const TABS = COMPANY_SHEET_TABS;
 
-const RANGES: Array<{ key: ChartRange; label: string }> = [
-  { key: "1M", label: "1M" },
-  { key: "1A", label: "1A" },
-  { key: "5A", label: "5A" },
-  { key: "MAX", label: "Max" },
+const RANGES: Array<{ key: ChartRange; labelKey: "company.ranges.1M" | "company.ranges.1A" | "company.ranges.5A" | "company.ranges.MAX" }> = [
+  { key: "1M", labelKey: "company.ranges.1M" },
+  { key: "1A", labelKey: "company.ranges.1A" },
+  { key: "5A", labelKey: "company.ranges.5A" },
+  { key: "MAX", labelKey: "company.ranges.MAX" },
 ];
 
-function fmtPct(n: number | null | undefined): string {
+function fmtPct(n: number | null | undefined, format: FormatApi): string {
   if (n == null || !Number.isFinite(n)) return "—";
-  return `${n >= 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}%`;
+  const body = format.decimal(Math.abs(n), 1);
+  return `${n >= 0 ? "+" : "-"}${body}%`;
 }
 
-function fmtNum(n: number): string {
-  return Math.round(n).toLocaleString("fr-FR");
+function fmtNum(n: number, format: FormatApi): string {
+  return format.integer(n);
 }
 
 function EventsFeed({ events }: { events: CompanyEventRow[] }) {
+  const { t } = useI18n();
   if (events.length === 0) {
-    return <p className={styles.empty}>Aucun événement corporate pour l&apos;instant (N/D).</p>;
+    return <p className={styles.empty}>{t("company.events.empty")}</p>;
   }
   return (
     <ul className={styles.metaList}>
@@ -119,8 +139,9 @@ function EventsFeed({ events }: { events: CompanyEventRow[] }) {
 }
 
 function NewsFeed({ news }: { news: CompanyNewsRow[] }) {
+  const { t } = useI18n();
   if (news.length === 0) {
-    return <p className={styles.empty}>Aucune actualité pour l&apos;instant (N/D).</p>;
+    return <p className={styles.empty}>{t("company.news.empty")}</p>;
   }
   return (
     <ul className={styles.metaList}>
@@ -137,11 +158,11 @@ function NewsFeed({ news }: { news: CompanyNewsRow[] }) {
 }
 
 /** Introduction en bourse style BRVM : « 2 oct. 1998 ». */
-function formatListingDate(iso: string | null | undefined): string {
-  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return "N/D";
+function formatListingDate(iso: string | null | undefined, format: FormatApi, nd: string): string {
+  if (!iso || !/^\d{4}-\d{2}-\d{2}/.test(iso)) return nd;
   const d = new Date(`${iso.slice(0, 10)}T12:00:00.000Z`);
-  if (Number.isNaN(d.getTime())) return "N/D";
-  return d.toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" });
+  if (Number.isNaN(d.getTime())) return nd;
+  return format.date(d, { day: "numeric", month: "short", year: "numeric" });
 }
 
 function websiteHref(raw: string | null | undefined): string | null {
@@ -175,7 +196,10 @@ export default function CompanySheetClient({
   /** Préférence Profil — surmontable ici sans retourner au profil. */
   preferredPortfolioType?: PortfolioTypeId | null;
 }) {
+  const { t, format, labels, locale } = useI18n();
+  const nd = t("common.nd");
   const {
+
     company,
     peers,
     metrics,
@@ -294,8 +318,8 @@ export default function CompanySheetClient({
         const lastPrice = y != null ? p.prices[y]! : 0;
         return { ...p, lastPrice };
       })
-      .sort((a, b) => a.name.localeCompare(b.name, "fr"));
-  }, [peers, company.sector, company.ticker]);
+      .sort((a, b) => a.name.localeCompare(b.name, locale === "en" ? "en" : "fr"));
+  }, [peers, company.sector, company.ticker, locale]);
 
   const rangedSeries = useMemo(
     () => rangeFilter(series, range, lastPointAsOf(series)),
@@ -338,7 +362,7 @@ export default function CompanySheetClient({
 
   const ohlc = useMemo(() => {
     if (!last || !prev) {
-      return { o: "N/D", h: "N/D", l: "N/D", c: price > 0 ? fmtNum(price) : "N/D", vol: "N/D", var: "N/D" };
+      return { o: nd, h: nd, l: nd, c: price > 0 ? fmtNum(price, format) : nd, vol: nd, var: nd };
     }
     const open = prev.value;
     const close = last.value;
@@ -346,14 +370,14 @@ export default function CompanySheetClient({
     const low = Math.min(open, close);
     const v = open > 0 ? ((close - open) / open) * 100 : 0;
     return {
-      o: fmtNum(open),
-      h: fmtNum(high),
-      l: fmtNum(low),
-      c: fmtNum(close),
-      vol: last.volume && last.volume > 0 ? last.volume.toLocaleString("fr-FR") : "N/D",
-      var: `${v >= 0 ? "+" : ""}${v.toFixed(2).replace(".", ",")}%`,
+      o: fmtNum(open, format),
+      h: fmtNum(high, format),
+      l: fmtNum(low, format),
+      c: fmtNum(close, format),
+      vol: last.volume && last.volume > 0 ? format.number(last.volume) : nd,
+      var: `${v >= 0 ? "+" : "-"}${format.decimal(Math.abs(v), 2)}%`,
     };
-  }, [last, prev, price]);
+  }, [last, prev, price, format, nd]);
 
   const dividendChart = useMemo(
     () =>
@@ -401,7 +425,7 @@ export default function CompanySheetClient({
       });
       const json = await res.json();
       if (!res.ok || !json.ok) {
-        setDocsRefreshNote(json.error ?? "Échec de l'actualisation (N/D).");
+        setDocsRefreshNote(json.error ?? t("company.docs.refreshFailed"));
         return;
       }
       if (Array.isArray(json.data?.documents)) setDocuments(json.data.documents);
@@ -409,34 +433,39 @@ export default function CompanySheetClient({
       if (Array.isArray(json.data?.keyRows)) setKeyRows(json.data.keyRows);
       const ing = json.data?.ingestion;
       if (ing?.skipped) {
-        setDocsRefreshNote(ing.skipReason ?? "Actualisation récente — données rechargées depuis la base.");
+        const skipKey = typeof ing.skipReason === "string" ? SKIP_REASON_KEYS[ing.skipReason] : undefined;
+        setDocsRefreshNote(skipKey ? t(skipKey) : (ing.skipReason ?? t("company.docs.recentData")));
       } else {
-        const src = ing?.source === "OUESTBOURSE" ? "OuestBourse (PDF BRVM.org)" : "source N/D";
+        const src = ing?.source === "OUESTBOURSE" ? t("company.docs.sourceOb") : t("company.docs.sourceNd");
         setDocsRefreshNote(
-          `Catalogue actualisé via ${src}` +
-            (typeof ing?.documentsUpserted === "number" ? ` · ${ing.documentsUpserted} document(s)` : "") +
-            (typeof ing?.resultsDocuments === "number" ? ` · ${ing.resultsDocuments} résultat(s)` : "") +
+          t("company.docs.updatedVia", { source: src }) +
+            (typeof ing?.documentsUpserted === "number"
+              ? ` · ${t("company.docs.docCount", { count: ing.documentsUpserted })}`
+              : "") +
+            (typeof ing?.resultsDocuments === "number"
+              ? ` · ${t("company.docs.resultsCount", { count: ing.resultsDocuments })}`
+              : "") +
             (typeof ing?.fundamentalsUpserted === "number" && ing.fundamentalsUpserted > 0
-              ? ` · ${ing.fundamentalsUpserted} compte(s)`
+              ? ` · ${t("company.docs.accountsCount", { count: ing.fundamentalsUpserted })}`
               : "") +
             "."
         );
       }
       trackFeature("company_sheet", "refresh-documents");
     } catch {
-      setDocsRefreshNote("Échec de l'actualisation (N/D).");
+      setDocsRefreshNote(t("company.docs.refreshFailed"));
     } finally {
       setDocsRefreshing(false);
     }
   }
 
   const sessionLabel = sessionDate
-    ? new Date(`${sessionDate}T12:00:00Z`).toLocaleDateString("fr-FR", {
+    ? format.date(new Date(`${sessionDate}T12:00:00Z`), {
         day: "numeric",
         month: "long",
         year: "numeric",
       })
-    : "N/D";
+    : nd;
 
   const analysisPerspective = useMemo(
     () =>
@@ -454,10 +483,90 @@ export default function CompanySheetClient({
   );
   const keyTermSlugs = keyTermSlugsForType(portfolioType);
 
+  function sheetRangeWord(key: ChartRange): string {
+    switch (key) {
+      case "1M":
+        return t("company.ranges.1M");
+      case "1A":
+        return t("company.ranges.1A");
+      case "5A":
+        return t("company.ranges.5A");
+      case "MAX":
+        return t("company.ranges.MAX");
+      default:
+        return key;
+    }
+  }
+
+  function translateKeyLabel(label: string): string {
+    const close = label.match(/^Cours de clôture(?: \((\d+)\))?$/);
+    if (close) {
+      return close[1] ? t("company.keys.closeYear", { year: close[1] }) : t("company.keys.close");
+    }
+    const revenue = label.match(/^Chiffre d'affaires(?: \((\d+)\))?$/);
+    if (revenue) {
+      return revenue[1] ? t("company.keys.revenueYear", { year: revenue[1] }) : t("company.keys.revenue");
+    }
+    const known: Record<string, Parameters<typeof t>[0]> = {
+      "Dividende / action": "company.keys.dps",
+      "Rendement dividende": "company.keys.divYield",
+      PER: "company.keys.per",
+      Capitalisation: "company.keys.mktcap",
+      ROE: "company.keys.roe",
+      "Marge nette": "company.keys.netMargin",
+      "Ratio d'endettement": "company.keys.debt",
+      "Price-to-Book": "company.keys.pb",
+      "Croissance CA": "company.keys.revenueGrowth",
+      "Free Cash Flow": "company.keys.fcf",
+      "Volume moyen (20 j)": "company.keys.avgVolume",
+      "Score d'analyse": "company.keys.score",
+      "Résultat d'exploitation": "company.keys.operating",
+      "Résultat net": "company.keys.net",
+    };
+    const key = known[label];
+    return key ? t(key) : label;
+  }
+
+  function displayKeyValue(value: string): string {
+    if (locale !== "en") return value;
+    return value.replaceAll(" Md", " bn");
+  }
+
+  function scorecardText(k: string): string {
+    const key = SCORECARD_KEYS[k];
+    return key ? t(key) : k;
+  }
+
+  function scorecardValue(k: string, v: string): string {
+    if (k === "Risque") return labels.riskLevel(v);
+    if (k === "Confiance") return labels.confidence(v);
+    return v;
+  }
+
+  function loosePercent(n: number): string {
+    const body = format.number(n, { maximumFractionDigits: 8 });
+    return locale === "en" ? `${body}%` : `${body} %`;
+  }
+
+  function riskSummaryText(): string {
+    const ra = metrics.riskAnalysis;
+    const tierRaw = labels.riskTier(ra.riskTier);
+    const tier = locale === "en" ? tierRaw : tierRaw.toLowerCase();
+    const scored = ra.pillars.filter((p) => p.score != null).slice(0, 3);
+    const detail = scored.length
+      ? t("company.risk.pillars", {
+          list: scored.map((p) => `${t(`company.risk.short.${p.key}`)} ${p.score}`).join(", "),
+        })
+      : t("company.risk.noDetail");
+    return t("company.risk.summary", { tier, score: ra.riskScore, detail });
+  }
+
+  const rangeChangeLabel = t("company.chart.rangeChange", { range: sheetRangeWord(range) });
+
   return (
     <div className={styles.page}>
       <div className={styles.breadcrumb}>
-        <Link href="/societes-cotees">Sociétés cotées</Link>
+        <Link href="/societes-cotees">{t("company.breadcrumb")}</Link>
         <span aria-hidden="true"> / </span>
         <span>{company.ticker}</span>
       </div>
@@ -479,22 +588,24 @@ export default function CompanySheetClient({
                 </>
               )}
               <span>·</span>
-              <span>{company.sector}</span>
+              <span>{labels.sector(company.sector)}</span>
               <span>·</span>
               <span>
-                {company.countryFlag} {company.country}
+                {company.countryFlag} {labels.country(company.country)}
               </span>
             </div>
           </div>
         </div>
         <div className={styles.heroPrice}>
-          <div className={styles.price}>{price > 0 ? `${fmtNum(price)} FCFA` : <span className="ob-nd">N/D</span>}</div>
+          <div className={styles.price}>
+            {price > 0 ? format.fcfa(price) : <span className="ob-nd">{nd}</span>}
+          </div>
           <div className={styles.chg}>
             <ChangeValue value={chgPct} pill />
             {chgAbs != null ? (
               <span className="ob-num" style={{ marginLeft: 6, color: "var(--c-textdim)" }}>
                 ({chgAbs >= 0 ? "+" : ""}
-                {fmtNum(chgAbs)})
+                {fmtNum(chgAbs, format)})
               </span>
             ) : null}
           </div>
@@ -504,7 +615,7 @@ export default function CompanySheetClient({
             href={`/outils/taille-position?ticker=${encodeURIComponent(company.ticker)}`}
             className={styles.btnOutline}
           >
-            Calculer la taille de position
+            {t("company.positionSize")}
           </Link>
           <TickerAlertButton
             isAuthenticated={isAuthenticated}
@@ -535,27 +646,27 @@ export default function CompanySheetClient({
         idPrefix={`sheet-${company.ticker}`}
       />
 
-      <div className={styles.tabs} role="tablist" aria-label="Sections de la fiche">
-        {TABS.map((t) => (
+      <div className={styles.tabs} role="tablist" aria-label={t("company.tabsAria")}>
+        {TABS.map((tabDef) => (
           <button
-            key={t.key}
+            key={tabDef.key}
             type="button"
             role="tab"
-            aria-selected={resolvedTab === t.key}
-            className={resolvedTab === t.key ? styles.tabActive : styles.tab}
+            aria-selected={resolvedTab === tabDef.key}
+            className={resolvedTab === tabDef.key ? styles.tabActive : styles.tab}
             onMouseEnter={() => {
-              if (t.key === "charts") prefetchChartWorkbench();
+              if (tabDef.key === "charts") prefetchChartWorkbench();
             }}
             onFocus={() => {
-              if (t.key === "charts") prefetchChartWorkbench();
+              if (tabDef.key === "charts") prefetchChartWorkbench();
             }}
             onClick={() => {
-              if (t.key === "charts") prefetchChartWorkbench();
-              setTab(t.key);
-              trackFeature("company_sheet", `tab:${t.key}`);
+              if (tabDef.key === "charts") prefetchChartWorkbench();
+              setTab(tabDef.key);
+              trackFeature("company_sheet", `tab:${tabDef.key}`);
             }}
           >
-            {t.label}
+            {t(`company.tabs.${tabDef.key}`)}
           </button>
         ))}
       </div>
@@ -580,18 +691,18 @@ export default function CompanySheetClient({
             {/* Cours + aperçu (vue d'ensemble) — graphes détaillés = onglet Graphes */}
             <section className={styles.card}>
               <div className={styles.cardHead}>
-                <h2 className={styles.cardTitle}>Cours</h2>
+                <h2 className={styles.cardTitle}>{t("company.chart.price")}</h2>
                 <div className={styles.rangeTools}>
                   <div
                     className={styles.rangeChgBlock}
                     aria-live="polite"
                     title={
                       rangeChange
-                        ? `${chartRangeChangeLabel(range, "Max")} · ${formatWindowChangeAbs(rangeChange.abs)}`
-                        : "Variation N/D — moins de 2 points sur cette fenêtre"
+                        ? `${rangeChangeLabel} · ${rangeChange.abs > 0 ? "+" : ""}${format.integer(rangeChange.abs)} FCFA`
+                        : t("company.chart.rangeChangeNd")
                     }
                   >
-                    <span className={styles.rangeChgLabel}>{chartRangeChangeLabel(range, "Max")}</span>
+                    <span className={styles.rangeChgLabel}>{rangeChangeLabel}</span>
                     <span
                       className={
                         rangeChange == null
@@ -601,7 +712,11 @@ export default function CompanySheetClient({
                             : styles.rangeChgDown
                       }
                     >
-                      {formatWindowChangePercent(rangeChange?.percent)}
+                      {rangeChange == null
+                        ? nd
+                        : locale === "fr"
+                          ? formatWindowChangePercent(rangeChange.percent)
+                          : format.percent(rangeChange.percent, 2, true)}
                     </span>
                   </div>
                   <div className={styles.rangeRow}>
@@ -615,18 +730,18 @@ export default function CompanySheetClient({
                           trackFeature("company_sheet", `range:${r.key}`);
                         }}
                       >
-                        {r.label}
+                        {t(r.labelKey)}
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
               <p className={styles.sessionNote}>
-                séance du {sessionLabel}
-                {denseLoading ? " · densification…" : ""}
+                {t("company.chart.session", { date: sessionLabel })}
+                {denseLoading ? ` · ${t("company.chart.densifying")}` : ""}
                 {" · "}
                 <button type="button" className={styles.textLink} onClick={() => setTab("charts")}>
-                  Ouvrir les graphes détaillés
+                  {t("company.chart.openCharts")}
                 </button>
               </p>
               {splitMarkers.map((marker) => (
@@ -636,20 +751,20 @@ export default function CompanySheetClient({
               ))}
               <div className={styles.ohlc}>
                 <span>
-                  <em>O</em> {ohlc.o}
+                  <em>{t("company.chart.o")}</em> {ohlc.o}
                 </span>
                 <span>
-                  <em>H</em> {ohlc.h}
+                  <em>{t("company.chart.h")}</em> {ohlc.h}
                 </span>
                 <span>
-                  <em>B</em> {ohlc.l}
+                  <em>{t("company.chart.l")}</em> {ohlc.l}
                 </span>
                 <span>
-                  <em>C</em> {ohlc.c}
+                  <em>{t("company.chart.c")}</em> {ohlc.c}
                 </span>
                 <span className={up ? styles.pos : styles.neg}>{ohlc.var}</span>
                 <span>
-                  <em>Vol</em> {ohlc.vol}
+                  <em>{t("company.chart.vol")}</em> {ohlc.vol}
                 </span>
               </div>
               <div className={styles.chartBox}>
@@ -658,7 +773,7 @@ export default function CompanySheetClient({
                     <AreaChart
                       data={chartSeries.map((p) => ({
                         ...p,
-                        label: shortChart ? formatListingDate(p.time) : p.time.slice(0, 7),
+                        label: shortChart ? formatListingDate(p.time, format, nd) : p.time.slice(0, 7),
                       }))}
                     >
                       <defs>
@@ -686,7 +801,7 @@ export default function CompanySheetClient({
                       <Area
                         type="monotone"
                         dataKey="value"
-                        name="Cours"
+                        name={t("company.chart.price")}
                         stroke={C.green}
                         fill="url(#sheetGreen)"
                         strokeWidth={2}
@@ -699,7 +814,7 @@ export default function CompanySheetClient({
                     </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <p className={styles.empty}>Historique insuffisant (N/D).</p>
+                  <p className={styles.empty}>{t("company.chart.insufficient")}</p>
                 )}
               </div>
             </section>
@@ -708,15 +823,15 @@ export default function CompanySheetClient({
                 <section className={styles.card} aria-labelledby="scorecard-title">
                   <div className={styles.cardHead}>
                     <h2 id="scorecard-title" className={styles.cardTitle}>
-                      Pourquoi ce titre ?
+                      {t("company.scorecard.title")}
                     </h2>
-                    <span className={styles.cardMeta}>critères de décision — métriques réelles ou N/D</span>
+                    <span className={styles.cardMeta}>{t("company.scorecard.meta")}</span>
                   </div>
                   <div className={styles.scoreGrid}>
                     {scorecardCells.map((cell) => (
                       <div key={cell.k} className={styles.scoreCell}>
                         <span className={styles.scoreKey}>
-                          <LinkedAnalysisLabel text={cell.k} />
+                          <SheetTermLabel french={cell.k} text={scorecardText(cell.k)} />
                         </span>
                         <span
                           className={
@@ -729,7 +844,7 @@ export default function CompanySheetClient({
                                   : styles.scoreNeutral
                           }
                         >
-                          {cell.v}
+                          {scorecardValue(cell.k, cell.v)}
                         </span>
                       </div>
                     ))}
@@ -739,11 +854,9 @@ export default function CompanySheetClient({
                 <section className={styles.card} aria-labelledby="key-terms-title">
                   <div className={styles.cardHead}>
                     <h2 id="key-terms-title" className={styles.cardTitle}>
-                      Termes clés
+                      {t("company.keyTerms.title")}
                     </h2>
-                    <span className={styles.cardMeta}>
-                      survol : définition courte · clic : fiche Éducation
-                    </span>
+                    <span className={styles.cardMeta}>{t("company.keyTerms.meta")}</span>
                   </div>
                   <ul className={styles.keyTerms}>
                     {(keyTermSlugs.length > 0 ? keyTermSlugs : OVERVIEW_KEY_TERM_SLUGS).map((slug) => (
@@ -756,16 +869,16 @@ export default function CompanySheetClient({
 
                 <section className={styles.card}>
                   <div className={styles.cardHead}>
-                    <h2 className={styles.cardTitle}>Performances</h2>
-                    <span className={styles.cardMeta}>séance du {sessionLabel} — hors dividendes</span>
+                    <h2 className={styles.cardTitle}>{t("company.performance.title")}</h2>
+                    <span className={styles.cardMeta}>{t("company.chart.sessionExDiv", { date: sessionLabel })}</span>
                   </div>
                   <div className={styles.perfGrid}>
                     {[
-                      { l: "1 mois", v: performance.oneMonth },
-                      { l: "3 mois", v: performance.threeMonths },
-                      { l: "Depuis janvier", v: performance.ytd },
-                      { l: "1 an", v: performance.oneYear },
-                      { l: "5 ans", v: performance.fiveYears },
+                      { l: t("company.performance.oneMonth"), v: performance.oneMonth },
+                      { l: t("company.performance.threeMonths"), v: performance.threeMonths },
+                      { l: t("company.performance.ytd"), v: performance.ytd },
+                      { l: t("company.performance.oneYear"), v: performance.oneYear },
+                      { l: t("company.performance.fiveYears"), v: performance.fiveYears },
                     ].map((p) => (
                       <div key={p.l} className={styles.perfItem}>
                         <div className={styles.perfLabel}>{p.l}</div>
@@ -775,7 +888,7 @@ export default function CompanySheetClient({
                             color: p.v == null ? C.textDim : p.v >= 0 ? C.green : C.red,
                           }}
                         >
-                          {fmtPct(p.v)}
+                          {fmtPct(p.v, format)}
                         </div>
                       </div>
                     ))}
@@ -784,22 +897,22 @@ export default function CompanySheetClient({
 
                 <section className={styles.card}>
                   <div className={styles.cardHead}>
-                    <h2 className={styles.cardTitle}>Données financières clés</h2>
-                    <span className={styles.cardMeta}>indicateurs disponibles en base — pas de chiffres inventés</span>
+                    <h2 className={styles.cardTitle}>{t("company.keyData.title")}</h2>
+                    <span className={styles.cardMeta}>{t("company.keyData.meta")}</span>
                   </div>
                   <FilterableSheetTable
                     columns={[
                       {
                         key: "label",
-                        label: "Indicateur",
+                        label: t("company.keyData.indicator"),
                         getValue: (r) => r.label,
-                        render: (r) => <LinkedAnalysisLabel text={r.label} />,
+                        render: (r) => <SheetTermLabel french={r.labelFr} text={r.label} />,
                       },
-                      { key: "current", label: "Récent", getValue: (r) => r.current },
-                      { key: "previous", label: "Précédent", getValue: (r) => r.previous },
+                      { key: "current", label: t("company.keyData.recent"), getValue: (r) => r.current },
+                      { key: "previous", label: t("company.keyData.previous"), getValue: (r) => r.previous },
                       {
                         key: "variation",
-                        label: "Variation",
+                        label: t("company.keyData.variation"),
                         getValue: (r) => r.variation,
                         render: (r) => (
                           <span
@@ -817,9 +930,10 @@ export default function CompanySheetClient({
                       },
                     ]}
                     rows={keyRows.map((r) => ({
-                      label: r.label,
-                      current: r.current,
-                      previous: r.previous,
+                      labelFr: r.label,
+                      label: translateKeyLabel(r.label),
+                      current: displayKeyValue(r.current),
+                      previous: displayKeyValue(r.previous),
                       variation: r.variation,
                     }))}
                   />
@@ -828,17 +942,22 @@ export default function CompanySheetClient({
                 <div className={styles.financeSplit}>
                   <section className={styles.card}>
                     <div className={styles.cardHead}>
-                      <h2 className={styles.cardTitle}>Dividendes</h2>
-                      <span className={styles.cardMeta}>FCFA net / action</span>
+                      <h2 className={styles.cardTitle}>{t("company.dividends.title")}</h2>
+                      <span className={styles.cardMeta}>{t("company.dividends.meta")}</span>
                     </div>
                     {dividendChart.length > 0 ? (
                       <>
                         <p className={styles.divSummary}>
-                          {paidYears} exercice{paidYears > 1 ? "s" : ""} payé{paidYears > 1 ? "s" : ""}
+                          {t(paidYears > 1 ? "company.dividends.paidMany" : "company.dividends.paidOne", {
+                            count: paidYears,
+                          })}
                           {lastDiv
-                            ? ` · dernier ${lastDiv.amount.toLocaleString("fr-FR")} FCFA (${lastDiv.year})${
+                            ? ` · ${t("company.dividends.last", {
+                                amount: format.number(lastDiv.amount),
+                                year: lastDiv.year,
+                              })}${
                                 lastDiv.yieldPct != null
-                                  ? ` · ${String(lastDiv.yieldPct).replace(".", ",")} %`
+                                  ? ` · ${format.number(lastDiv.yieldPct, { maximumFractionDigits: 8 })} %`
                                   : ""
                               }`
                             : ""}
@@ -853,7 +972,7 @@ export default function CompanySheetClient({
                                 stroke={C.textDim}
                                 fontSize={11}
                                 width={44}
-                                tickFormatter={(v) => Math.round(Number(v)).toLocaleString("fr-FR")}
+                                tickFormatter={(v) => format.integer(Number(v))}
                               />
                               <YAxis
                                 yAxisId="yield"
@@ -861,7 +980,7 @@ export default function CompanySheetClient({
                                 stroke={C.textDim}
                                 fontSize={11}
                                 width={36}
-                                tickFormatter={(v) => `${String(v).replace(".", ",")}%`}
+                                tickFormatter={(v) => `${format.number(Number(v), { maximumFractionDigits: 8 })}%`}
                               />
                               <Tooltip
                                 contentStyle={{
@@ -871,32 +990,27 @@ export default function CompanySheetClient({
                                   fontSize: "0.72rem",
                                 }}
                                 formatter={(value, name) => {
-                                  if (name === "yieldPct" || name === "Rendement") {
+                                  const yieldName = t("company.dividends.seriesYield");
+                                  const divName = t("company.dividends.seriesDividend");
+                                  if (name === "yieldPct" || name === yieldName) {
                                     if (value == null || !Number.isFinite(Number(value))) {
-                                      return ["N/D", "Rendement"];
+                                      return [nd, yieldName];
                                     }
-                                    return [
-                                      `${Number(value).toLocaleString("fr-FR", {
-                                        maximumFractionDigits: 2,
-                                      })} %`,
-                                      "Rendement",
-                                    ];
+                                    const body = format.number(Number(value), { maximumFractionDigits: 2 });
+                                    return [locale === "en" ? `${body}%` : `${body} %`, yieldName];
                                   }
-                                  return [`${Number(value).toLocaleString("fr-FR")} FCFA`, "Dividende"];
+                                  return [`${format.number(Number(value))} FCFA`, divName];
                                 }}
-                                labelFormatter={(y) => `Exercice ${y}`}
+                                labelFormatter={(y) => t("company.dividends.fiscalYear", { year: String(y) })}
                               />
                               <Legend
                                 wrapperStyle={{ fontSize: "0.65rem", paddingTop: 2 }}
                                 iconSize={8}
-                                formatter={(value) =>
-                                  value === "amount" || value === "Dividende" ? "Dividende" : "Rendement"
-                                }
                               />
                               <Bar
                                 yAxisId="div"
                                 dataKey="amount"
-                                name="Dividende"
+                                name={t("company.dividends.seriesDividend")}
                                 fill={C.gold}
                                 radius={[4, 4, 0, 0]}
                               />
@@ -904,7 +1018,7 @@ export default function CompanySheetClient({
                                 yAxisId="yield"
                                 type="monotone"
                                 dataKey="yieldPct"
-                                name="Rendement"
+                                name={t("company.dividends.seriesYield")}
                                 stroke={C.blue}
                                 strokeWidth={2}
                                 dot={{ r: 2 }}
@@ -915,17 +1029,17 @@ export default function CompanySheetClient({
                         </div>
                       </>
                     ) : (
-                      <p className={styles.empty}>Aucun dividende renseigné (N/D).</p>
+                      <p className={styles.empty}>{t("company.dividends.empty")}</p>
                     )}
                     <Link href="/calendrier-dividendes" className={styles.inlineLink}>
-                      Calendrier des dividendes →
+                      {t("company.dividends.calendar")}
                     </Link>
                   </section>
 
                   <section className={styles.card}>
                     <div className={styles.cardHead}>
-                      <h2 className={styles.cardTitle}>Chiffre d&apos;affaires et résultats</h2>
-                      <span className={styles.cardMeta}>Md FCFA · CA ou PNB · annuel</span>
+                      <h2 className={styles.cardTitle}>{t("company.income.title")}</h2>
+                      <span className={styles.cardMeta}>{t("company.income.meta")}</span>
                     </div>
                     {incomeChart.length > 0 ? (
                       <div className={styles.chartBox}>
@@ -937,11 +1051,13 @@ export default function CompanySheetClient({
                               stroke={C.textDim}
                               fontSize={11}
                               width={44}
-                              tickFormatter={(v) =>
-                                Math.abs(Number(v)) >= 100
-                                  ? `${Math.round(Number(v))}`
-                                  : String(v).replace(".", ",")
-                              }
+                              tickFormatter={(v) => {
+                                const n = Number(v);
+                                if (Math.abs(n) >= 100) return String(Math.round(n));
+                                return locale === "fr"
+                                  ? String(n).replace(".", ",")
+                                  : format.number(n, { maximumFractionDigits: 8 });
+                              }}
                             />
                             <Tooltip
                               contentStyle={{
@@ -953,34 +1069,34 @@ export default function CompanySheetClient({
                               formatter={(value, name) => {
                                 const label =
                                   name === "ca"
-                                    ? "Chiffre d'affaires"
+                                    ? t("company.income.revenue")
                                     : name === "resultatNet"
-                                      ? "Résultat net"
+                                      ? t("company.income.net")
                                       : name === "resultatExploitation"
-                                        ? "Résultat d'exploitation"
+                                        ? t("company.income.operating")
                                         : String(name);
                                 if (value == null || !Number.isFinite(Number(value))) {
-                                  return ["N/D", label];
+                                  return [nd, label];
                                 }
                                 return [
-                                  `${Number(value).toLocaleString("fr-FR", {
-                                    maximumFractionDigits: 2,
-                                  })} Md`,
+                                  t("company.income.md", {
+                                    value: format.number(Number(value), { maximumFractionDigits: 2 }),
+                                  }),
                                   label,
                                 ];
                               }}
-                              labelFormatter={(y) => `Exercice ${y}`}
+                              labelFormatter={(y) => t("company.income.fiscalYear", { year: String(y) })}
                             />
                             <Legend
                               wrapperStyle={{ fontSize: "0.65rem", paddingTop: 2 }}
                               iconSize={8}
                               formatter={(value) =>
                                 value === "ca"
-                                  ? "CA / PNB"
+                                  ? t("company.income.caPnb")
                                   : value === "resultatNet"
-                                    ? "Résultat net"
+                                    ? t("company.income.net")
                                     : value === "resultatExploitation"
-                                      ? "Résultat d'exploitation"
+                                      ? t("company.income.operating")
                                       : value
                               }
                             />
@@ -1015,13 +1131,10 @@ export default function CompanySheetClient({
                         </ResponsiveContainer>
                       </div>
                     ) : (
-                      <p className={styles.empty}>
-                        Comptes annuels (CA, résultat net, résultat d&apos;exploitation) non encore disponibles —
-                        N/D.
-                      </p>
+                      <p className={styles.empty}>{t("company.income.empty")}</p>
                     )}
                     <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("documents")}>
-                      Publications de résultats →
+                      {t("company.income.resultsLink")}
                     </button>
                   </section>
                 </div>
@@ -1029,8 +1142,8 @@ export default function CompanySheetClient({
                 <div className={styles.eventsNewsSplit}>
                   <section className={styles.card}>
                     <div className={styles.cardHead}>
-                      <h2 className={styles.cardTitle}>Événements</h2>
-                      <span className={styles.cardMeta}>agenda corporate</span>
+                      <h2 className={styles.cardTitle}>{t("company.events.title")}</h2>
+                      <span className={styles.cardMeta}>{t("company.events.meta")}</span>
                     </div>
                     <EventsFeed events={events} />
                     <button
@@ -1038,13 +1151,13 @@ export default function CompanySheetClient({
                       className={styles.inlineLinkBtn}
                       onClick={() => setTab("actualites")}
                     >
-                      Tous les événements →
+                      {t("company.events.all")}
                     </button>
                   </section>
                   <section className={styles.card}>
                     <div className={styles.cardHead}>
-                      <h2 className={styles.cardTitle}>Actualités</h2>
-                      <span className={styles.cardMeta}>fil valeur</span>
+                      <h2 className={styles.cardTitle}>{t("company.news.title")}</h2>
+                      <span className={styles.cardMeta}>{t("company.news.meta")}</span>
                     </div>
                     <NewsFeed news={news} />
                     <button
@@ -1052,33 +1165,29 @@ export default function CompanySheetClient({
                       className={styles.inlineLinkBtn}
                       onClick={() => setTab("actualites")}
                     >
-                      Toutes les actualités →
+                      {t("company.news.all")}
                     </button>
                   </section>
                 </div>
 
                 <section className={styles.card}>
                   <div className={styles.cardHead}>
-                    <h2 className={styles.cardTitle}>Interims</h2>
-                    <span className={styles.cardMeta}>trimestriel / semestriel · PNB, résultat net</span>
+                    <h2 className={styles.cardTitle}>{t("company.interims.title")}</h2>
+                    <span className={styles.cardMeta}>{t("company.interims.meta")}</span>
                   </div>
-                  <p className={styles.empty}>
-                    Aucun interim structuré en base pour {company.ticker} (N/D). Les publications
-                    intermédiaires ne sont pas encore collectées de façon homogène — les rapports officiels
-                    restent dans l&apos;onglet Documents (filtre Résultats).
-                  </p>
+                  <p className={styles.empty}>{t("company.interims.empty", { ticker: company.ticker })}</p>
                 </section>
           </div>
 
           <aside className={styles.sideCol}>
             <section className={styles.sideCard}>
               <h3 className={styles.sideTitle}>
-                <EducationTermLink slug="sante-financiere">Santé financière</EducationTermLink>
+                <EducationTermLink slug="sante-financiere">{t("company.health.title")}</EducationTermLink>
               </h3>
               <div className={styles.healthScore}>
-                <span className={styles.healthBig}>{health.overall.toFixed(1).replace(".", ",")} / 10</span>
+                <span className={styles.healthBig}>{format.decimal(health.overall, 1)} / 10</span>
                 <span className={styles.healthPill} style={{ color: C.green }}>
-                  {health.label}
+                  {labels.health(health.label)}
                 </span>
               </div>
               <div className={styles.healthBar}>
@@ -1088,18 +1197,20 @@ export default function CompanySheetClient({
                 {health.pillars.map((p) => (
                   <li key={p.key}>
                     <span>
-                      <LinkedAnalysisLabel text={p.label} />
+                      <SheetTermLabel french={p.label} text={labels.healthPillar(p.key, p.label)} />
                     </span>
-                    <strong>{p.score.toFixed(1).replace(".", ",")}</strong>
+                    <strong>{format.decimal(p.score, 1)}</strong>
                   </li>
                 ))}
               </ul>
-              <p className={styles.sideNote}>{health.note}</p>
+              <p className={styles.sideNote}>
+                {labels.healthNote(health, { score: metrics.score, confidence: metrics.confidence })}
+              </p>
             </section>
 
             <section className={styles.sideCard}>
               <h3 className={styles.sideTitle}>
-                <EducationTermLink slug="gestion-du-risque">Gestion du risque</EducationTermLink>
+                <EducationTermLink slug="gestion-du-risque">{t("company.risk.title")}</EducationTermLink>
               </h3>
               <div className={styles.healthScore}>
                 <span className={styles.healthBig}>{metrics.riskAnalysis.riskScore}/100</span>
@@ -1114,7 +1225,7 @@ export default function CompanySheetClient({
                           : C.gold,
                   }}
                 >
-                  {metrics.riskAnalysis.riskTier}
+                  {labels.riskTier(metrics.riskAnalysis.riskTier)}
                 </span>
               </div>
               <div className={styles.healthBar}>
@@ -1134,58 +1245,62 @@ export default function CompanySheetClient({
               <ul className={styles.pillarList}>
                 {metrics.riskAnalysis.pillars.map((p) => {
                   const slug = educationSlugForRiskPillar(p.key);
-                  const label = p.label.replace(/^Risque de /i, "").replace(/^Risque /i, "");
+                  const label = t(`company.risk.link.${p.key}`);
                   return (
                     <li key={p.key}>
                       <span>
                         {slug ? <EducationTermLink slug={slug}>{label}</EducationTermLink> : label}
                       </span>
-                      <strong>{p.score == null ? "N/D" : p.score}</strong>
+                      <strong>{p.score == null ? nd : p.score}</strong>
                     </li>
                   );
                 })}
               </ul>
-              <p className={styles.sideNote}>{metrics.riskAnalysis.summary}</p>
+              <p className={styles.sideNote}>{riskSummaryText()}</p>
               {(metrics.riskAnalysis.maxDrawdownPercent != null ||
                 metrics.riskAnalysis.var95Percent != null) && (
               <p className={styles.sideNote}>
                 {metrics.riskAnalysis.maxDrawdownPercent != null ? (
                   <>
-                    <EducationTermLink slug="drawdown-maximal">Drawdown max</EducationTermLink>
+                    <EducationTermLink slug="drawdown-maximal">{t("company.risk.drawdown")}</EducationTermLink>
                     {" : "}
-                    {String(metrics.riskAnalysis.maxDrawdownPercent).replace(".", ",")} %
+                    {loosePercent(metrics.riskAnalysis.maxDrawdownPercent)}
                   </>
                 ) : (
                   <>
-                    <EducationTermLink slug="drawdown-maximal">Drawdown max</EducationTermLink> : N/D
+                    <EducationTermLink slug="drawdown-maximal">{t("company.risk.drawdown")}</EducationTermLink>
+                    {" : "}
+                    {nd}
                   </>
                 )}
                 {" · "}
                 {metrics.riskAnalysis.var95Percent != null ? (
                   <>
-                    <EducationTermLink slug="var-value-at-risk">VaR 95 %</EducationTermLink>
+                    <EducationTermLink slug="var-value-at-risk">{t("company.risk.var95")}</EducationTermLink>
                     {" : "}
-                    {String(metrics.riskAnalysis.var95Percent).replace(".", ",")} %
+                    {loosePercent(metrics.riskAnalysis.var95Percent)}
                   </>
                 ) : (
                   <>
-                    <EducationTermLink slug="var-value-at-risk">VaR 95 %</EducationTermLink> : N/D
+                    <EducationTermLink slug="var-value-at-risk">{t("company.risk.var95")}</EducationTermLink>
+                    {" : "}
+                    {nd}
                   </>
                 )}
                 {metrics.riskAnalysis.var99Percent != null ? (
                   <>
                     {" · "}
-                    <EducationTermLink slug="var-value-at-risk">VaR 99 %</EducationTermLink>
+                    <EducationTermLink slug="var-value-at-risk">{t("company.risk.var99")}</EducationTermLink>
                     {" : "}
-                    {String(metrics.riskAnalysis.var99Percent).replace(".", ",")} %
+                    {loosePercent(metrics.riskAnalysis.var99Percent)}
                   </>
                 ) : null}
                 {metrics.riskAnalysis.cvar95Percent != null ? (
                   <>
                     {" · "}
-                    <EducationTermLink slug="cvar-expected-shortfall">CVaR 95 %</EducationTermLink>
+                    <EducationTermLink slug="cvar-expected-shortfall">{t("company.risk.cvar95")}</EducationTermLink>
                     {" : "}
-                    {String(metrics.riskAnalysis.cvar95Percent).replace(".", ",")} %
+                    {loosePercent(metrics.riskAnalysis.cvar95Percent)}
                   </>
                 ) : null}
               </p>
@@ -1193,152 +1308,165 @@ export default function CompanySheetClient({
             </section>
 
             <section className={styles.sideCard}>
-              <h3 className={styles.sideTitle}>Identité</h3>
+              <h3 className={styles.sideTitle}>{t("company.identity.title")}</h3>
               <dl className={styles.identity}>
                 <div>
-                  <dt>Secteur</dt>
-                  <dd>{company.sector}</dd>
+                  <dt>{t("company.identity.sector")}</dt>
+                  <dd>{labels.sector(company.sector)}</dd>
                 </div>
                 <div>
-                  <dt>Pays</dt>
+                  <dt>{t("company.identity.country")}</dt>
                   <dd>
-                    {company.countryFlag} {company.country}
+                    {company.countryFlag} {labels.country(company.country)}
                   </dd>
                 </div>
                 <div>
-                  <dt>Ticker</dt>
+                  <dt>{t("company.identity.ticker")}</dt>
                   <dd>{company.ticker}</dd>
                 </div>
               </dl>
-              <p className={styles.sideNote}>
-                Profil émetteur détaillé (dirigeants, siège) non publié de façon homogène — N/D si absent des sources.
-              </p>
+              <p className={styles.sideNote}>{t("company.identity.note")}</p>
             </section>
 
             <section className={styles.sideCard}>
               <h3 className={styles.sideTitle}>
-                <EducationTermLink slug="signal-ouestbourse">Signal</EducationTermLink>
+                <EducationTermLink slug="signal-ouestbourse">{t("company.signal.title")}</EducationTermLink>
               </h3>
               <div className={styles.signalBox} style={{ borderColor: metrics.signal.color }}>
-                <div style={{ color: metrics.signal.color, fontWeight: 800 }}>{metrics.signal.label}</div>
+                <div style={{ color: metrics.signal.color, fontWeight: 800 }}>{labels.signal(metrics.signal.label)}</div>
                 <div className={styles.sideNote}>
-                  <EducationTermLink slug="score-composite">Score</EducationTermLink> {metrics.score}/100 ·{" "}
-                  <EducationTermLink slug="confiance-du-signal">Confiance</EducationTermLink> {metrics.confidence}
+                  <EducationTermLink slug="score-composite">{t("company.signal.score")}</EducationTermLink> {metrics.score}/100 ·{" "}
+                  <EducationTermLink slug="confiance-du-signal">{t("company.signal.confidence")}</EducationTermLink>{" "}
+                  {labels.confidence(metrics.confidence)}
                 </div>
-                <p className={styles.signalText}>{metrics.signalSummary}</p>
+                <p className={styles.signalText}>
+                  {labels.signalSummary({
+                    label: metrics.signal.label,
+                    score: metrics.score,
+                    confidence: metrics.confidence,
+                    signalSummary: metrics.signalSummary,
+                    signalReasons: metrics.signalReasons,
+                  })}
+                </p>
               </div>
               <ul className={styles.pillarList} style={{ marginTop: 12 }}>
                 <li>
                   <span>
-                    <LinkedAnalysisLabel text="Court terme" />
+                    <SheetTermLabel french="Court terme" text={labels.horizon("COURT", "full")} />
                   </span>
                   <strong>{metrics.horizonScores.court}</strong>
                 </li>
                 <li>
                   <span>
-                    <LinkedAnalysisLabel text="Moyen terme" />
+                    <SheetTermLabel french="Moyen terme" text={labels.horizon("MOYEN", "full")} />
                   </span>
                   <strong>{metrics.horizonScores.moyen}</strong>
                 </li>
                 <li>
                   <span>
-                    <LinkedAnalysisLabel text="Long terme" />
+                    <SheetTermLabel french="Long terme" text={labels.horizon("LONG", "full")} />
                   </span>
                   <strong>{metrics.horizonScores.long}</strong>
                 </li>
                 <li>
                   <span>
-                    <LinkedAnalysisLabel text="Technique" />
+                    <SheetTermLabel french="Technique" text={t("company.signal.technical")} />
                   </span>
                   <strong>{metrics.technicalScore}</strong>
                 </li>
                 <li>
                   <span>
-                    <LinkedAnalysisLabel text="Fondamental" />
+                    <SheetTermLabel french="Fondamental" text={t("company.signal.fundamental")} />
                   </span>
                   <strong>{metrics.fundamentalScore}</strong>
                 </li>
                 <li>
                   <span>
-                    <LinkedAnalysisLabel text="Sectoriel" />
+                    <SheetTermLabel french="Sectoriel" text={t("company.signal.sector")} />
                   </span>
                   <strong>{metrics.sectorScore}</strong>
                 </li>
               </ul>
               {metrics.technical.available ? (
                 <p className={styles.sideNote}>
-                  <EducationTermLink slug="rsi">RSI(14)</EducationTermLink>
+                  <EducationTermLink slug="rsi">{t("company.signal.rsi")}</EducationTermLink>
                   {" : "}
-                  {metrics.technical.rsi14 ?? "N/D"}
+                  {metrics.technical.rsi14 ?? nd}
                   {metrics.technical.macd ? (
                     <>
                       {" · "}
-                      <EducationTermLink slug="macd">MACD</EducationTermLink>
-                      {" hist. "}
+                      <EducationTermLink slug="macd">{t("company.signal.macd")}</EducationTermLink>
+                      {t("company.signal.macdHist")}
                       {metrics.technical.macd.histogram}
                     </>
                   ) : (
                     <>
                       {" · "}
-                      <EducationTermLink slug="macd">MACD</EducationTermLink> N/D
+                      <EducationTermLink slug="macd">{t("company.signal.macd")}</EducationTermLink> {nd}
                     </>
                   )}
                   {metrics.technical.sma10 != null ? (
                     <>
                       {" · "}
-                      <EducationTermLink slug="moyenne-mobile">SMA10</EducationTermLink> {metrics.technical.sma10}
+                      <EducationTermLink slug="moyenne-mobile">{t("company.signal.sma10")}</EducationTermLink>{" "}
+                      {metrics.technical.sma10}
                     </>
                   ) : null}
                   {metrics.technical.sma20 != null ? (
                     <>
                       {" · "}
-                      <EducationTermLink slug="moyenne-mobile">SMA20</EducationTermLink> {metrics.technical.sma20}
+                      <EducationTermLink slug="moyenne-mobile">{t("company.signal.sma20")}</EducationTermLink>{" "}
+                      {metrics.technical.sma20}
                     </>
                   ) : null}
                 </p>
               ) : (
-                <p className={styles.sideNote}>Indicateurs techniques : N/D (série trop courte).</p>
+                <p className={styles.sideNote}>{t("company.signal.techNd")}</p>
               )}
               <Link href={`/marche`} className={styles.inlineLink}>
-                Voir dans le marché →
+                {t("company.signal.seeMarket")}
               </Link>
               <Link
                 href={`/outils/taille-position?ticker=${encodeURIComponent(company.ticker)}`}
                 className={styles.inlineLink}
               >
-                Calculer la taille de position →
+                {t("company.positionSizeShort")}
               </Link>
               <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("charts")}>
-                Analyse graphique →
+                {t("company.signal.chartAnalysis")}
               </button>
             </section>
 
             <section className={styles.sideCard}>
-              <h3 className={styles.sideTitle}>Provenance</h3>
+              <h3 className={styles.sideTitle}>{t("company.provenance.title")}</h3>
               <dl className={styles.identity}>
                 <div>
-                  <dt>Source</dt>
+                  <dt>{t("common.source")}</dt>
                   <dd>
-                    {company.dataSource ? DATA_SOURCE_LABELS[company.dataSource] ?? company.dataSource : "N/D"}
+                    {company.dataSource
+                      ? DATA_SOURCE_KEYS[company.dataSource as keyof typeof DATA_SOURCE_KEYS]
+                        ? t(DATA_SOURCE_KEYS[company.dataSource as keyof typeof DATA_SOURCE_KEYS])
+                        : company.dataSource
+                      : nd}
                   </dd>
                 </div>
                 <div>
-                  <dt>Synchronisé</dt>
+                  <dt>{t("company.provenance.synced")}</dt>
                   <dd>
                     {company.lastSyncedAt
-                      ? new Date(company.lastSyncedAt).toLocaleString("fr-FR", {
+                      ? format.date(company.lastSyncedAt, {
                           day: "2-digit",
                           month: "2-digit",
                           year: "numeric",
                           hour: "2-digit",
                           minute: "2-digit",
                         })
-                      : "N/D"}
+                      : nd}
                   </dd>
                 </div>
                 <div>
-                  <dt>Points de cours</dt>
-                  <dd>{series.length || "N/D"}</dd>
+                  <dt>{t("company.provenance.points")}</dt>
+                  <dd>{series.length || nd}</dd>
                 </div>
               </dl>
             </section>
@@ -1363,98 +1491,91 @@ export default function CompanySheetClient({
       {resolvedTab === "societe" && (
         <>
           <section className={styles.card}>
-            <h2 className={styles.cardTitle}>Société</h2>
+            <h2 className={styles.cardTitle}>{t("company.profile.title")}</h2>
             <dl className={styles.profileMeta}>
               <div>
-                <dt>Raison sociale</dt>
+                <dt>{t("company.profile.legalName")}</dt>
                 <dd>{company.name}</dd>
               </div>
               <div>
-                <dt>Ticker</dt>
+                <dt>{t("company.profile.ticker")}</dt>
                 <dd>{company.ticker}</dd>
               </div>
               <div>
-                <dt>ISIN</dt>
-                <dd>{isin ?? "N/D"}</dd>
+                <dt>{t("company.profile.isin")}</dt>
+                <dd>{isin ?? nd}</dd>
               </div>
               <div>
-                <dt>Nombre de titres</dt>
+                <dt>{t("company.profile.shares")}</dt>
                 <dd>
-                  {profileMeta?.sharesOutstanding != null
-                    ? profileMeta.sharesOutstanding.toLocaleString("fr-FR")
-                    : "N/D"}
+                  {profileMeta?.sharesOutstanding != null ? format.number(profileMeta.sharesOutstanding) : nd}
                 </dd>
               </div>
               <div>
-                <dt>Flottant</dt>
+                <dt>{t("company.profile.float")}</dt>
                 <dd>
                   {profileMeta?.floatPercent != null
-                    ? `${String(profileMeta.floatPercent).replace(".", ",")}%`
-                    : "N/D"}
+                    ? `${format.number(profileMeta.floatPercent, { maximumFractionDigits: 8 })}%`
+                    : nd}
                 </dd>
               </div>
               <div>
-                <dt>Valorisation</dt>
-                <dd>{profileMeta?.valuationLabel ?? "N/D"}</dd>
+                <dt>{t("company.profile.valuation")}</dt>
+                <dd>{profileMeta?.valuationLabel ?? nd}</dd>
               </div>
               <div>
-                <dt>Téléphone</dt>
-                <dd>{profileMeta?.phone ?? "N/D"}</dd>
+                <dt>{t("company.profile.phone")}</dt>
+                <dd>{profileMeta?.phone ?? nd}</dd>
               </div>
               <div>
-                <dt>Fax</dt>
-                <dd>{profileMeta?.fax ?? "N/D"}</dd>
+                <dt>{t("company.profile.fax")}</dt>
+                <dd>{profileMeta?.fax ?? nd}</dd>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
-                <dt>Adresse</dt>
-                <dd>{profileMeta?.address ?? "N/D"}</dd>
+                <dt>{t("company.profile.address")}</dt>
+                <dd>{profileMeta?.address ?? nd}</dd>
               </div>
             </dl>
 
-            <h3 className={styles.profileDescTitle}>Description</h3>
+            <h3 className={styles.profileDescTitle}>{t("company.profile.description")}</h3>
             {description ? (
               <p className={styles.profileDesc}>{description}</p>
             ) : (
-              <p className={styles.empty}>
-                Description non disponible pour l&apos;instant (N/D). Elle sera complétée lors des
-                prochaines synchronisations.
-              </p>
+              <p className={styles.empty}>{t("company.profile.descriptionEmpty")}</p>
             )}
           </section>
 
           <section className={styles.card}>
-            <h2 className={styles.cardTitle}>Détails</h2>
+            <h2 className={styles.cardTitle}>{t("company.profile.details")}</h2>
             <dl className={styles.profileMeta}>
               <div>
-                <dt>Secteur</dt>
-                <dd>{company.sector || "N/D"}</dd>
+                <dt>{t("company.profile.sector")}</dt>
+                <dd>{company.sector ? labels.sector(company.sector) : nd}</dd>
               </div>
               <div>
-                <dt>Pays</dt>
+                <dt>{t("company.profile.country")}</dt>
                 <dd>
-                  {company.country
-                    ? `${company.countryFlag} ${company.country}`
-                    : "N/D"}
+                  {company.country ? `${company.countryFlag} ${labels.country(company.country)}` : nd}
                 </dd>
               </div>
               <div>
-                <dt>Industrie</dt>
-                <dd>{profileMeta?.industry ?? "N/D"}</dd>
+                <dt>{t("company.profile.industry")}</dt>
+                <dd>{profileMeta?.industry ?? nd}</dd>
               </div>
               <div>
-                <dt>Direction générale</dt>
-                <dd>{profileMeta?.ceo ?? profileMeta?.directors ?? "N/D"}</dd>
+                <dt>{t("company.profile.ceo")}</dt>
+                <dd>{profileMeta?.ceo ?? profileMeta?.directors ?? nd}</dd>
               </div>
               <div>
-                <dt>Présidence</dt>
-                <dd>{profileMeta?.chairman ?? "N/D"}</dd>
+                <dt>{t("company.profile.chairman")}</dt>
+                <dd>{profileMeta?.chairman ?? nd}</dd>
               </div>
               <div>
-                <dt>Introduction en bourse</dt>
-                <dd>{formatListingDate(listedSince ?? profileMeta?.listingDate)}</dd>
+                <dt>{t("company.profile.listing")}</dt>
+                <dd>{formatListingDate(listedSince ?? profileMeta?.listingDate, format, nd)}</dd>
               </div>
               <div>
-                <dt>Site web</dt>
+                <dt>{t("company.profile.website")}</dt>
                 <dd>
                   {profileMeta?.website ? (
                     <a
@@ -1466,7 +1587,7 @@ export default function CompanySheetClient({
                       {websiteLabel(profileMeta.website)}
                     </a>
                   ) : (
-                    "N/D"
+                    nd
                   )}
                 </dd>
               </div>
@@ -1477,12 +1598,12 @@ export default function CompanySheetClient({
             <ShareholdingPanel profileMeta={profileMeta} />
 
             <section className={styles.card}>
-              <h2 className={styles.cardTitle}>Autres actions du même secteur</h2>
+              <h2 className={styles.cardTitle}>{t("company.profile.peers")}</h2>
               <p className={styles.sideNote} style={{ marginTop: 0, marginBottom: 8 }}>
-                Secteur {company.sector}
+                {t("company.profile.sectorLine", { sector: labels.sector(company.sector) })}
               </p>
               {sectorPeers.length === 0 ? (
-                <p className={styles.empty}>Aucune autre société de ce secteur en base (N/D).</p>
+                <p className={styles.empty}>{t("company.profile.noPeers")}</p>
               ) : (
                 <ul className={styles.peerList}>
                   {sectorPeers.map((p) => (
@@ -1493,9 +1614,7 @@ export default function CompanySheetClient({
                           {p.countryFlag} {p.name}
                         </span>
                         <strong className={styles.peerPrice}>
-                          {p.lastPrice > 0
-                            ? `${Math.round(p.lastPrice).toLocaleString("fr-FR")} FCFA`
-                            : "N/D"}
+                          {p.lastPrice > 0 ? format.fcfa(p.lastPrice) : nd}
                         </strong>
                       </Link>
                     </li>
@@ -1511,15 +1630,15 @@ export default function CompanySheetClient({
         <div className={styles.eventsNewsSplit}>
           <section className={styles.card}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Événements</h2>
-              <span className={styles.cardMeta}>agenda corporate</span>
+              <h2 className={styles.cardTitle}>{t("company.events.title")}</h2>
+              <span className={styles.cardMeta}>{t("company.events.meta")}</span>
             </div>
             <EventsFeed events={events} />
           </section>
           <section className={styles.card}>
             <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>Actualités</h2>
-              <span className={styles.cardMeta}>fil valeur</span>
+              <h2 className={styles.cardTitle}>{t("company.news.title")}</h2>
+              <span className={styles.cardMeta}>{t("company.news.meta")}</span>
             </div>
             <NewsFeed news={news} />
           </section>
@@ -1529,24 +1648,24 @@ export default function CompanySheetClient({
       {resolvedTab === "documents" && (
         <section className={styles.card}>
           <div className={styles.cardHead}>
-            <h2 className={styles.cardTitle}>Documents déposés</h2>
-            <span className={styles.cardMeta}>PDF BRVM.org · catalogue OuestBourse</span>
+            <h2 className={styles.cardTitle}>{t("company.docs.title")}</h2>
+            <span className={styles.cardMeta}>{t("company.docs.meta")}</span>
           </div>
           <div className={styles.docToolbar}>
-            <div className={styles.docFilters} role="group" aria-label="Filtrer les documents">
+            <div className={styles.docFilters} role="group" aria-label={t("company.docs.filterAria")}>
               <button
                 type="button"
                 className={docFilter === "all" ? styles.docChipActive : styles.docChip}
                 onClick={() => setDocFilter("all")}
               >
-                Tous ({documents.length})
+                {t("company.docs.all", { count: documents.length })}
               </button>
               <button
                 type="button"
                 className={docFilter === "results" ? styles.docChipActive : styles.docChip}
                 onClick={() => setDocFilter("results")}
               >
-                Résultats ({resultsDocCount})
+                {t("company.docs.results", { count: resultsDocCount })}
               </button>
             </div>
             <button
@@ -1555,25 +1674,23 @@ export default function CompanySheetClient({
               onClick={() => void refreshDocuments()}
               disabled={docsRefreshing}
             >
-              {docsRefreshing ? "Actualisation…" : "Actualiser les documents"}
+              {docsRefreshing ? t("company.docs.refreshing") : t("company.docs.refresh")}
             </button>
           </div>
           {docsRefreshNote ? <p className={styles.docNote}>{docsRefreshNote}</p> : null}
           {visibleDocuments.length === 0 ? (
             <p className={styles.empty}>
-              {documents.length === 0
-                ? "Aucun document pour l'instant (N/D). Actualisez pour tirer le catalogue BRVM via OuestBourse — aucun PDF n'est inventé."
-                : "Aucune publication de résultats dans le catalogue actuel (N/D)."}
+              {documents.length === 0 ? t("company.docs.empty") : t("company.docs.noResults")}
             </p>
           ) : (
             <div className={styles.tableWrap}>
               <table className={styles.docsTable}>
                 <thead>
                   <tr>
-                    <th scope="col">Publié</th>
-                    <th scope="col">Type</th>
-                    <th scope="col">Période</th>
-                    <th scope="col">Intitulé</th>
+                    <th scope="col">{t("company.docs.published")}</th>
+                    <th scope="col">{t("company.docs.type")}</th>
+                    <th scope="col">{t("company.docs.period")}</th>
+                    <th scope="col">{t("company.docs.heading")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1581,15 +1698,15 @@ export default function CompanySheetClient({
                     const label = d.filename || d.title || d.url;
                     return (
                       <tr key={d.id} className={d.kind === "results" ? styles.docResultRow : undefined}>
-                        <td>{d.publishedAt ?? "N/D"}</td>
-                        <td>{d.docType ?? "N/D"}</td>
-                        <td>{d.periodLabel ?? "N/D"}</td>
+                        <td>{d.publishedAt ?? nd}</td>
+                        <td>{d.docType ?? nd}</td>
+                        <td>{d.periodLabel ?? nd}</td>
                         <td>
                           <a href={d.url} target="_blank" rel="noopener noreferrer">
                             {label}
                           </a>
                           {d.kind === "results" ? (
-                            <span className={styles.docBadge}>Résultats</span>
+                            <span className={styles.docBadge}>{t("company.docs.resultsBadge")}</span>
                           ) : null}
                         </td>
                       </tr>

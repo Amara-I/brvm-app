@@ -1,12 +1,23 @@
 import type { EducationIllustrationId } from "@/lib/education/catalog";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import styles from "./Education.module.css";
 
 /** Schémas pédagogiques SVG (pas de cours réels inventés). */
 export default function EducationIllustration({ id }: { id: EducationIllustrationId }) {
+  const { t } = getI18n();
+  const captions: Record<EducationIllustrationId, string> = {
+    rsi: t("education.illustrations.rsi"),
+    macd: t("education.illustrations.macd"),
+    "sma-cross": t("education.illustrations.smaCross"),
+    bollinger: t("education.illustrations.bollinger"),
+    "per-schema": t("education.illustrations.perSchema"),
+    "parcours-analyse": t("education.illustrations.parcours"),
+    "nav-app": t("education.illustrations.navApp"),
+  };
   return (
-    <figure className={styles.illustration} aria-label={CAPTIONS[id]}>
+    <figure className={styles.illustration} aria-label={captions[id]}>
       <svg viewBox="0 0 360 160" role="img" className={styles.illustrationSvg}>
-        <title>{CAPTIONS[id]}</title>
+        <title>{captions[id]}</title>
         {id === "rsi" && <RsiSvg />}
         {id === "macd" && <MacdSvg />}
         {id === "sma-cross" && <SmaCrossSvg />}
@@ -15,20 +26,10 @@ export default function EducationIllustration({ id }: { id: EducationIllustratio
         {id === "parcours-analyse" && <ParcoursSvg />}
         {id === "nav-app" && <NavSvg />}
       </svg>
-      <figcaption className={styles.illustrationCap}>{CAPTIONS[id]}</figcaption>
+      <figcaption className={styles.illustrationCap}>{captions[id]}</figcaption>
     </figure>
   );
 }
-
-const CAPTIONS: Record<EducationIllustrationId, string> = {
-  rsi: "RSI 14 : oscillateur 0–100 (Wilder). Repères usuels ~30 (survente) et ~70 (surachat) — des guides, pas des seuils absolus.",
-  macd: "MACD : ligne MACD, signal et histogramme (écart entre les deux).",
-  "sma-cross": "Croisement de moyennes mobiles (ex. SMA courte vs SMA longue).",
-  bollinger: "Bandes de Bollinger : moyenne centrale et enveloppe ± écarts-types.",
-  "per-schema": "PER = cours ÷ bénéfice par action (lecture relative).",
-  "parcours-analyse": "Parcours : contexte → fondamentaux → valorisation → technique → signal.",
-  "nav-app": "Navigation OuestBourse : menus principaux de l’application.",
-};
 
 function axis() {
   return (

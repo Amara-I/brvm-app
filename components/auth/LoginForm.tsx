@@ -4,33 +4,36 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
-import { authErrorMessage } from "@/lib/auth/oauth-errors";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import type { TFunc } from "@/lib/i18n/create-i18n";
+import { isPlausibleEmail, oauthMessage } from "./api-message";
 import PasswordField from "./PasswordField";
 import OAuthSignInButtons from "./OAuthSignInButtons";
 import styles from "./AuthForm.module.css";
 
-function messageFromQuery(searchParams: URLSearchParams): { text: string; ok: boolean } | null {
+function messageFromQuery(searchParams: URLSearchParams, t: TFunc): { text: string; ok: boolean } | null {
   if (searchParams.get("verified") === "1") {
-    return { ok: true, text: "Adresse email confirmée. Vous pouvez vous connecter." };
+    return { ok: true, text: t("auth.login.verified") };
   }
   if (searchParams.get("reset") === "1") {
-    return { ok: true, text: "Mot de passe mis à jour. Connectez-vous avec le nouveau mot de passe." };
+    return { ok: true, text: t("auth.login.passwordUpdated") };
   }
   if (searchParams.get("registered") === "1") {
-    return { ok: true, text: "Compte créé. Connectez-vous pour continuer." };
+    return { ok: true, text: t("auth.login.registered") };
   }
   const error = searchParams.get("error");
   if (error) {
-    return { ok: false, text: authErrorMessage(error) };
+    return { ok: false, text: oauthMessage(error, t) };
   }
   return null;
 }
 
 export default function LoginForm({ oauthProviders = [] }: { oauthProviders?: readonly string[] }) {
+  const { t } = useI18n();
   const router = useRouter();
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/portefeuille";
-  const queryMessage = useMemo(() => messageFromQuery(searchParams), [searchParams]);
+  const queryMessage = useMemo(() => messageFromQuery(searchParams, t), [searchParams, t]);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -40,11 +43,19 @@ export default function LoginForm({ oauthProviders = [] }: { oauthProviders?: re
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!isPlausibleEmail(email)) {
+      setError(t("auth.invalidEmail"));
+      return;
+    }
+    if (!password) {
+      setError(t("auth.passwordRequired"));
+      return;
+    }
     setLoading(true);
     const result = await signIn("credentials", { redirect: false, email, password });
     setLoading(false);
     if (result?.error) {
-      setError(authErrorMessage("CredentialsSignin"));
+      setError(oauthMessage("CredentialsSignin", t));
       return;
     }
     router.push(callbackUrl.startsWith("/") ? callbackUrl : "/portefeuille");
@@ -57,7 +68,7 @@ export default function LoginForm({ oauthProviders = [] }: { oauthProviders?: re
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
       <div className={styles.field}>
         <label htmlFor="email" className={styles.label}>
-          Adresse email
+          {t("auth.email")}
         </label>
         <input
           id="email"
@@ -72,12 +83,12 @@ export default function LoginForm({ oauthProviders = [] }: { oauthProviders?: re
 
       <PasswordField
         id="password"
-        label="Mot de passe"
+        label={t("auth.password")}
         value={password}
         onChange={setPassword}
         extra={
           <Link href="/mot-de-passe-oublie" className={styles.inlineLink}>
-            Mot de passe oublié ?
+            {t("auth.login.forgot")}
           </Link>
         }
       />
@@ -89,7 +100,7 @@ export default function LoginForm({ oauthProviders = [] }: { oauthProviders?: re
       ) : null}
 
       <button type="submit" className={styles.submit} disabled={loading}>
-        {loading ? "Connexion…" : "Se connecter"}
+        {loading ? t("auth.login.submitting") : t("auth.login.submit")}
       </button>
 
       <OAuthSignInButtons
@@ -98,8 +109,8 @@ export default function LoginForm({ oauthProviders = [] }: { oauthProviders?: re
       />
 
       <p className={styles.footer}>
-        Pas encore de compte ?{" "}
-        <Link href="/inscription">Créer un compte</Link>
+        {t("auth.login.noAccount")}{" "}
+        <Link href="/inscription">{t("auth.login.createAccount")}</Link>
       </p>
     </form>
   );

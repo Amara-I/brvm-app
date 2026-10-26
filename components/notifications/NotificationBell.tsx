@@ -2,10 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { notificationTypeLabel } from "./type-label";
 import styles from "./NotificationBell.module.css";
 
 type Notif = {
   id: string;
+  type?: string;
   typeLabel: string;
   title: string;
   body: string;
@@ -15,6 +18,7 @@ type Notif = {
 };
 
 export default function NotificationBell({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<Notif[]>([]);
@@ -61,8 +65,8 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
       <Link
         href="/connexion?callbackUrl=/notifications"
         className={styles.btn}
-        title="Connectez-vous pour voir vos alertes"
-        aria-label="Notifications — connexion requise"
+        title={t("notifications.bell.loginTitle")}
+        aria-label={t("notifications.bell.loginAria")}
       >
         🔔
       </Link>
@@ -93,7 +97,9 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
         type="button"
         className={styles.btn}
         aria-expanded={open}
-        aria-label={unread > 0 ? `Notifications, ${unread} non lues` : "Notifications"}
+        aria-label={
+          unread > 0 ? t("notifications.bell.unreadAria", { count: unread }) : t("notifications.title")
+        }
         onClick={() => {
           setOpen((v) => !v);
           if (!open) void load();
@@ -103,17 +109,17 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
         {unread > 0 ? <span className={styles.badge}>{unread > 99 ? "99+" : unread}</span> : null}
       </button>
       {open ? (
-        <div className={styles.panel} role="dialog" aria-label="Notifications récentes">
+        <div className={styles.panel} role="dialog" aria-label={t("notifications.bell.recent")}>
           <div className={styles.panelHead}>
-            <p className={styles.panelTitle}>Notifications</p>
+            <p className={styles.panelTitle}>{t("notifications.title")}</p>
             {unread > 0 ? (
               <button type="button" className={styles.link} onClick={() => void markAllRead()}>
-                Tout lu
+                {t("notifications.bell.markAllRead")}
               </button>
             ) : null}
           </div>
           {items.length === 0 ? (
-            <p className={styles.empty}>Aucune notification pour l&apos;instant.</p>
+            <p className={styles.empty}>{t("notifications.bell.empty")}</p>
           ) : (
             items.map((n) => (
               <Link
@@ -125,7 +131,7 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
                   setOpen(false);
                 }}
               >
-                <p className={styles.itemType}>{n.typeLabel}</p>
+                <p className={styles.itemType}>{notificationTypeLabel(n.type ?? "", t, n.typeLabel)}</p>
                 <p className={styles.itemTitle}>{n.title}</p>
                 <p className={styles.itemBody}>{n.body}</p>
               </Link>
@@ -133,10 +139,10 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
           )}
           <div className={styles.footer}>
             <Link href="/notifications" className={styles.link} onClick={() => setOpen(false)}>
-              Voir tout
+              {t("notifications.bell.seeAll")}
             </Link>
             <Link href="/profil#alertes" className={styles.link} onClick={() => setOpen(false)}>
-              Préférences
+              {t("notifications.bell.prefs")}
             </Link>
           </div>
         </div>

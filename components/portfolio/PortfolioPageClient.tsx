@@ -14,9 +14,10 @@ import PortfolioTransfer, { usePortfolioFileDrag } from "@/components/portfolio/
 import pageStyles from "@/components/portfolio/PortfolioPage.module.css";
 import { ExpandSection } from "@/components/ui/ExpandChevron";
 import PortfolioManageBar from "@/components/portfolio/PortfolioManageBar";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { localizeAssetType, localizeQuoteLabel } from "@/components/portfolio/portfolio-i18n";
 import {
   AllocationBars,
-  fmtFcfa,
   Kpi,
   panelStyle,
   allocationSectorsCol,
@@ -36,7 +37,6 @@ import {
   DISCRETE_AMOUNT_LABEL,
   mergeDiscreteMasks,
   isMasked,
-  fmtFcfaOrMasked,
   type DiscreteMaskConfig,
 } from "@/lib/portfolio/discrete-mode";
 
@@ -78,18 +78,16 @@ function useDiscreteMasks(): [DiscreteMaskConfig, (next: DiscreteMaskConfig) => 
 }
 
 function formatGainKpi(
+  format: ReturnType<typeof useI18n>["format"],
   amount: number,
   percent: number | "N/D",
   hideAmount: boolean,
   hidePercent: boolean
 ): string {
   if (hideAmount && hidePercent) return DISCRETE_AMOUNT_LABEL;
-  const pct =
-    !hidePercent && percent !== "N/D"
-      ? `${percent >= 0 ? "+" : ""}${percent}%`
-      : null;
+  const pct = !hidePercent && percent !== "N/D" ? format.percent(percent, 2, true) : null;
   if (hideAmount) return pct ?? DISCRETE_AMOUNT_LABEL;
-  const cash = `${amount >= 0 ? "+" : ""}${fmtFcfa(amount)}`;
+  const cash = `${amount >= 0 ? "+" : ""}${format.fcfa(amount)}`;
   return pct ? `${cash} (${pct})` : cash;
 }
 
@@ -108,6 +106,7 @@ function dayMove(series: { value: number; changePercent: number | null }[]): {
 }
 
 export default function PortfolioPageClient({ initialPortfolios, tickers, tradesByPortfolio }: Props) {
+  const { t, format, locale } = useI18n();
   const [portfolios, setPortfolios] = useState(initialPortfolios);
   const [openId, setOpenId] = useState<string | null>(() => {
     const empty = initialPortfolios.find((item) => item.holdings.length + item.otherHoldings.length === 0);
@@ -213,8 +212,8 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
         }
       `}</style>
       <PageHeader
-        kicker="Positions"
-        title="Mon portefeuille"
+        kicker={t("portfolio.page.kicker")}
+        title={t("portfolio.page.title")}
         actions={
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
             <CreatePortfolioButton onCreated={reloadFromApi} />
@@ -230,8 +229,8 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
 
       {portfolios.length === 0 && (
         <EmptyState
-          title="Aucun portefeuille pour l’instant"
-          body="Cliquez sur « + Nouveau portefeuille » pour commencer à suivre vos positions BRVM. Les champs sans donnée s’affichent N/D."
+          title={t("portfolio.empty.title")}
+          body={t("portfolio.empty.body")}
         />
       )}
 
@@ -292,20 +291,21 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
 
             <div className={pageStyles.kpis}>
               <Kpi
-                label="Total du portefeuille"
-                value={fmtFcfaOrMasked(p.combined.totalMarketValue, hidePortfolioTotal)}
+                label={t("portfolio.kpis.total")}
+                value={hidePortfolioTotal ? DISCRETE_AMOUNT_LABEL : format.fcfa(p.combined.totalMarketValue)}
                 educationSlug="valeur-de-marche"
                 hint={
                   hidePortfolioTotal
-                    ? "Montant masqué"
+                    ? t("portfolio.kpis.maskedAmount")
                     : p.metrics.marketPricesAsOfLabel !== "N/D"
-                      ? p.metrics.marketPricesAsOfLabel
-                      : "Cours actions : N/D"
+                      ? localizeQuoteLabel(p.metrics.marketPricesAsOfLabel, locale, t, format)
+                      : t("portfolio.kpis.priceNd")
                 }
               />
               <Kpi
-                label="Plus/moins-value latente"
+                label={t("portfolio.kpis.latent")}
                 value={formatGainKpi(
+                  format,
                   p.combined.totalGainLoss,
                   p.combined.totalGainLossPercent,
                   hideGainAmt,
@@ -313,28 +313,28 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                 )}
                 color={latentColor}
                 educationSlug="plus-moins-value-latente"
-                hint={hideGainAmt && hideGainPct ? "Montants masqués" : "FCFA et % vs PRU"}
+                hint={hideGainAmt && hideGainPct ? t("portfolio.kpis.maskedAmounts") : t("portfolio.kpis.vsPru")}
               />
               <Kpi
-                label="Variation du jour"
+                label={t("portfolio.kpis.day")}
                 value={
                   session.amount == null
                     ? "N/D"
-                    : formatGainKpi(session.amount, session.percent ?? "N/D", hideGainAmt, hideGainPct)
+                    : formatGainKpi(format, session.amount, session.percent ?? "N/D", hideGainAmt, hideGainPct)
                 }
                 color={sessionColor}
                 hint={
                   p.otherHoldings.length > 0
-                    ? "Actions seulement, vs clôture précédente"
+                    ? t("portfolio.kpis.dayStocks")
                     : session.amount == null
-                      ? "Pas assez de clôtures"
-                      : "vs clôture précédente"
+                      ? t("portfolio.kpis.dayNeed")
+                      : t("portfolio.kpis.dayPrev")
                 }
               />
               <Kpi
-                label="Montant investi"
-                value={fmtFcfaOrMasked(invested, hidePortfolioTotal)}
-                hint="Coût d’achat des lignes ouvertes"
+                label={t("portfolio.kpis.invested")}
+                value={hidePortfolioTotal ? DISCRETE_AMOUNT_LABEL : format.fcfa(invested)}
+                hint={t("portfolio.kpis.costHint")}
               />
             </div>
 
@@ -342,9 +342,9 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
               <>
                 {p.otherHoldings.length > 0 ? (
                   <h3 style={{ color: C.gold, fontSize: "0.95rem", margin: "4px 0 0" }}>
-                    Actions
+                    {t("portfolio.actionsHeading")}
                     <span style={{ color: C.textDim, fontWeight: 500, marginLeft: 8 }}>
-                      {fmtFcfa(p.metrics.totalMarketValue)}
+                      {format.fcfa(p.metrics.totalMarketValue)}
                     </span>
                   </h3>
                 ) : null}
@@ -359,10 +359,10 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
               </>
             ) : p.otherHoldings.length === 0 ? (
               <p className={pageStyles.emptyLine}>
-                Aucune position pour l’instant.
+                {t("portfolio.emptyLine")}
                 {openId === p.id ? null : (
                   <button type="button" className="ob-btn-ghost" onClick={() => setOpenId(p.id)}>
-                    Importer un relevé SGI
+                    {t("portfolio.importStatement")}
                   </button>
                 )}
               </p>
@@ -376,33 +376,37 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
             />
 
             <ExpandSection
-              title="Répartition et historique"
+              title={t("portfolio.fold.alloc")}
               className={pageStyles.secondary}
               buttonClassName={pageStyles.foldBtn}
             >
               <div className={pageStyles.kpis}>
                 <Kpi
-                  label="P&L réalisé (ventes)"
+                  label={t("portfolio.kpis.realized")}
                   value={
                     hideRealized
                       ? DISCRETE_AMOUNT_LABEL
-                      : `${summary.totalRealizedPnl >= 0 ? "+" : ""}${fmtFcfa(summary.totalRealizedPnl)}`
+                      : `${summary.totalRealizedPnl >= 0 ? "+" : ""}${format.fcfa(summary.totalRealizedPnl)}`
                   }
                   color={summary.totalRealizedPnl >= 0 ? C.green : C.red}
-                  hint={`${summary.salesCount} vente(s) · ${summary.lossCount} perte(s) · ${summary.gainCount} gain(s)`}
+                  hint={t("portfolio.kpis.salesHint", {
+                    sales: summary.salesCount,
+                    losses: summary.lossCount,
+                    gains: summary.gainCount,
+                  })}
                 />
                 <Kpi
-                  label="Performance YTD"
-                  value={p.metrics.ytdChangePercent !== "N/D" ? `${p.metrics.ytdChangePercent}%` : "N/D"}
+                  label={t("portfolio.kpis.ytd")}
+                  value={
+                    p.metrics.ytdChangePercent !== "N/D"
+                      ? format.percent(p.metrics.ytdChangePercent, 2, true)
+                      : "N/D"
+                  }
                   color={C.teal}
                   educationSlug="performance-ytd"
-                  hint={
-                    p.otherHoldings.length > 0
-                      ? "Actions seulement, vs dernier cours avant le 1er janvier"
-                      : "vs dernier cours avant le 1er janvier"
-                  }
+                  hint={p.otherHoldings.length > 0 ? t("portfolio.kpis.ytdOthers") : t("portfolio.kpis.ytdBase")}
                 />
-                <Kpi label="Lignes ouvertes" value={String(lineCount)} />
+                <Kpi label={t("portfolio.kpis.lines")} value={format.integer(lineCount)} />
               </div>
               <div
                 style={{
@@ -413,22 +417,28 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                   fontSize: "0.78rem",
                 }}
               >
-                <span style={{ color: C.textDim }}>Conseils analyse :</span>
-                <span style={{ color: C.green, fontWeight: 700 }}>{p.adviceRecap.reinforce} à renforcer</span>
-                <span style={{ color: C.gold, fontWeight: 700 }}>{p.adviceRecap.hold} à conserver</span>
-                <span style={{ color: C.red, fontWeight: 700 }}>{p.adviceRecap.exit} à sortir / alléger</span>
+                <span style={{ color: C.textDim }}>{t("portfolio.advice.prefix")}</span>
+                <span style={{ color: C.green, fontWeight: 700 }}>
+                  {t("portfolio.advice.increase", { count: p.adviceRecap.reinforce })}
+                </span>
+                <span style={{ color: C.gold, fontWeight: 700 }}>
+                  {t("portfolio.advice.hold", { count: p.adviceRecap.hold })}
+                </span>
+                <span style={{ color: C.red, fontWeight: 700 }}>
+                  {t("portfolio.advice.exit", { count: p.adviceRecap.exit })}
+                </span>
               </div>
               {p.otherHoldings.length > 0 ? (
                 <p style={{ color: C.textDim, fontSize: "0.78rem", margin: "8px 0 0" }}>
-                  L’historique de valeur ci-dessous porte sur les actions. Les obligations et FCP sont dans le total, sans historique de cours.
+                  {t("portfolio.historyNote")}
                 </p>
               ) : null}
               <PortfolioNavChart series={p.navSeries} titleSlug="evolution-portefeuille" discrete={hideNav} />
               {p.otherHoldings.length > 0 ? (
                 <AllocationBars
-                  heading="Répartition par type"
+                  heading={t("portfolio.asset.byType")}
                   items={p.combined.assetTypeBreakdown.map((slice) => ({
-                    sector: slice.type,
+                    sector: localizeAssetType(slice.type, t),
                     weightPercent: slice.weightPercent,
                   }))}
                 />
@@ -450,7 +460,7 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
               />
             </ExpandSection>
 
-            <ExpandSection title="Ajouter une ligne" className={pageStyles.addMore} buttonClassName={pageStyles.foldBtn}>
+            <ExpandSection title={t("portfolio.fold.add")} className={pageStyles.addMore} buttonClassName={pageStyles.foldBtn}>
               <AddHoldingForm portfolioId={p.id} tickers={tickers} />
               <OtherHoldingsSection portfolioId={p.id} holdings={p.otherHoldings} part="form" />
             </ExpandSection>

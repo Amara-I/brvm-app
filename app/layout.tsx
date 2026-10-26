@@ -15,7 +15,7 @@
 // `:root`, s'applique déjà correctement).
 import Script from "next/script";
 import { Suspense } from "react";
-import type { Viewport } from "next";
+import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import "./ui.css";
@@ -23,6 +23,8 @@ import { THEME_STORAGE_KEY } from "@/lib/theme/theme-storage-key";
 import { BROWSER_CHROME_BG } from "@/lib/theme/browser-chrome";
 import ScrollRestoration from "@/components/navigation/ScrollRestoration";
 import AnalyticsBeacon from "@/components/analytics/AnalyticsBeacon";
+import I18nProvider from "@/components/i18n/I18nProvider";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 import { BRAND_NAME } from "@/lib/theme/brand";
 
@@ -39,10 +41,13 @@ const ibmPlexMono = IBM_Plex_Mono({
   variable: "--font-ibm-plex-mono",
 });
 
-export const metadata = {
-  title: BRAND_NAME,
-  description: "Analyse financière des sociétés cotées à la BRVM",
-};
+export function generateMetadata(): Metadata {
+  const { t } = getI18n();
+  return {
+    title: BRAND_NAME,
+    description: t("chrome.meta.description"),
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -54,24 +59,27 @@ export const viewport: Viewport = {
 const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(t==="dark"){document.documentElement.setAttribute("data-theme","dark");var m=document.querySelector('meta[name="theme-color"]');if(!m){m=document.createElement("meta");m.setAttribute("name","theme-color");document.head.appendChild(m);}m.setAttribute("content",${JSON.stringify(BROWSER_CHROME_BG.dark)});}}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const { locale, messages, t } = getI18n();
   return (
-    <html lang="fr" className={`${inter.variable} ${ibmPlexMono.variable}`}>
+    <html lang={locale} className={`${inter.variable} ${ibmPlexMono.variable}`}>
       <head>
         <Script id="theme-init" strategy="beforeInteractive">
           {THEME_INIT_SCRIPT}
         </Script>
       </head>
       <body className={inter.className}>
-        <a href="#main-content" className="skip-link">
-          Aller au contenu principal
-        </a>
-        <main id="main-content">
-          <Suspense fallback={null}>
-            <ScrollRestoration />
-            <AnalyticsBeacon />
-          </Suspense>
-          {children}
-        </main>
+        <I18nProvider locale={locale} messages={messages}>
+          <a href="#main-content" className="skip-link">
+            {t("chrome.skip")}
+          </a>
+          <main id="main-content">
+            <Suspense fallback={null}>
+              <ScrollRestoration />
+              <AnalyticsBeacon />
+            </Suspense>
+            {children}
+          </main>
+        </I18nProvider>
       </body>
     </html>
   );

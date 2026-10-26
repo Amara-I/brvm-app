@@ -3,17 +3,19 @@ import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import IndexDetailClient from "@/components/indices/IndexDetailClient";
 import { getMarketIndexDetail } from "@/lib/api/market-indices";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: { code: string } }) {
+  const { t } = getI18n();
   const detail = await getMarketIndexDetail(params.code);
   if (!detail) {
-    return { title: "Indice — OuestBourse" };
+    return { title: t("market.indices.fallbackTitle") };
   }
   return {
-    title: `${detail.name} — Indices BRVM — OuestBourse`,
-    description: `Historique et indicateurs de ${detail.name}. Les champs absents s’affichent N/D.`,
+    title: t("market.indices.detailTitle", { name: detail.name }),
+    description: t("market.indices.detailDescription", { name: detail.name }),
   };
 }
 

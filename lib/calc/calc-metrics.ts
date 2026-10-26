@@ -15,6 +15,7 @@ import {
   type RiskClosePoint,
 } from "./risk-analysis";
 import { computeTechnicalSnapshot, type TechnicalSnapshot } from "../charts/technical-indicators";
+import type { SignalReasonCode } from "./signal-reason-codes";
 
 export interface CalcMetricsInput {
   /// Années disponibles, en ordre chronologique croissant (ex: 2015..2026).
@@ -42,7 +43,11 @@ export type SignalReasonKind = "positif" | "negatif" | "neutre";
 
 export interface SignalReason {
   kind: SignalReasonKind;
+  /** Phrase française historique — ne pas reformuler (tests + UI FR). */
   text: string;
+  /** Code stable pour l'affichage anglais. Absent sur d'anciens objets de test. */
+  code?: SignalReasonCode;
+  params?: Record<string, string | number>;
 }
 
 export interface HorizonScores {
@@ -132,6 +137,15 @@ function formatFrNumber(n: number, digits = 1): string {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   });
+}
+
+function reason(
+  kind: SignalReasonKind,
+  code: SignalReasonCode,
+  text: string,
+  params?: Record<string, string | number>
+): SignalReason {
+  return params ? { kind, code, text, params } : { kind, code, text };
 }
 
 function clamp100(n: number): number {
@@ -282,7 +296,7 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
   if (technical.shortTermScore != null) {
     court = clamp100(0.45 * court + 0.55 * technical.shortTermScore);
     for (const n of technical.notes.slice(0, 2)) {
-      reasons.push({ kind: "neutre", text: `Technique court terme : ${n}` });
+      reasons.push(reason("neutre", "technical.short", `Technique court terme : ${n}`, { note: n }));
     }
   }
 
@@ -338,132 +352,204 @@ export function calcMetrics(input: CalcMetricsInput, options: CalcMetricsOptions
   if (perf5Percent !== "N/D") {
     const v = parseFloat(perf5Percent);
     if (v >= 40) {
-      reasons.push({
-        kind: "positif",
-        text: `Forte performance sur 5 ans (+${formatFrNumber(v)} %), moteur principal du score.`,
-      });
+      reasons.push(
+        reason(
+          "positif",
+          "perf5.strong",
+          `Forte performance sur 5 ans (+${formatFrNumber(v)} %), moteur principal du score.`,
+          { value: v }
+        )
+      );
     } else if (v >= 10) {
-      reasons.push({ kind: "positif", text: `Performance 5 ans positive (+${formatFrNumber(v)} %).` });
+      reasons.push(
+        reason("positif", "perf5.positive", `Performance 5 ans positive (+${formatFrNumber(v)} %).`, { value: v })
+      );
     } else if (v >= 0) {
-      reasons.push({ kind: "neutre", text: `Performance 5 ans faible (+${formatFrNumber(v)} %).` });
+      reasons.push(
+        reason("neutre", "perf5.weak", `Performance 5 ans faible (+${formatFrNumber(v)} %).`, { value: v })
+      );
     } else {
-      reasons.push({ kind: "negatif", text: `Performance 5 ans négative (${formatFrNumber(v)} %).` });
+      reasons.push(
+        reason("negatif", "perf5.negative", `Performance 5 ans négative (${formatFrNumber(v)} %).`, { value: v })
+      );
     }
   } else if (availableSpanPerf !== null) {
-    reasons.push({
-      kind: availableSpanPerf >= 0 ? "neutre" : "negatif",
-      text: `Historique court (${historyDepth} ans) : perf. disponible ${availableSpanPerf >= 0 ? "+" : ""}${formatFrNumber(availableSpanPerf)} % (poids réduit).`,
-    });
+    reasons.push(
+      reason(
+        availableSpanPerf >= 0 ? "neutre" : "negatif",
+        "perf.shortHistory",
+        `Historique court (${historyDepth} ans) : perf. disponible ${availableSpanPerf >= 0 ? "+" : ""}${formatFrNumber(availableSpanPerf)} % (poids réduit).`,
+        { years: historyDepth, span: availableSpanPerf }
+      )
+    );
   } else {
-    reasons.push({
-      kind: "neutre",
-      text: "Performance multi-année non calculable (historique insuffisant) — critère non noté.",
-    });
+    reasons.push(
+      reason(
+        "neutre",
+        "perf.unavailable",
+        "Performance multi-année non calculable (historique insuffisant) — critère non noté."
+      )
+    );
   }
 
   if (yieldValue >= 5) {
-    reasons.push({
-      kind: "positif",
-      text: `Rendement du dividende attractif (${formatFrNumber(yieldValue, 2)} %).${yieldValue > 12 ? " Attention : niveau exceptionnel, contribution plafonnée." : ""}`,
-    });
+    const capped = yieldValue > 12;
+    reasons.push(
+      reason(
+        "positif",
+        capped ? "yield.attractiveCapped" : "yield.attractive",
+        `Rendement du dividende attractif (${formatFrNumber(yieldValue, 2)} %).${capped ? " Attention : niveau exceptionnel, contribution plafonnée." : ""}`,
+        { yield: yieldValue }
+      )
+    );
   } else if (yieldValue > 0) {
-    reasons.push({
-      kind: "neutre",
-      text: `Rendement du dividende modéré (${formatFrNumber(yieldValue, 2)} %).`,
-    });
+    reasons.push(
+      reason(
+        "neutre",
+        "yield.moderate",
+        `Rendement du dividende modéré (${formatFrNumber(yieldValue, 2)} %).`,
+        { yield: yieldValue }
+      )
+    );
   } else {
-    reasons.push({ kind: "negatif", text: "Aucun dividende courant détecté (rendement 0 %)." });
+    reasons.push(reason("negatif", "yield.none", "Aucun dividende courant détecté (rendement 0 %)."));
   }
 
   if (validDivs.length === 0) {
-    reasons.push({ kind: "negatif", text: "Aucune année de dividende connue sur la période." });
+    reasons.push(reason("negatif", "div.none", "Aucune année de dividende connue sur la période."));
   } else if (regularityRatio >= 0.7) {
-    reasons.push({
-      kind: "positif",
-      text: `Dividendes réguliers (${validDivs.length} année${validDivs.length > 1 ? "s" : ""} sur ${regularityWindow}).`,
-    });
+    reasons.push(
+      reason(
+        "positif",
+        "div.regular",
+        `Dividendes réguliers (${validDivs.length} année${validDivs.length > 1 ? "s" : ""} sur ${regularityWindow}).`,
+        { count: validDivs.length, window: regularityWindow }
+      )
+    );
   } else {
-    reasons.push({
-      kind: "neutre",
-      text: `Dividendes irréguliers ou historique partiel (${validDivs.length}/${regularityWindow} années).`,
-    });
+    reasons.push(
+      reason(
+        "neutre",
+        "div.irregular",
+        `Dividendes irréguliers ou historique partiel (${validDivs.length}/${regularityWindow} années).`,
+        { count: validDivs.length, window: regularityWindow }
+      )
+    );
   }
 
   if (!(per > 0) || per > 80) {
-    reasons.push({
-      kind: "negatif",
-      text:
-        !(per > 0)
-          ? "PER indisponible ou non significatif — valorisation non notée."
-          : `PER extrême (${formatFrNumber(per, 2)}) : valorisation peu lisible / potentiellement déformée.`,
-    });
+    if (!(per > 0)) {
+      reasons.push(
+        reason("negatif", "per.missing", "PER indisponible ou non significatif — valorisation non notée.")
+      );
+    } else {
+      reasons.push(
+        reason(
+          "negatif",
+          "per.extreme",
+          `PER extrême (${formatFrNumber(per, 2)}) : valorisation peu lisible / potentiellement déformée.`,
+          { per }
+        )
+      );
+    }
   } else if (per < 8) {
-    reasons.push({ kind: "positif", text: `PER bas (${formatFrNumber(per, 2)}) : valorisation attractive.` });
+    reasons.push(
+      reason("positif", "per.low", `PER bas (${formatFrNumber(per, 2)}) : valorisation attractive.`, { per })
+    );
   } else if (per < 12) {
-    reasons.push({ kind: "positif", text: `PER raisonnable (${formatFrNumber(per, 2)}).` });
+    reasons.push(reason("positif", "per.fair", `PER raisonnable (${formatFrNumber(per, 2)}).`, { per }));
   } else if (per < 18) {
-    reasons.push({ kind: "neutre", text: `PER dans la moyenne (${formatFrNumber(per, 2)}).` });
+    reasons.push(reason("neutre", "per.average", `PER dans la moyenne (${formatFrNumber(per, 2)}).`, { per }));
   } else if (per <= 40) {
-    reasons.push({
-      kind: "negatif",
-      text: `PER élevé (${formatFrNumber(per, 2)}) : titre cher par rapport aux bénéfices.`,
-    });
+    reasons.push(
+      reason(
+        "negatif",
+        "per.high",
+        `PER élevé (${formatFrNumber(per, 2)}) : titre cher par rapport aux bénéfices.`,
+        { per }
+      )
+    );
   } else {
-    reasons.push({ kind: "negatif", text: `PER très élevé (${formatFrNumber(per, 2)}).` });
+    reasons.push(reason("negatif", "per.veryHigh", `PER très élevé (${formatFrNumber(per, 2)}).`, { per }));
   }
 
   if (riskLevel === "Faible") {
-    reasons.push({
-      kind: "positif",
-      text: `Volatilité maîtrisée (${volatilityPercent} %) → risque faible.`,
-    });
+    reasons.push(
+      reason("positif", "vol.low", `Volatilité maîtrisée (${volatilityPercent} %) → risque faible.`, {
+        vol: volatilityPercent,
+      })
+    );
   } else if (riskLevel === "Moyen") {
-    reasons.push({
-      kind: "neutre",
-      text: `Volatilité modérée (${volatilityPercent} %) → risque moyen.`,
-    });
+    reasons.push(
+      reason("neutre", "vol.mid", `Volatilité modérée (${volatilityPercent} %) → risque moyen.`, {
+        vol: volatilityPercent,
+      })
+    );
   } else if (riskLevel === "Élevé") {
-    reasons.push({
-      kind: "negatif",
-      text: `Volatilité élevée (${volatilityPercent} %) → risque élevé.`,
-    });
+    reasons.push(
+      reason("negatif", "vol.high", `Volatilité élevée (${volatilityPercent} %) → risque élevé.`, {
+        vol: volatilityPercent,
+      })
+    );
   } else {
-    reasons.push({
-      kind: "neutre",
-      text: "Risque non évaluable (historique trop court pour mesurer la volatilité).",
-    });
+    reasons.push(
+      reason(
+        "neutre",
+        "vol.unknown",
+        "Risque non évaluable (historique trop court pour mesurer la volatilité)."
+      )
+    );
   }
 
-  reasons.push({
-    kind:
+  reasons.push(
+    reason(
       riskAnalysis.riskScore < 40 ? "positif" : riskAnalysis.riskScore > 65 ? "negatif" : "neutre",
-    text: `Gestion du risque : ${riskAnalysis.riskTier} (${riskAnalysis.riskScore}/100).`,
-  });
-  reasons.push({
-    kind: "neutre",
-    text: `Horizons — court ${court}/100 · moyen ${moyen}/100 · long ${long}/100 (tech. ${technicalScore}, fond. ${fundamentalScore}).`,
-  });
+      "risk.manage",
+      `Gestion du risque : ${riskAnalysis.riskTier} (${riskAnalysis.riskScore}/100).`,
+      { tier: riskAnalysis.riskTier, score: riskAnalysis.riskScore }
+    )
+  );
+  reasons.push(
+    reason(
+      "neutre",
+      "horizons",
+      `Horizons — court ${court}/100 · moyen ${moyen}/100 · long ${long}/100 (tech. ${technicalScore}, fond. ${fundamentalScore}).`,
+      { court, moyen, long, tech: technicalScore, fund: fundamentalScore }
+    )
+  );
 
   let signal = signalFromComposite(compositeScore, riskAnalysis.riskScore);
 
   if (confidence === "Faible") {
     if (signal.label === "ACHAT FORT") signal = signalOf("ACHAT");
     else if (signal.label === "VENDRE") signal = signalOf("ALLÉGER");
-    reasons.push({
-      kind: "neutre",
-      text: `Confiance ${confidence} (${historyDepth} année${historyDepth > 1 ? "s" : ""} de cours) : signal extrême modéré.`,
-    });
+    reasons.push(
+      reason(
+        "neutre",
+        "confidence.cappedExtreme",
+        `Confiance ${confidence} (${historyDepth} année${historyDepth > 1 ? "s" : ""} de cours) : signal extrême modéré.`,
+        { confidence, years: historyDepth }
+      )
+    );
   } else if (confidence === "Moyenne" && signal.label === "ACHAT FORT") {
     signal = signalOf("ACHAT");
-    reasons.push({
-      kind: "neutre",
-      text: `Confiance ${confidence} : le signal est plafonné à ACHAT (historique encore partiel).`,
-    });
+    reasons.push(
+      reason(
+        "neutre",
+        "confidence.cappedBuy",
+        `Confiance ${confidence} : le signal est plafonné à ACHAT (historique encore partiel).`,
+        { confidence }
+      )
+    );
   } else {
-    reasons.push({
-      kind: "neutre",
-      text: `Confiance ${confidence} dans l'analyse (${historyDepth} années de cours).`,
-    });
+    reasons.push(
+      reason(
+        "neutre",
+        "confidence.ok",
+        `Confiance ${confidence} dans l'analyse (${historyDepth} années de cours).`,
+        { confidence, years: historyDepth }
+      )
+    );
   }
 
   const signalSummary = buildSignalSummary(signal.label, score, confidence, reasons);

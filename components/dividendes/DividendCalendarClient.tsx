@@ -2,53 +2,32 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
+import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import {
   applyColumnSort,
   type ColumnFilterDef,
   type ColumnSortState,
 } from "@/lib/ui/column-filters";
 import type { DividendCalendarDataset, DividendCalendarEvent } from "@/lib/api/dividend-calendar";
+import type { TFunc } from "@/lib/i18n/create-i18n";
+import type { FormatApi } from "@/lib/i18n/format";
 import styles from "./DividendCalendar.module.css";
 
-const WEEKDAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+const COOLDOWN_FR =
+  "Actualisation récente — calendrier rechargé depuis la base (prochain tirage BRVM dans quelques minutes).";
 
-function buildColDefs(): ColumnFilterDef<DividendCalendarEvent>[] {
-  return [
-    { key: "ticker", label: "Ticker", sortKind: "text", getValue: (ev) => ev.ticker },
-    { key: "name", label: "Société", sortKind: "text", getValue: (ev) => ev.name },
-    { key: "sector", label: "Secteur", sortKind: "text", getValue: (ev) => ev.sector },
-    {
-      key: "amount",
-      label: "Montant / action",
-      sortKind: "number",
-      getValue: (ev) => String(ev.amount),
-    },
-    {
-      key: "exDate",
-      label: "Détachement",
-      sortKind: "text",
-      getValue: (ev) => ev.exDate ?? "N/D",
-    },
-    {
-      key: "paymentDate",
-      label: "Paiement",
-      sortKind: "text",
-      getValue: (ev) => ev.paymentDate ?? "N/D",
-    },
-    { key: "source", label: "Source", sortKind: "text", getValue: (ev) => ev.source },
-  ];
+function localizeStatus(msg: string, t: TFunc): string {
+  if (msg === COOLDOWN_FR) return t("market.dividends.cooldown");
+  return msg;
 }
 
-function fmtAmount(n: number): string {
-  return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
-}
-
-function fmtDateShort(iso: string | null): string {
+function fmtDateShort(iso: string | null, format: FormatApi): string {
   if (!iso) return "N/D";
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return "N/D";
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("fr-FR", {
+  return format.date(new Date(Date.UTC(y, m - 1, d)), {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -56,10 +35,10 @@ function fmtDateShort(iso: string | null): string {
   });
 }
 
-function fmtDateLong(iso: string): string {
+function fmtDateLong(iso: string, format: FormatApi): string {
   const [y, m, d] = iso.split("-").map(Number);
   if (!y || !m || !d) return "N/D";
-  return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString("fr-FR", {
+  return format.date(new Date(Date.UTC(y, m - 1, d)), {
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -68,8 +47,8 @@ function fmtDateLong(iso: string): string {
   });
 }
 
-function monthLabel(year: number, monthIndex: number): string {
-  return new Date(Date.UTC(year, monthIndex, 1)).toLocaleDateString("fr-FR", {
+function monthLabel(year: number, monthIndex: number, format: FormatApi): string {
+  return format.date(new Date(Date.UTC(year, monthIndex, 1)), {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
@@ -91,15 +70,39 @@ function buildMonthCells(year: number, monthIndex: number): Array<{ day: number 
 }
 
 function EventsTable({ rows }: { rows: DividendCalendarEvent[] }) {
-  const colDefs = useMemo(() => buildColDefs(), []);
-  const [colSort, setColSort] = useState<ColumnSortState | null>(null);
-  const sorted = useMemo(
-    () => applyColumnSort(rows, colDefs, colSort),
-    [rows, colDefs, colSort]
+  const { t, format, labels } = useI18n();
+  const colDefs = useMemo<ColumnFilterDef<DividendCalendarEvent>[]>(
+    () => [
+      { key: "ticker", label: t("market.columns.ticker"), sortKind: "text", getValue: (ev) => ev.ticker },
+      { key: "name", label: t("market.columns.company"), sortKind: "text", getValue: (ev) => ev.name },
+      { key: "sector", label: t("market.indices.col.sector"), sortKind: "text", getValue: (ev) => ev.sector },
+      {
+        key: "amount",
+        label: t("market.dividends.col.amount"),
+        sortKind: "number",
+        getValue: (ev) => String(ev.amount),
+      },
+      {
+        key: "exDate",
+        label: t("market.dividends.col.exDate"),
+        sortKind: "text",
+        getValue: (ev) => ev.exDate ?? "N/D",
+      },
+      {
+        key: "paymentDate",
+        label: t("market.dividends.col.payment"),
+        sortKind: "text",
+        getValue: (ev) => ev.paymentDate ?? "N/D",
+      },
+      { key: "source", label: t("common.source"), sortKind: "text", getValue: (ev) => ev.source },
+    ],
+    [t]
   );
+  const [colSort, setColSort] = useState<ColumnSortState | null>(null);
+  const sorted = useMemo(() => applyColumnSort(rows, colDefs, colSort), [rows, colDefs, colSort]);
 
   if (rows.length === 0) {
-    return <p className={styles.empty}>Aucun dividende pour cette sélection.</p>;
+    return <p className={styles.empty}>{t("market.dividends.empty")}</p>;
   }
   return (
     <div className={styles.tableWrap}>
@@ -121,11 +124,11 @@ function EventsTable({ rows }: { rows: DividendCalendarEvent[] }) {
                   {ev.name}
                 </span>
               </td>
-              <td>{ev.sector}</td>
-              <td className={styles.amount}>{fmtAmount(ev.amount)}</td>
-              <td>{fmtDateShort(ev.exDate)}</td>
-              <td>{fmtDateShort(ev.paymentDate)}</td>
-              <td className={styles.source}>{ev.source}</td>
+              <td>{labels.sector(ev.sector)}</td>
+              <td className={styles.amount}>{format.fcfa(Math.round(ev.amount))}</td>
+              <td>{fmtDateShort(ev.exDate, format)}</td>
+              <td>{fmtDateShort(ev.paymentDate, format)}</td>
+              <td className={styles.source}>{translateDataSourceLabel(ev.source, t)}</td>
             </tr>
           ))}
         </tbody>
@@ -135,6 +138,16 @@ function EventsTable({ rows }: { rows: DividendCalendarEvent[] }) {
 }
 
 export default function DividendCalendarClient({ data: initialData }: { data: DividendCalendarDataset }) {
+  const { t, format, labels } = useI18n();
+  const weekdays = [
+    t("market.dividends.weekdays.mon"),
+    t("market.dividends.weekdays.tue"),
+    t("market.dividends.weekdays.wed"),
+    t("market.dividends.weekdays.thu"),
+    t("market.dividends.weekdays.fri"),
+    t("market.dividends.weekdays.sat"),
+    t("market.dividends.weekdays.sun"),
+  ];
   const [data, setData] = useState(initialData);
   const [refreshing, setRefreshing] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -158,18 +171,22 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
       if (json.ok && json.data?.calendar) {
         setData(json.data.calendar as DividendCalendarDataset);
         const ing = json.data.ingestion;
-        if (ing?.skipped && ing.skipReason) setStatusMsg(ing.skipReason);
-        else if (ing?.errors?.length) setStatusMsg(ing.errors[0]);
+        if (ing?.skipped && ing.skipReason) setStatusMsg(localizeStatus(String(ing.skipReason), t));
+        else if (ing?.errors?.length) setStatusMsg(String(ing.errors[0]));
         else if (ing?.brvm?.ok) {
           setStatusMsg(
-            `Calendrier actualisé — ${ing.brvm.rows} ligne(s) BRVM · ${json.data.calendar.datedCount} date(s) connue(s).`
+            t("market.dividends.refreshed", {
+              rows: ing.brvm.rows,
+              dates: json.data.calendar.datedCount,
+            })
           );
         }
       } else {
-        setStatusMsg(json.error?.message ?? "Actualisation impossible.");
+        const raw = json.error?.message as string | undefined;
+        setStatusMsg(raw ? localizeStatus(raw, t) : t("market.dividends.refreshFailed"));
       }
     } catch {
-      setStatusMsg("Erreur réseau lors de l'actualisation.");
+      setStatusMsg(t("market.dividends.networkError"));
     } finally {
       setRefreshing(false);
     }
@@ -177,10 +194,8 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
 
   const now = new Date();
   const todayIso = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-  const calendarYears =
-    data.calendarYears?.length > 0 ? data.calendarYears : data.years;
-  const defaultYear =
-    calendarYears.find((y) => y === now.getFullYear()) ?? calendarYears[0] ?? now.getFullYear();
+  const calendarYears = data.calendarYears?.length > 0 ? data.calendarYears : data.years;
+  const defaultYear = calendarYears.find((y) => y === now.getFullYear()) ?? calendarYears[0] ?? now.getFullYear();
 
   // Décembre : ancrage des dividendes sans date précise (exercice)
   const initialMonth = data.datedCount > 0 ? now.getMonth() : 11;
@@ -228,9 +243,7 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
   const dayRows = selectedDay ? byDay.get(selectedDay) ?? [] : [];
 
   const listForYear = useMemo(() => {
-    return filtered
-      .filter((ev) => ev.year === viewYear)
-      .sort((a, b) => a.ticker.localeCompare(b.ticker, "fr"));
+    return filtered.filter((ev) => ev.year === viewYear).sort((a, b) => a.ticker.localeCompare(b.ticker, "fr"));
   }, [filtered, viewYear]);
 
   const upcomingRows = useMemo(() => {
@@ -246,54 +259,57 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
     setSelectedDay(null);
   }
 
+  const monthName = monthLabel(viewYear, viewMonth, format);
+
   return (
     <div className={styles.wrap}>
       <div className={styles.toolbar}>
         <div className={styles.toolbarTop}>
-          <div className={styles.tabs} role="tablist" aria-label="Mode d'affichage">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "liste"}
-            className={mode === "liste" ? styles.tabActive : styles.tab}
-            onClick={() => setMode("liste")}
-          >
-            Liste par exercice
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "avenir"}
-            className={mode === "avenir" ? styles.tabActive : styles.tab}
-            onClick={() => setMode("avenir")}
-          >
-            À venir{data.upcomingCount > 0 ? ` (${data.upcomingCount})` : ""}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={mode === "mois"}
-            className={mode === "mois" ? styles.tabActive : styles.tab}
-            onClick={() => setMode("mois")}
-          >
-            Vue mensuelle
-          </button>
+          <div className={styles.tabs} role="tablist" aria-label={t("market.dividends.modeAria")}>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "liste"}
+              className={mode === "liste" ? styles.tabActive : styles.tab}
+              onClick={() => setMode("liste")}
+            >
+              {t("market.dividends.byYear")}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "avenir"}
+              className={mode === "avenir" ? styles.tabActive : styles.tab}
+              onClick={() => setMode("avenir")}
+            >
+              {t("market.dividends.upcoming")}
+              {data.upcomingCount > 0 ? ` (${data.upcomingCount})` : ""}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={mode === "mois"}
+              className={mode === "mois" ? styles.tabActive : styles.tab}
+              onClick={() => setMode("mois")}
+            >
+              {t("market.dividends.monthly")}
+            </button>
           </div>
           <button
             type="button"
             className={styles.refreshBtn}
             onClick={() => void handleRefresh()}
             disabled={refreshing}
-            title="Actualiser depuis BRVM.org et Sikafinance"
+            title={t("market.dividends.refreshTitle")}
           >
-            {refreshing ? "⟳ Actualisation..." : "⟳ Actualiser le calendrier"}
+            {refreshing ? t("market.dividends.refreshing") : t("market.dividends.refresh")}
           </button>
         </div>
 
         <div className={styles.filters}>
           {mode !== "avenir" ? (
             <label className={styles.filterLabel}>
-              {mode === "mois" ? "Année calendaire" : "Exercice"}
+              {mode === "mois" ? t("market.dividends.calendarYear") : t("market.dividends.fiscalYear")}
               <select
                 className={styles.control}
                 value={viewYear}
@@ -302,35 +318,33 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
                   setSelectedDay(null);
                 }}
               >
-                {(mode === "mois" ? calendarYears : data.years.length > 0 ? data.years : [viewYear]).map(
-                  (y) => (
-                    <option key={y} value={y}>
-                      {y}
-                    </option>
-                  )
-                )}
+                {(mode === "mois" ? calendarYears : data.years.length > 0 ? data.years : [viewYear]).map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
               </select>
             </label>
           ) : null}
           <label className={styles.filterLabel}>
-            Secteur
+            {t("market.dividends.sector")}
             <select className={styles.control} value={sector} onChange={(e) => setSector(e.target.value)}>
-              <option value="Tous">Tous</option>
+              <option value="Tous">{t("market.all")}</option>
               {data.sectors.map((s) => (
                 <option key={s} value={s}>
-                  {s}
+                  {labels.sector(s)}
                 </option>
               ))}
             </select>
           </label>
           <label className={`${styles.filterLabel} ${styles.filterGrow}`}>
-            Recherche
+            {t("market.dividends.search")}
             <input
               className={styles.control}
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Ticker ou nom"
+              placeholder={t("market.dividends.searchPlaceholder")}
             />
           </label>
         </div>
@@ -340,39 +354,60 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
 
       <p className={styles.count}>
         {mode === "liste"
-          ? `${listForYear.length} ligne${listForYear.length > 1 ? "s" : ""} — exercice ${viewYear}`
+          ? t(listForYear.length > 1 ? "market.dividends.listMany" : "market.dividends.listOne", {
+              count: listForYear.length,
+              year: viewYear,
+            })
           : mode === "avenir"
-            ? `${upcomingRows.length} dividende${upcomingRows.length > 1 ? "s" : ""} à venir`
-          : `${monthRows.length} dividende${monthRows.length > 1 ? "s" : ""} — ${monthLabel(viewYear, viewMonth)}`}
+            ? t(upcomingRows.length > 1 ? "market.dividends.upcomingMany" : "market.dividends.upcomingOne", {
+                count: upcomingRows.length,
+              })
+            : t(monthRows.length > 1 ? "market.dividends.monthMany" : "market.dividends.monthOne", {
+                count: monthRows.length,
+                month: monthName,
+              })}
         <span className={styles.countDim}>
           {" "}
-          · {data.datedCount} date(s) connue(s) · {data.exerciceOnlyCount} sans date (N/D)
+          {t("market.dividends.countMeta", {
+            dated: data.datedCount,
+            undated: data.exerciceOnlyCount,
+          })}
         </span>
       </p>
 
       {mode === "liste" ? (
-        <section className={styles.panel} aria-label={`Dividendes exercice ${viewYear}`}>
+        <section className={styles.panel} aria-label={t("market.dividends.yearPanel", { year: viewYear })}>
           <EventsTable rows={listForYear} />
         </section>
       ) : mode === "avenir" ? (
-        <section className={styles.panel} aria-label="Dividendes à venir">
+        <section className={styles.panel} aria-label={t("market.dividends.upcomingPanel")}>
           <EventsTable rows={upcomingRows} />
         </section>
       ) : (
         <div className={styles.monthLayout}>
-          <section className={styles.panel} aria-label="Calendrier mensuel">
+          <section className={styles.panel} aria-label={t("market.dividends.monthPanel")}>
             <div className={styles.monthBar}>
-              <button type="button" className={styles.monthBtn} onClick={() => shiftMonth(-1)} aria-label="Mois précédent">
-                Préc.
+              <button
+                type="button"
+                className={styles.monthBtn}
+                onClick={() => shiftMonth(-1)}
+                aria-label={t("market.dividends.prevMonthAria")}
+              >
+                {t("market.dividends.prevMonth")}
               </button>
-              <h2 className={styles.monthHeading}>{monthLabel(viewYear, viewMonth)}</h2>
-              <button type="button" className={styles.monthBtn} onClick={() => shiftMonth(1)} aria-label="Mois suivant">
-                Suiv.
+              <h2 className={styles.monthHeading}>{monthName}</h2>
+              <button
+                type="button"
+                className={styles.monthBtn}
+                onClick={() => shiftMonth(1)}
+                aria-label={t("market.dividends.nextMonthAria")}
+              >
+                {t("market.dividends.nextMonth")}
               </button>
             </div>
 
             <div className={styles.calHead}>
-              {WEEKDAYS.map((d) => (
+              {weekdays.map((d) => (
                 <div key={d} className={styles.calHeadCell}>
                   {d}
                 </div>
@@ -408,14 +443,16 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
             </div>
           </section>
 
-          <section className={styles.panel} aria-label="Détail du jour ou du mois">
+          <section className={styles.panel} aria-label={t("market.dividends.detailPanel")}>
             <h3 className={styles.detailTitle}>
-              {selectedDay ? fmtDateLong(selectedDay) : `Tous les dividendes — ${monthLabel(viewYear, viewMonth)}`}
+              {selectedDay
+                ? fmtDateLong(selectedDay, format)
+                : t("market.dividends.allMonth", { month: monthName })}
             </h3>
             <EventsTable rows={selectedDay ? dayRows : monthRows} />
             {selectedDay ? (
               <button type="button" className={styles.clearDay} onClick={() => setSelectedDay(null)}>
-                Afficher tout le mois
+                {t("market.dividends.showMonth")}
               </button>
             ) : null}
           </section>

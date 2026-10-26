@@ -6,6 +6,8 @@ import { useEffect, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { C } from "@/lib/theme/colors";
 import { notifyPortfolioChanged } from "@/lib/api/portfolio-trades-client";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { showPortfolioApiError } from "@/components/portfolio/portfolio-i18n";
 
 type Props = {
   onCreated?: () => void | Promise<void>;
@@ -17,6 +19,7 @@ type SuccessInfo = {
 };
 
 export default function CreatePortfolioButton({ onCreated }: Props) {
+  const { t, format } = useI18n();
   const router = useRouter();
   const titleId = useId();
   const [loading, setLoading] = useState(false);
@@ -35,8 +38,10 @@ export default function CreatePortfolioButton({ onCreated }: Props) {
   async function handleClick() {
     if (loading) return;
 
-    const suggested = `Portefeuille ${new Date().toLocaleDateString("fr-FR")}`;
-    const nameRaw = window.prompt("Nom du nouveau portefeuille :", suggested);
+    const suggested = t("portfolio.create.defaultName", {
+      date: format.date(new Date(), { day: "2-digit", month: "2-digit", year: "numeric" }),
+    });
+    const nameRaw = window.prompt(t("portfolio.create.prompt"), suggested);
     if (nameRaw == null) return;
     const name = nameRaw.trim() || suggested;
 
@@ -53,10 +58,13 @@ export default function CreatePortfolioButton({ onCreated }: Props) {
       const json = await res.json().catch(() => null);
       if (!res.ok || !json?.ok) {
         setError(
-          json?.error ??
-            (res.status === 401
-              ? "Session expirée — reconnectez-vous."
-              : `Impossible de créer le portefeuille (${res.status}).`)
+          showPortfolioApiError(
+            t,
+            json?.error,
+            res.status === 401
+              ? t("portfolio.create.session")
+              : t("portfolio.create.failed", { status: res.status })
+          )
         );
         return;
       }
@@ -69,7 +77,7 @@ export default function CreatePortfolioButton({ onCreated }: Props) {
       router.refresh();
       setSuccess({ id: createdId, name: createdName });
     } catch {
-      setError("Impossible de créer le portefeuille (réseau).");
+      setError(t("portfolio.create.network"));
     } finally {
       setLoading(false);
     }
@@ -109,7 +117,7 @@ export default function CreatePortfolioButton({ onCreated }: Props) {
             opacity: loading ? 0.7 : 1,
           }}
         >
-          {loading ? "Création…" : "+ Nouveau portefeuille"}
+          {loading ? t("portfolio.create.loading") : t("portfolio.create.button")}
         </button>
         {error ? (
           <span role="alert" style={{ color: C.red, fontSize: "0.72rem", fontWeight: 600 }}>
@@ -156,14 +164,17 @@ export default function CreatePortfolioButton({ onCreated }: Props) {
                 fontFamily: "inherit",
               }}
             >
-              Portefeuille créé
+              {t("portfolio.create.successTitle")}
             </h2>
             <p style={{ margin: "0 0 8px", color: C.text, fontSize: "0.9rem", lineHeight: 1.45 }}>
-              « <strong>{success.name}</strong> » a été créé avec succès.
+              {t("portfolio.create.successBefore")}
+              <strong>{success.name}</strong>
+              {t("portfolio.create.successAfter")}
             </p>
             <p style={{ margin: "0 0 16px", color: C.textDim, fontSize: "0.82rem", lineHeight: 1.45 }}>
-              Vous le trouverez sur cette page <strong>/portefeuille</strong>, dans la liste ci-dessous
-              (panneau portant ce nom). Utilisez « Renommer » ou « Supprimer » sur son en-tête pour le gérer.
+              {t("portfolio.create.hintBefore")}
+              <strong>/portefeuille</strong>
+              {t("portfolio.create.hintAfter")}
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
               <button
@@ -181,7 +192,7 @@ export default function CreatePortfolioButton({ onCreated }: Props) {
                   cursor: "pointer",
                 }}
               >
-                Fermer
+                {t("common.close")}
               </button>
               <button
                 type="button"
@@ -198,7 +209,7 @@ export default function CreatePortfolioButton({ onCreated }: Props) {
                   cursor: "pointer",
                 }}
               >
-                Voir le portefeuille
+                {t("portfolio.create.see")}
               </button>
             </div>
           </div>

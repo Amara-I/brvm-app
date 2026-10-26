@@ -2,14 +2,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
-import { C } from "@/lib/theme/colors";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import {
-  EDUCATION_LEVEL_LABELS,
   EDUCATION_THEMES,
   getCategoryForTheme,
   getThemeBySlug,
   termsByTheme,
 } from "@/lib/education/catalog";
+import { localizeCategory, localizeLevelLabel, localizeTerm, localizeTheme } from "@/lib/education/localize";
 import {
   COMMON_PORTFOLIO_RULES,
   PORTFOLIO_TYPE_COMPARISON_HEADERS,
@@ -19,30 +19,36 @@ import {
 import styles from "@/components/education/Education.module.css";
 
 export function generateStaticParams() {
-  return EDUCATION_THEMES.map((t) => ({ theme: t.slug }));
+  return EDUCATION_THEMES.map((theme) => ({ theme: theme.slug }));
 }
 
 export function generateMetadata({ params }: { params: { theme: string } }) {
+  const { t, locale } = getI18n();
   const theme = getThemeBySlug(params.theme);
+  const localized = theme ? localizeTheme(theme, locale) : undefined;
   return {
-    title: theme ? `${theme.title} — Éducation · OuestBourse` : "Éducation — OuestBourse",
-    description: theme?.blurb,
+    title: localized
+      ? t("education.metaTitleWith", { title: localized.title })
+      : t("education.metaTitle"),
+    description: localized?.blurb,
   };
 }
 
 export default function EducationThemePage({ params }: { params: { theme: string } }) {
-  const theme = getThemeBySlug(params.theme);
-  if (!theme) notFound();
-  const terms = termsByTheme(theme.slug);
-  const category = getCategoryForTheme(theme.slug);
-
+  const { t, locale } = getI18n();
+  const rawTheme = getThemeBySlug(params.theme);
+  if (!rawTheme) notFound();
+  const theme = localizeTheme(rawTheme, locale);
+  const terms = termsByTheme(theme.slug).map((term) => localizeTerm(term, locale));
+  const rawCategory = getCategoryForTheme(theme.slug);
+  const category = rawCategory ? localizeCategory(rawCategory, locale) : undefined;
   return (
     <AppHeader>
       <div className={styles.page}>
-        <nav className={styles.crumb} aria-label="Fil d'Ariane">
-          <Link href="/">Accueil</Link>
+        <nav className={styles.crumb} aria-label={t("education.crumbLabel")}>
+          <Link href="/">{t("education.home")}</Link>
           {" · "}
-          <Link href="/education">Éducation</Link>
+          <Link href="/education">{t("education.title")}</Link>
           {category && (
             <>
               {" · "}
@@ -55,20 +61,21 @@ export default function EducationThemePage({ params }: { params: { theme: string
         <h1 className={styles.h1}>{theme.title}</h1>
         <p className={styles.lead}>{theme.blurb}</p>
         <p className={styles.disclaimer}>
-          Contenu pédagogique — pas un conseil d&apos;investissement. {terms.length} fiche
-          {terms.length > 1 ? "s" : ""} dans ce thème
-          {category ? ` · catégorie ${category.title}` : ""}.
+          {t(terms.length > 1 ? "education.themeDisclaimerMany" : "education.themeDisclaimerOne", {
+            count: terms.length,
+            category: category ? t("education.categoryInline", { title: category.title }) : "",
+          })}
         </p>
         {theme.slug === "taille-position" && (
           <p style={{ margin: "0 0 18px" }}>
             <Link href="/outils/taille-position?example=sogb" className={styles.cta}>
-              Ouvrir la calculette de taille de position
+              {t("education.openPositionCalc")}
             </Link>
           </p>
         )}
         {theme.slug === PORTFOLIO_TYPE_THEME_SLUG && (
           <div className={styles.hubCompare}>
-            <p className={styles.sectionLabel}>Tableau comparatif</p>
+            <p className={styles.sectionLabel}>{t("education.comparisonTable")}</p>
             <figure className={styles.tableWrap}>
               <div className={styles.tableScroll}>
                 <table className={styles.articleTable}>
@@ -94,7 +101,7 @@ export default function EducationThemePage({ params }: { params: { theme: string
               </div>
             </figure>
             <p className={styles.sectionLabel} style={{ marginTop: 18 }}>
-              Règles communes
+              {t("education.commonRules")}
             </p>
             <ul className={styles.articleList}>
               {COMMON_PORTFOLIO_RULES.map((rule) => (
@@ -104,13 +111,13 @@ export default function EducationThemePage({ params }: { params: { theme: string
           </div>
         )}
         <ul className={styles.termList}>
-          {terms.map((t) => (
-            <li key={t.slug}>
-              <Link href={`/education/${theme.slug}/${t.slug}`} className={styles.termRow}>
-                <span className={styles.badge}>{EDUCATION_LEVEL_LABELS[t.level]}</span>
-                {t.source === "plateforme" && <span className={styles.badge}>OuestBourse</span>}
-                <p className={styles.termTitle}>{t.title}</p>
-                <p className={styles.termDef}>{t.definition}</p>
+          {terms.map((term) => (
+            <li key={term.slug}>
+              <Link href={`/education/${theme.slug}/${term.slug}`} className={styles.termRow}>
+                <span className={styles.badge}>{localizeLevelLabel(term.level, locale)}</span>
+                {term.source === "plateforme" && <span className={styles.badge}>{t("education.badgePlatform")}</span>}
+                <p className={styles.termTitle}>{term.title}</p>
+                <p className={styles.termDef}>{term.definition}</p>
               </Link>
             </li>
           ))}

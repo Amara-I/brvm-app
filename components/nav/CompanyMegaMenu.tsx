@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { C } from "@/lib/theme/colors";
 import MegaMenuTrigger from "./MegaMenuTrigger";
 import styles from "./MegaMenu.module.css";
@@ -31,6 +32,7 @@ export default function CompanyMegaMenu({
   variant?: "inline" | "sidebar";
   onNavigate?: () => void;
 }) {
+  const { t, format, labels } = useI18n();
   const { open, close, toggle, wrapperRef, triggerRef, panelId } = useMegaMenu();
   const isSidebar = variant === "sidebar";
   const wrapperClass = isSidebar ? `${styles.wrapper} ${styles.wrapperSidebar}` : styles.wrapper;
@@ -45,7 +47,7 @@ export default function CompanyMegaMenu({
   return (
     <div className={wrapperClass} ref={wrapperRef} style={cssVars}>
       <MegaMenuTrigger
-        label="Sociétés cotées"
+        label={t("auth.mega.companies")}
         open={open}
         panelId={panelId}
         triggerRef={triggerRef}
@@ -56,10 +58,12 @@ export default function CompanyMegaMenu({
       />
 
       {open && (
-        <div id={panelId} role="region" aria-label="Sociétés cotées" className={panelClass}>
+        <div id={panelId} role="region" aria-label={t("auth.mega.companiesAria")} className={panelClass}>
           <div className={styles.panelHeader}>
             <span className={styles.panelTitle}>
-              La cote — {totalCount} émetteur{totalCount > 1 ? "s" : ""}
+              {totalCount > 1
+                ? t("auth.mega.issuers", { count: totalCount })
+                : t("auth.mega.issuer", { count: totalCount })}
             </span>
             <Link
               href="/societes-cotees"
@@ -68,14 +72,14 @@ export default function CompanyMegaMenu({
               data-analytics-feature="societes_cotees"
               data-analytics-action="mega_menu_all"
             >
-              Voir tout →
+              {t("common.seeAll")} →
             </Link>
           </div>
           <div className={styles.panelGrid}>
             {groups.map((g) => (
               <div key={g.sector} className={styles.sectorCol}>
                 <div className={styles.sectorHeading}>
-                  {g.sector.toUpperCase()}{" "}
+                  {labels.sector(g.sector).toUpperCase()}{" "}
                   <span className={styles.sectorCount}>({g.companies.length})</span>
                 </div>
                 {g.companies.map((co) => (
@@ -95,9 +99,7 @@ export default function CompanyMegaMenu({
                       <span className={styles.companyName}>{co.name}</span>
                     </span>
                     <span className={styles.companyPrice}>
-                      {co.lastPrice !== null && co.lastPrice > 0
-                        ? `${co.lastPrice.toLocaleString("fr-FR")} FCFA`
-                        : "N/D"}
+                      {co.lastPrice !== null && co.lastPrice > 0 ? format.fcfa(co.lastPrice) : t("common.nd")}
                     </span>
                   </Link>
                 ))}
@@ -106,7 +108,7 @@ export default function CompanyMegaMenu({
           </div>
           <div className={styles.panelFooter}>
             <Link href="/societes-cotees" className={styles.footerLink} onClick={closeMenu}>
-              Voir toutes les sociétés cotées →
+              {t("auth.mega.seeAllCompanies")}
             </Link>
           </div>
         </div>

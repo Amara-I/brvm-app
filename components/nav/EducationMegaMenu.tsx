@@ -4,6 +4,7 @@
 // "Voir tout" (et les liens internes) mènent au hub /education.
 
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
 import { C } from "@/lib/theme/colors";
 import {
   EDUCATION_CATEGORIES,
@@ -11,6 +12,7 @@ import {
   countTermsByCategory,
   themesByCategory,
 } from "@/lib/education/catalog";
+import { localizeCategory, localizeTheme } from "@/lib/education/localize";
 import MegaMenuTrigger from "./MegaMenuTrigger";
 import styles from "./MegaMenu.module.css";
 import { useMegaMenu } from "./useMegaMenu";
@@ -32,6 +34,7 @@ export default function EducationMegaMenu({
   variant?: "inline" | "sidebar";
   onNavigate?: () => void;
 }) {
+  const { t, locale } = useI18n();
   const { open, close, toggle, wrapperRef, triggerRef, panelId } = useMegaMenu();
   const total = EDUCATION_TERMS.length;
   const isSidebar = variant === "sidebar";
@@ -47,7 +50,7 @@ export default function EducationMegaMenu({
   return (
     <div className={wrapperClass} ref={wrapperRef} style={cssVars}>
       <MegaMenuTrigger
-        label="Éducation"
+        label={t("auth.mega.education")}
         open={open}
         panelId={panelId}
         triggerRef={triggerRef}
@@ -58,11 +61,9 @@ export default function EducationMegaMenu({
       />
 
       {open && (
-        <div id={panelId} role="region" aria-label="Éducation" className={panelClass}>
+        <div id={panelId} role="region" aria-label={t("auth.mega.educationAria")} className={panelClass}>
           <div className={styles.panelHeader}>
-            <span className={styles.panelTitle}>
-              Parcours par catégories — {total} fiches
-            </span>
+            <span className={styles.panelTitle}>{t("auth.mega.educationPaths", { count: total })}</span>
             <Link
               href="/education"
               className={styles.headerAll}
@@ -70,16 +71,17 @@ export default function EducationMegaMenu({
               data-analytics-feature="education"
               data-analytics-action="mega_menu_all"
             >
-              Voir tout →
+              {t("common.seeAll")} →
             </Link>
           </div>
           <div className={styles.panelGrid}>
-            {EDUCATION_CATEGORIES.map((cat) => {
-              const themes = themesByCategory(cat.slug);
+            {EDUCATION_CATEGORIES.map((raw) => {
+              const cat = localizeCategory(raw, locale);
+              const themes = themesByCategory(raw.slug).map((theme) => localizeTheme(theme, locale));
               return (
-                <div key={cat.slug} className={styles.sectorCol}>
+                <div key={raw.slug} className={styles.sectorCol}>
                   <Link
-                    href={`/education#${cat.slug}`}
+                    href={`/education#${raw.slug}`}
                     className={styles.sectorHeading}
                     onClick={closeMenu}
                     style={{ textDecoration: "none", display: "block" }}
@@ -87,7 +89,7 @@ export default function EducationMegaMenu({
                     data-analytics-action="mega_menu_category"
                   >
                     {cat.title}{" "}
-                    <span className={styles.sectorCount}>({countTermsByCategory(cat.slug)})</span>
+                    <span className={styles.sectorCount}>({countTermsByCategory(raw.slug)})</span>
                   </Link>
                   {themes.map((theme) => (
                     <Link

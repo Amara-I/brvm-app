@@ -64,7 +64,7 @@
 
 .topBarInner {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   padding: 12px 0;
@@ -88,7 +88,8 @@
 
 .topSearch {
   justify-self: center;
-  width: min(28rem, 42vw);
+  width: min(28rem, 100%);
+  min-width: 0;
 }
 
 .topActions {
@@ -96,7 +97,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  min-width: 0;
+  flex-shrink: 0;
+}
+
+.topTheme {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .topTheme :global(.ob-icon-btn) {

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import ComingSoonMarketPanel from "@/components/marche/ComingSoonMarketPanel";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import { comingSoonExchanges, parseComingSoonMarketSlug } from "@/lib/markets/nav-structure";
 
 export const dynamic = "force-dynamic";
@@ -13,13 +14,14 @@ export function generateStaticParams() {
 }
 
 export function generateMetadata({ params }: { params: { code: string } }) {
+  const { t } = getI18n();
   const exchange = parseComingSoonMarketSlug(params.code);
   if (!exchange) {
-    return { title: "Marché — OuestBourse" };
+    return { title: t("market.comingSoon.marketFallbackTitle") };
   }
   return {
-    title: `${exchange.shortLabel} — bientôt — OuestBourse`,
-    description: `Couverture en cours pour ${exchange.shortLabel}. Explorez la BRVM en attendant.`,
+    title: t("market.comingSoon.marketMetaTitle", { market: exchange.shortLabel }),
+    description: t("market.comingSoon.marketMetaDescription", { market: exchange.shortLabel }),
   };
 }
 

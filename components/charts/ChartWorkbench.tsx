@@ -20,12 +20,7 @@ import {
 } from "@/lib/charts/chart-window";
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import { buildSyncedChartView } from "@/lib/charts/synced-chart-view";
-import {
-  chartRangeChangeLabel,
-  computeWindowChangeFromCandles,
-  formatWindowChangeAbs,
-  formatWindowChangePercent,
-} from "@/lib/charts/window-change";
+import { computeWindowChangeFromCandles } from "@/lib/charts/window-change";
 import TradingChart, {
   type ChartIndicatorsState,
   type ChartViewUndoEntry,
@@ -39,9 +34,24 @@ import AnalysisRecap from "@/components/analysis/AnalysisRecap";
 import { trackFeature } from "@/components/analytics/track-client";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import { C } from "@/lib/theme/colors";
-import { technicalRecapLines, truncateSummary } from "@/lib/calc/analysis-recap";
+import { truncateSummary } from "@/lib/calc/analysis-recap";
 import type { TechnicalSnapshot } from "@/lib/charts/technical-indicators";
 import type { ChartDrawing } from "@/lib/charts/chart-drawings-storage";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import {
+  chartSignalSummary,
+  chartTechnicalLines,
+  displaySignalLabel,
+  formatSavedAt,
+  localizeApiMessage,
+  localizeIntervalNote,
+  loosePercent,
+  ohlcLegend as formatOhlcLegend,
+  signedGrouped,
+  windowChangeAbs,
+  windowChangePercent,
+  yieldLabel,
+} from "./chart-locale";
 import styles from "./ChartWorkbench.module.css";
 
 const VALID_RANGES = new Set<ChartRange>([
@@ -197,47 +207,37 @@ function buildProvisionalPayload(
   };
 }
 
-const RANGES: Array<{ key: ChartRange; label: string }> = [
-  { key: "1J", label: "1J" },
-  { key: "5J", label: "5J" },
-  { key: "1M", label: "1M" },
-  { key: "3M", label: "3M" },
-  { key: "6M", label: "6M" },
-  { key: "YTD", label: "YTD" },
-  { key: "1A", label: "1A" },
-  { key: "5A", label: "5A" },
-  { key: "MAX", label: "Tout" },
-];
+const RANGE_KEYS: ChartRange[] = ["1J", "5J", "1M", "3M", "6M", "YTD", "1A", "5A", "MAX"];
 
 const COMPARE_COLORS = ["#38bdf8", "#a78bfa", "#f472b6"];
 
-const DRAW_TOOLS: Array<{ id: DrawToolId; label: string; short: string; icon: string }> = [
-  { id: "cross", label: "Curseur", short: "Curseur", icon: "+" },
-  { id: "zoom", label: "Zoom zone (glisser)", short: "Zoom", icon: "⌕" },
-  { id: "trend", label: "Tendance (2 clics)", short: "Tendance", icon: "/" },
-  { id: "measure", label: "Mesure % (2 clics, flèche)", short: "Mesure", icon: "⇅" },
-  { id: "horiz", label: "Ligne horizontale", short: "Horiz.", icon: "—" },
-  { id: "fib", label: "Fibonacci (intervalle + 2×2 Ext)", short: "Fib", icon: "φ" },
-  { id: "undo", label: "Annuler la dernière action (Ctrl+Z)", short: "Annuler", icon: "↶" },
-  { id: "trash", label: "Effacer les tracés", short: "Effacer", icon: "⌫" },
+const DRAW_TOOLS: Array<{ id: DrawToolId; icon: string }> = [
+  { id: "cross", icon: "+" },
+  { id: "zoom", icon: "⌕" },
+  { id: "trend", icon: "/" },
+  { id: "measure", icon: "⇅" },
+  { id: "horiz", icon: "—" },
+  { id: "fib", icon: "φ" },
+  { id: "undo", icon: "↶" },
+  { id: "trash", icon: "⌫" },
 ];
 
-const INDICATOR_OPTS: Array<{ key: keyof ChartIndicatorsState; label: string }> = [
-  { key: "sma10", label: "SMA 10" },
-  { key: "sma20", label: "SMA 20" },
-  { key: "sma50", label: "SMA 50" },
-  { key: "sma200", label: "SMA 200" },
-  { key: "ema12", label: "EMA 12" },
-  { key: "ema26", label: "EMA 26" },
-  { key: "bollinger", label: "Bollinger (20,2)" },
-  { key: "rsi", label: "RSI 14" },
-  { key: "macd", label: "MACD (12,26,9)" },
-  { key: "adx", label: "ADX / +DI / −DI (14)" },
-  { key: "stochastic", label: "Stochastique (14,3)" },
-  { key: "williamsR", label: "Williams %R (14)" },
-  { key: "cci", label: "CCI (20)" },
-  { key: "obv", label: "OBV (flux cumulé)" },
-  { key: "volumeFlow", label: "Flux volume / SMA20" },
+const INDICATOR_OPTS: Array<keyof ChartIndicatorsState> = [
+  "sma10",
+  "sma20",
+  "sma50",
+  "sma200",
+  "ema12",
+  "ema26",
+  "bollinger",
+  "rsi",
+  "macd",
+  "adx",
+  "stochastic",
+  "williamsR",
+  "cci",
+  "obv",
+  "volumeFlow",
 ];
 
 export default function ChartWorkbench({
@@ -259,6 +259,7 @@ export default function ChartWorkbench({
   /** Vrai quand `initialSeries` est le MAX `chart_series` à jour (couvre toutes les plages). */
   initialSeriesComplete?: boolean;
 }) {
+  const { t, format, labels, locale } = useI18n();
   const router = useRouter();
   const [ticker, setTicker] = useState(initialTicker);
 
@@ -363,20 +364,20 @@ export default function ChartWorkbench({
   payloadRef.current = payload;
   const loadSeq = useRef(0);
 
-  const loadTicker = useCallback(async (t: string, viewRange: ChartRange, viewInterval: CandleInterval) => {
+  const loadTicker = useCallback(async (symbol: string, viewRange: ChartRange, viewInterval: CandleInterval) => {
     const apiRange = apiRangeForChartRange(viewRange);
     const current = payloadRef.current;
     const combined =
-      current?.ticker === t ? [...(current.lookback ?? []), ...current.series] : [];
+      current?.ticker === symbol ? [...(current.lookback ?? []), ...current.series] : [];
     const complete =
-      current?.ticker === t &&
+      current?.ticker === symbol &&
       (current.stats.range === "MAX" ||
         (typeof current.stats.historyPoints === "number" &&
           current.stats.historyPoints <= combined.length));
     const rangeOk =
-      current?.ticker === t && seriesCoversChartRange(combined, apiRange, Boolean(complete));
+      current?.ticker === symbol && seriesCoversChartRange(combined, apiRange, Boolean(complete));
     const lookbackOk =
-      current?.ticker === t &&
+      current?.ticker === symbol &&
       seriesCoversIntervalLookback({
         points: combined,
         range: apiRange,
@@ -386,29 +387,29 @@ export default function ChartWorkbench({
       });
     // Série API déjà suffisante : pas de second aller-retour.
     // Une série provisoire (fiche) reste affichée, mais on complète fondamentaux / analyse.
-    if (current?.ticker === t && !current.provisional && rangeOk && lookbackOk) {
+    if (current?.ticker === symbol && !current.provisional && rangeOk && lookbackOk) {
       return;
     }
     const seq = ++loadSeq.current;
     const paintReady = combined.length > 0;
     if (!paintReady) {
-      if (current && current.ticker !== t) setPayload(null);
+      if (current && current.ticker !== symbol) setPayload(null);
       setLoading(true);
     }
     setError(null);
     try {
       // Sans `cache: "no-store"` : le navigateur peut réutiliser la réponse
       // (max-age du prefetch fiche) au lieu de relancer Sika/Rich.
-      const res = await fetch(companyChartApiPath(t, apiRange, viewInterval));
+      const res = await fetch(companyChartApiPath(symbol, apiRange, viewInterval));
       const text = await res.text();
       let json: { ok?: boolean; error?: string; data?: unknown } = {};
       try {
         json = text ? (JSON.parse(text) as { ok?: boolean; error?: string; data?: unknown }) : {};
       } catch {
-        throw new Error("Série indisponible — N/D");
+        throw new Error(t("charts.errors.seriesUnavailable"));
       }
       if (loadSeq.current !== seq) return;
-      if (!json.ok) throw new Error(json.error ?? "Série indisponible — N/D");
+      if (!json.ok) throw new Error(localizeApiMessage(json.error ?? "Série indisponible — N/D", t));
       const next = json.data as ChartApiPayload;
       setPayload((prev) => {
         if (!prev || prev.ticker !== next.ticker) return next;
@@ -428,7 +429,7 @@ export default function ChartWorkbench({
     } finally {
       if (loadSeq.current === seq) setLoading(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     void loadTicker(ticker, range, interval);
@@ -440,13 +441,13 @@ export default function ChartWorkbench({
     async function loadCompare() {
       const next: Record<string, ChartClosePoint[]> = {};
       await Promise.all(
-        compare.map(async (t) => {
+        compare.map(async (symbol) => {
           try {
-            const res = await fetch(companyChartApiPath(t, apiRange, interval));
+            const res = await fetch(companyChartApiPath(symbol, apiRange, interval));
             const json = await res.json();
             if (json.ok) {
               const data = json.data as ChartApiPayload;
-              next[t] = [...(data.lookback ?? []), ...data.series];
+              next[symbol] = [...(data.lookback ?? []), ...data.series];
             }
           } catch {
             /* ignore */
@@ -500,17 +501,17 @@ export default function ChartWorkbench({
   const compareSeries = useMemo(() => {
     if (!percentScale && compare.length === 0) return [];
     return compare
-      .map((t, i) => {
-        const raw = compareData[t];
+      .map((symbol, i) => {
+        const raw = compareData[symbol];
         if (!raw) return null;
         const pts = rangeFilter(raw, range, lastPointAsOf(raw));
-        return { id: t, color: COMPARE_COLORS[i % COMPARE_COLORS.length]!, points: pts };
+        return { id: symbol, color: COMPARE_COLORS[i % COMPARE_COLORS.length]!, points: pts };
       })
       .filter(Boolean) as Array<{ id: string; color: string; points: ChartClosePoint[] }>;
   }, [compare, compareData, range, percentScale]);
 
-  function selectTicker(t: string) {
-    const next = t.toUpperCase();
+  function selectTicker(symbol: string) {
+    const next = symbol.toUpperCase();
     if (next === ticker) {
       setShowWatchlist(false);
       setQuery("");
@@ -557,7 +558,7 @@ export default function ChartWorkbench({
       setIndicators(normalizeIndicators(analysis.indicators));
       const comps = Array.isArray(analysis.compareTickers)
         ? analysis.compareTickers
-            .filter((t) => universe.some((u) => u.ticker === t) && t !== nextTicker)
+            .filter((symbol) => universe.some((u) => u.ticker === symbol) && symbol !== nextTicker)
             .slice(0, 5)
         : [];
       setCompare(comps);
@@ -667,11 +668,11 @@ export default function ChartWorkbench({
     undoStackRef.current = [];
   }, [ticker]);
 
-  function toggleCompare(t: string) {
+  function toggleCompare(symbol: string) {
     setCompare((prev) => {
-      if (prev.includes(t)) return prev.filter((x) => x !== t);
-      if (prev.length >= 3 || t === ticker) return prev;
-      return [...prev, t];
+      if (prev.includes(symbol)) return prev.filter((x) => x !== symbol);
+      if (prev.length >= 3 || symbol === ticker) return prev;
+      return [...prev, symbol];
     });
   }
 
@@ -696,12 +697,80 @@ export default function ChartWorkbench({
     const last = mainSeries[mainSeries.length - 1]!;
     const prev = mainSeries.length > 1 ? mainSeries[mainSeries.length - 2]! : last;
     const chg = prev.value > 0 ? ((last.value - prev.value) / prev.value) * 100 : 0;
-    const volTxt =
-      last.volume && last.volume > 0 ? ` Vol ${last.volume.toLocaleString("fr-FR")}` : " Vol N/D";
-    return `O ${fmt(prev.value)} H ${fmt(Math.max(prev.value, last.value))} L ${fmt(Math.min(prev.value, last.value))} C ${fmt(last.value)} ${chg >= 0 ? "+" : ""}${chg.toFixed(2)}%${volTxt}`;
-  }, [mainSeries]);
+    return formatOhlcLegend(
+      prev.value,
+      Math.max(prev.value, last.value),
+      Math.min(prev.value, last.value),
+      last.value,
+      chg,
+      last.volume,
+      locale,
+      format
+    );
+  }, [mainSeries, locale, format]);
 
-  const intervalLabel = CANDLE_INTERVALS.find((i) => i.key === interval)?.label ?? "1j";
+  const intervalLabel = t(`charts.intervals.${interval}.label`);
+  const visibleRangeLabel = t(`charts.ranges.${range}`);
+  const changeLabel = t("charts.metrics.rangeChange", { range: visibleRangeLabel });
+  const changeAbs = windowChangeAbs(windowChange?.abs, locale, format);
+  const changePct = windowChangePercent(windowChange?.percent, locale, format);
+  const changeTitle = windowChange
+    ? `${changeAbs} · ${locale === "fr" ? range : visibleRangeLabel}${
+        interval !== "1D" ? ` · ${intervalLabel}` : ""
+      }`
+    : t("charts.metrics.changeNd");
+
+  function marketStatusLabel(): string {
+    const now = new Date();
+    const day = now.getUTCDay();
+    if (day === 0 || day === 6) return t("charts.market.closed");
+    const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
+    if (mins >= 9 * 60 + 30 && mins <= 14 * 60 + 30) return t("charts.market.open");
+    return t("charts.market.closed");
+  }
+
+  function chartSourceNote(): string {
+    const sources =
+      payload?.stats.seriesSources && payload.stats.seriesSources.length > 0
+        ? payload.stats.seriesSources.join(" + ")
+        : (payload?.stats.source ?? "N/D");
+    const points = payload?.stats.points ?? mainSeries.length;
+    let text = t("charts.footer.source", { sources });
+    text += t("charts.footer.points", { count: points });
+    if (
+      payload?.stats.historyPoints != null &&
+      payload.stats.historyPoints !== (payload.stats.points ?? 0)
+    ) {
+      const windowRange = payload.stats.range ?? range;
+      const windowLabel =
+        locale === "en" && VALID_RANGES.has(windowRange as ChartRange)
+          ? t(`charts.ranges.${windowRange as ChartRange}`)
+          : windowRange;
+      text += t("charts.footer.window", {
+        range: windowLabel,
+        count: payload.stats.historyPoints,
+      });
+    }
+    if (payload?.stats.seriesEnriched) {
+      const densify = payload.stats.reconciliation?.densifySources?.join(" + ");
+      text += densify
+        ? t("charts.footer.densifiedWith", { sources: densify })
+        : t("charts.footer.densified");
+    }
+    if (payload?.stats.reconciliation && payload.stats.reconciliation.discrepanciesCount > 0) {
+      text += t("charts.footer.discrepancies", {
+        count: payload.stats.reconciliation.discrepanciesCount,
+        threshold: payload.stats.reconciliation.thresholdPercent,
+      });
+    } else if (payload?.stats.seriesEnriched) {
+      text += t("charts.footer.crossCheck");
+    }
+    text += " ";
+    text += t("charts.footer.volumeOhlc", {
+      volume: hasRealVolume ? t("charts.footer.volumeReal") : "N/D",
+    });
+    return text;
+  }
 
   return (
     <div
@@ -715,7 +784,7 @@ export default function ChartWorkbench({
             type="button"
             className={styles.logoMark}
             onClick={() => setShowWatchlist((v) => !v)}
-            title="Changer de titre"
+            title={t("charts.changeSymbol")}
             aria-expanded={showWatchlist}
           >
             {payload?.ticker?.slice(0, 1) ?? "·"}
@@ -731,11 +800,11 @@ export default function ChartWorkbench({
                 <input
                   className={styles.search}
                   type="search"
-                  placeholder="Rechercher ticker ou nom…"
+                  placeholder={t("charts.searchPlaceholder")}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   autoFocus
-                  aria-label="Rechercher une société"
+                  aria-label={t("charts.searchAria")}
                 />
                 <div className={styles.watchlistScroll}>
                   {filteredUniverse.map((u) => (
@@ -759,43 +828,49 @@ export default function ChartWorkbench({
 
         <div className={styles.priceBlock}>
           <div className={styles.lastPrice} style={{ color: priceUp ? "#26a69a" : "#ef5350" }}>
-            {stats?.lastClose != null ? `${stats.lastClose.toLocaleString("fr-FR")} FCFA` : "N/D"}
+            {stats?.lastClose != null ? `${format.number(stats.lastClose)} FCFA` : "N/D"}
           </div>
           <div className={styles.dayChange} style={{ color: priceUp ? "#26a69a" : "#ef5350" }}>
             {stats?.dayChangeAbs != null && stats.dayChangePercent != null
-              ? `${stats.dayChangeAbs >= 0 ? "+" : ""}${stats.dayChangeAbs.toLocaleString("fr-FR")} (${stats.dayChangePercent >= 0 ? "+" : ""}${stats.dayChangePercent}%)`
+              ? `${signedGrouped(stats.dayChangeAbs, format)} (${loosePercent(stats.dayChangePercent, locale, format)})`
               : "N/D"}
-            <span className={styles.marketStatus}> · aujourd&apos;hui{marketOpenHint()}</span>
+            <span className={styles.marketStatus}>
+              {t("charts.market.today")}
+              {marketStatusLabel()}
+            </span>
           </div>
         </div>
 
         <div className={styles.metrics}>
           <Metric
-            label={chartRangeChangeLabel(range)}
-            value={formatWindowChangePercent(windowChange?.percent)}
+            label={changeLabel}
+            value={changePct}
             up={windowChange == null ? undefined : windowChange.percent >= 0}
-            title={
-              windowChange
-                ? `${formatWindowChangeAbs(windowChange.abs)} · ${range}${
-                    interval !== "1D" ? ` · ${intervalLabel}` : ""
-                  }`
-                : "Variation N/D — moins de 2 points sur cette fenêtre"
+            title={changeTitle}
+          />
+          <Metric
+            label={t("charts.metrics.volume")}
+            value={
+              stats?.lastVolume != null && stats.lastVolume > 0 ? format.number(stats.lastVolume) : "N/D"
             }
           />
           <Metric
-            label="Volume"
-            value={stats?.lastVolume != null && stats.lastVolume > 0 ? stats.lastVolume.toLocaleString("fr-FR") : "N/D"}
+            label={t("charts.metrics.marketCap")}
+            value={
+              fund?.mktCapMds != null && fund.mktCapMds > 0
+                ? t("charts.metrics.mktCapValue", { value: format.number(fund.mktCapMds) })
+                : "N/D"
+            }
           />
           <Metric
-            label="Capitalisation"
-            value={fund?.mktCapMds != null && fund.mktCapMds > 0 ? `${fund.mktCapMds.toLocaleString("fr-FR")} Md` : "N/D"}
+            label={t("charts.metrics.pe")}
+            value={fund?.per != null && fund.per > 0 ? format.decimal(fund.per, 1) : "N/D"}
           />
-          <Metric label="P/E" value={fund?.per != null && fund.per > 0 ? fund.per.toFixed(1).replace(".", ",") : "N/D"} />
           <Metric
-            label="Dividende"
+            label={t("charts.metrics.dividend")}
             value={
               fund?.dividendYieldPercent != null && fund.dividendYieldPercent > 0
-                ? `${Number(fund.dividendYieldPercent).toFixed(1).replace(".", ",")}%`
+                ? yieldLabel(Number(fund.dividendYieldPercent), locale, format)
                 : "N/D"
             }
           />
@@ -843,7 +918,7 @@ export default function ChartWorkbench({
             ticker={ticker}
             isAuthenticated={isAuthenticated}
             signal={{
-              label: payload?.analysis?.signalLabel ?? "CONSERVER",
+              label: displaySignalLabel(payload?.analysis?.signalLabel ?? "CONSERVER", labels),
               color: payload?.analysis?.signalColor ?? C.gold,
               score: payload?.analysis?.score,
             }}
@@ -855,31 +930,28 @@ export default function ChartWorkbench({
       {isAuthenticated && activeSavedAnalysis ? (
         <div className={styles.savedAnalysisBanner} role="status">
           <span>
-            Dernière analyse « <strong>{activeSavedAnalysis.name}</strong> » chargée
+            {t("charts.saved.loadedBefore")}
+            <strong>{activeSavedAnalysis.name}</strong>
             {activeSavedAnalysis.updatedAt
-              ? ` · ${new Date(activeSavedAnalysis.updatedAt).toLocaleString("fr-FR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}`
-              : ""}
-            .
+              ? t("charts.saved.loadedAfterDated", {
+                  date: formatSavedAt(activeSavedAnalysis.updatedAt, format, true),
+                })
+              : t("charts.saved.loadedAfter")}
           </span>
           <button
             type="button"
             className={styles.savedAnalysisBannerBtn}
             onClick={() => setAnalysisPanelOpen(true)}
           >
-            Choisir une autre analyse
+            {t("charts.saved.chooseOther")}
           </button>
         </div>
       ) : isAuthenticated && savedAnalysesCount === 0 ? (
         <div className={styles.savedAnalysisHint} role="note">
           <span>
-            Enregistrez vos tracés et indicateurs via <strong>Mes analyses</strong> (en haut à
-            droite) pour les retrouver à la prochaine ouverture de ce titre.
+            {t("charts.saved.hintBefore")}
+            <strong>{t("charts.saved.hintStrong")}</strong>
+            {t("charts.saved.hintAfter")}
           </span>
         </div>
       ) : null}
@@ -895,32 +967,36 @@ export default function ChartWorkbench({
                 setShowIndicators(false);
                 setShowCompare(false);
               }}
-              title="Durée des bougies"
+              title={t("charts.intervalMenu")}
               aria-expanded={showIntervalMenu}
             >
               {intervalLabel} ▾
             </button>
             {showIntervalMenu && (
               <div className={styles.dropdown}>
-                {CANDLE_INTERVALS.map((opt) => (
+                {CANDLE_INTERVALS.map((opt) => {
+                  const label = t(`charts.intervals.${opt.key}.label`);
+                  const title = t(`charts.intervals.${opt.key}.title`);
+                  return (
                   <button
                     key={opt.key}
                     type="button"
                     className={interval === opt.key ? styles.dropItemActive : styles.dropItemBtn}
-                    title={opt.title}
+                    title={title}
                     onClick={() => {
                       setInterval(opt.key);
                       setShowIntervalMenu(false);
                       trackFeature("graphes", `interval:${opt.key}`);
                     }}
                   >
-                    {opt.label} — {opt.title}
+                    {label} — {title}
                   </button>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
-          <span className={styles.candleIcon} title="Chandeliers">
+          <span className={styles.candleIcon} title={t("charts.candlesticks")}>
             ▮
           </span>
         </div>
@@ -936,23 +1012,24 @@ export default function ChartWorkbench({
                 setShowIntervalMenu(false);
               }}
             >
-              Indicateurs {indicatorCount > 0 ? <span className={styles.badge}>{indicatorCount}</span> : null}
+              {t("charts.indicatorsButton")}{" "}
+              {indicatorCount > 0 ? <span className={styles.badge}>{indicatorCount}</span> : null}
             </button>
             {showIndicators && (
               <div className={styles.dropdown}>
-                {INDICATOR_OPTS.map((opt) => (
-                  <label key={opt.key} className={styles.dropItem}>
+                {INDICATOR_OPTS.map((key) => (
+                  <label key={key} className={styles.dropItem}>
                     <input
                       type="checkbox"
-                      checked={indicators[opt.key]}
+                      checked={indicators[key]}
                       onChange={(e) =>
                         setIndicatorsWithUndo((prev) => ({
                           ...prev,
-                          [opt.key]: e.target.checked,
+                          [key]: e.target.checked,
                         }))
                       }
                     />
-                    {opt.label}
+                    {t(`charts.indicators.${key}`)}
                   </label>
                 ))}
               </div>
@@ -968,7 +1045,7 @@ export default function ChartWorkbench({
                 setShowIntervalMenu(false);
               }}
             >
-              Comparer
+              {t("charts.compare")}
             </button>
             {showCompare && (
               <div className={styles.dropdown}>
@@ -991,21 +1068,24 @@ export default function ChartWorkbench({
         </div>
 
         <div className={styles.toolGroupRight}>
-          {RANGES.map((r) => (
+          {RANGE_KEYS.map((key) => {
+            const label = t(`charts.ranges.${key}`);
+            return (
             <button
-              key={r.key}
+              key={key}
               type="button"
-              className={range === r.key ? styles.rangeActive : styles.rangeBtn}
+              className={range === key ? styles.rangeActive : styles.rangeBtn}
               onClick={() => {
-                setRange(r.key);
-                trackFeature("graphes", `range:${r.key}`);
+                setRange(key);
+                trackFeature("graphes", `range:${key}`);
               }}
-              aria-pressed={range === r.key}
-              title={`Plage ${r.label}`}
+              aria-pressed={range === key}
+              title={t("charts.ranges.rangeTitle", { label })}
             >
-              {r.label}
+              {label}
             </button>
-          ))}
+            );
+          })}
           <span
             className={
               windowChange == null
@@ -1015,33 +1095,29 @@ export default function ChartWorkbench({
                   : styles.rangeChgDown
             }
             aria-live="polite"
-            title={
-              windowChange
-                ? `${chartRangeChangeLabel(range)} · ${formatWindowChangeAbs(windowChange.abs)}`
-                : "Variation N/D — moins de 2 points sur cette fenêtre"
-            }
+            title={windowChange ? `${changeLabel} · ${changeAbs}` : t("charts.metrics.changeNd")}
           >
-            {formatWindowChangePercent(windowChange?.percent)}
+            {changePct}
           </span>
           <button
             type="button"
             className={percentScale ? styles.toolChipOn : styles.toolChip}
             onClick={() => setPercentScale((v) => !v)}
             aria-pressed={percentScale}
-            title="Échelle en %"
+            title={t("charts.percentTitle")}
           >
             <span className={styles.toolChipGlyph}>%</span>
-            <span className={styles.toolChipLabel}>Pourcent</span>
+            <span className={styles.toolChipLabel}>{t("charts.percent")}</span>
           </button>
           <button
             type="button"
             className={logScale ? styles.toolChipOn : styles.toolChip}
             onClick={() => setLogScale((v) => !v)}
             aria-pressed={logScale}
-            title="Échelle logarithmique"
+            title={t("charts.logTitle")}
           >
             <span className={styles.toolChipGlyph}>log</span>
-            <span className={styles.toolChipLabel}>Log</span>
+            <span className={styles.toolChipLabel}>{t("charts.log")}</span>
           </button>
           <button
             type="button"
@@ -1051,50 +1127,55 @@ export default function ChartWorkbench({
               setLogScale(false);
               setResetZoomToken((n) => n + 1);
             }}
-            title="Échelle auto + afficher tout le graphique"
+            title={t("charts.autoTitle")}
           >
             <span className={styles.toolChipGlyph}>auto</span>
-            <span className={styles.toolChipLabel}>Auto</span>
+            <span className={styles.toolChipLabel}>{t("charts.auto")}</span>
           </button>
           <button
             type="button"
             className={fullscreen ? styles.toolChipExit : styles.toolChip}
             onClick={() => setFullscreen((v) => !v)}
             aria-pressed={fullscreen}
-            title={fullscreen ? "Quitter le plein écran" : "Plein écran"}
+            title={fullscreen ? t("charts.fullscreenExit") : t("charts.fullscreen")}
           >
             <span className={styles.toolChipGlyph}>{fullscreen ? "✕" : "⛶"}</span>
-            <span className={styles.toolChipLabel}>{fullscreen ? "Réduire" : "Plein écran"}</span>
+            <span className={styles.toolChipLabel}>
+              {fullscreen ? t("charts.reduce") : t("charts.fullscreen")}
+            </span>
           </button>
         </div>
       </div>
 
       <div className={styles.chartRow}>
-        <aside className={styles.drawRail} aria-label="Outils d'analyse graphique">
-          {DRAW_TOOLS.map((t) => (
+        <aside className={styles.drawRail} aria-label={t("charts.toolsAria")}>
+          {DRAW_TOOLS.map((tool) => {
+            const label = t(`charts.tools.${tool.id}.label`);
+            return (
             <button
-              key={t.id}
+              key={tool.id}
               type="button"
-              className={activeTool === t.id ? styles.railBtnActive : styles.railBtn}
-              title={t.label}
-              aria-label={t.label}
-              aria-pressed={activeTool === t.id}
-              onClick={() => onToolClick(t.id)}
+              className={activeTool === tool.id ? styles.railBtnActive : styles.railBtn}
+              title={label}
+              aria-label={label}
+              aria-pressed={activeTool === tool.id}
+              onClick={() => onToolClick(tool.id)}
             >
-              <span className={styles.railIcon}>{t.icon}</span>
-              <span className={styles.railLabel}>{t.short}</span>
+              <span className={styles.railIcon}>{tool.icon}</span>
+              <span className={styles.railLabel}>{t(`charts.tools.${tool.id}.short`)}</span>
             </button>
-          ))}
+            );
+          })}
         </aside>
 
         <div className={styles.chartCol}>
           <div className={styles.legendBar}>{ohlcLegend ?? defaultLegend ?? "—"}</div>
-          {intervalNote && <div className={styles.intervalNote}>{intervalNote}</div>}
-          {payload?.corporateActions?.map((action) => (
-            <div key={action.effectiveDate} className={styles.splitNote}>
-              {action.label}
-            </div>
-          ))}
+{intervalNote && <div className={styles.intervalNote}>{localizeIntervalNote(intervalNote, t)}</div>}
+{payload?.corporateActions?.map((action) => (
+  <div key={action.effectiveDate} className={styles.splitNote}>
+    {action.label}
+  </div>
+))} main
           <div className={styles.chartShell}>
             {payload ? (
               <TradingChart
@@ -1129,74 +1210,58 @@ export default function ChartWorkbench({
                 }
               />
             ) : loading ? (
-              <div className={styles.empty}>Chargement du graphique…</div>
+              <div className={styles.empty}>{t("charts.loadingChart")}</div>
             ) : (
               <div className={styles.empty} role="status">
-                <strong style={{ color: "var(--tv-text)" }}>Série indisponible</strong>
-                <span>{error ?? "N/D — les cours n’ont pas pu être chargés pour ce ticker."}</span>
+                <strong style={{ color: "var(--tv-text)" }}>{t("charts.errors.seriesTitle")}</strong>
+                <span>{error ?? t("charts.errors.seriesBody")}</span>
               </div>
             )}
           </div>
           <div className={styles.footerNote}>
             {!embedded && (
               <Link href={`/actions/${ticker}`} className={styles.ficheLink}>
-                Ouvrir la fiche {ticker} →
+                {t("charts.footer.openSheet", { ticker })}
               </Link>
             )}
             {embedded && (
               <>
                 <Link href={`/graphes?ticker=${ticker}`} className={styles.ficheLink}>
-                  Ouvrir en page Graphes →
+                  {t("charts.footer.openCharts")}
                 </Link>
                 <span className={styles.embeddedTickerHint}>
-                  · Cliquez sur le ticker ({payload?.ticker ?? ticker} ▾) pour changer de société
+                  {t("charts.footer.switchSymbol", { symbol: payload?.ticker ?? ticker })}
                 </span>
               </>
             )}
-            <span>
-              Source :{" "}
-              {payload?.stats.seriesSources && payload.stats.seriesSources.length > 0
-                ? payload.stats.seriesSources.join(" + ")
-                : (payload?.stats.source ?? "N/D")}
-              {" · "}
-              {payload?.stats.points ?? mainSeries.length} points
-              {payload?.stats.historyPoints != null &&
-              payload.stats.historyPoints !== (payload.stats.points ?? 0)
-                ? ` (fenêtre ${payload.stats.range ?? range} · historique ${payload.stats.historyPoints})`
-                : ""}
-              {payload?.stats.seriesEnriched
-                ? ` (densifié${
-                    payload.stats.reconciliation?.densifySources?.length
-                      ? ` · ${payload.stats.reconciliation.densifySources.join(" + ")}`
-                      : ""
-                  })`
-                : ""}
-              {payload?.stats.reconciliation &&
-              payload.stats.reconciliation.discrepanciesCount > 0
-                ? ` · ${payload.stats.reconciliation.discrepanciesCount} écart(s) > ${payload.stats.reconciliation.thresholdPercent}% écartés (priorité BRVM > Sika > Rich)`
-                : payload?.stats.seriesEnriched
-                  ? " · croisement multi-source OK"
-                  : ""}{" "}
-              · Volume {hasRealVolume ? "réel" : "N/D"} · OHLC synthétique si open/high/low absents
-            </span>
+            <span>{chartSourceNote()}</span>
           </div>
           {payload?.analysis && !loading && !error && (
             <div className={styles.analysisRecap}>
               <AnalysisRecap
                 kind="technical"
-                signalLabel={payload.analysis.signalLabel}
+                signalLabel={displaySignalLabel(payload.analysis.signalLabel, labels)}
                 signalColor={payload.analysis.signalColor}
                 score={payload.analysis.technicalScore}
-                confidence={payload.analysis.confidence}
+                confidence={labels.confidence(payload.analysis.confidence)}
                 summary={truncateSummary(
-                  `Lecture graphique de ${payload.ticker} — ${payload.analysis.signalSummary}`
+                  t("charts.recap.reading", {
+                    ticker: payload.ticker,
+                    summary: chartSignalSummary(payload.analysis, locale, labels, t),
+                  })
                 )}
-                lines={technicalRecapLines({
-                  technical: payload.analysis.technical,
-                  technicalScore: payload.analysis.technicalScore,
-                })}
+                lines={chartTechnicalLines(
+                  {
+                    technical: payload.analysis.technical,
+                    technicalScore: payload.analysis.technicalScore,
+                  },
+                  locale,
+                  format,
+                  labels,
+                  t
+                )}
                 href={embedded ? undefined : `/actions/${ticker}`}
-                hrefLabel="Fiche société & signal →"
+                hrefLabel={t("charts.recap.sheetLink")}
               />
             </div>
           )}
@@ -1207,7 +1272,7 @@ export default function ChartWorkbench({
         <button
           type="button"
           className={styles.backdrop}
-          aria-label="Fermer"
+          aria-label={t("common.close")}
           onClick={() => {
             setShowWatchlist(false);
             setShowIndicators(false);
@@ -1241,15 +1306,3 @@ function Metric({
   );
 }
 
-function fmt(n: number): string {
-  return Math.round(n).toLocaleString("fr-FR");
-}
-
-function marketOpenHint(): string {
-  const now = new Date();
-  const day = now.getUTCDay();
-  if (day === 0 || day === 6) return " — Marché fermé";
-  const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
-  if (mins >= 9 * 60 + 30 && mins <= 14 * 60 + 30) return " — Marché ouvert";
-  return " — Marché fermé";
-}

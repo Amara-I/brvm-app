@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useI18n } from "@/components/i18n/I18nProvider";
+import { isPlausibleEmail, messageFromAuthJson } from "./api-message";
 import styles from "./AuthForm.module.css";
 
 export default function ForgotPasswordForm() {
+  const { t } = useI18n();
   const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
@@ -14,6 +17,10 @@ export default function ForgotPasswordForm() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!isPlausibleEmail(email)) {
+      setError(t("auth.invalidEmail"));
+      return;
+    }
     setLoading(true);
 
     const res = await fetch("/api/auth/forgot-password", {
@@ -25,7 +32,7 @@ export default function ForgotPasswordForm() {
     setLoading(false);
 
     if (!res.ok) {
-      setError(json?.error ?? "Une erreur est survenue. Réessayez.");
+      setError(messageFromAuthJson(json, t, t("common.errorGeneric")));
       return;
     }
 
@@ -39,17 +46,16 @@ export default function ForgotPasswordForm() {
     return (
       <div>
         <p className={`${styles.alert} ${styles.alertOk}`} role="status">
-          Si un compte existe pour cette adresse, un lien de réinitialisation vient d&apos;être envoyé.
-          Pensez à vérifier vos courriers indésirables.
+          {t("auth.forgot.sent")}
         </p>
         {devResetUrl ? (
           <p className={styles.footer}>
-            Mode développement —{" "}
-            <Link href={devResetUrl}>ouvrir le lien de réinitialisation</Link>
+            {t("auth.devMode")}{" "}
+            <Link href={devResetUrl}>{t("auth.openResetLink")}</Link>
           </p>
         ) : null}
         <p className={styles.footer}>
-          <Link href="/connexion">Retour à la connexion</Link>
+          <Link href="/connexion">{t("auth.backToLogin")}</Link>
         </p>
       </div>
     );
@@ -59,7 +65,7 @@ export default function ForgotPasswordForm() {
     <form className={styles.form} onSubmit={handleSubmit} noValidate>
       <div className={styles.field}>
         <label htmlFor="email" className={styles.label}>
-          Adresse email
+          {t("auth.email")}
         </label>
         <input
           id="email"
@@ -79,11 +85,11 @@ export default function ForgotPasswordForm() {
       ) : null}
 
       <button type="submit" className={styles.submit} disabled={loading}>
-        {loading ? "Envoi…" : "Envoyer le lien"}
+        {loading ? t("auth.sending") : t("auth.forgot.submit")}
       </button>
 
       <p className={styles.footer}>
-        <Link href="/connexion">Retour à la connexion</Link>
+        <Link href="/connexion">{t("auth.backToLogin")}</Link>
       </p>
     </form>
   );

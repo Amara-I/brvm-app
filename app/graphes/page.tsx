@@ -6,13 +6,17 @@ import PageHeader from "@/components/ui/PageHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
+import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = {
-  title: "Graphes — OuestBourse",
-  description: "Analyse graphique BRVM façon trading : historique, moyennes mobiles, comparaison multi-titres.",
-};
+export function generateMetadata() {
+  const { t } = getI18n();
+  return {
+    title: t("charts.meta.title"),
+    description: t("charts.meta.description"),
+  };
+}
 
 export default async function GraphesPage({
   searchParams,
@@ -35,21 +39,19 @@ export default async function GraphesPage({
     (universe.some((u) => u.ticker === "SNTS") ? "SNTS" : universe[0]?.ticker ?? "SNTS");
 
   const userId = await getCurrentUserId().catch(() => null);
+  const { t } = getI18n();
 
   return (
     <AppHeader>
       <div className="ob-page">
         <PageHeader
-          kicker="Analyse technique"
-          title="Graphes"
-          lead="Analyse graphique des titres BRVM — indicateurs, tracés et comparaison multi-titres."
+          kicker={t("charts.page.kicker")}
+          title={t("charts.page.title")}
+          lead={t("charts.page.lead")}
         />
 
         {universe.length === 0 ? (
-          <EmptyState
-            title="Aucune société disponible"
-            body="Le graphique s’affichera dès que des titres seront chargés. En l’absence de série, l’interface indique N/D."
-          />
+          <EmptyState title={t("charts.page.emptyTitle")} body={t("charts.page.emptyBody")} />
         ) : (
           <ChartWorkbench universe={universe} initialTicker={initialTicker} isAuthenticated={Boolean(userId)} />
         )}

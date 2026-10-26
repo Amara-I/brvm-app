@@ -1,5 +1,7 @@
 // Import relatif (pas `@/`) : ce module est aussi chargé par `ts-node`
 // (`scripts/send-test-email.ts`), qui ne résout pas l'alias `@/*`.
+import type { Locale } from "../i18n/config";
+import { createI18n } from "../i18n/create-i18n";
 import { BRAND_NAME } from "../theme/brand";
 import {
   gmailFromMismatch,
@@ -61,8 +63,15 @@ export function isEmailConfigured(env: EnvMap = process.env): boolean {
   return hasEmailProvider(env) && Boolean(parseEmailFrom(env.EMAIL_FROM));
 }
 
-export function userMessageForMailFailure(result: Extract<SendEmailResult, { ok: false }>): string {
-  return result.userMessage || MAIL_USER_MESSAGES[result.code];
+export function userMessageForMailFailure(
+  result: Extract<SendEmailResult, { ok: false }>,
+  locale: Locale = "fr"
+): string {
+  if (locale === "fr") return result.userMessage || MAIL_USER_MESSAGES[result.code];
+  const { t } = createI18n(locale);
+  if (result.code === "not_configured") return t("mail.notConfigured");
+  if (result.code === "invalid_from") return t("mail.invalidFrom");
+  return t("mail.sendFailed");
 }
 
 function escapeHtml(value: string): string {
@@ -73,11 +82,17 @@ function escapeHtml(value: string): string {
     .replace(/"/g, "&quot;");
 }
 
-export function buildAuthEmail(kind: AuthEmailKind, to: string, rawToken: string): {
+export function buildAuthEmail(
+  kind: AuthEmailKind,
+  to: string,
+  rawToken: string,
+  locale: Locale = "fr"
+): {
   subject: string;
   text: string;
   html: string;
 } {
+  const { t } = createI18n(locale);
   const link =
     kind === "verify"
       ? buildAuthLink("/verifier-email", rawToken)
@@ -85,22 +100,19 @@ export function buildAuthEmail(kind: AuthEmailKind, to: string, rawToken: string
   const hours = kind === "verify" ? 24 : 1;
   const subject =
     kind === "verify"
-      ? `Confirmez votre adresse email — ${BRAND_NAME}`
-      : `Réinitialisation de mot de passe — ${BRAND_NAME}`;
+      ? t("mail.verifySubject", { brand: BRAND_NAME })
+      : t("mail.resetSubject", { brand: BRAND_NAME });
   const intro =
     kind === "verify"
-      ? `Bienvenue sur ${BRAND_NAME}. Confirmez votre adresse email (${to}) en ouvrant le lien ci-dessous.`
-      : `Une demande de réinitialisation de mot de passe a été faite pour le compte ${to}.`;
-  const cta = kind === "verify" ? "Confirmer mon email" : "Choisir un nouveau mot de passe";
-  const expiry = `Ce lien expire dans ${hours} heure${hours > 1 ? "s" : ""} et ne peut être utilisé qu'une seule fois.`;
-  const ignore =
-    kind === "verify"
-      ? "Si vous n'avez pas créé de compte, ignorez simplement cet email."
-      : "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email — votre mot de passe reste inchangé.";
+      ? t("mail.verifyIntro", { brand: BRAND_NAME, email: to })
+      : t("mail.resetIntro", { email: to });
+  const cta = kind === "verify" ? t("mail.verifyCta") : t("mail.resetCta");
+  const expiry = t(hours > 1 ? "mail.expiryMany" : "mail.expiryOne", { hours });
+  const ignore = kind === "verify" ? t("mail.verifyIgnore") : t("mail.resetIgnore");
 
-  const text = [`Bonjour,`, ``, intro, ``, `${cta} : ${link}`, ``, expiry, ignore].join("\n");
+  const text = [t("mail.greeting"), ``, intro, ``, `${cta} : ${link}`, ``, expiry, ignore].join("\n");
   const html = `<!DOCTYPE html>
-<html lang="fr">
+<html lang="${locale}">
 <body style="font-family:Georgia,serif;background:#0f1410;color:#f4f1ea;padding:24px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#1a211c;border:1px solid #3d4c43;border-radius:12px;padding:24px;">
     <tr><td>
@@ -302,8 +314,13 @@ export async function sendAppEmail(input: {
   return dispatchMail(input, "app");
 }
 
-export async function sendAuthEmail(kind: AuthEmailKind, to: string, rawToken: string): Promise<SendEmailResult> {
-  const { subject, text, html } = buildAuthEmail(kind, to, rawToken);
+export async function sendAuthEmail(
+  kind: AuthEmailKind,
+  to: string,
+  rawToken: string,
+  locale: Locale = "fr"
+): Promise<SendEmailResult> {
+  const { subject, text, html } = buildAuthEmail(kind, to, rawToken, locale);
   return dispatchMail({ to, subject, text, html }, kind);
 }
 

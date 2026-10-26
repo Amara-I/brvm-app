@@ -8,6 +8,7 @@ import type { CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import { AFRICAN_EXCHANGES } from "@/lib/markets/african-exchanges";
 import { seriesFromYearlyPrices } from "@/lib/landing/price-series";
 import { BRAND_NAME } from "@/lib/theme/brand";
+import { getI18n } from "@/lib/i18n/get-i18n";
 import LandingSparkline from "./LandingSparkline";
 import {
   IconArrow,
@@ -41,17 +42,6 @@ export interface LandingPageProps {
 
 const LANDING_EXCHANGE_CODES = ["BRVM", "NGX", "GSE", "NSE"] as const;
 
-function formatMdsFcfa(value: number): string {
-  return `${value.toLocaleString("fr-FR", {
-    minimumFractionDigits: Number.isInteger(value) ? 0 : 2,
-    maximumFractionDigits: 2,
-  })} Mds FCFA`;
-}
-
-function formatSignal(metrics: CalcMetricsResult): string {
-  return metrics.signal?.label || "N/D";
-}
-
 function signalTone(label: string): "up" | "down" | "flat" {
   if (label.includes("ACHAT")) return "up";
   if (label.includes("VENDRE") || label.includes("ALLÉGER")) return "down";
@@ -70,39 +60,57 @@ export default function LandingPage({
   educationTermsCount,
   marketSeries,
 }: LandingPageProps) {
+  const { t, format, labels, locale } = getI18n();
   const yearsSpan =
     stats.firstYear && stats.lastYear ? stats.lastYear - stats.firstYear + 1 : null;
   const horizonLabel =
     stats.firstYear && stats.lastYear
       ? `${stats.firstYear} → ${stats.lastYear}`
-      : "N/D";
+      : t("common.nd");
 
   const landingExchanges = LANDING_EXCHANGE_CODES.map((code) =>
     AFRICAN_EXCHANGES.find((exchange) => exchange.code === code)
   ).filter((exchange): exchange is (typeof AFRICAN_EXCHANGES)[number] => Boolean(exchange));
 
+  const showPerf = (raw: string): string => {
+    if (raw === "N/D") return t("common.nd");
+    const n = Number.parseFloat(raw);
+    if (!Number.isFinite(n)) return t("common.nd");
+    if (locale === "en") {
+      const digits = raw.includes(".") ? raw.split(".")[1]!.length : 0;
+      return format.percent(n, digits, true);
+    }
+    return `${n >= 0 ? "+" : ""}${raw.replace(".", ",")}%`;
+  };
+
+  const showAvgPerf = (value: number | null): string => {
+    if (value === null) return t("common.nd");
+    if (locale === "en") return format.percent(value, 1, true);
+    return `${value >= 0 ? "+" : ""}${value.toFixed(1).replace(".", ",")}%`;
+  };
+
   const heroFeatures = [
     {
-      t: "Screener intelligent",
-      d: "Filtrez, triez et trouvez les meilleures opportunités.",
+      t: t("landing.features.screenerTitle"),
+      d: t("landing.features.screenerBody"),
       href: "/screener",
       icon: <IconFunnel size={16} />,
     },
     {
-      t: "Graphiques avancés",
-      d: "Indicateurs techniques, Fibonacci et multi-horizons.",
+      t: t("landing.features.chartsTitle"),
+      d: t("landing.features.chartsBody"),
       href: "/graphes",
       icon: <IconChart size={16} />,
     },
     {
-      t: "Portefeuille",
-      d: "Suivi en temps réel et performance détaillée.",
+      t: t("landing.features.portfolioTitle"),
+      d: t("landing.features.portfolioBody"),
       href: "/portefeuille",
       icon: <IconBriefcase size={16} />,
     },
     {
-      t: "Éducation",
-      d: "Apprenez, progressez et investissez mieux.",
+      t: t("landing.features.educationTitle"),
+      d: t("landing.features.educationBody"),
       href: "/education",
       icon: <IconGrad size={16} />,
     },
@@ -110,54 +118,61 @@ export default function LandingPage({
 
   const modules = [
     {
-      t: "Marché",
-      d: "Vue d’ensemble des positions BRVM, scores, signaux ACHAT / CONSERVER / VENDRE et accès rapide aux fiches.",
+      t: t("landing.modules.marketTitle"),
+      d: t("landing.modules.marketBody"),
       href: "/marche",
       icon: <IconTarget size={20} />,
     },
     {
-      t: "Screener",
-      d: "Filtres rentabilité, dividendes, croissance, valorisation et solidité — mêmes calculs que le dashboard.",
+      t: t("landing.modules.screenerTitle"),
+      d: t("landing.modules.screenerBody"),
       href: "/screener",
       icon: <IconSpark size={20} />,
     },
     {
-      t: "Graphes",
-      d: "Chandeliers, SMA / RSI / MACD, Fibonacci, mesure %, tracés déplaçables et analyses sauvegardées (compte).",
+      t: t("landing.modules.chartsTitle"),
+      d: t("landing.modules.chartsBody"),
       href: "/graphes",
       icon: <IconChart size={20} />,
     },
     {
-      t: "Fiches sociétés",
-      d: "Cours, historiques, indicateurs, dividendes, projection et comparaison — une fiche par ticker.",
+      t: t("landing.modules.sheetsTitle"),
+      d: t("landing.modules.sheetsBody"),
       href: "/societes-cotees",
       icon: <IconFile size={20} />,
     },
     {
-      t: "Portefeuille",
-      d: "Positions, valeur de marché, plus-value latente, YTD et répartition sectorielle pour les comptes connectés.",
+      t: t("landing.modules.portfolioTitle"),
+      d: t("landing.modules.portfolioBody"),
       href: "/portefeuille",
       icon: <IconBriefcase size={20} />,
     },
     {
-      t: "Éducation",
-      d: `Lexique et guides BRVM (${educationTermsCount} termes) pour comprendre analyses, ratios et outils de la plateforme.`,
+      t: t("landing.modules.educationTitle"),
+      d: t("landing.modules.educationBody", { count: educationTermsCount }),
       href: "/education",
       icon: <IconGrad size={20} />,
     },
     {
-      t: "Dividendes",
-      d: "Calendrier des dividendes pour suivre les échéances des sociétés cotées.",
+      t: t("landing.modules.dividendsTitle"),
+      d: t("landing.modules.dividendsBody"),
       href: "/calendrier-dividendes",
       icon: <IconDividend size={20} />,
     },
     {
-      t: "Outils",
-      d: "Export Excel du marché et pistes de veille produit — sans chiffres inventés.",
+      t: t("landing.modules.toolsTitle"),
+      d: t("landing.modules.toolsBody"),
       href: "/outils",
       icon: <IconTools size={20} />,
     },
   ];
+
+  const yieldTail =
+    stats.avgDividendYieldPercent !== null
+      ? t("landing.cta.yieldTail", {
+          pct: format.percent(stats.avgDividendYieldPercent, 1, false),
+        })
+      : "";
 
   return (
     <div className={styles.page}>
@@ -166,37 +181,39 @@ export default function LandingPage({
         <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
             <h1 className={styles.h1}>
-              Marchés, graphes
+              {t("landing.hero.line1")}
               <br />
-              et signaux
+              {t("landing.hero.line2")}
               <br />
-              <span className={styles.h1Accent}>pour l&apos;Afrique.</span>
+              <span className={styles.h1Accent}>{t("landing.hero.accent")}</span>
             </h1>
 
-            <div className={styles.exchangeRow} aria-label="Places boursières">
+            <div className={styles.exchangeRow} aria-label={t("landing.hero.exchangesAria")}>
               {landingExchanges.map((exchange) => (
                 <span
                   key={exchange.code}
                   className={styles.exchangeChip}
-                  title={exchange.live ? exchange.region : "Bientôt"}
+                  title={
+                    exchange.live
+                      ? exchange.code === "BRVM"
+                        ? t("landing.hero.regionBrvm")
+                        : exchange.region
+                      : t("landing.hero.soon")
+                  }
                 >
                   {exchange.shortLabel}
                 </span>
               ))}
             </div>
 
-            <p className={styles.paragraph}>
-              La plateforme tout-en-un des investisseurs africains.
-              Données fiables, analyses avancées et signaux actionnables
-              pour des décisions éclairées.
-            </p>
+            <p className={styles.paragraph}>{t("landing.hero.lead")}</p>
 
             <div className={styles.ctaRow}>
               <Link href="/marche" className={styles.ctaPrimary}>
-                <IconSpark size={14} /> Explorer les marchés <IconArrow size={14} />
+                <IconSpark size={14} /> {t("landing.hero.ctaExplore")} <IconArrow size={14} />
               </Link>
               <Link href="/graphes" className={styles.ctaSecondary}>
-                <IconChart size={14} /> Voir les graphes
+                <IconChart size={14} /> {t("landing.hero.ctaCharts")}
               </Link>
             </div>
           </div>
@@ -207,36 +224,32 @@ export default function LandingPage({
                 <div className={styles.cardPortfolioCopy}>
                   <div className={styles.cardLabel}>
                     <span className={styles.liveDot} />
-                    Marché – Données en temps réel
+                    {t("landing.card.live")}
                   </div>
-                  <div className={styles.cardValue}>{formatMdsFcfa(stats.totalMarketCapBnFcfa)}</div>
+                  <div className={styles.cardValue}>{format.mdsFcfa(stats.totalMarketCapBnFcfa)}</div>
                 </div>
                 <LandingSparkline values={marketSeries} width={148} height={56} variant="hero" />
               </div>
               <div className={styles.cardMetrics}>
                 <div className={styles.metricCell}>
-                  <strong className={styles.chipGreen}>
-                    {stats.avgPerf5Percent !== null
-                      ? `${stats.avgPerf5Percent >= 0 ? "+" : ""}${stats.avgPerf5Percent.toFixed(1).replace(".", ",")}%`
-                      : "N/D"}
-                  </strong>
-                  <span>5 ans</span>
+                  <strong className={styles.chipGreen}>{showAvgPerf(stats.avgPerf5Percent)}</strong>
+                  <span>{t("landing.card.years5")}</span>
                 </div>
                 <div className={styles.metricCell}>
                   <strong>{stats.companiesCount}</strong>
-                  <span>Sociétés</span>
+                  <span>{t("landing.card.companies")}</span>
                 </div>
                 <div className={styles.metricCell}>
                   <strong>{sectorsCount}</strong>
-                  <span>Secteurs</span>
+                  <span>{t("landing.card.sectors")}</span>
                 </div>
                 <div className={styles.metricCell}>
                   <strong>
                     {stats.companiesCount > 0
                       ? `${stats.buySignalsCount}/${stats.companiesCount}`
-                      : "N/D"}
+                      : t("common.nd")}
                   </strong>
-                  <span>Signaux</span>
+                  <span>{t("landing.card.signals")}</span>
                 </div>
               </div>
             </div>
@@ -245,20 +258,20 @@ export default function LandingPage({
               <div className={styles.cardStockHead}>
                 <div className={styles.cardLabel}>
                   <IconStar size={14} />
-                  Meilleurs scores
+                  {t("landing.card.topScores")}
                 </div>
                 <Link href="/screener" className={styles.cardSeeAll}>
-                  Voir tout
+                  {t("common.seeAll")}
                 </Link>
               </div>
               {topCompanies.length === 0 ? (
                 <div className={styles.stockRow}>
-                  <span className={styles.stockTicker}>N/D</span>
+                  <span className={styles.stockTicker}>{t("common.nd")}</span>
                 </div>
               ) : (
                 topCompanies.map(({ co, metrics }) => {
-                  const signal = formatSignal(metrics);
-                  const tone = signalTone(signal);
+                  const rawSignal = metrics.signal?.label || "N/D";
+                  const tone = signalTone(rawSignal);
                   return (
                     <Link
                       key={co.ticker}
@@ -267,7 +280,7 @@ export default function LandingPage({
                     >
                       <span className={styles.stockIdentity}>
                         <span className={styles.stockTicker}>{co.ticker}</span>
-                        <span className={styles.stockName}>{co.name || "N/D"}</span>
+                        <span className={styles.stockName}>{co.name || t("common.nd")}</span>
                       </span>
                       <span className={styles.sparkCell}>
                         <LandingSparkline values={seriesFromYearlyPrices(co.prices)} width={72} height={24} />
@@ -282,12 +295,10 @@ export default function LandingPage({
                                 : styles.stockFlat
                           }
                         >
-                          {signal}
+                          {labels.signal(rawSignal)}
                         </span>
                         <span className={perfClass(metrics.perf5Percent)}>
-                          {metrics.perf5Percent !== "N/D"
-                            ? `${parseFloat(metrics.perf5Percent) >= 0 ? "+" : ""}${metrics.perf5Percent.replace(".", ",")}%`
-                            : "N/D"}
+                          {showPerf(metrics.perf5Percent)}
                         </span>
                       </span>
                     </Link>
@@ -300,7 +311,7 @@ export default function LandingPage({
 
         <div className={styles.featureRow}>
           {heroFeatures.map((item) => (
-            <Link key={item.t} href={item.href} className={styles.featureItem}>
+            <Link key={item.href} href={item.href} className={styles.featureItem}>
               <span className={styles.featureIcon}>{item.icon}</span>
               <span className={styles.featureText}>
                 <strong>{item.t}</strong>
@@ -318,8 +329,8 @@ export default function LandingPage({
               </span>
               <div>
                 <div className={styles.statValue}>{stats.companiesCount}</div>
-                <div className={styles.statLabel}>Sociétés cotées</div>
-                <div className={styles.statHint}>Données suivies en continu</div>
+                <div className={styles.statLabel}>{t("landing.stats.listed")}</div>
+                <div className={styles.statHint}>{t("landing.stats.listedHint")}</div>
               </div>
             </div>
             <div className={styles.statItem}>
@@ -327,10 +338,12 @@ export default function LandingPage({
                 <IconCalendar size={16} />
               </span>
               <div>
-                <div className={styles.statValue}>{yearsSpan !== null ? `${yearsSpan}` : "N/D"}</div>
-                <div className={styles.statLabel}>Ans d&apos;historique</div>
+                <div className={styles.statValue}>{yearsSpan !== null ? `${yearsSpan}` : t("common.nd")}</div>
+                <div className={styles.statLabel}>{t("landing.stats.historyYears")}</div>
                 <div className={styles.statHint}>
-                  {horizonLabel !== "N/D" ? `${horizonLabel} inclus` : "N/D"}
+                  {horizonLabel !== t("common.nd")
+                    ? t("landing.stats.historyIncluded", { span: horizonLabel })
+                    : t("common.nd")}
                 </div>
               </div>
             </div>
@@ -340,8 +353,8 @@ export default function LandingPage({
               </span>
               <div>
                 <div className={styles.statValue}>{sectorsCount}</div>
-                <div className={styles.statLabel}>Secteurs couverts</div>
-                <div className={styles.statHint}>Tous les secteurs en base</div>
+                <div className={styles.statLabel}>{t("landing.stats.sectors")}</div>
+                <div className={styles.statHint}>{t("landing.stats.sectorsHint")}</div>
               </div>
             </div>
             <div className={styles.statItem}>
@@ -350,8 +363,8 @@ export default function LandingPage({
               </span>
               <div>
                 <div className={styles.statValue}>{educationTermsCount}</div>
-                <div className={styles.statLabel}>Termes du lexique</div>
-                <div className={styles.statHint}>Pour comprendre et investir</div>
+                <div className={styles.statLabel}>{t("landing.stats.lexicon")}</div>
+                <div className={styles.statHint}>{t("landing.stats.lexiconHint")}</div>
               </div>
             </div>
           </div>
@@ -362,29 +375,22 @@ export default function LandingPage({
       <div className={styles.belowHero}>
         <section className={styles.section}>
           <div className={styles.rail}>
-          <p className={styles.sectionEyebrow}>Pourquoi {BRAND_NAME}</p>
-          <h2 className={styles.sectionTitle}>
-            Une seule plateforme pour lire et tracer les marchés africains.
-          </h2>
-          <p className={styles.sectionLead}>
-            Au lieu de jongler entre sites de cours, historiques et analyses, vous ouvrez le marché,
-            un graphe ou une fiche société — avec source et horodatage, et des données manquantes
-            affichées « N/D ».
-          </p>
+          <p className={styles.sectionEyebrow}>{t("landing.why.eyebrow", { brand: BRAND_NAME })}</p>
+          <h2 className={styles.sectionTitle}>{t("landing.why.title")}</h2>
+          <p className={styles.sectionLead}>{t("landing.why.lead")}</p>
           <div className={styles.grid2}>
             <div className={styles.trustBlock}>
-              <h3>Ce que la plateforme évite</h3>
-              <p>
-                Données éparpillées, signaux sans explication, graphiques sans outils d&apos;analyse,
-                et chiffres marketing non vérifiables.
-              </p>
+              <h3>{t("landing.why.avoidTitle")}</h3>
+              <p>{t("landing.why.avoidBody")}</p>
             </div>
             <div className={`${styles.trustBlock} ${styles.trustBlockGain}`}>
-              <h3>Ce que vous utilisez ici</h3>
+              <h3>{t("landing.why.useTitle")}</h3>
               <p>
-                {stats.companiesCount} titres, {sectorsCount} secteurs, historique {horizonLabel},
-                screener, graphes (indicateurs + Fibonacci + mesure), portefeuille connecté et
-                lexique Éducation.
+                {t("landing.why.useBody", {
+                  companies: stats.companiesCount,
+                  sectors: sectorsCount,
+                  horizon: horizonLabel,
+                })}
               </p>
             </div>
           </div>
@@ -393,15 +399,12 @@ export default function LandingPage({
 
         <section className={`${styles.section} ${styles.sectionAlt}`}>
           <div className={styles.rail}>
-          <p className={styles.sectionEyebrow}>Modules de la plateforme</p>
-          <h2 className={styles.sectionTitle}>Tout ce que vous retrouvez dans le menu.</h2>
-          <p className={styles.sectionLead}>
-            Chaque bloc ci-dessous correspond à une page réelle de {BRAND_NAME} — pas une promesse
-            hors produit.
-          </p>
+          <p className={styles.sectionEyebrow}>{t("landing.modules.eyebrow")}</p>
+          <h2 className={styles.sectionTitle}>{t("landing.modules.title")}</h2>
+          <p className={styles.sectionLead}>{t("landing.modules.lead", { brand: BRAND_NAME })}</p>
           <div className={styles.grid4}>
             {modules.map((f) => (
-              <article key={f.t} className={styles.featureCard}>
+              <article key={f.href} className={styles.featureCard}>
                 <span className={styles.moduleIcon}>{f.icon}</span>
                 <h3>
                   <Link href={f.href} className={styles.featureTitleLink}>
@@ -417,28 +420,25 @@ export default function LandingPage({
 
         <section className={styles.section}>
           <div className={styles.rail}>
-          <p className={styles.sectionEyebrow}>Données & analyse</p>
-          <h2 className={styles.sectionTitle}>De la source officielle à votre décision.</h2>
-          <p className={styles.sectionLead}>
-            Collecte multi-source, valeur canonique, puis scores / projections / export — le même
-            socle que Marché, Screener et Excel.
-          </p>
+          <p className={styles.sectionEyebrow}>{t("landing.cycle.eyebrow")}</p>
+          <h2 className={styles.sectionTitle}>{t("landing.cycle.title")}</h2>
+          <p className={styles.sectionLead}>{t("landing.cycle.lead")}</p>
           <div className={styles.grid3}>
             {[
               {
                 n: "1",
-                t: "Collecte",
-                d: "BRVM.org en priorité, puis Sikafinance et Richbourse — connecteurs isolés et rate-limités.",
+                t: t("landing.cycle.collectTitle"),
+                d: t("landing.cycle.collectBody"),
               },
               {
                 n: "2",
-                t: "Réconciliation",
-                d: "Écarts > 2 % journalisés ; une seule cotation canonique affichée sous chaque société.",
+                t: t("landing.cycle.reconcileTitle"),
+                d: t("landing.cycle.reconcileBody"),
               },
               {
                 n: "3",
-                t: "Lecture",
-                d: "Signaux expliqués, fiches, graphes techniques et export Excel sur les données canoniques.",
+                t: t("landing.cycle.readTitle"),
+                d: t("landing.cycle.readBody"),
               },
             ].map((s) => (
               <div key={s.n} className={styles.cycleStep}>
@@ -457,28 +457,27 @@ export default function LandingPage({
           <div className={styles.rail}>
           <div className={styles.ctaBand}>
             <div>
-              <h2 className={styles.ctaBandTitle}>Explorez la plateforme maintenant</h2>
+              <h2 className={styles.ctaBandTitle}>{t("landing.cta.title")}</h2>
               <p className={styles.ctaBandText}>
-                {stats.companiesCount} sociétés · {stats.buySignalsCount} titres à score élevé ·
-                graphes et screener prêts à l&apos;emploi
-                {stats.avgDividendYieldPercent !== null
-                  ? ` · rend. div. moyen ${stats.avgDividendYieldPercent.toFixed(1).replace(".", ",")} %`
-                  : ""}
-                .
+                {t("landing.cta.body", {
+                  companies: stats.companiesCount,
+                  signals: stats.buySignalsCount,
+                  yield: yieldTail,
+                })}
               </p>
             </div>
             <div className={styles.ctaBandActions}>
               <Link href="/marche" className={styles.btnGold}>
-                Marché
+                {t("landing.cta.market")}
               </Link>
               <Link href="/screener" className={styles.btnOutline}>
-                Screener
+                {t("landing.cta.screener")}
               </Link>
               <Link href="/graphes" className={styles.btnOutline}>
-                Graphes
+                {t("landing.cta.charts")}
               </Link>
               <Link href="/inscription" className={styles.btnOutline}>
-                Créer un compte
+                {t("landing.cta.register")}
               </Link>
             </div>
           </div>
@@ -490,60 +489,56 @@ export default function LandingPage({
           <div className={styles.footerInner}>
             <div>
               <div className={styles.footerBrand}>{BRAND_NAME}</div>
-              <p className={styles.footerMuted}>
-                Analyse de la BRVM pour l&apos;Afrique de l&apos;Ouest. Contenu informatif uniquement —
-                pas un conseil en investissement personnalisé.
-              </p>
+              <p className={styles.footerMuted}>{t("landing.footer.blurb")}</p>
             </div>
             <div>
-              <p className={styles.footerColTitle}>Analyser</p>
+              <p className={styles.footerColTitle}>{t("landing.footer.analyze")}</p>
               <Link href="/marche" className={styles.footerLink}>
-                Marché
+                {t("landing.footer.market")}
               </Link>
               <Link href="/screener" className={styles.footerLink}>
-                Screener
+                {t("landing.footer.screener")}
               </Link>
               <Link href="/graphes" className={styles.footerLink}>
-                Graphes
+                {t("landing.footer.charts")}
               </Link>
               <Link href="/societes-cotees" className={styles.footerLink}>
-                Sociétés cotées
+                {t("landing.footer.companies")}
               </Link>
             </div>
             <div>
-              <p className={styles.footerColTitle}>Suivre</p>
+              <p className={styles.footerColTitle}>{t("landing.footer.follow")}</p>
               <Link href="/portefeuille" className={styles.footerLink}>
-                Portefeuille
+                {t("landing.footer.portfolio")}
               </Link>
               <Link href="/calendrier-dividendes" className={styles.footerLink}>
-                Dividendes
+                {t("landing.footer.dividends")}
               </Link>
               <Link href="/actualites" className={styles.footerLink}>
-                Actualités
+                {t("landing.footer.news")}
               </Link>
               <Link href="/education" className={styles.footerLink}>
-                Éducation
+                {t("landing.footer.education")}
               </Link>
             </div>
             <div>
-              <p className={styles.footerColTitle}>Compte & légal</p>
+              <p className={styles.footerColTitle}>{t("landing.footer.account")}</p>
               <Link href="/connexion" className={styles.footerLink}>
-                Connexion
+                {t("landing.footer.login")}
               </Link>
               <Link href="/inscription" className={styles.footerLink}>
-                Inscription
+                {t("landing.footer.register")}
               </Link>
               <Link href="/outils" className={styles.footerLink}>
-                Outils
+                {t("landing.footer.tools")}
               </Link>
               <Link href="/mentions-legales" className={styles.footerLink}>
-                Mentions légales
+                {t("landing.footer.legal")}
               </Link>
             </div>
           </div>
           <p className={styles.footerCopy}>
-            © {new Date().getFullYear()} {BRAND_NAME} · Sources : BRVM officiel · Sikafinance ·
-            Richbourse
+            {t("landing.footer.copy", { year: new Date().getFullYear(), brand: BRAND_NAME })}
           </p>
           </div>
         </footer>
