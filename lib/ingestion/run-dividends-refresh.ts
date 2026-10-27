@@ -25,7 +25,7 @@ export async function runDividendsRefresh(
 ): Promise<DividendsRefreshResult> {
   const only = options?.tickers?.map((t) => t.toUpperCase());
   const allCompanies = await db.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true, name: true },
     orderBy: { ticker: "asc" },
   });

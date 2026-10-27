@@ -60,12 +60,13 @@ function serializeCompany(
 export async function GET(request: NextRequest) {
   const parsed = companiesListQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
-  const { page, pageSize, sector, country, sortBy, sortDir } = parsed.data;
+  const { page, pageSize, sector, country, sortBy, sortDir, exchange } = parsed.data;
 
   const actionsBySymbol = await actionsByTicker().catch(() => new Map<string, AdjustmentAction[]>());
 
   const where: Prisma.CompanyWhereInput = {
     isActive: true,
+    exchange,
     ...(sector ? { sector: { slug: sector } } : {}),
     ...(country ? { country: { code: country } } : {}),
   };

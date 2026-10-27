@@ -106,7 +106,11 @@ export default async function PortefeuillePage() {
   try {
     const [loaded, companies] = await Promise.all([
       getUserPortfoliosWithMetrics(user.id),
-      prisma.company.findMany({ where: { isActive: true }, select: { ticker: true }, orderBy: { ticker: "asc" } }),
+      prisma.company.findMany({
+        where: { isActive: true, exchange: "BRVM" },
+        select: { ticker: true },
+        orderBy: { ticker: "asc" },
+      }),
     ]);
     portfolios = loaded;
     tickers = companies.map((c) => c.ticker);

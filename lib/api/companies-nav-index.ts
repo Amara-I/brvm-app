@@ -20,7 +20,7 @@ async function loadCompaniesNavIndex(): Promise<{
   sectorGroups: SectorGroup[];
 }> {
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: {
       id: true,
       ticker: true,

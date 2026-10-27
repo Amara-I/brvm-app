@@ -174,7 +174,7 @@ async function loadBackfillCompanies(
   db: PrismaClient,
   only: string[] | undefined
 ): Promise<BackfillCompanyRow[]> {
-  const where = { isActive: true, ...(only?.length ? { ticker: { in: only } } : {}) };
+  const where = { isActive: true, exchange: "BRVM" as const, ...(only?.length ? { ticker: { in: only } } : {}) };
   try {
     return await db.company.findMany({
       where,

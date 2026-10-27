@@ -1,3 +1,4 @@
+import { formatMoney } from "@/lib/money/format-money";
 import { intlLocale, type Locale } from "./config";
 
 export type FormatApi = ReturnType<typeof createFormat>;
@@ -48,6 +49,10 @@ export function createFormat(locale: Locale) {
     fcfa(value: number): string {
       if (!Number.isFinite(value)) return "N/D";
       return `${integer(value)} FCFA`;
+    },
+    /** Montant dans la devise de la place (NGN → ₦, XOF/FCFA → « FCFA »). */
+    money(value: number, currency: string): string {
+      return formatMoney(value, currency, locale);
     },
     /** Capitalisation en milliards de FCFA. « Mds FCFA » reste le libellé français. */
     mdsFcfa(value: number): string {

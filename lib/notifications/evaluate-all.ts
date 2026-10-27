@@ -173,6 +173,7 @@ async function loadLatestQuotes(tickers?: string[]): Promise<LatestQuote[]> {
   const companies = await prisma.company.findMany({
     where: {
       isActive: true,
+      exchange: "BRVM",
       ...(tickers?.length ? { ticker: { in: tickers.map((t) => t.toUpperCase()) } } : {}),
     },
     select: { id: true, ticker: true },

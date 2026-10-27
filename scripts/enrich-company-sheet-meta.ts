@@ -32,7 +32,7 @@ import type { RawCompanyProfile } from "../lib/ingestion/types";
 async function main() {
   const only = process.argv.slice(2).map((t) => t.toUpperCase());
   const companies = await prisma.company.findMany({
-    where: { isActive: true, ...(only.length ? { ticker: { in: only } } : {}) },
+    where: { isActive: true, exchange: "BRVM", ...(only.length ? { ticker: { in: only } } : {}) },
     select: { id: true, ticker: true },
     orderBy: { ticker: "asc" },
   });

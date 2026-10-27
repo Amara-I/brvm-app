@@ -33,7 +33,7 @@ export async function GET() {
 
   // Top hausses / baisses : séance précédente réelle (canonique ou non).
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true, name: true, color: true },
   });
   const now = new Date();

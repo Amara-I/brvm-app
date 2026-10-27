@@ -15,10 +15,11 @@ import type { AdjustmentAction } from "./types";
 
 const SOURCE_RANK: Record<string, number> = {
   BRVM_OFFICIEL: 0,
-  SIKAFINANCE: 1,
-  OUESTBOURSE: 2,
-  RICHBOURSE: 3,
-  MANUEL: 4,
+  NGX_OFFICIEL: 1,
+  SIKAFINANCE: 2,
+  OUESTBOURSE: 3,
+  RICHBOURSE: 4,
+  MANUEL: 5,
 };
 
 export interface PresentedSeries {
@@ -33,7 +34,7 @@ export async function presentCompanyCloses(
   ticker: string,
   canonical: ChartClosePoint[]
 ): Promise<PresentedSeries> {
-  const actions = await actionsForTicker(ticker);
+  const actions = await actionsForTicker(ticker, companyId);
   const fingerprint = adjustmentFingerprint(actions);
   if (fingerprint === "none") {
     return { points: canonical, actions, fingerprint };

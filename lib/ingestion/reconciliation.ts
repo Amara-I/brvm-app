@@ -14,6 +14,7 @@ import type { DataSourceCode, RawIndexQuote, RawPriceQuote } from "./types";
 /// Ordre de priorité — index le plus bas = priorité la plus haute.
 export const SOURCE_PRIORITY: DataSourceCode[] = [
   "BRVM_OFFICIEL",
+  "NGX_OFFICIEL",
   "SIKAFINANCE",
   "OUESTBOURSE",
   "RICHBOURSE",

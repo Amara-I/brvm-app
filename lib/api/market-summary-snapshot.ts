@@ -26,6 +26,7 @@ export async function loadRecentIndexLevels(): Promise<MarketIndexSnapshot[]> {
   const from = new Date(now);
   from.setUTCDate(from.getUTCDate() - 40);
   const indices = await prisma.marketIndex.findMany({
+    where: { exchange: "BRVM" },
     select: { id: true, code: true, name: true },
   });
   if (indices.length === 0) return [];

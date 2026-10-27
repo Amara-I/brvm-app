@@ -310,7 +310,10 @@ export async function runFullIngestion(options: RunFullIngestionOptions = {}): P
 
     const companies = await timed("companies", () =>
       withTimeout(
-        prisma.company.findMany({ where: { isActive: true }, select: { id: true, ticker: true } }),
+        prisma.company.findMany({
+          where: { isActive: true, exchange: "BRVM" },
+          select: { id: true, ticker: true },
+        }),
         Math.min(20_000, Math.max(5_000, budget.remainingMs())),
         "lecture sociétés"
       )

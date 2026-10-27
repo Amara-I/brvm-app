@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   const parsed = projectionsQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
 
-  const company = await prisma.company.findUnique({ where: { ticker } });
+  const company = await prisma.company.findFirst({ where: { ticker, exchange: "BRVM" } });
   if (!company) return apiNotFound(`Société "${ticker}"`);
 
   const priceHistory = await prisma.priceHistory.findMany({

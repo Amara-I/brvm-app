@@ -8,7 +8,10 @@ import { join } from "node:path";
 
 async function main() {
   const prisma = new PrismaClient();
-  const companies = await prisma.company.findMany({ select: { ticker: true, id: true } });
+  const companies = await prisma.company.findMany({
+    where: { exchange: "BRVM" },
+    select: { ticker: true, id: true },
+  });
   const now = new Date();
   const prices = new Map<string, number>();
 

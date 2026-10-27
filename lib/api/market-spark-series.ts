@@ -43,7 +43,7 @@ function sparkFromRows(
  */
 export async function getMarketSparkSeriesByTicker(): Promise<Record<string, ChartClosePoint[]>> {
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true },
   });
   if (companies.length === 0) return {};
@@ -97,7 +97,7 @@ export async function getMarketSparkSeriesByTicker(): Promise<Record<string, Cha
  */
 export async function getMarketDayChangeByTicker(): Promise<Record<string, number | null>> {
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true },
   });
   const out: Record<string, number | null> = {};

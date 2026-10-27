@@ -29,6 +29,7 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
   if (file.size > STATEMENT_MAX_BYTES) return apiError(STATEMENT_ERRORS.TOO_LARGE, 400);
 
   const companies = await prisma.company.findMany({
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true, name: true, isin: true },
     orderBy: { ticker: "asc" },
   });

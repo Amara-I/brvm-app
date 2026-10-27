@@ -25,6 +25,8 @@ import type { AdjustmentAction } from "../corporate-actions/types";
 export interface RefreshChartSeriesOptions {
   symbols?: string[];
   kinds?: ChartSeriesKindCode[];
+  /** Sans symboles explicites, seules les séries de cette place sont reconstruites (défaut BRVM). */
+  exchange?: "BRVM" | "NGX";
   timeBudgetMs?: number;
   /** Ne traite que les symboles strictement après celui-ci (reprise). */
   after?: string;
@@ -117,11 +119,13 @@ async function upsertRangeRows(opts: {
   kind: ChartSeriesKindCode;
   symbol: string;
   companyId: string | null;
+  exchange?: "BRVM" | "NGX";
   full: ChartClosePoint[];
   sources: string[];
   adjustmentFingerprint?: string;
 }): Promise<number> {
   const { db, kind, symbol, companyId, full, sources } = opts;
+  const exchange = opts.exchange ?? "BRVM";
   const meta: ChartSeriesMetaPayload = {
     ...buildChartSeriesMeta(full, sources),
     ...(opts.adjustmentFingerprint ? { adjustmentFingerprint: opts.adjustmentFingerprint } : {}),
@@ -139,6 +143,7 @@ async function upsertRangeRows(opts: {
       create: {
         kind,
         symbol,
+        exchange,
         companyId,
         rangeKey,
         points: toCompactPoints(slice) as unknown as Prisma.InputJsonValue,
@@ -150,6 +155,7 @@ async function upsertRangeRows(opts: {
         builtAt: new Date(),
       },
       update: {
+        exchange,
         companyId,
         points: toCompactPoints(slice) as unknown as Prisma.InputJsonValue,
         pointCount: slice.length,
@@ -198,7 +204,7 @@ export async function readCachedSparkSeriesByTicker(
 ): Promise<Record<string, ChartClosePoint[]> | null> {
   try {
     const rows = await db.chartSeries.findMany({
-      where: { kind: "COMPANY", rangeKey: "SPARK" },
+      where: { kind: "COMPANY", rangeKey: "SPARK", company: { exchange: "BRVM" } },
       select: { symbol: true, points: true, pointCount: true, meta: true },
     });
     if (rows.length === 0) return null;
@@ -332,7 +338,7 @@ export async function tipLatestChartPoints(
     const companyRows = companies.length
       ? await db.company.findMany({
           where: { isActive: true, ticker: { in: companies } },
-          select: { id: true, ticker: true },
+          select: { id: true, ticker: true, exchange: true },
         })
       : [];
     const companyByTicker = new Map(companyRows.map((row) => [row.ticker, row]));
@@ -372,6 +378,7 @@ export async function tipLatestChartPoints(
         kind: "COMPANY",
         symbol: ticker,
         companyId: company.id,
+        exchange: company.exchange,
         full: merged.points,
         sources: cached.meta?.sources ?? [],
         adjustmentFingerprint: merged.fingerprint,
@@ -383,7 +390,7 @@ export async function tipLatestChartPoints(
     if (!incomplete && indices.length > 0) {
       const indexRows = await db.marketIndex.findMany({
         where: { code: { in: indices } },
-        select: { id: true, code: true },
+        select: { id: true, code: true, exchange: true },
       });
       const indexByCode = new Map(indexRows.map((row) => [row.code, row]));
       for (const code of indices) {
@@ -413,6 +420,7 @@ export async function tipLatestChartPoints(
           kind: "INDEX",
           symbol: code,
           companyId: null,
+          exchange: index.exchange,
           full: merged.points,
           sources: cached.meta?.sources ?? [],
           adjustmentFingerprint: merged.fingerprint,
@@ -512,12 +520,18 @@ export async function refreshChartSeries(
   let nextSymbol: string | null = null;
   let skippedMissingTable = false;
 
+  const exchangeScope = options.exchange ?? (only?.length ? undefined : "BRVM");
+
   try {
     if (kinds.has("COMPANY")) {
       const after = options.after?.toUpperCase() ?? "";
       let companies = await db.company.findMany({
-        where: { isActive: true, ...(only?.length ? { ticker: { in: only } } : {}) },
-        select: { id: true, ticker: true },
+        where: {
+          isActive: true,
+          ...(exchangeScope ? { exchange: exchangeScope } : {}),
+          ...(only?.length ? { ticker: { in: only } } : {}),
+        },
+        select: { id: true, ticker: true, exchange: true },
         orderBy: { ticker: "asc" },
       });
       if (after) companies = companies.filter((row) => row.ticker > after);
@@ -551,6 +565,7 @@ export async function refreshChartSeries(
           kind: "COMPANY",
           symbol: co.ticker,
           companyId: co.id,
+          exchange: co.exchange,
           full: presented.points,
           sources,
           adjustmentFingerprint: presented.fingerprint,
@@ -563,8 +578,11 @@ export async function refreshChartSeries(
     if (!incomplete && kinds.has("INDEX")) {
       const after = options.after?.toUpperCase() ?? "";
       let indices = await db.marketIndex.findMany({
-        where: only?.length ? { code: { in: only } } : undefined,
-        select: { id: true, code: true },
+        where: {
+          ...(exchangeScope ? { exchange: exchangeScope } : {}),
+          ...(only?.length ? { code: { in: only } } : {}),
+        },
+        select: { id: true, code: true, exchange: true },
         orderBy: { code: "asc" },
       });
       if (after && !kinds.has("COMPANY")) indices = indices.filter((row) => row.code > after);
@@ -594,6 +612,7 @@ export async function refreshChartSeries(
           kind: "INDEX",
           symbol: idx.code,
           companyId: null,
+          exchange: idx.exchange,
           full: dedupeChartPointsByDay(points),
           sources,
         });

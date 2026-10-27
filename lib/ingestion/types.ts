@@ -7,6 +7,7 @@
 /// client Prisma généré (ex: dans un script CLI léger ou un test unitaire).
 export type DataSourceCode =
   | "BRVM_OFFICIEL"
+  | "NGX_OFFICIEL"
   | "SIKAFINANCE"
   | "OUESTBOURSE"
   | "RICHBOURSE"

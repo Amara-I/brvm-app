@@ -2,7 +2,7 @@ import { prisma } from "../lib/prisma";
 
 async function main() {
   const cos = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { ticker: true, isin: true, description: true },
     orderBy: { ticker: "asc" },
   });

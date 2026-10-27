@@ -3,6 +3,8 @@ export function dataSourceLabel(source: string | null | undefined): string {
   switch (source) {
     case "BRVM_OFFICIEL":
       return "BRVM officiel";
+    case "NGX_OFFICIEL":
+      return "NGX officiel";
     case "SIKAFINANCE":
       return "Sikafinance";
     case "OUESTBOURSE":

@@ -38,7 +38,7 @@ export async function runBrvmQuotesRefresh(
   const { skipFundamentals = false } = options;
   const startedAt = Date.now();
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true },
   });
   const tickers = companies.map((c) => c.ticker);
@@ -80,6 +80,7 @@ export async function runBrvmQuotesRefresh(
       const missingCap = await prisma.company.findMany({
         where: {
           isActive: true,
+          exchange: "BRVM",
           OR: [
             { financialRatios: { none: { isCanonical: true } } },
             { financialRatios: { some: { isCanonical: true, OR: [{ mktCap: null }, { mktCap: 0 }] } } },

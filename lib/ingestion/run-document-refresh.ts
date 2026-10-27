@@ -145,7 +145,7 @@ export async function runDocumentRefresh(
   const includeFundamentals = options.includeFundamentals !== false;
   const only = options.tickers?.map((t) => t.toUpperCase()).filter(Boolean);
   const companies = await db.company.findMany({
-    where: { isActive: true, ...(only?.length ? { ticker: { in: only } } : {}) },
+    where: { isActive: true, exchange: "BRVM", ...(only?.length ? { ticker: { in: only } } : {}) },
     select: { id: true, ticker: true },
     orderBy: { ticker: "asc" },
   });

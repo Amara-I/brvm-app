@@ -43,7 +43,7 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
   if (!parsed.success) return apiValidationError(parsed.error);
   const { ticker, quantity, avgBuyPrice, buyDate, buyHorizon, notes } = parsed.data;
 
-  const company = await prisma.company.findUnique({ where: { ticker } });
+  const company = await prisma.company.findFirst({ where: { ticker, exchange: "BRVM" } });
   if (!company) return apiNotFound(`Société "${ticker}"`);
 
   const existing = await prisma.portfolioHolding.findUnique({

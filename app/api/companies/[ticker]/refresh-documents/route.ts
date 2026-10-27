@@ -30,8 +30,8 @@ export async function POST(
   { params }: { params: { ticker: string } }
 ) {
   const ticker = params.ticker.toUpperCase();
-  const exists = await prisma.company.findUnique({
-    where: { ticker },
+  const exists = await prisma.company.findFirst({
+    where: { ticker, exchange: "BRVM" },
     select: { id: true },
   });
   if (!exists) return apiNotFound(`Société "${ticker}"`);
