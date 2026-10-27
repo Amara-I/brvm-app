@@ -38,8 +38,10 @@ import { prisma } from "../prisma";
 import { sendIngestionAlert } from "./alerts";
 import { getConnectorFeatureFlags, getHistoryBackfillFlags, getIndexEnrichmentFlags } from "./connector-config";
 import { brvmConnector } from "./connectors/brvm_connector";
+import { ngxConnector } from "./connectors/ngx_connector";
 import { richbourseConnector } from "./connectors/richbourse_connector";
 import { sikafinanceConnector } from "./connectors/sikafinance_connector";
+import { runNgxDailyIngest } from "./run-ngx-ingest";
 import { runWithFetchDeadline } from "./fetch-budget";
 import {
   persistDiscrepancies,
@@ -407,6 +409,24 @@ export async function runFullIngestion(options: RunFullIngestionOptions = {}): P
       persistCollected(allPriceQuotes, allIndexQuotes, companyIdByTicker, budget)
     );
     await repairCanonicalHoles(logger);
+
+    // NGX hors du lot BRVM : ses cours ne rejoignent pas `allPriceQuotes`
+    // (réconciliation Sika/Richbourse). Plafond 25 s, saut si < 12 s restent.
+    if (!flags.ngx) {
+      skip("ngx", "INGESTION_ENABLE_NGX=false", false);
+    } else if (budget.remainingMs() < 12_000) {
+      skip("ngx", "budget restant insuffisant", false);
+    } else {
+      const ngxBudget = Math.min(25_000, Math.max(0, budget.remainingMs() - 1_000));
+      logger(`[ingest] ngx connector=${ngxConnector.source} budgetMs=${ngxBudget}`);
+      await timed("ngx", async () => {
+        const ngx = await runNgxDailyIngest({ budgetMs: ngxBudget, logger });
+        if (ngx.status === "FAILED") {
+          incomplete = true;
+          stoppedAt ??= "ngx";
+        }
+      });
+    }
 
     let chartSeries: RefreshChartSeriesSummary | null = null;
     let indexCodesToTip: string[] = [];

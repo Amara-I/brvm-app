@@ -16,6 +16,8 @@ export interface ConnectorFeatureFlags {
   sikafinanceQuotes: boolean;
   richbourseIndices: boolean;
   richbourseQuotes: boolean;
+  /** Cours et indices NGX (JSON du jour, repli PDF). Défaut true. */
+  ngx: boolean;
 }
 
 export interface HistoryBackfillFlags {
@@ -74,6 +76,9 @@ export function getConnectorFeatureFlags(): ConnectorFeatureFlags {
     sikafinanceQuotes: envFlag("INGESTION_ENABLE_SIKAFINANCE_QUOTES", true),
     richbourseIndices: envFlag("INGESTION_ENABLE_RICHBOURSE_INDICES", true),
     richbourseQuotes: envFlag("INGESTION_ENABLE_RICHBOURSE_QUOTES", true),
+    // Une requête JSON + un PDF de couverture. Désactivation :
+    // INGESTION_ENABLE_NGX=false.
+    ngx: envFlag("INGESTION_ENABLE_NGX", true),
   };
 }
 
