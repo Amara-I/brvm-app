@@ -33,7 +33,7 @@ export default async function LandingChrome({ children }: { children: React.Reac
         }
       />
       {user && user.emailVerified === false ? (
-        <div style={{ maxWidth: 1120, margin: "0 auto", padding: "12px 16px 0" }}>
+        <div className={styles.rail} style={{ paddingTop: 12 }}>
           <VerifyEmailBanner />
         </div>
       ) : null}
