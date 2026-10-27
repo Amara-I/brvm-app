@@ -35,6 +35,17 @@ export function comingSoonExchanges(): AfricanExchange[] {
   return AFRICAN_EXCHANGES.filter((exchange) => !exchange.live);
 }
 
+/** Places live autres que la BRVM (pages sous /marches/{code}). */
+export function liveSecondaryExchanges(): AfricanExchange[] {
+  return AFRICAN_EXCHANGES.filter((exchange) => exchange.live && exchange.code !== "BRVM");
+}
+
+export function isSecondaryMarketPath(pathname: string | null | undefined, code: AfricanExchange["code"]): boolean {
+  if (!pathname) return false;
+  const prefix = `${COMING_SOON_MARKET_PREFIX}/${code.toLowerCase()}`;
+  return pathname === prefix || pathname.startsWith(`${prefix}/`);
+}
+
 /** Pages placeholder hors /marche, pour ne pas polluer la vue d'ensemble BRVM. */
 export const COMING_SOON_MARKET_PREFIX = "/marches";
 

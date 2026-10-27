@@ -1,6 +1,6 @@
 // Catalogues des marchés africains proposés sur /marche (étape 18).
-// Seule la BRVM a des données live pour l'instant ; les autres sont
-// listés honnêtement (état "bientôt") sans chiffres inventés.
+// BRVM et NGX sont branchés sur la base. Les autres places restent
+// listées honnêtement (état "bientôt") sans chiffres inventés.
 
 export type AfricanExchangeCode =
   | "BRVM"
@@ -47,7 +47,7 @@ export const AFRICAN_EXCHANGES: AfricanExchange[] = [
     shortLabel: "NGX",
     region: "Nigeria",
     currency: "NGN",
-    live: false,
+    live: true,
     headlineIndexHints: ["NGX All-Share"],
   },
   {

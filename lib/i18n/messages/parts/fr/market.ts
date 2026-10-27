@@ -129,6 +129,7 @@ export const market = {
   },
   sources: {
     brvm: "BRVM officiel",
+    ngx: "NGX officiel",
     manual: "Saisie manuelle",
   },
   indices: {

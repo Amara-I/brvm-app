@@ -189,21 +189,30 @@ export default function LandingPage({
             </h1>
 
             <div className={styles.exchangeRow} aria-label={t("landing.hero.exchangesAria")}>
-              {landingExchanges.map((exchange) => (
-                <span
-                  key={exchange.code}
-                  className={styles.exchangeChip}
-                  title={
-                    exchange.live
-                      ? exchange.code === "BRVM"
-                        ? t("landing.hero.regionBrvm")
-                        : exchange.region
-                      : t("landing.hero.soon")
-                  }
-                >
-                  {exchange.shortLabel}
-                </span>
-              ))}
+              {landingExchanges.map((exchange) => {
+                const title = exchange.live
+                  ? exchange.code === "BRVM"
+                    ? t("landing.hero.regionBrvm")
+                    : exchange.region
+                  : t("landing.hero.soon");
+                if (exchange.live && exchange.code !== "BRVM") {
+                  return (
+                    <Link
+                      key={exchange.code}
+                      href={`/marches/${exchange.code.toLowerCase()}`}
+                      className={styles.exchangeChip}
+                      title={title}
+                    >
+                      {exchange.shortLabel}
+                    </Link>
+                  );
+                }
+                return (
+                  <span key={exchange.code} className={styles.exchangeChip} title={title}>
+                    {exchange.shortLabel}
+                  </span>
+                );
+              })}
             </div>
 
             <p className={styles.paragraph}>{t("landing.hero.lead")}</p>

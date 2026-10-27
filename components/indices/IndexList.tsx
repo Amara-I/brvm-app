@@ -14,7 +14,13 @@ const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
   timeZone: "UTC",
 };
 
-export default function IndexList({ items }: { items: MarketIndexListItem[] }) {
+export default function IndexList({
+  items,
+  hrefFor = (code) => `/indices/${code}`,
+}: {
+  items: MarketIndexListItem[];
+  hrefFor?: (code: string) => string;
+}) {
   const { t, format } = getI18n();
 
   if (items.length === 0) {
@@ -47,7 +53,7 @@ export default function IndexList({ items }: { items: MarketIndexListItem[] }) {
                 {group.items.map((item) => (
                   <tr key={item.code}>
                     <td>
-                      <Link href={`/indices/${item.code}`} className={styles.nameLink}>
+                      <Link href={hrefFor(item.code)} className={styles.nameLink}>
                         <span className={styles.code}>{item.code.replace(/_/g, " ")}</span>
                         <span className={styles.name}>{item.name}</span>
                       </Link>

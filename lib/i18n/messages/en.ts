@@ -12,6 +12,7 @@ import { legal } from "./parts/en/legal";
 import { mail } from "./parts/en/mail";
 import { market } from "./parts/en/market";
 import { notifications } from "./parts/en/notifications";
+import { ngx } from "./parts/en/ngx";
 import { portfolio } from "./parts/en/portfolio";
 import { screener } from "./parts/en/screener";
 import { tools } from "./parts/en/tools";
@@ -32,4 +33,5 @@ export const en = {
   tools,
   auth,
   notifications,
+  ngx,
 } as const satisfies DeepStringTree<Messages>;
