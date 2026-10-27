@@ -1,6 +1,8 @@
 /** Texte d'un PDF NGX (couche texte). Pas de stockage du fichier en base. */
 
-type TextItem = { str: string; x: number; y: number };
+export type NgxPdfItem = { str: string; x: number; y: number };
+
+type TextItem = NgxPdfItem;
 
 export async function extractNgxPdfText(bytes: Uint8Array): Promise<string> {
   const { extractTextItems } = await import("unpdf");
@@ -28,4 +30,10 @@ export async function extractNgxPdfText(bytes: Uint8Array): Promise<string> {
     lines.push("");
   }
   return lines.join("\n");
+}
+
+export async function extractNgxPdfItems(bytes: Uint8Array): Promise<NgxPdfItem[][]> {
+  const { extractTextItems } = await import("unpdf");
+  const extracted = await extractTextItems(new Uint8Array(bytes));
+  return extracted.items as NgxPdfItem[][];
 }

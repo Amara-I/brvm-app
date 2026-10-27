@@ -80,6 +80,22 @@ export function resolveIndexCatalog(code: string, name = ""): IndexCatalogEntry 
   const known = KNOWN[code.toUpperCase()];
   if (known) return known;
 
+  if (code.toUpperCase().startsWith("NGX")) {
+    const upper = code.toUpperCase();
+    const principal =
+      upper === "NGX_ASI" ||
+      upper === "NGX30" ||
+      upper === "NGXMAINBOARD" ||
+      upper === "NGXPREMIUM" ||
+      upper === "NGXGROWTH" ||
+      upper === "NGXCG";
+    return {
+      family: principal ? "principal" : "sectoriel",
+      compositionKind: "unavailable",
+      description: "Indice NGX. Composition officielle non stockée en base — N/D.",
+    };
+  }
+
   const hay = `${code} ${name}`.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   for (const alias of SECTOR_ALIASES) {
     if (alias.pattern.test(hay)) {

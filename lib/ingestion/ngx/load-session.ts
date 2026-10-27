@@ -4,8 +4,8 @@ import { matchSummaryToListings, parseDailySummaryText, type NamedListing } from
 import { isoDate, recentWeekdays } from "./dates";
 import { parseEquitiesPayload } from "./equities-json";
 import type { NgxEquitiesKind, NgxListingQuote } from "./listing-quote";
-import { parseOfficialListText } from "./official-list";
-import { extractNgxPdfText } from "./pdf-text";
+import { parseOfficialListItems, parseOfficialListText, type OfficialListRow } from "./official-list";
+import { extractNgxPdfItems, extractNgxPdfText } from "./pdf-text";
 import { ngxCoverPdfUrl, ngxDailySummaryPdfUrl, ngxEquitiesJsonUrl, ngxOfficialListPdfUrl } from "./urls";
 
 export interface LoadEquitiesOptions {
@@ -44,8 +44,8 @@ async function pdfText(url: string): Promise<{ text: string } | { missing: true 
   }
 }
 
-function fromOfficial(text: string, iso: string): NgxListingQuote[] {
-  return parseOfficialListText(text)
+function fromOfficial(rows: OfficialListRow[], iso: string): NgxListingQuote[] {
+  return rows
     .filter((row) => row.tradeDate === iso && row.close > 0)
     .map((row) => ({
       symbol: row.symbol,
@@ -75,14 +75,35 @@ function fromSummary(text: string, iso: string, listings: NamedListing[]): NgxLi
   }));
 }
 
+async function officialListRows(iso: string): Promise<{ rows: ReturnType<typeof parseOfficialListText> } | { missing: true } | { error: string }> {
+  const url = ngxOfficialListPdfUrl(iso);
+  try {
+    const buf = await fetchBuffer(url, { cacheTtlMs: 36 * 60 * 60 * 1000, timeoutMs: 25_000 });
+    if (buf.length < 5 || buf.subarray(0, 5).toString("latin1") !== "%PDF-") {
+      return { error: `réponse non PDF ${url}` };
+    }
+    const bytes = new Uint8Array(buf);
+    const byColumn = parseOfficialListItems(await extractNgxPdfItems(bytes));
+    if (byColumn.length >= 30) return { rows: byColumn };
+    const text = await extractNgxPdfText(bytes);
+    if (text.replace(/\s+/g, "").length < 40) return { error: `PDF sans texte ${url}` };
+    return { rows: parseOfficialListText(text) };
+  } catch (err) {
+    if (err instanceof HttpFetchError && (err.httpStatus === 404 || err.httpStatus === 401)) {
+      return { missing: true };
+    }
+    return { error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 async function loadPdfsForDate(
   iso: string,
   listings: NamedListing[],
   warnings: string[]
 ): Promise<{ quotes: NgxListingQuote[]; kind: NgxEquitiesKind } | { absent: boolean }> {
-  const official = await pdfText(ngxOfficialListPdfUrl(iso));
-  if ("text" in official) {
-    const quotes = fromOfficial(official.text, iso);
+  const official = await officialListRows(iso);
+  if ("rows" in official) {
+    const quotes = fromOfficial(official.rows, iso);
     if (quotes.length >= 30) return { quotes, kind: "official-list" };
     warnings.push(`${iso} liste officielle : ${quotes.length} cours exploitables`);
   } else if ("error" in official) {

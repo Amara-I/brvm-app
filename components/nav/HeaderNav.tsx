@@ -12,6 +12,8 @@ import {
   isBrvmNavPath,
   isComingSoonMarketNavPath,
   isComingSoonMarketSectionOpen,
+  isSecondaryMarketPath,
+  liveSecondaryExchanges,
   marketIndicesHref,
 } from "@/lib/markets/nav-structure";
 import CompanyMegaMenu from "./CompanyMegaMenu";
@@ -150,6 +152,7 @@ export default function HeaderNav({
   const panelIdBase = useId();
   const brvmPanelId = `${panelIdBase}-brvm`;
   const soonExchanges = comingSoonExchanges();
+  const liveMarkets = liveSecondaryExchanges();
   const soonOpen = soonToggle.path === pathname ? soonToggle.open : {};
 
   useEffect(() => {
@@ -256,6 +259,47 @@ export default function HeaderNav({
       ) : (
         brvmPages
       )}
+      {sidebar
+        ? liveMarkets.map((exchange) => {
+            const overviewHref = comingSoonMarketHref(exchange.code);
+            const indicesHref = marketIndicesHref(exchange.code);
+            const marketActive = isSecondaryMarketPath(pathname, exchange.code);
+            const open = soonOpen[exchange.code] ?? marketActive;
+            return (
+              <MarketNavGroup
+                key={exchange.code}
+                label={exchange.shortLabel}
+                panelId={`${panelIdBase}-${exchange.code.toLowerCase()}`}
+                open={open}
+                onToggle={() => {
+                  const current = soonOpen[exchange.code] ?? marketActive;
+                  setSoonToggle({
+                    path: pathname ?? null,
+                    open: { ...soonOpen, [exchange.code]: !current },
+                  });
+                }}
+                active={marketActive}
+                live
+                pagesLabel={t("chrome.nav.pagesOf", { label: exchange.shortLabel })}
+              >
+                <NavLink
+                  href={overviewHref}
+                  label={t("chrome.nav.overview")}
+                  active={pathname === overviewHref}
+                  onClick={close}
+                  sidebar={sidebar}
+                />
+                <NavLink
+                  href={indicesHref}
+                  label={t("chrome.nav.indices")}
+                  active={isActive(indicesHref)}
+                  onClick={close}
+                  sidebar={sidebar}
+                />
+              </MarketNavGroup>
+            );
+          })
+        : null}
       {sidebar
         ? soonExchanges.map((exchange) => {
             const overviewHref = comingSoonMarketHref(exchange.code);
