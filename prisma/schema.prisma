@@ -27,6 +27,13 @@ generator client {
 
 datasource db {
   // PostgreSQL managé (Supabase ou Neon) — cf. AGENTS.md § Stack technique.
+  // Runtime : DATABASE_URL (pooler transaction Supabase, port 6543).
+  // Ne pas ajouter `directUrl = env("DIRECT_URL")` : Prisma 5.22 lève P1012
+  // (`Environment variable not found: DIRECT_URL`) dès que la variable est
+  // absente ou vide — y compris pour `prisma generate`, donc le build casserait
+  // tant que Vercel ne l'a pas. Les migrations passent par
+  // `scripts/try-migrate-deploy.cjs`, qui n'envoie DIRECT_URL (session pooler,
+  // port 5432) qu'au process `prisma migrate deploy`.
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
