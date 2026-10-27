@@ -1,9 +1,9 @@
 // Historique NGX (5 ans par défaut), à lancer sur une machine qui a DATABASE_URL.
 //
 //   npm run history:ngx
-//   npx ts-node scripts/backfill-ngx-history.ts --from=2021-10-27 --to=2026-10-27
-//   npx ts-node scripts/backfill-ngx-history.ts --limit=5
-//   npx ts-node scripts/backfill-ngx-history.ts --indices=off --charts=off
+//   npm run history:ngx -- --from=2021-10-27 --to=2026-10-27
+//   npm run history:ngx -- --limit=5
+//   npm run history:ngx -- --indices=off --charts=off
 //
 // Reprise : le fichier `.cache/ngx-backfill.json` et le dernier
 // `ingestion_logs` (errors.kind = NGX_HISTORY) indiquent la prochaine date.

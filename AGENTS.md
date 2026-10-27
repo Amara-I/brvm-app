@@ -1043,6 +1043,20 @@ Recalcul idempotent : `npm run corporate-actions:apply` ou
 
 ---
 
+## 22. Étape 26 — NGX phase 1 (consultation)
+
+Demandée le 27/10/2026 : `/marches/ngx` consultable (pas le portefeuille).
+~146 actions, historique 5 ans, prix en NGN avec FCFA indicatif.
+
+- Schéma : `exchange` / `currency`, source `NGX_OFFICIEL`, table `fx_rates`.
+  Migration `20261027190000_ngx_exchange_scope` à appliquer **avant** le
+  déploiement (le build Vercel peut sauter `prisma migrate deploy`).
+- Pages BRVM filtrées `exchange = BRVM`. Collier NGX ±10 %.
+- Connecteur quotidien dans le cron `0 17 * * *` (plafond 25 s) +
+  `npm run history:ngx`. Détail : `docs/ngx-phase1.md`.
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

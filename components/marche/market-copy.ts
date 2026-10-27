@@ -40,6 +40,7 @@ export function displayPillarNote(note: string, locale: Locale, labels: LabelsAp
 
 export function translateDataSourceLabel(label: string, t: TFunc): string {
   if (label === "BRVM officiel") return t("market.sources.brvm");
+  if (label === "NGX officiel") return t("market.sources.ngx");
   if (label === "Saisie manuelle") return t("market.sources.manual");
   return label;
 }
@@ -47,6 +48,7 @@ export function translateDataSourceLabel(label: string, t: TFunc): string {
 export function translateExchangeName(code: string, fallback: string, t: TFunc): string {
   if (code === "BRVM") return t("market.exchange.brvmName");
   if (code === "BVMAC") return t("market.exchange.bvmacName");
+  if (code === "NGX") return t("ngx.market.title");
   return fallback;
 }
 
