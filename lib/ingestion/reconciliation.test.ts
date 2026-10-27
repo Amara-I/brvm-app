@@ -111,14 +111,15 @@ describe("reconcileIndexQuotes", () => {
     };
   }
 
-  it("classe BRVM_OFFICIEL > SIKAFINANCE > OUESTBOURSE > RICHBOURSE > MANUEL", () => {
-    expect(sourceOutranks("BRVM_OFFICIEL", "SIKAFINANCE")).toBe(true);
+  it("classe BRVM_OFFICIEL > NGX_OFFICIEL > SIKAFINANCE > OUESTBOURSE > RICHBOURSE > MANUEL", () => {
+    expect(sourceOutranks("BRVM_OFFICIEL", "NGX_OFFICIEL")).toBe(true);
+    expect(sourceOutranks("NGX_OFFICIEL", "SIKAFINANCE")).toBe(true);
     expect(sourceOutranks("SIKAFINANCE", "OUESTBOURSE")).toBe(true);
     expect(sourceOutranks("OUESTBOURSE", "RICHBOURSE")).toBe(true);
     expect(sourceOutranks("RICHBOURSE", "MANUEL")).toBe(true);
     expect(sourceOutranks("SIKAFINANCE", "BRVM_OFFICIEL")).toBe(false);
-    expect(sourcesOutranking("SIKAFINANCE")).toEqual(["BRVM_OFFICIEL"]);
-    expect(sourcesOutranking("OUESTBOURSE")).toEqual(["BRVM_OFFICIEL", "SIKAFINANCE"]);
+    expect(sourcesOutranking("SIKAFINANCE")).toEqual(["BRVM_OFFICIEL", "NGX_OFFICIEL"]);
+    expect(sourcesOutranking("OUESTBOURSE")).toEqual(["BRVM_OFFICIEL", "NGX_OFFICIEL", "SIKAFINANCE"]);
   });
 
   it("retient BRVM_OFFICIEL en priorité et calcule l'écart max entre sources", () => {

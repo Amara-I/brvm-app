@@ -11,6 +11,8 @@ export const companiesListQuerySchema = z.object({
   country: z.string().trim().length(2).toUpperCase().optional(),
   sortBy: z.enum(["name", "ticker", "mktcap", "per", "listedSince"]).default("name"),
   sortDir: z.enum(["asc", "desc"]).default("asc"),
+  /// Place. Défaut BRVM : l'API historique ne mélange pas la NGX.
+  exchange: z.enum(["BRVM", "NGX"]).default("BRVM"),
 });
 export type CompaniesListQuery = z.infer<typeof companiesListQuerySchema>;
 

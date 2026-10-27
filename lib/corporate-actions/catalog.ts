@@ -22,6 +22,8 @@ import type { CorporateActionKind } from "./types";
 import { splitMarkerLabel } from "./label";
 
 export interface CatalogSplit {
+  /** Place du titre. Défaut BRVM : un bonus NGX ne s'applique pas à un homonyme. */
+  exchange?: "BRVM" | "NGX";
   ticker: string;
   kind: CorporateActionKind;
   effectiveDate: string;

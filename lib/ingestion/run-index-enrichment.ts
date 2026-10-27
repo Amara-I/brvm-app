@@ -142,6 +142,7 @@ async function officialLastByCode(
   db: PrismaClient
 ): Promise<Map<string, { date: string; value: number }>> {
   const rows = await db.marketIndex.findMany({
+    where: { exchange: "BRVM" },
     include: {
       values: {
         where: { isCanonical: true },
@@ -160,7 +161,10 @@ async function officialLastByCode(
 }
 
 async function canonicalCountsByCode(db: PrismaClient): Promise<Map<string, number>> {
-  const indices = await db.marketIndex.findMany({ select: { id: true, code: true } });
+  const indices = await db.marketIndex.findMany({
+    where: { exchange: "BRVM" },
+    select: { id: true, code: true },
+  });
   const idToCode = new Map(indices.map((row) => [row.id, row.code]));
   const counts = await db.marketIndexValue.groupBy({
     by: ["marketIndexId"],
@@ -249,7 +253,10 @@ export async function runIndexEnrichment(
     if (!includeComposition) return;
     const known = COMPANIES_FULL.map((c) => c.ticker);
     try {
-      const fromDb = await db.company.findMany({ where: { isActive: true }, select: { ticker: true } });
+      const fromDb = await db.company.findMany({
+        where: { isActive: true, exchange: "BRVM" },
+        select: { ticker: true },
+      });
       known.push(...fromDb.map((c) => c.ticker));
     } catch {
       /* seed tickers suffisent */

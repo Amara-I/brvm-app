@@ -26,9 +26,10 @@ export type {
 } from "@/lib/markets/index-view";
 export { groupIndicesByFamily } from "@/lib/markets/index-view";
 
-async function loadIndexListFromDb(): Promise<MarketIndexListItem[]> {
+async function loadIndexListFromDb(exchange: "BRVM" | "NGX" = "BRVM"): Promise<MarketIndexListItem[]> {
   const [rows, counts] = await Promise.all([
     prisma.marketIndex.findMany({
+      where: { exchange },
       include: {
         values: {
           where: { isCanonical: true },
@@ -62,11 +63,14 @@ async function loadIndexListFromDb(): Promise<MarketIndexListItem[]> {
   return sortIndexItems(items);
 }
 
-async function loadIndexDetailFromDb(code: string): Promise<MarketIndexDetail | null> {
+async function loadIndexDetailFromDb(
+  code: string,
+  exchange: "BRVM" | "NGX" = "BRVM"
+): Promise<MarketIndexDetail | null> {
   const row = await prisma.marketIndex.findUnique({
     where: { code: code.toUpperCase() },
   });
-  if (!row) return null;
+  if (!row || row.exchange !== exchange) return null;
 
   const now = Date.now();
   const byDay = new Map<string, IndexHistoryPoint>();
@@ -172,9 +176,9 @@ async function loadStoredComposition(marketIndexId: string) {
   }
 }
 
-export const getMarketIndexList = cache(async (): Promise<MarketIndexListItem[]> => {
+export const getMarketIndexList = cache(async (exchange: "BRVM" | "NGX" = "BRVM"): Promise<MarketIndexListItem[]> => {
   try {
-    return await loadIndexListFromDb();
+    return await loadIndexListFromDb(exchange);
   } catch (err) {
     if (!isDatabaseUnavailable(err)) throw err;
     console.error("[indices] base injoignable — liste vide", err instanceof Error ? err.message : err);
@@ -182,9 +186,12 @@ export const getMarketIndexList = cache(async (): Promise<MarketIndexListItem[]>
   }
 });
 
-export const getMarketIndexDetail = cache(async (code: string): Promise<MarketIndexDetail | null> => {
+export const getMarketIndexDetail = cache(async (
+  code: string,
+  exchange: "BRVM" | "NGX" = "BRVM"
+): Promise<MarketIndexDetail | null> => {
   try {
-    return await loadIndexDetailFromDb(code);
+    return await loadIndexDetailFromDb(code, exchange);
   } catch (err) {
     if (!isDatabaseUnavailable(err)) throw err;
     console.error("[indices] base injoignable — fiche vide", err instanceof Error ? err.message : err);

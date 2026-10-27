@@ -25,7 +25,7 @@ export async function GET(
   }
 
   const company = await prisma.company.findFirst({
-    where: { ticker, isActive: true },
+    where: { ticker, isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true },
   });
   if (!company) return apiNotFound(`Société "${ticker}"`);

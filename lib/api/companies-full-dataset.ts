@@ -215,7 +215,7 @@ export interface CompaniesFullDataset {
 
 export async function loadCompaniesFullDataset(): Promise<CompaniesFullDataset> {
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     include: { country: true, sector: true },
     orderBy: { name: "asc" },
   });

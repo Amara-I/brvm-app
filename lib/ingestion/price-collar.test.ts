@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ReconciledPrice } from "./reconciliation";
-import { filterCanonicalByCollar, BRVM_SESSION_COLLAR_PERCENT } from "./price-collar";
+import { filterCanonicalByCollar, BRVM_SESSION_COLLAR_PERCENT, collarConfigForExchange } from "./price-collar";
 
 function row(date: string, closePrice: number, ticker = "SNTS"): ReconciledPrice {
   return {
@@ -71,5 +71,13 @@ describe("filterCanonicalByCollar", () => {
       { config: { ...config, overrideTickers: new Set(["SNTS"]) } }
     );
     expect(rejected).toHaveLength(0);
+  });
+
+  it("accepte +9 % sur la NGX et le refuse sur la BRVM", () => {
+    const rows = [row("2026-10-26", 100, "DANGCEM"), row("2026-10-27", 109, "DANGCEM")];
+    const brvm = filterCanonicalByCollar(rows, { config: collarConfigForExchange("BRVM") });
+    const ngx = filterCanonicalByCollar(rows, { config: collarConfigForExchange("NGX") });
+    expect(brvm.rejected).toHaveLength(1);
+    expect(ngx.rejected).toHaveLength(0);
   });
 });

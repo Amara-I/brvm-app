@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
 
   const where: Prisma.CompanyWhereInput = {
     isActive: true,
+    exchange: "BRVM",
     ...(sector ? { sector: { slug: sector } } : {}),
     ...(country ? { country: { code: country } } : {}),
   };

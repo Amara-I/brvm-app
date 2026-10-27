@@ -36,17 +36,28 @@ datasource db {
 // ─────────────────────────────────────────────────────────────────────────
 
 /// Origine d'une donnée financière, pour traçabilité et réconciliation.
-/// Ordre de priorité : BRVM_OFFICIEL > SIKAFINANCE > OUESTBOURSE > RICHBOURSE > MANUEL.
+/// Ordre de priorité : BRVM_OFFICIEL > NGX_OFFICIEL > SIKAFINANCE > OUESTBOURSE > RICHBOURSE > MANUEL.
+/// NGX_OFFICIEL ne s'applique qu'aux instruments NGX : un cours BRVM reste prioritaire
+/// si les deux sources étaient un jour présentes sur la même ligne.
 /// OUESTBOURSE = historique public ouestbourse.com (Supabase `brvm_price_history`).
 /// MANUEL = saisie humaine de secours (fallback admin) quand les sources échouent.
 enum DataSource {
   BRVM_OFFICIEL
+  NGX_OFFICIEL
   SIKAFINANCE
   OUESTBOURSE
   RICHBOURSE
   MANUEL
 
   @@map("data_source")
+}
+
+/// Place de cotation. BRVM = défaut historique (lignes existantes).
+enum ExchangeCode {
+  BRVM
+  NGX
+
+  @@map("exchange_code")
 }
 
 /// Statut d'exécution d'un run d'ingestion (cron ou manuel).
@@ -218,7 +229,7 @@ enum NotificationDeliveryMode {
 // (façon Ouestbourse : filtres rapides par secteur/pays), sans dupliquer les
 // libellés/emojis drapeaux à chaque société.
 
-/// Pays de la zone UEMOA où la société est domiciliée/cotée.
+/// Pays de domiciliation. UEMOA pour la BRVM ; Nigeria (NG) pour la NGX.
 /// Reprend le champ `country` + emoji `flag` du JSX (ex: "Côte d'Ivoire" / 🇨🇮).
 model Country {
   id        String    @id @default(cuid())
@@ -252,14 +263,20 @@ model Sector {
 // SOCIÉTÉS COTÉES
 // ─────────────────────────────────────────────────────────────────────────
 
-/// Une société cotée à la BRVM. Reprend un-à-un les champs statiques de
+/// Une société cotée. Reprend un-à-un les champs statiques de
 /// COMPANIES_FULL dans le JSX (ticker, name, country, sector, flag, color),
 /// à l'exception de `per`/`mktcap` (déplacés dans FinancialRatio, car ce sont
 /// des valeurs qui évoluent par année, pas des constantes) et de
 /// `prices`/`dividends` (déplacés dans PriceHistory/Dividend).
+/// `exchange` distingue BRVM et NGX. Les pages BRVM filtrent `exchange = BRVM`.
 model Company {
   id          String    @id @default(cuid())
-  /// Symbole boursier BRVM, ex: "SNTS", "ORAC", "CBIBF". Clé métier stable.
+  /// Place de cotation. Défaut BRVM : les lignes historiques ne changent pas.
+  exchange    ExchangeCode @default(BRVM)
+  /// ISO 4217 du cours stocké. BRVM = XOF (affiché FCFA). NGX = NGN.
+  currency    String       @default("XOF")
+  /// Symbole. Unique globalement tant qu'aucune collision BRVM/NGX n'existe
+  /// (vérifié le 27/10/2026). La clé métier sûre est (exchange, ticker).
   ticker      String    @unique
   name        String
   /// Code ISIN officiel (absent du JSX actuel, à compléter via BRVM.org).
@@ -309,6 +326,8 @@ model Company {
   chartSeries       ChartSeries[]
   corporateActions  CorporateAction[]
 
+  @@unique([exchange, ticker], name: "uniq_company_exchange_ticker")
+  @@index([exchange])
   @@index([sectorId])
   @@index([countryId])
   @@map("companies")
@@ -401,7 +420,7 @@ model PriceHistory {
   companyId   String     @map("company_id")
   company     Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   date        DateTime   @db.Date
-  /// Cours de clôture en FCFA.
+  /// Cours de clôture dans la devise de la société (XOF pour la BRVM, NGN pour la NGX).
   closePrice  Decimal    @map("close_price") @db.Decimal(14, 2)
   /// Variation journalière (%) publiée par la source (ex. colonne BRVM « Variation »).
   /// Null si la source ne la fournit pas — l'UI peut alors recalculer vs séance précédente.
@@ -430,7 +449,11 @@ model PriceHistory {
 model ChartSeries {
   id          String          @id @default(cuid())
   kind        ChartSeriesKind
-  /// Ticker société (SNTS) ou code d'indice (BRVM_COMPOSITE).
+  /// Place du symbole. Défaut BRVM. L'unicité reste (kind, symbol, range)
+  /// tant que les tickers ne se croisent pas ; `exchange` évite d'afficher
+  /// une série NGX sur un graphe BRVM si on filtre explicitement.
+  exchange    ExchangeCode    @default(BRVM)
+  /// Ticker société (SNTS) ou code d'indice (BRVM_COMPOSITE, NGX_ASI).
   symbol      String
   companyId   String?         @map("company_id")
   company     Company?        @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -450,6 +473,7 @@ model ChartSeries {
   @@unique([kind, symbol, rangeKey], name: "uniq_chart_series_kind_symbol_range")
   @@index([companyId])
   @@index([kind, rangeKey])
+  @@index([exchange, kind, rangeKey])
   @@map("chart_series")
 }
 
@@ -580,17 +604,40 @@ model IngestionLog {
 // MARCHÉ — INDICES & ACTUALITÉS
 // ─────────────────────────────────────────────────────────────────────────
 
-/// Un indice de marché BRVM (ex: "BRVM Composite", "BRVM 10"), pour l'endpoint
-/// `GET /api/market/summary`.
+/// Un indice de marché (BRVM Composite, NGX All-Share, …).
 model MarketIndex {
   id            String                    @id @default(cuid())
-  /// Code court unique, ex: "BRVM_COMPOSITE", "BRVM_10".
+  /// Place. Défaut BRVM : `/indices` ne liste pas la NGX.
+  exchange      ExchangeCode              @default(BRVM)
+  /// ISO 4217 de la place (les niveaux d'indice eux-mêmes sont sans unité).
+  currency      String                    @default("XOF")
+  /// Code court unique, ex: "BRVM_COMPOSITE", "NGX_ASI", "NGX30".
   code          String                    @unique
   name          String
   values        MarketIndexValue[]
   constituents  MarketIndexConstituent[]
 
+  @@index([exchange])
   @@map("market_indices")
+}
+
+/// Taux de change quotidien. EUR→NGN vient d'open.er-api.com.
+/// Le franc CFA (XOF) est arrimé à 655,957 pour 1 euro : la conversion
+/// NGN→FCFA affichée est indicative, jamais un cours officiel.
+model FxRate {
+  id            String   @id @default(cuid())
+  date          DateTime @db.Date
+  /// Devise de base, ex. "EUR".
+  baseCurrency  String   @map("base_currency")
+  /// Devise cotée, ex. "NGN" (unités de quote pour 1 base).
+  quoteCurrency String   @map("quote_currency")
+  rate          Decimal  @db.Decimal(18, 6)
+  source        String
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([date, baseCurrency, quoteCurrency], name: "uniq_fx_rate_day")
+  @@index([baseCurrency, quoteCurrency, date])
+  @@map("fx_rates")
 }
 
 /// Valeur quotidienne d'un indice de marché, avec sa source (BRVM.org en

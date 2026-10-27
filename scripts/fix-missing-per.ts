@@ -22,13 +22,13 @@ async function main() {
 
   if (TICKERS.length) {
     targets = await prisma.company.findMany({
-      where: { isActive: true, ticker: { in: TICKERS } },
+      where: { isActive: true, exchange: "BRVM", ticker: { in: TICKERS } },
       select: { id: true, ticker: true },
       orderBy: { ticker: "asc" },
     });
   } else {
     const companies = await prisma.company.findMany({
-      where: { isActive: true },
+      where: { isActive: true, exchange: "BRVM" },
       select: { id: true, ticker: true },
       orderBy: { ticker: "asc" },
     });

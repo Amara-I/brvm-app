@@ -30,7 +30,7 @@ async function main() {
   const remoteSymbols = only.length ? only : await fetchOuestbourseSymbols();
   const companies = await prisma.company.findMany({
     where: {
-      isActive: true,
+      isActive: true, exchange: "BRVM",
       ...(only.length ? { ticker: { in: only } } : { ticker: { in: remoteSymbols } }),
     },
     select: { id: true, ticker: true },

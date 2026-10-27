@@ -30,7 +30,9 @@ function fail(message: string): never {
 }
 
 async function getCompanyId(ticker: string): Promise<string> {
-  const company = await prisma.company.findUnique({ where: { ticker: ticker.toUpperCase() } });
+  const company = await prisma.company.findFirst({
+    where: { ticker: ticker.toUpperCase(), exchange: "BRVM" },
+  });
   if (!company) fail(`Société "${ticker}" introuvable en base.`);
   return company.id;
 }

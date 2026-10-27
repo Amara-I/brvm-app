@@ -110,7 +110,7 @@ export async function POST(request: NextRequest, { params }: { params: { portfol
 
   if (consolidated.length > 0) {
     const companies = await prisma.company.findMany({
-      where: { id: { in: consolidated.map((row) => row.companyId) } },
+      where: { id: { in: consolidated.map((row) => row.companyId) }, exchange: "BRVM" },
       select: { id: true },
     });
     if (companies.length !== consolidated.length) {

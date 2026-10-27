@@ -21,8 +21,8 @@ export const dynamic = "force-dynamic";
 export async function GET(_request: NextRequest, { params }: { params: { ticker: string } }) {
   const ticker = params.ticker.toUpperCase();
 
-  const company = await prisma.company.findUnique({
-    where: { ticker },
+  const company = await prisma.company.findFirst({
+    where: { ticker, exchange: "BRVM" },
     include: { country: true, sector: true },
   });
   if (!company) return apiNotFound(`Société "${ticker}"`);

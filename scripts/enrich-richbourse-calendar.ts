@@ -6,7 +6,7 @@ import { persistRichbourseCalendarDividends } from "../lib/ingestion/persist";
 async function main() {
   const year = new Date().getUTCFullYear();
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true },
   });
   const companyIdByTicker = new Map(companies.map((c) => [c.ticker, c.id]));
@@ -25,7 +25,7 @@ async function main() {
   console.log(`✔ ${result.data.length} ligne(s) · ${persist.upserted} upsert(s)`);
 
   const rows = await prisma.dividend.findMany({
-    where: { isCanonical: true, year, company: { isActive: true } },
+    where: { isCanonical: true, year, company: { isActive: true, exchange: "BRVM" } },
     select: {
       exDate: true,
       paymentDate: true,

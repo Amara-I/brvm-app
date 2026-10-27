@@ -44,17 +44,25 @@ export async function applyCorporateActions(
 ): Promise<CorporateActionApplySummary> {
   const wanted = new Set((options.tickers ?? []).map((ticker) => ticker.toUpperCase()));
   const catalog = BRVM_SPLIT_CATALOG.filter((entry) => wanted.size === 0 || wanted.has(entry.ticker));
+  if (catalog.length === 0) {
+    return { upserted: 0, verifications: [], chartSeries: null };
+  }
   const companies = await db.company.findMany({
-    where: { ticker: { in: catalog.map((entry) => entry.ticker) } },
-    select: { id: true, ticker: true },
+    where: {
+      OR: catalog.map((entry) => ({
+        ticker: entry.ticker,
+        exchange: entry.exchange ?? "BRVM",
+      })),
+    },
+    select: { id: true, ticker: true, exchange: true },
   });
-  const idByTicker = new Map(companies.map((company) => [company.ticker, company.id]));
+  const idByTicker = new Map(companies.map((company) => [`${company.exchange}:${company.ticker}`, company.id]));
 
   let upserted = 0;
   const verifications: CorporateActionVerification[] = [];
 
   for (const entry of catalog) {
-    const companyId = idByTicker.get(entry.ticker);
+    const companyId = idByTicker.get(`${entry.exchange ?? "BRVM"}:${entry.ticker}`);
     if (!companyId) {
       log(options, `→ ${entry.ticker} absent du référentiel — ignoré`);
       continue;

@@ -25,7 +25,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { toPrismaDataSource } from "./prisma-mappers";
 import type { DiscrepancyReport, ReconciledIndex, ReconciledPrice } from "./reconciliation";
 import { canonicalRowsForPersist, canonicalSourceForDay, sourceOutranks } from "./reconciliation";
-import { filterCanonicalByCollar } from "./price-collar";
+import { filterCanonicalByCollar, getCollarConfig } from "./price-collar";
 import { priceDivisor } from "@/lib/corporate-actions/adjust";
 import { loadCorporateActions } from "@/lib/corporate-actions/load";
 import { isMissingDatabaseObject } from "../db/is-database-unavailable";
@@ -148,7 +148,12 @@ export async function persistPriceQuotes(
   db: PrismaClient,
   allQuotes: RawPriceQuote[],
   reconciled: ReconciledPrice[],
-  companyIdByTicker: Map<string, string>
+  companyIdByTicker: Map<string, string>,
+  options?: {
+    /** Défaut : collier BRVM ±7,5 %. La NGX passe `collarConfigForExchange("NGX")`. */
+    collar?: ReturnType<typeof getCollarConfig>;
+    collarLabel?: string;
+  }
 ): Promise<PersistPricesResult> {
   const unknownTickers = new Set<string>();
   let upserted = 0;
@@ -255,11 +260,12 @@ export async function persistPriceQuotes(
   const collar = filterCanonicalByCollar(reconciled, {
     previousByTicker,
     rawQuotes: allQuotes,
+    config: options?.collar,
     priceDivisor: (ticker, date) => priceDivisor(actionsBySymbol.get(ticker.toUpperCase()) ?? [], date),
   });
   if (collar.rejected.length > 0) {
     console.warn(
-      `[collar] ${collar.rejected.length} cours hors collier BRVM (~±7,5 %) — écart journalisé, séance quand même canonique. Ex. ` +
+      `[collar] ${collar.rejected.length} cours hors collier ${options?.collarLabel ?? "BRVM (~±7,5 %)"} — écart journalisé, séance quand même canonique. Ex. ` +
         collar.rejected
           .slice(0, 4)
           .map((r) => `${r.ticker} ${r.date}: ${r.previousClose}→${r.closePrice} (${r.deltaPercent}%)`)
@@ -801,11 +807,12 @@ export async function promotePriceDaysWithoutCanonical(db: PrismaClient, since: 
       ORDER BY p."company_id", p."date",
         CASE p."source"
           WHEN 'BRVM_OFFICIEL' THEN 0
-          WHEN 'SIKAFINANCE' THEN 1
-          WHEN 'OUESTBOURSE' THEN 2
-          WHEN 'RICHBOURSE' THEN 3
-          WHEN 'MANUEL' THEN 4
-          ELSE 5
+          WHEN 'NGX_OFFICIEL' THEN 1
+          WHEN 'SIKAFINANCE' THEN 2
+          WHEN 'OUESTBOURSE' THEN 3
+          WHEN 'RICHBOURSE' THEN 4
+          WHEN 'MANUEL' THEN 5
+          ELSE 6
         END,
         p."ingested_at" DESC
     )
@@ -831,11 +838,12 @@ export async function promoteIndexDaysWithoutCanonical(db: PrismaClient, since: 
       ORDER BY p."market_index_id", p."date",
         CASE p."source"
           WHEN 'BRVM_OFFICIEL' THEN 0
-          WHEN 'SIKAFINANCE' THEN 1
-          WHEN 'OUESTBOURSE' THEN 2
-          WHEN 'RICHBOURSE' THEN 3
-          WHEN 'MANUEL' THEN 4
-          ELSE 5
+          WHEN 'NGX_OFFICIEL' THEN 1
+          WHEN 'SIKAFINANCE' THEN 2
+          WHEN 'OUESTBOURSE' THEN 3
+          WHEN 'RICHBOURSE' THEN 4
+          WHEN 'MANUEL' THEN 5
+          ELSE 6
         END
     )
   `;

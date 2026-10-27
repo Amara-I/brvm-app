@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma";
 
 async function main() {
   const companies = await prisma.company.findMany({
-    where: { isActive: true },
+    where: { isActive: true, exchange: "BRVM" },
     select: { id: true, ticker: true, name: true },
     orderBy: { ticker: "asc" },
   });

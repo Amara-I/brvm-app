@@ -92,7 +92,7 @@ async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
     where: {
       isCanonical: true,
       amount: { gt: 0 },
-      company: { isActive: true },
+      company: { isActive: true, exchange: "BRVM" },
     },
     select: {
       id: true,

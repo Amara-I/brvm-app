@@ -8,6 +8,9 @@ import type { ReconciledPrice } from "./reconciliation";
 /** Collier officiel BRVM (variation max usuelle d'une séance). */
 export const BRVM_SESSION_COLLAR_PERCENT = 7.5;
 
+/** Collier NGX (bande usuelle ±10 % autour du cours précédent). */
+export const NGX_SESSION_COLLAR_PERCENT = 10;
+
 /** Jours calendaires max pour considérer deux points comme « séance suivante ». */
 export const COLLAR_MAX_GAP_DAYS = 7;
 
@@ -22,6 +25,21 @@ function envFlag(name: string): boolean {
   const raw = process.env[name];
   if (!raw) return false;
   return raw === "1" || raw.toLowerCase() === "true";
+}
+
+export function collarConfigForExchange(exchange: "BRVM" | "NGX" = "BRVM"): {
+  enabled: boolean;
+  collarPercent: number;
+  slackPercent: number;
+  maxGapDays: number;
+  overrideTickers: Set<string>;
+} {
+  const base = getCollarConfig();
+  if (exchange === "BRVM") return base;
+  return {
+    ...base,
+    collarPercent: envNumber("NGX_PRICE_COLLAR_PERCENT", NGX_SESSION_COLLAR_PERCENT),
+  };
 }
 
 export function getCollarConfig(): {

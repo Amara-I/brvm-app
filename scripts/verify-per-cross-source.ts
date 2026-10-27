@@ -16,7 +16,7 @@ function fmt(n: number | null | undefined): string {
 
 async function main() {
   const companies = await prisma.company.findMany({
-    where: { ticker: { in: TICKERS } },
+    where: { ticker: { in: TICKERS }, exchange: "BRVM" },
     select: { id: true, ticker: true, name: true },
     orderBy: { ticker: "asc" },
   });

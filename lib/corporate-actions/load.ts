@@ -92,9 +92,13 @@ export async function loadCorporateActions(): Promise<AdjustmentAction[]> {
   }
 }
 
-export async function actionsForTicker(ticker: string): Promise<AdjustmentAction[]> {
+export async function actionsForTicker(ticker: string, companyId?: string): Promise<AdjustmentAction[]> {
   const all = await loadCorporateActions();
-  return all.filter((action) => action.ticker === ticker.toUpperCase());
+  const symbol = ticker.toUpperCase();
+  return all.filter((action) => {
+    if (companyId && action.companyId) return action.companyId === companyId;
+    return action.ticker === symbol;
+  });
 }
 
 export async function actionsByCompanyId(): Promise<Map<string, AdjustmentAction[]>> {

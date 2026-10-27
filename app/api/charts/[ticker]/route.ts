@@ -82,8 +82,8 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   if (!parsedQuery.success) return apiValidationError(parsedQuery.error);
   const windowQuery = parsedQuery.data;
 
-  const company = await prisma.company.findUnique({
-    where: { ticker },
+  const company = await prisma.company.findFirst({
+    where: { ticker, exchange: "BRVM" },
     include: { country: true, sector: true },
   });
   if (!company) return apiNotFound(`Société "${ticker}"`);
@@ -120,7 +120,9 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   // Un cache d'un seul point (BBGCI) n'est pas un historique complet :
   // le fill Sika peut encore ajouter les séances publiées.
   const cacheCoversHistory = loaded.fromCache && series.length >= 2;
-  if (!cacheCoversHistory && !shouldSkipLiveDensify()) {
+  // Sika / Richbourse / OuestBourse ne couvrent que la BRVM. Une fiche NGX
+  // reste sur les clôtures NGX déjà en base.
+  if (company.exchange === "BRVM" && !cacheCoversHistory && !shouldSkipLiveDensify()) {
     const fingerprint = chartDbFingerprint(series);
     const exactCache = getCachedDensifiedSeries(ticker, fingerprint);
     const softCache = exactCache ?? getAnyCachedDensifiedSeries(ticker);
