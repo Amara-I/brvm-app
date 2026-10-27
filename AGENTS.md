@@ -1049,8 +1049,9 @@ Demandée le 27/10/2026 : `/marches/ngx` consultable (pas le portefeuille).
 ~146 actions, historique 5 ans, prix en NGN avec FCFA indicatif.
 
 - Schéma : `exchange` / `currency`, source `NGX_OFFICIEL`, table `fx_rates`.
-  Migration `20261027190000_ngx_exchange_scope` à appliquer **avant** le
-  déploiement (le build Vercel peut sauter `prisma migrate deploy`).
+  Migration `20261027190000_ngx_exchange_scope` livrée avec la PR #62 et
+  déjà appliquée en production. Ce lot (connecteur + pages) n'ajoute pas
+  de migration.
 - Pages BRVM filtrées `exchange = BRVM`. Collier NGX ±10 %.
 - Connecteur quotidien dans le cron `0 17 * * *` (plafond 25 s) +
   `npm run history:ngx`. Détail : `docs/ngx-phase1.md`.

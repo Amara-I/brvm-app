@@ -2,16 +2,11 @@
 
 La Nigerian Exchange est consultable sur `/marches/ngx` (liste, fiche, indices). Le portefeuille, le screener et les pages BRVM restent limités à `exchange = BRVM`. Les prix sont en naira (₦). Le montant FCFA est **indicatif** : XOF = 655,957 pour 1 EUR, EUR→NGN via [open.er-api.com](https://www.open.er-api.com) (attribution affichée). Ce n'est pas un fixing officiel.
 
-## Après merge — migration d'abord
+## Après merge — pas de nouvelle migration
 
-Le build Vercel peut sauter `prisma migrate deploy`. Appliquer le SQL **avant** le déploiement qui contient `companies.exchange`, sinon les pages BRVM répondent P2022.
+Ce lot n'ajoute aucun fichier dans `prisma/migrations/`. Le schéma NGX (`20261027190000_ngx_exchange_scope` : `exchange`, `currency`, `NGX_OFFICIEL`, `fx_rates`) est déjà sur `main` (PR #62) et déjà appliqué sur Supabase, enregistré dans `_prisma_migrations`. Ne pas le rejouer.
 
-```bash
-psql "$DATABASE_URL" -f prisma/migrations/20261027190000_ngx_exchange_scope/migration.sql
-npx prisma migrate resolve --applied 20261027190000_ngx_exchange_scope
-```
-
-Le script est idempotent. Les lignes existantes restent `BRVM` / `XOF`.
+Le build Vercel utilise le migrate borné de la PR #63 (`scripts/try-migrate-deploy.cjs`, `DIRECT_URL`, timeout 120 s, pooler 6543 ignoré). Sans migration nouvelle, `migrate deploy` n'a rien à appliquer.
 
 ## Ingestion du jour
 
