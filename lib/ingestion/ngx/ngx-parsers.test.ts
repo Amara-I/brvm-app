@@ -5,7 +5,7 @@ import { parseNgxDocDate, recentWeekdays, weekdaysBetween } from "./dates";
 import { parseEquitiesPayload } from "./equities-json";
 import { indicativeFcfa, parseErApiNgn } from "@/lib/markets/fx";
 import { chooseCompanyName, colorForTicker, normalizeLegalName, sectorSlug } from "./names";
-import { parseOfficialListText } from "./official-list";
+import { parseOfficialListItems, parseOfficialListText } from "./official-list";
 
 const COVER = `
 Print Date 14/10/2026
@@ -42,6 +42,22 @@ PLC
 UNITYBNK UNITY BANK PLC 0.50 1.51 3.18 25/09/25 2,000
 `;
 
+const OFFICIAL_PDF_LAYOUT = `
+EQTY - Main Board
+AGRICULTURE
+FTNCOCOA FTN COCOA 0.50 7.92 + 7.92 3,910 11.954.17 11/06/10 18/10/08 26/07/10 0.03 0.00
+23/10/26
+PROCESSORS PLC
+OKOMUOIL THE OKOMU OIL 0.50 1,276.20 1,148.60 2 1,765.00 1,038.00 28/04/26 07/05/07 28/04/26 15.005.63 226.67
+23/10/26
+PALM COMPANY PLC
+PREMIUM - Premium Board
+INDUSTRIAL GOODS
+DANGCEM DANGOTE CEMENT 0.50 1,111.00 + 1,060.00 100 1,189.00 534.60 18/06/26 14/05/12 18/06/26 45.000.63 1,766.54
+23/10/26
+PLC
+`;
+
 describe("parseurs NGX", () => {
   it("lit l'ASI et le dernier niveau d'indice de la couverture", () => {
     const cover = parseCoverPageText(COVER);
@@ -67,6 +83,48 @@ describe("parseurs NGX", () => {
     expect(bySymbol.get("DANGCEM")?.sector).toBe("INDUSTRIAL GOODS");
     expect(bySymbol.get("UNITYBNK")?.tradeDate).toBe("2025-09-25");
     expect(bySymbol.has("PROCESSORS")).toBe(false);
+  });
+
+  it("prend la dernière date comme séance quand les dividendes précèdent", () => {
+    const rows = parseOfficialListText(OFFICIAL_PDF_LAYOUT);
+    const bySymbol = new Map(rows.map((row) => [row.symbol, row]));
+    expect(bySymbol.get("FTNCOCOA")?.tradeDate).toBe("2026-10-23");
+    expect(bySymbol.get("FTNCOCOA")?.close).toBe(7.92);
+    expect(bySymbol.get("OKOMUOIL")?.close).toBe(1276.2);
+    expect(bySymbol.get("DANGCEM")?.tradeDate).toBe("2026-10-23");
+    expect(bySymbol.get("DANGCEM")?.close).toBe(1111);
+    expect(bySymbol.has("PROCESSORS")).toBe(false);
+    expect(bySymbol.has("PALM")).toBe(false);
+  });
+
+  it("lit le prix de marché et la quantité dans les colonnes du PDF", () => {
+    const y = 398;
+    const rows = parseOfficialListItems([
+      [
+        { str: "PREMIUM - Premium Board", x: 30, y: 500 },
+        { str: "INDUSTRIAL GOODS", x: 30, y: 480 },
+        { str: "DANGCEM", x: 34, y },
+        { str: "DANGOTE CEMENT", x: 95, y },
+        { str: "0.50", x: 205, y },
+        { str: "1,111.00", x: 391, y },
+        { str: "+", x: 435, y },
+        { str: "1,060.00", x: 495, y },
+        { str: "23/10/26", x: 535, y: y - 1 },
+        { str: "100", x: 593, y },
+        { str: "PLC", x: 95, y: y - 14 },
+      ],
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      symbol: "DANGCEM",
+      close: 1111,
+      volume: 100,
+      tradeDate: "2026-10-23",
+      board: "Premium Board",
+      sector: "INDUSTRIAL GOODS",
+    });
+    expect(rows[0]?.name).toContain("DANGOTE CEMENT");
+    expect(rows[0]?.name).toContain("PLC");
   });
 
   it("apparie le daily summary par raison sociale", () => {
