@@ -1053,8 +1053,10 @@ Demandée le 27/10/2026 : `/marches/ngx` consultable (pas le portefeuille).
   déjà appliquée en production. Ce lot (connecteur + pages) n'ajoute pas
   de migration.
 - Pages BRVM filtrées `exchange = BRVM`. Collier NGX ±10 %.
-- Connecteur quotidien dans le cron `0 17 * * *` (plafond 25 s) +
-  `npm run history:ngx`. Détail : `docs/ngx-phase1.md`.
+- Connecteur quotidien dans le cron `0 17 * * *` (plafond 25 s).
+  Historique 5 ans : `GET /api/cron/ngx-history` (CRON_SECRET, paquets
+  `budgetMs` ≤ 240000, hors `vercel.json`) ou `npm run history:ngx`
+  si la base est joignable. Détail : `docs/ngx-phase1.md`.
 
 ---
 
