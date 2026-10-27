@@ -33,6 +33,9 @@ const HOST_MIN_DELAY_MS: Record<string, number> = {
   "www.brvm.org": 10_000,
   "www.sikafinance.com": 3_000,
   "www.richbourse.com": 3_000,
+  // doclib ne publie pas de Crawl-delay (robots.txt 404). 2 s entre PDF/JSON.
+  "doclib.ngxgroup.com": 2_000,
+  "open.er-api.com": 1_000,
 };
 const DEFAULT_MIN_DELAY_MS = 3_000;
 

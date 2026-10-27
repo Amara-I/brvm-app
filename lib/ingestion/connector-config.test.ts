@@ -14,6 +14,7 @@ describe("getConnectorFeatureFlags", () => {
     "INGESTION_HISTORY_BACKFILL_ON_CRON",
     "INGESTION_DOCUMENTS_ON_CRON",
     "INGESTION_ENABLE_OB_DOCUMENTS",
+    "INGESTION_ENABLE_NGX",
   ];
 
   afterEach(() => {
@@ -28,6 +29,13 @@ describe("getConnectorFeatureFlags", () => {
   it("autorise une désactivation d'urgence via l'env", () => {
     process.env.INGESTION_ENABLE_SIKAFINANCE_QUOTES = "false";
     expect(getConnectorFeatureFlags().sikafinanceQuotes).toBe(false);
+  });
+
+  it("laisse l'ingestion NGX active par défaut", () => {
+    delete process.env.INGESTION_ENABLE_NGX;
+    expect(getConnectorFeatureFlags().ngx).toBe(true);
+    process.env.INGESTION_ENABLE_NGX = "false";
+    expect(getConnectorFeatureFlags().ngx).toBe(false);
   });
 
   it("laisse le backfill historique activé, hors cron quotidien par défaut", () => {
