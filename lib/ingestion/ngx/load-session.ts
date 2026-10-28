@@ -75,6 +75,16 @@ function fromSummary(text: string, iso: string, listings: NamedListing[]): NgxLi
   }));
 }
 
+/** Quotes du Daily Summary seul (société absente de la liste officielle). */
+export async function loadNgxSummaryQuotes(
+  iso: string,
+  listings: NamedListing[]
+): Promise<{ quotes: NgxListingQuote[] } | { missing: true } | { error: string }> {
+  const summary = await pdfText(ngxDailySummaryPdfUrl(iso));
+  if ("text" in summary) return { quotes: fromSummary(summary.text, iso, listings) };
+  return summary;
+}
+
 async function officialListRows(iso: string): Promise<{ rows: ReturnType<typeof parseOfficialListText> } | { missing: true } | { error: string }> {
   const url = ngxOfficialListPdfUrl(iso);
   try {

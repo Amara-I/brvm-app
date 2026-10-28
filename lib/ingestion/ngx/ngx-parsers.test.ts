@@ -5,7 +5,7 @@ import { parseNgxDocDate, recentWeekdays, weekdaysBetween } from "./dates";
 import { parseEquitiesPayload } from "./equities-json";
 import { indicativeFcfa, parseErApiNgn } from "@/lib/markets/fx";
 import { chooseCompanyName, colorForTicker, normalizeLegalName, sectorSlug } from "./names";
-import { parseOfficialListItems, parseOfficialListText, stripColumnHeaders } from "./official-list";
+import { parseOfficialListItems, parseOfficialListText, stripColumnHeaders, symbolFromItem } from "./official-list";
 
 const COVER = `
 Print Date 14/10/2026
@@ -146,6 +146,27 @@ NGX Banking Index 2,497.01 2,493.34 2,456.31
     });
     expect(rows[0]?.name).toContain("DANGOTE CEMENT");
     expect(rows[0]?.name).toContain("PLC");
+  });
+
+  it("sépare un symbole long collé à la raison sociale (FIRSTHOLDCO FIRST HOLDCO PLC)", () => {
+    expect(symbolFromItem({ str: "FIRSTHOLDCO FIRST HOLDCO PLC", x: 34, y: 100 })).toEqual({
+      symbol: "FIRSTHOLDCO",
+      namePrefix: "FIRST HOLDCO PLC",
+    });
+    expect(symbolFromItem({ str: "DANGCEM", x: 34, y: 100 })).toEqual({ symbol: "DANGCEM", namePrefix: "" });
+    expect(symbolFromItem({ str: "DANGCEM", x: 300, y: 100 })).toBeNull();
+    const rows = parseOfficialListItems([
+      [
+        { str: "FINANCIAL SERVICES", x: 30, y: 500 },
+        { str: "TRANSPOWER TRANSCORP POWER", x: 34, y: 480 },
+        { str: "PLC", x: 95, y: 466 },
+        { str: "232.00", x: 391, y: 480 },
+        { str: "23/10/26", x: 535, y: 480 },
+      ],
+    ]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ symbol: "TRANSPOWER", close: 232, tradeDate: "2026-10-23" });
+    expect(rows[0]?.name).toContain("TRANSCORP POWER");
   });
 
   it("n'ajoute pas l'en-tête de colonne « Security Name » à la raison sociale", () => {

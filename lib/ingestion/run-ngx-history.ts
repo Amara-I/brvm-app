@@ -13,10 +13,14 @@ import { refreshChartSeries } from "@/lib/charts/refresh-chart-series";
 import { fetchEurNgnRate, upsertEurNgnRate } from "@/lib/markets/fx";
 import { prisma } from "@/lib/prisma";
 import { calendarDaysBetween, isoDate, weekdaysBetween } from "./ngx/dates";
-import { loadNgxCover, loadNgxEquities } from "./ngx/load-session";
+import { loadNgxCover, loadNgxEquities, loadNgxSummaryQuotes } from "./ngx/load-session";
+import { applyNgxTickerAliases, NGX_SUMMARY_ONLY, NGX_TICKER_ALIASES } from "./ngx/ticker-aliases";
 import { persistNgxIndices, persistNgxQuotes, upsertNgxListings } from "./run-ngx-ingest";
 
 const LOG_KIND = "NGX_HISTORY";
+const LOG_KIND_REFILL = "NGX_HISTORY_REFILL";
+/** Tickers longs : le parseur de la liste officielle les perdait quand le PDF les collait au nom. */
+const LONG_TICKER_MIN = 10;
 const DONE_COUNT = 80;
 /** Plancher : ne pas lancer une séance s'il reste moins que ça (timeout doclib = 25 s). */
 const MIN_SLICE_MS = 25_000;
@@ -45,6 +49,13 @@ export interface NgxHistoryOptions {
   /** Séance unique : accepter le JSON du jour s'il porte cette date. */
   tryJson?: boolean;
   resume?: boolean;
+  /**
+   * Rattrapage ciblé : retraite aussi les séances déjà complètes (≥ 80 clôtures)
+   * mais n'écrit QUE les cours manquants des tickers visés (anciens codes
+   * rattachés, tickers longs, titres du Daily Summary seul). Ne touche à aucune
+   * ligne existante. Ignore le checkpoint fichier ; enchaîner avec `cursor`.
+   */
+  refill?: boolean;
   now?: Date;
   logger?: (msg: string) => void;
   db?: PrismaClient;
@@ -62,6 +73,8 @@ export interface NgxHistorySummary {
   skippedCanonical: number;
   /** Tickers du PDF absents de la base NGX : ignorés (l'historique ne crée rien). */
   skippedUnknown: number;
+  /** Cours rattachés à un ticker courant via un ancien code (FBNH → FIRSTHOLDCO…). */
+  aliasRemapped: number;
   done: number;
   absent: number;
   failed: number;
@@ -115,7 +128,7 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
-async function readDbCheckpoint(db: PrismaClient, from: string, to: string): Promise<Checkpoint | null> {
+async function readDbCheckpoint(db: PrismaClient, from: string, to: string, kind: string): Promise<Checkpoint | null> {
   const rows = await db.ingestionLog.findMany({
     where: { source: "NGX_OFFICIEL" },
     orderBy: { runAt: "desc" },
@@ -124,7 +137,7 @@ async function readDbCheckpoint(db: PrismaClient, from: string, to: string): Pro
   });
   for (const row of rows) {
     const rec = asRecord(row.errors);
-    if (!rec || rec.kind !== LOG_KIND || rec.from !== from || rec.to !== to) continue;
+    if (!rec || rec.kind !== kind || rec.from !== from || rec.to !== to) continue;
     const absent = Array.isArray(rec.absentDates) ? rec.absentDates.filter((item): item is string => typeof item === "string") : [];
     const next = typeof rec.next === "string" ? rec.next : null;
     return { from, to, next, absent, done: [] };
@@ -166,8 +179,10 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
   const from = (options.from ?? isoDate(new Date(Date.parse(`${to}T00:00:00.000Z`) - 5 * 365.25 * 86_400_000))).slice(0, 10);
   const days = weekdaysBetween(from, to);
   const resume = options.resume !== false;
-  const savedFile = resume ? await readCheckpoint() : null;
-  const savedDb = resume ? await readDbCheckpoint(db, from, to).catch(() => null) : null;
+  const refill = options.refill === true;
+  const logKind = refill ? LOG_KIND_REFILL : LOG_KIND;
+  const savedFile = resume && !refill ? await readCheckpoint() : null;
+  const savedDb = resume ? await readDbCheckpoint(db, from, to, logKind).catch(() => null) : null;
   const absentSeed = new Set([...(savedDb?.absent ?? []), ...(savedFile && savedFile.from === from && savedFile.to === to ? savedFile.absent : [])]);
   const explicitCursor = options.cursor && days.includes(options.cursor) ? options.cursor : null;
   const fileMatches = savedFile && savedFile.from === from && savedFile.to === to ? savedFile : null;
@@ -185,6 +200,7 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
   let processed = 0;
   let skippedCanonical = 0;
   let skippedUnknown = 0;
+  let aliasRemapped = 0;
   let failed = 0;
   let quotes = 0;
   let indices = 0;
@@ -196,14 +212,14 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
     data: {
       source: "NGX_OFFICIEL",
       status: IngestionStatus.RUNNING,
-      errors: { kind: LOG_KIND, from, to, next: days[cursor] ?? null, absentDates: [...absent] },
+      errors: { kind: logKind, from, to, next: days[cursor] ?? null, absentDates: [...absent] },
     },
   });
 
   const persistProgress = async (status: IngestionStatus) => {
     checkpoint.absent = [...absent];
     checkpoint.done = [...done];
-    await writeCheckpoint(checkpoint).catch(() => undefined);
+    if (!refill) await writeCheckpoint(checkpoint).catch(() => undefined);
     await db.ingestionLog
       .update({
         where: { id: logRow.id },
@@ -214,7 +230,7 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
           recordsFailed: failed,
           durationMs: Date.now() - started,
           errors: {
-            kind: LOG_KIND,
+            kind: logKind,
             from,
             to,
             next: checkpoint.next,
@@ -240,8 +256,30 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
         select: { id: true, ticker: true, name: true },
       });
       const companyIdByTicker = new Map(companyRows.map((row) => [row.ticker.toUpperCase(), row.id]));
+      const knownTickers = new Set(companyIdByTicker.keys());
+
+      // Rattrapage : tickers visés et séances où ils ont déjà un cours canonique.
+      const refillTargets = new Set<string>();
+      const haveDates = new Map<string, Set<string>>();
+      if (refill) {
+        for (const alias of NGX_TICKER_ALIASES) refillTargets.add(alias.current);
+        for (const ticker of knownTickers) if (ticker.length >= LONG_TICKER_MIN) refillTargets.add(ticker);
+        for (const only of NGX_SUMMARY_ONLY) refillTargets.add(only.ticker);
+        for (const ticker of [...refillTargets]) if (!knownTickers.has(ticker)) refillTargets.delete(ticker);
+        const idToTicker = new Map([...refillTargets].map((ticker) => [companyIdByTicker.get(ticker)!, ticker]));
+        const existing = await db.priceHistory.findMany({
+          where: { companyId: { in: [...idToTicker.keys()] }, source: "NGX_OFFICIEL", isCanonical: true },
+          select: { companyId: true, date: true },
+        });
+        for (const row of existing) {
+          const ticker = idToTicker.get(row.companyId)!;
+          if (!haveDates.has(ticker)) haveDates.set(ticker, new Set());
+          haveDates.get(ticker)!.add(row.date.toISOString().slice(0, 10));
+        }
+        log(options, `rattrapage : ${refillTargets.size} tickers visés (${[...refillTargets].sort().join(", ")})`);
+      }
       const named = companyRows.map((row) => ({ ticker: row.ticker, name: row.name }));
-      const wantIndices = options.indices !== false;
+      const wantIndices = options.indices !== false && !refill;
       const asiDates = wantIndices ? await datesWithAsi(db, days[cursor] ?? from, to).catch(() => new Set<string>()) : new Set<string>();
       let longestSliceMs = 0;
       const sliceNeeded = () => Math.max(MIN_SLICE_MS, Math.ceil(longestSliceMs * SLICE_SAFETY));
@@ -262,14 +300,14 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
           break;
         }
         checkpoint.next = iso;
-        if (done.has(iso) && (!wantIndices || asiDates.has(iso))) continue;
+        if (!refill && done.has(iso) && (!wantIndices || asiDates.has(iso))) continue;
         if (absent.has(iso)) continue;
         if (remaining() < sliceNeeded()) {
           log(options, `budget restant ${remaining()} ms (< ${sliceNeeded()}) — arrêt avant ${iso}`);
           break;
         }
         const sliceStart = Date.now();
-        const count = done.has(iso) ? DONE_COUNT : await canonicalCount(db, iso);
+        const count = refill ? 0 : done.has(iso) ? DONE_COUNT : await canonicalCount(db, iso);
         if (count >= DONE_COUNT) {
           done.add(iso);
           skippedCanonical++;
@@ -328,9 +366,26 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
               idMap = upserted.companyIdByTicker;
               for (const [ticker, id] of idMap) companyIdByTicker.set(ticker, id);
             } else {
-              const known = sessionQuotes.filter((quote) => companyIdByTicker.has(quote.symbol.toUpperCase()));
-              skippedUnknown += sessionQuotes.length - known.length;
-              sessionQuotes = known;
+              const aliased = applyNgxTickerAliases(sessionQuotes, knownTickers);
+              skippedUnknown += aliased.unknown;
+              sessionQuotes = aliased.quotes;
+              aliasRemapped += aliased.remapped;
+            }
+            if (refill) {
+              const wanted = (symbol: string) => refillTargets.has(symbol) && !haveDates.get(symbol)?.has(iso);
+              sessionQuotes = sessionQuotes.filter((quote) => wanted(quote.symbol));
+              const seen = new Set(sessionQuotes.map((quote) => quote.symbol));
+              const needSummary = NGX_SUMMARY_ONLY.filter(
+                (only) => only.from <= iso && !seen.has(only.ticker) && wanted(only.ticker)
+              );
+              if (needSummary.length > 0 && remaining() > MIN_SLICE_MS) {
+                const fromSummary = await loadNgxSummaryQuotes(iso, named);
+                if ("quotes" in fromSummary) {
+                  for (const quote of fromSummary.quotes) {
+                    if (needSummary.some((only) => only.ticker === quote.symbol.toUpperCase())) sessionQuotes.push(quote);
+                  }
+                }
+              }
             }
             const n = await persistNgxQuotes(db, sessionQuotes, idMap, new Date().toISOString());
             quotes += n;
@@ -419,6 +474,7 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
     processed,
     skippedCanonical,
     skippedUnknown,
+    aliasRemapped,
     done: done.size,
     absent: absent.size,
     failed,

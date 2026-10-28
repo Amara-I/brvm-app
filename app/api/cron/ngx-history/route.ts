@@ -21,6 +21,9 @@
 //   force=1            reconstruit TOUTES les chart_series NGX (sociétés + indices), même à jour.
 //                       Sans force, une série est refaite si sa dernière date est en retard OU si
 //                       son historique en cache a moins de points que la base (backfill).
+//   refill=1            rattrapage ciblé : anciens codes (FBNH→FIRSTHOLDCO…), tickers longs, ZICHIS.
+//                       Retraite les séances déjà complètes mais n'ajoute que les cours manquants
+//                       de ces tickers (aucune ligne existante modifiée). Utiliser avec indices=0.
 //   resume=0            ignore le curseur mémorisé (les clôtures déjà là restent sautées)
 //
 // Réponse : data.incomplete, data.next / data.cursor, data.chartsNext,
@@ -72,6 +75,7 @@ async function handle(request: NextRequest) {
       fx: parsed.fx,
       tryJson: parsed.tryJson,
       resume: parsed.resume,
+      refill: parsed.refill,
     });
     return NextResponse.json({ ok: true, data: summary });
   } catch (err) {

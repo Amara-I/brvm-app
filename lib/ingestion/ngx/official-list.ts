@@ -222,15 +222,23 @@ function firstNumber(raw: string): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-function isSymbolItem(item: NgxPdfItem): boolean {
-  const text = item.str.trim();
-  return (
-    item.x >= SYMBOL_X_MIN &&
-    item.x <= SYMBOL_X_MAX &&
-    /^[A-Z][A-Z0-9.]{1,15}$/.test(text) &&
-    !STOP.has(text) &&
-    !SECTOR_SET.has(text)
-  );
+/**
+ * Symbole d'une ligne de titre. Quand le symbole est long (TRANSPOWER,
+ * FIRSTHOLDCO…), le PDF le fusionne avec le début de la raison sociale dans un
+ * même élément (« FIRSTHOLDCO FIRST HOLDCO PLC ») : on sépare les deux.
+ */
+export function symbolFromItem(item: NgxPdfItem): { symbol: string; namePrefix: string } | null {
+  if (item.x < SYMBOL_X_MIN || item.x > SYMBOL_X_MAX) return null;
+  const text = item.str.replace(/\s+/g, " ").trim();
+  const match = text.match(/^([A-Z][A-Z0-9.]{1,15})(?: (.+))?$/);
+  if (!match) return null;
+  const symbol = match[1]!;
+  if (STOP.has(symbol) || SECTOR_SET.has(text)) return null;
+  const rest = (match[2] ?? "").trim();
+  // « BANK PLC », « EQTY … » etc. : un reste sans minuscule exploitable est accepté
+  // seulement s'il ressemble à une raison sociale (lettres, pas de chiffres seuls).
+  if (rest && /^[\d.,\s]+$/.test(rest)) return null;
+  return { symbol, namePrefix: rest };
 }
 
 /** Colonnes du PDF réel : le prix de marché (~x 390) et la date de séance (~x 535). */
@@ -241,6 +249,7 @@ export function parseOfficialListItems(pages: NgxPdfItem[][]): OfficialListRow[]
 
   for (const page of pages) {
     const events: { y: number; x: number; kind: "sector" | "board" | "symbol"; text: string }[] = [];
+    const namePrefixes = new Map<string, string>();
     for (const item of page) {
       const text = item.str.replace(/\s+/g, " ").trim();
       if (!text) continue;
@@ -253,7 +262,11 @@ export function parseOfficialListItems(pages: NgxPdfItem[][]): OfficialListRow[]
         events.push({ y: item.y, x: item.x, kind: "board", text: boardHit });
         continue;
       }
-      if (isSymbolItem(item)) events.push({ y: item.y, x: item.x, kind: "symbol", text });
+      const hit = symbolFromItem(item);
+      if (hit) {
+        events.push({ y: item.y, x: item.x, kind: "symbol", text: hit.symbol });
+        if (hit.namePrefix) namePrefixes.set(`${hit.symbol}@${item.y}`, hit.namePrefix);
+      }
     }
     events.sort((a, b) => b.y - a.y || a.x - b.x);
     const symbolYs = events.filter((event) => event.kind === "symbol").map((event) => event.y);
@@ -300,7 +313,8 @@ export function parseOfficialListItems(pages: NgxPdfItem[][]): OfficialListRow[]
         .map((item) => item.str.replace(/\s+/g, " ").trim())
         .filter((token) => token && !/^[\d.,]+$/.test(token) && !SECTOR_SET.has(token.toUpperCase()))
         .join(" ");
-      const name = stripColumnHeaders(rawName);
+      const prefix = namePrefixes.get(`${event.text}@${event.y}`) ?? "";
+      const name = stripColumnHeaders([prefix, rawName].filter(Boolean).join(" "));
       rows.push({
         symbol: event.text,
         name: name || event.text,
