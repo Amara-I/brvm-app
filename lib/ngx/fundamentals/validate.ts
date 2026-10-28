@@ -6,7 +6,7 @@
 //   • niveau de confiance par champ + file de revue.
 import { bestDividend, type DividendCandidate } from "./dividends";
 import { summarizeNotices, type DividendNotice, type NoticeDps } from "./notices";
-import type { Confidence, NgxCompanyConfig, StatementExtraction } from "./types";
+import type { Confidence, NgxCompanyConfig, RawField, StatementExtraction } from "./types";
 
 export interface ExtractedDoc {
   file: string;
@@ -420,7 +420,7 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       for (const k of ["revenue", "operatingProfit", "netProfit", "equity"] as const) {
         const a = V[k].cur;
         if (a === null) continue;
-        const tot = next.extraction.fields.equityTotal?.values[1];
+        const tot = (next.extraction.fields as Record<string, RawField | undefined>).equityTotal?.values[1];
         const cands = [C[k].prior, k === "equity" && tot != null && next.extraction.unitMultiplier ? tot * next.extraction.unitMultiplier : null];
         for (const b of cands) {
           if (b === null || REL(a, b) <= AGREE) continue;

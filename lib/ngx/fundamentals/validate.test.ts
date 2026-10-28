@@ -172,7 +172,7 @@ describe("OCR cap, restated pct and notice-based DPS", () => {
     expect(r.rows[0].conf.dps).toBe("medium");
   });
   it("USD reporters: DPS never above low", () => {
-    const usd = { ...withDiv("total", 0.11), extraction: { ...y23.extraction, currency: "USD" } };
+    const usd = { ...withDiv("total", 0.11), extraction: { ...y23.extraction, currency: "USD" as const } };
     const r = buildStagedRows(corp, [usd], { fromYear: 2023, toYear: 2023, shares: SHARES });
     expect(r.rows[0].conf.dps).toBe("low");
   });
