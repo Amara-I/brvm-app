@@ -112,7 +112,7 @@ def process(args):
         boxes, w, h = ocr_boxes(doc[pn], 90, 0.5)
         text = " ".join(b[1] for b in boxes)
         hits = classify(text)
-        if len(re.findall(r"\d{1,3}(?:,\d{3})+", text)) < 5:
+        if len(re.findall(r"(?<!\d)\d{1,3}(?:[, ]\d{3})+(?!\d)", text)) < 5:
             continue  # sommaire, rapport, notes narratives : pas de tableau chiffré
         # titre d'un état : mot-clé présent ET page numérique (vérifiée après OCR plein)
         for k, v in hits.items():

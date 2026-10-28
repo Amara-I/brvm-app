@@ -11,7 +11,33 @@ Sources are first-party NGX only: the company directory REST API and the `Financ
 | 4 validate | `npm run ngx:validate` | `staged/fundamentals.csv`, `dividends.csv`, `review_queue.csv`, `coverage_summary.{md,csv,json}` |
 | 5 load | `npm run ngx:load -- --offline` (plan only) · default = dry-run · `--apply` + `NGX_LOAD_CONFIRM=yes` | inserts only, never overwrites |
 
-Requires `poppler-utils` (`pdftotext`). Image-only PDFs are not OCR'd; those years are filled from the next year's comparative column when possible.
+Requires `poppler-utils` (`pdftotext`). Image-only PDFs are OCR'd (see below); years still missing are filled from the next year's comparative column when possible.
+
+## OCR (image-only PDFs)
+`tesseract` is not installable on the box (apt unsigned/500), so OCR uses RapidOCR (ONNX) in a venv:
+```
+python3 -m venv /workspace/ocrenv && /workspace/ocrenv/bin/pip install rapidocr-onnxruntime pymupdf
+npm run ngx:ocr -- [--tickers PRESCO,JBERGER] [--workers 3] [--force] [--files substr]   # image-only AFS
+npm run ngx:ocr -- --mixed                                                              # text PDFs whose statement pages are images
+npm run ngx:ocr-notices -- [--tickers X]                                                # dividend notices with an empty text layer
+```
+* Only the statement pages are OCR'd: pages are located at 90 dpi (title keyword + ≥5 numbers, comma or space thousands), then OCR'd at 170 dpi (income and balance pages + the next page, equity statement).
+* Output `<pdf>.ocr.txt` (same `\f` page layout as `pdftotext -layout`) and `<pdf>.ocr.json` (located pages). `extract.ts` uses it automatically when the PDF has no text layer and marks the document `ocr: true`.
+* **OCR confidence cap**: values from OCR documents are at most `medium`, unless the next AFS's comparative column confirms them (then `high`).
+
+## Dividends (DPS)
+Sources, in order: the AFS (directors' report / EPS note / SOCE), then NGX corporate disclosures
+(`npm run ngx:disclosures -- all [--tickers X] [--since 2016]`: lists `XFinancial_News` entries of dividend / closure-of-register /
+earnings-release type, downloads the PDFs to `docs/<T>/notices/`, parses them into `staged/dividend_notices.json`).
+* `notices.ts` parses interim / final / total amounts (₦, kobo, "N45 per share", "25k"), period end, qualification and payment dates.
+  Each notice is assigned to a fiscal year from its period end (or its filing date vs. the fiscal year end) and a type; per FY+type the most recent notice wins. Special dividends are ignored.
+* Merge (`validate.ts`): AFS and notice agree (1 %) → `high` (`dps_confirmed_by_ngx_notice`); AFS partial but notice total differs → notice total, `medium`;
+  conflict → AFS value kept, one level lower + review item; notice only → `medium` if total/final+interim is stated, `low` for final-only/interim-only.
+  OCR'd sources are capped at `medium` (`low` when notice-only).
+* **Cash-flow check**: `paid(N+1) ≈ shares × (final(N) + interim(N+1))` (12 % tolerance, "dividends paid" from the next AFS's cash flow; shares = implied or directory). A match upgrades one level (`medium` max for OCR); a mismatch is an info review item; the gap is written to `dividends.csv` (`cashflow_gap`).
+
+## Restated revenue rule
+The value **as originally reported** is kept. If the next AFS's comparative differs by more than 1 %: confidence `medium`, `restated_in_next_year` records the restated value and `restated_pct` (signed %) quantifies it (columns in `fundamentals.csv`).
 
 ## Validation / confidence
 * one document per fiscal year (interim documents excluded; duplicates resolved by agreement with the neighbouring years' comparative columns);
@@ -21,7 +47,7 @@ Requires `poppler-utils` (`pdftotext`). Image-only PDFs are not OCR'd; those yea
 * EPS printed in kobo under a "Naira" label is rescaled (flagged);
 * sanity: operating profit vs revenue, net profit vs revenue, ROE, revenue ≤ 0, equity ≤ 0;
 * banks: revenue = gross earnings (else interest income), "operating profit" = profit before tax (basis recorded);
-* USD reporters (ETI) keep `currency=USD` and are **skipped** by step 5.
+* USD reporters (ETI) keep `currency=USD` (values extracted from the US$'000 column of dual-currency pages) and are **skipped** by step 5. Proposal: store a `currency` in `profile_meta.ngxFundamentals.years.<year>` and display natively as "US$", or use the NGN columns ETI itself publishes on the same pages rather than an invented FX rate; nothing is loaded for ETI until decided. ETI EPS is published in US cents.
 
 `high` is the only level loaded by default (`--min=medium` to relax). Everything else goes to `review_queue.csv` with the reason, file and page.
 
