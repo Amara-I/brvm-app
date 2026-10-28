@@ -10,6 +10,9 @@ import { seriesFromYearlyPrices } from "@/lib/landing/price-series";
 import { BRAND_NAME } from "@/lib/theme/brand";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import LandingSparkline from "./LandingSparkline";
+import MarketHeroCard from "./MarketHeroCard";
+import type { HeroPoint } from "@/lib/landing/hero-chart";
+import { HIGH_SCORE_THRESHOLD } from "@/lib/calc/market-summary-stats";
 import {
   IconArrow,
   IconBook,
@@ -36,8 +39,10 @@ export interface LandingPageProps {
   sectorsCount: number;
   /** Nombre de termes du lexique Éducation. */
   educationTermsCount: number;
-  /** Moyenne des cours annuels déjà en base — jamais interpolée. */
-  marketSeries: number[];
+  /** Niveaux de clôture BRVM Composite (null si indisponible). */
+  heroSeries: HeroPoint[] | null;
+  /** Date ISO de la dernière clôture connue (cours en base). */
+  closeDate: string | null;
 }
 
 const LANDING_EXCHANGE_CODES = ["BRVM", "NGX", "GSE", "NSE"] as const;
@@ -58,7 +63,8 @@ export default function LandingPage({
   topCompanies,
   sectorsCount,
   educationTermsCount,
-  marketSeries,
+  heroSeries,
+  closeDate,
 }: LandingPageProps) {
   const { t, format, labels, locale } = getI18n();
   const yearsSpan =
@@ -81,12 +87,6 @@ export default function LandingPage({
       return format.percent(n, digits, true);
     }
     return `${n >= 0 ? "+" : ""}${raw.replace(".", ",")}%`;
-  };
-
-  const showAvgPerf = (value: number | null): string => {
-    if (value === null) return t("common.nd");
-    if (locale === "en") return format.percent(value, 1, true);
-    return `${value >= 0 ? "+" : ""}${value.toFixed(1).replace(".", ",")}%`;
   };
 
   const heroFeatures = [
@@ -232,36 +232,58 @@ export default function LandingPage({
             </div>
           </div>
 
-          <div className={`${styles.card} ${styles.cardPortfolio} ${styles.heroFigure}`}>
-            <div className={styles.cardPortfolioMain}>
-              <div className={styles.cardPortfolioCopy}>
-                <div className={styles.cardLabel}>
-                  <span className={styles.liveDot} />
-                  {t("landing.card.live")}
-                </div>
-                <div className={styles.cardValue}>{format.mdsFcfa(stats.totalMarketCapBnFcfa)}</div>
-              </div>
-              <LandingSparkline values={marketSeries} width={168} height={64} variant="hero" />
-            </div>
-            <ul className={styles.figureMeta}>
-              <li>
-                <strong className={styles.chipGreen}>{showAvgPerf(stats.avgPerf5Percent)}</strong>
-                {t("landing.card.years5")}
-              </li>
-              <li>
-                <strong>{stats.companiesCount}</strong>
-                {t("landing.card.companies")}
-              </li>
-              <li>
-                <strong>{sectorsCount}</strong>
-                {t("landing.card.sectors")}
-              </li>
-              <li>
-                <strong>{signalCount}</strong>
-                {t("landing.card.signals")}
-              </li>
-            </ul>
-          </div>
+          <MarketHeroCard
+            locale={locale}
+            capitalisation={format.mdsFcfa(stats.totalMarketCapBnFcfa)}
+            series={heroSeries ?? []}
+            labels={{
+              capLabel: t("landing.card.capLabel"),
+              closeOn: closeDate
+                ? t("landing.card.closeOn", {
+                    date: format.date(`${closeDate}T12:00:00Z`, {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      timeZone: "UTC",
+                    }),
+                  })
+                : "",
+              chartTitle: t("landing.card.chartTitle"),
+              chartSource: t("landing.card.chartSource"),
+              rangeAria: t("landing.card.rangeAria"),
+              ranges: {
+                "1Y": t("landing.card.range1Y"),
+                "3Y": t("landing.card.range3Y"),
+                "5Y": t("landing.card.range5Y"),
+                MAX: t("landing.card.rangeMax"),
+              },
+              overPeriod: t("landing.card.overPeriod", { period: "{period}" }),
+              periodNames: {
+                "1Y": t("landing.card.period1Y"),
+                "3Y": t("landing.card.period3Y"),
+                "5Y": t("landing.card.period5Y"),
+                MAX: t("landing.card.periodMax"),
+              },
+              start: t("landing.card.start"),
+              end: t("landing.card.end"),
+              high: t("landing.card.high"),
+              low: t("landing.card.low"),
+              noChart: t("landing.card.noChart"),
+              stats: [
+                { value: String(stats.companiesCount), label: t("landing.card.companies") },
+                { value: String(sectorsCount), label: t("landing.card.sectors") },
+                {
+                  value: signalCount,
+                  label: t("landing.card.highScore", { min: HIGH_SCORE_THRESHOLD }),
+                  title: t("landing.card.highScoreTitle", {
+                    count: stats.buySignalsCount,
+                    total: stats.companiesCount,
+                    min: HIGH_SCORE_THRESHOLD,
+                  }),
+                },
+              ],
+            }}
+          />
         </div>
       </section>
 
