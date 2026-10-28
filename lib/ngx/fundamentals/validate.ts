@@ -186,9 +186,42 @@ export function inferUnit(doc: ExtractedDoc, shares: number | null): number | nu
   const np = (x.fields.netProfitOwners ?? x.fields.netProfit)?.values[0];
   const eps = x.fields.eps?.values[0];
   if (np == null || !eps) return null;
-  for (const m of [1000, 1, 1e6]) {
-    const r = Math.abs((np * m) / eps) / shares;
-    if (r >= 0.85 && r <= 1.15) return m;
+  for (const e of [eps, eps / 100]) {
+    for (const m of [1000, 1, 1e6]) {
+      const r = Math.abs((np * m) / e) / shares;
+      if (r >= 0.85 && r <= 1.15) return m;
+    }
+  }
+  return null;
+}
+
+/**
+ * Même idée avec les exercices voisins quand le nombre d'actions a changé (regroupement/division) : le multiplicateur
+ * d'un voisin est repris si les actions implicites (résultat net / BPA) collent à celles du voisin (±15 %).
+ */
+export function inferUnitFromNeighbours(doc: ExtractedDoc, neighbours: ExtractedDoc[]): number | null {
+  const x = doc.extraction;
+  if (x.unitMultiplier) return null;
+  const np = (x.fields.netProfitOwners ?? x.fields.netProfit)?.values[0];
+  const eps = x.fields.eps?.values[0];
+  if (np == null || !eps) return null;
+  for (const n of neighbours) {
+    const nx = n.extraction;
+    const m = nx.unitMultiplier;
+    const nnp = (nx.fields.netProfitOwners ?? nx.fields.netProfit)?.values[0];
+    const neps = nx.fields.eps?.values[0];
+    if (!m || nnp == null || !neps) continue;
+    const nShares = Math.abs((nnp * m) / neps);
+    for (const e of [eps, eps / 100]) {
+      const r = Math.abs((np * m) / e) / nShares;
+      if (r >= 0.85 && r <= 1.15) return m;
+    }
+    // BPA du voisin en kobo
+    const nShares2 = nShares * 100;
+    for (const e of [eps, eps / 100]) {
+      const r = Math.abs((np * m) / e) / nShares2;
+      if (r >= 0.85 && r <= 1.15) return m;
+    }
   }
   return null;
 }
@@ -239,7 +272,7 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
   const unitFixed = new Map<number, number>();
   for (const [fy, d0] of [...byFy]) {
     let d = d0;
-    const inferred = inferUnit(d, opts.shares);
+    const inferred = inferUnit(d, opts.shares) ?? inferUnitFromNeighbours(d, [byFy.get(fy + 1), byFy.get(fy - 1)].filter((n): n is ExtractedDoc => !!n));
     if (inferred) {
       d = { ...d, extraction: { ...d.extraction, unitMultiplier: inferred, unitLabel: `${inferred === 1 ? "units" : inferred === 1000 ? "thousands" : "millions"} (inferred from EPS × shares)`, warnings: [...d.extraction.warnings, "unit_inferred_by_eps_shares"] } };
     }

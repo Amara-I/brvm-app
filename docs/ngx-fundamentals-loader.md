@@ -60,6 +60,7 @@ The value **as originally reported** is kept. If the next AFS's comparative diff
 * unit (thousands/millions) read from the statement header and double-checked through EPS × shares (×1000 errors corrected, flagged);
 * EPS printed in kobo under a "Naira" label is rescaled (flagged);
 * sanity: operating profit vs revenue, net profit vs revenue, ROE, revenue ≤ 0, equity ≤ 0;
+* missing unit (header shows only "N", text lost): inferred from net profit ≈ EPS × shares (directory shares, ±15 %), else from a neighbouring year's unit when the implied share counts agree (handles reverse splits, e.g. Transcorp); flagged `unit_inferred_by_eps_shares`, label "(inferred …)";
 * banks: revenue = gross earnings (else interest income), "operating profit" = profit before tax (basis recorded);
 * USD reporters (ETI) keep `currency=USD` (values extracted from the US$'000 column of dual-currency pages) and are **skipped** by step 5. Proposal: store a `currency` in `profile_meta.ngxFundamentals.years.<year>` and display natively as "US$", or use the NGN columns ETI itself publishes on the same pages rather than an invented FX rate; nothing is loaded for ETI until decided. ETI EPS is published in US cents.
 

@@ -195,3 +195,13 @@ describe("inferUnit", () => {
     expect(inferUnit({ ...(doc as object), extraction: { unitMultiplier: 1000, fields: {} } } as never, 2_190_000_000)).toBeNull();
   });
 });
+
+describe("inferUnitFromNeighbours", () => {
+  it("takes the neighbour's unit when implied shares agree despite a share-count change (Transcorp FY2021)", async () => {
+    const { inferUnitFromNeighbours } = await import("./validate");
+    const mk = (m: number | null, np: number, eps: number) => ({ file: "x", guessedFiscalYear: 2021, extraction: { unitMultiplier: m, fields: { netProfit: { values: [np, 0] }, eps: { values: [eps, 0] } } } }) as never;
+    // 13,964,329 (thousands) / 0.34 NGN = 41.07bn shares ; neighbour: 7,787,835 thousands / 0.19 = 40.99bn
+    expect(inferUnitFromNeighbours(mk(null, 13964329, 34), [mk(1000, 7787835, 19)])).toBe(1000);
+    expect(inferUnitFromNeighbours(mk(null, 13964329, 34), [mk(1000, 7787835, 90)])).toBeNull();
+  });
+});
