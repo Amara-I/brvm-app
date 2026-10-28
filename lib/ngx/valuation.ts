@@ -65,6 +65,75 @@ export function returnOnEquityPercent(netIncomeBn: number | null, equityBn: numb
   return (netIncomeBn / equityBn) * 100;
 }
 
+// ───────────── Multiples par capitalisation (comptes d'un exercice ÷ capitalisation d'aujourd'hui) ─────────────
+// Le nombre de titres de l'annuaire NGX est celui d'aujourd'hui : après une augmentation de capital il est
+// sans rapport avec celui des comptes. Capitalisation ÷ capitaux propres (ou résultat net) reste cohérent
+// quel que soit le nombre de titres, tant que le cours et le nombre de titres sont ceux d'aujourd'hui.
+
+/** Au-delà de ce PBR, le multiple est jugé non significatif (capitaux propres trop faibles ou non fiables). */
+export const PBR_NOT_SIGNIFICANT_ABOVE = 12;
+/** Capitaux propres inférieurs à cette part de la capitalisation : PBR non significatif. */
+export const EQUITY_MIN_SHARE_OF_CAP = 0.02;
+
+/** `stale` : derniers comptes trop anciens pour valoriser sur la base du cours actuel. */
+export type MultipleStatus = "ok" | "negative" | "not_significant" | "stale" | "unavailable";
+
+/** Ancienneté maximale (en années civiles) du dernier exercice publié pour que PER / PBR / ROE aient un sens. */
+export const STALE_ACCOUNTS_MAX_AGE_YEARS = 2;
+
+/** Dernier exercice publié « trop ancien » par rapport à `today` (YYYY-MM-DD) : plus de 2 ans d'écart. */
+export function accountsAreStale(lastFiscalYear: number | null, today: string | undefined): boolean {
+  if (lastFiscalYear == null || !today) return false;
+  const thisYear = Number(today.slice(0, 4));
+  return Number.isFinite(thisYear) && thisYear - lastFiscalYear > STALE_ACCOUNTS_MAX_AGE_YEARS;
+}
+
+export interface MultipleResult {
+  value: number | null;
+  status: MultipleStatus;
+}
+
+/** PBR = capitalisation ÷ capitaux propres du même exercice. */
+export function priceToBookFromCap(capBn: number | null, equityBn: number | null): MultipleResult {
+  if (!finite(capBn) || !finite(equityBn) || capBn <= 0) return { value: null, status: "unavailable" };
+  if (equityBn <= 0) return { value: null, status: "negative" };
+  if (equityBn < capBn * EQUITY_MIN_SHARE_OF_CAP) return { value: null, status: "not_significant" };
+  const pbr = capBn / equityBn;
+  if (pbr > PBR_NOT_SIGNIFICANT_ABOVE) return { value: null, status: "not_significant" };
+  return { value: pbr, status: "ok" };
+}
+
+/** PER = capitalisation ÷ résultat net part du groupe du même exercice. */
+export function priceToEarningsFromCap(capBn: number | null, netIncomeBn: number | null): MultipleResult {
+  if (!finite(capBn) || !finite(netIncomeBn) || capBn <= 0) return { value: null, status: "unavailable" };
+  if (netIncomeBn <= 0) return { value: null, status: "negative" };
+  return { value: capBn / netIncomeBn, status: "ok" };
+}
+
+export interface EquityBasis {
+  /** Exercice dont les capitaux propres servent au PBR et au ROE (le plus récent confirmé). */
+  basis: NgxFinancialYear | null;
+  /** Capitaux propres plus récents mais non confirmés : affichés avec la mention « non confirmé », jamais utilisés. */
+  unconfirmedLatest: NgxFinancialYear | null;
+}
+
+/**
+ * Capitaux propres confirmés = confiance « high » quand elle est enregistrée. Sans confiance enregistrée
+ * (chargement ancien), un exercice n'est considéré confirmé que s'il existe un exercice plus récent dans la
+ * série : « high » signifie justement « confirmé par la colonne comparative de l'exercice suivant ».
+ */
+export function selectEquityBasis(years: readonly NgxFinancialYear[]): EquityBasis {
+  const withEquity = years.filter((y) => finite(y.equityBn));
+  if (withEquity.length === 0) return { basis: null, unconfirmedLatest: null };
+  const lastSeriesYear = years.reduce((m, y) => Math.max(m, y.year), -Infinity);
+  const confirmed = (y: NgxFinancialYear) =>
+    y.equityConfidence != null ? y.equityConfidence === "high" : y.year < lastSeriesYear;
+  const latest = withEquity[withEquity.length - 1];
+  if (confirmed(latest)) return { basis: latest, unconfirmedLatest: null };
+  const basis = [...withEquity].reverse().find(confirmed) ?? null;
+  return { basis, unconfirmedLatest: latest };
+}
+
 export function marginPercent(numeratorBn: number | null, revenueBn: number | null): number | null {
   if (!finite(numeratorBn) || !finite(revenueBn) || revenueBn <= 0) return null;
   return (numeratorBn / revenueBn) * 100;

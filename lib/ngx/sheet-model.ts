@@ -10,9 +10,10 @@ import {
   type RatioRowLike,
 } from "./fundamentals";
 import { priceStats, type PricePoint, type PriceStats } from "./price-stats";
+import { computeNgxScore, type NgxScore } from "./score";
 import { cleanNgxName, ngxSectorGroup, type NgxSectorGroup } from "./sectors";
 import {
-  bookValuePerShare,
+  EQUITY_MIN_SHARE_OF_CAP,
   dividendYearsPaid,
   dividendYieldPercent,
   estimateFairValues,
@@ -20,14 +21,18 @@ import {
   marginPercent,
   marketCapBn,
   payoutPercent,
-  priceToBook,
-  priceToEarnings,
+  priceToBookFromCap,
+  priceToEarningsFromCap,
   relativeGapPercent,
   returnOnEquityPercent,
   sectorStat,
+  selectEquityBasis,
   seriesCagrPercent,
   summarizeValuation,
   type FairValueEstimate,
+  accountsAreStale,
+  type MultipleResult,
+  type MultipleStatus,
   type SectorStat,
   type ValuationSummary,
 } from "./valuation";
@@ -89,21 +94,45 @@ export interface SheetInput {
   documents: DocumentRowLike[];
   /** Tous les titres NGX (y compris celui-ci) : médianes sectorielles et classement par capitalisation. */
   universe: CompanyInput[];
+  /** Métriques de l'univers déjà calculées (écran de tri : évite de les recalculer pour chaque société). */
+  universeMetrics?: Array<{ c: CompanyInput; m: CompanyMetrics }>;
   /** YYYY-MM-DD */
   today: string;
 }
 
 export interface CompanyMetrics {
+  /** Dernier exercice avec un résultat net ou un BPA publié. */
   fiscalYear: number | null;
+  /** Dernier exercice dont les comptes sont publiés, quand il a plus de 2 ans : PER / PBR / ROE sont alors « n/s » et exclus. */
+  staleAccountsYear: number | null;
+  /** BPA publié (jamais recalculé avec le nombre de titres actuel) et son exercice. */
   eps: number | null;
+  epsYear: number | null;
+  /** Actif net par action = capitaux propres confirmés ÷ titres de l'exercice (résultat net ÷ BPA). Null si indéterminé. */
   bvps: number | null;
+  bvpsYear: number | null;
+  /** PER = capitalisation ÷ résultat net de l'exercice `perYear`. */
   per: number | null;
+  perStatus: MultipleStatus;
+  perYear: number | null;
+  /** PBR = capitalisation ÷ capitaux propres confirmés de l'exercice `equityYear`. */
   pbr: number | null;
+  pbrStatus: MultipleStatus;
+  /** Exercice et montant des capitaux propres utilisés (le plus récent confirmé). */
+  equityYear: number | null;
+  equityBn: number | null;
+  /** Capitaux propres plus récents mais non confirmés : signalés, jamais utilisés dans un ratio. */
+  equityUnconfirmed: { year: number; equityBn: number } | null;
   yieldPercent: number | null;
   netMarginPercent: number | null;
   roePercent: number | null;
+  roeYear: number | null;
   revenueCagrPercent: number | null;
   marketCapBn: number | null;
+  /** Résultat net et capitaux propres ramenés au nombre de titres actuel : alimentent seulement la valeur indicative,
+   *  de façon cohérente avec le PER et le PBR par capitalisation. */
+  impliedEps: number | null;
+  impliedBvps: number | null;
 }
 
 export type SectorMetricKey = "per" | "pbr" | "yield" | "netMargin" | "roe" | "revenueCagr";
@@ -111,6 +140,8 @@ export type SectorMetricKey = "per" | "pbr" | "yield" | "netMargin" | "roe" | "r
 export interface SectorRow {
   key: SectorMetricKey;
   company: number | null;
+  /** « n/s », capitaux propres négatifs… quand `company` est null pour une raison autre que l'absence de donnée. */
+  companyStatus: MultipleStatus | null;
   stat: SectorStat;
   /** Écart relatif entre la société et la médiane, en %. */
   gapPercent: number | null;
@@ -204,6 +235,8 @@ export interface NgxSheetModel {
     missingYears: MissingDividendYear[];
   };
   policies: PolicyConclusion[];
+  /** Note 0–100 (global + 4 politiques), dérivée des sections ci-dessus. */
+  score: NgxScore;
 }
 
 // ───────────── Aides ─────────────
@@ -275,35 +308,67 @@ export function currentDividend(
   return { dps: latest.dps, year: latest.year, status: "CONFIRMED" };
 }
 
-export function computeCompanyMetrics(company: CompanyInput): CompanyMetrics {
+export function computeCompanyMetrics(company: CompanyInput, today?: string): CompanyMetrics {
   const meta = parseNgxProfileMeta(company.profileMeta);
   const years = buildFinancialYears(company.ratios, meta);
+  // Nombre de titres ACTUEL (annuaire NGX) : uniquement pour la capitalisation.
   const shares = meta.sharesOutstanding?.value ?? null;
   const price = company.close;
+  const cap = marketCapBn(price, shares);
   const epsLatest = latestWith(years, (y) => y.epsNgn);
-  const equityLatest = latestWith(years, (y) => y.equityBn);
   const netLatest = latestWith(years, (y) => y.netIncomeBn);
   const eps = epsLatest?.value ?? null;
-  const bvps = bookValuePerShare(equityLatest?.value ?? null, shares);
-  const roeYear = years.find((y) => y.year === netLatest?.year);
+
+  // Capitaux propres : dernier exercice confirmé ; le plus récent non confirmé est seulement signalé.
+  const { basis, unconfirmedLatest } = selectEquityBasis(years);
+  const equityBn = basis?.equityBn ?? null;
+  const equityOk = equityBn != null && equityBn > 0 && (cap == null || equityBn >= cap * EQUITY_MIN_SHARE_OF_CAP);
+
+  // Comptes trop anciens (ex. dernier exercice FY2022 en 2026) : le cours actuel n'a plus de rapport avec eux.
+  const lastAccountsYear = years.length > 0 ? years[years.length - 1].year : null;
+  const stale = accountsAreStale(lastAccountsYear, today);
+  const STALE: MultipleResult = { value: null, status: "stale" };
+  const per = stale ? STALE : priceToEarningsFromCap(cap, netLatest?.value ?? null);
+  const pbr = stale ? STALE : priceToBookFromCap(cap, equityBn);
+
+  const bvps =
+    basis && equityBn != null && equityBn > 0 && basis.eraShares != null ? (equityBn * 1e9) / basis.eraShares : null;
+  const roe = !stale && equityOk && basis ? returnOnEquityPercent(basis.netIncomeBn, equityBn) : null;
+
   const withMargin = [...years].reverse().find((y) => y.netIncomeBn != null && y.revenueBn != null);
-  const fiscalYear = epsLatest?.year ?? netLatest?.year ?? null;
+  const fiscalYear = Math.max(epsLatest?.year ?? -Infinity, netLatest?.year ?? -Infinity);
+  const fiscalYearOrNull = Number.isFinite(fiscalYear) ? fiscalYear : null;
   const lines = bestPerYear(company.dividends).map((d) => ({
     year: d.year,
     dps: d.amount,
   }));
-  const dps = currentDividend(lines, fiscalYear).dps;
+  const dps = currentDividend(lines, fiscalYearOrNull).dps;
   return {
-    fiscalYear,
+    fiscalYear: fiscalYearOrNull,
+    staleAccountsYear: stale ? lastAccountsYear : null,
     eps,
+    epsYear: epsLatest?.year ?? null,
     bvps,
-    per: priceToEarnings(price, eps),
-    pbr: priceToBook(price, bvps),
+    bvpsYear: bvps != null && basis ? basis.year : null,
+    per: per.value,
+    perStatus: per.status,
+    perYear: netLatest?.year ?? null,
+    pbr: pbr.value,
+    pbrStatus: pbr.status,
+    equityYear: basis?.year ?? null,
+    equityBn,
+    equityUnconfirmed:
+      unconfirmedLatest && unconfirmedLatest.equityBn != null
+        ? { year: unconfirmedLatest.year, equityBn: unconfirmedLatest.equityBn }
+        : null,
     yieldPercent: dividendYieldPercent(dps, price),
     netMarginPercent: withMargin ? marginPercent(withMargin.netIncomeBn, withMargin.revenueBn) : null,
-    roePercent: returnOnEquityPercent(netLatest?.value ?? null, roeYear?.equityBn ?? equityLatest?.value ?? null),
+    roePercent: roe,
+    roeYear: roe != null && basis ? basis.year : null,
     revenueCagrPercent: seriesCagrPercent(years, (y) => y.revenueBn).cagr,
-    marketCapBn: marketCapBn(price, shares),
+    marketCapBn: cap,
+    impliedEps: per.status === "ok" && shares && netLatest ? (netLatest.value * 1e9) / shares : null,
+    impliedBvps: pbr.status === "ok" && shares && equityBn != null ? (equityBn * 1e9) / shares : null,
   };
 }
 
@@ -327,16 +392,18 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
   const stats = priceStats(input.series);
 
   // Classement par capitalisation (sociétés avec cours et titres connus).
-  const universeMetrics = input.universe.map((c) => ({
-    c,
-    m: computeCompanyMetrics(c),
-  }));
+  const universeMetrics =
+    input.universeMetrics ??
+    input.universe.map((c) => ({
+      c,
+      m: computeCompanyMetrics(c, input.today),
+    }));
   const ranked = universeMetrics
     .filter((x) => x.m.marketCapBn != null)
     .sort((a, b) => (b.m.marketCapBn ?? 0) - (a.m.marketCapBn ?? 0));
   const rankIdx = ranked.findIndex((x) => x.c.ticker === company.ticker);
 
-  const metrics = computeCompanyMetrics(company);
+  const metrics = computeCompanyMetrics(company, input.today);
   const peers = universeMetrics.filter(
     (x) => x.c.ticker !== company.ticker && ngxSectorGroup(x.c.ticker, x.c.sectorSlug || x.c.sectorName) === group,
   );
@@ -346,6 +413,14 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     return {
       key,
       company: mine,
+      companyStatus:
+        key === "per"
+          ? metrics.perStatus
+          : key === "pbr"
+            ? metrics.pbrStatus
+            : key === "roe" && metrics.staleAccountsYear != null
+              ? "stale"
+              : null,
       stat,
       gapPercent: relativeGapPercent(mine, stat.median),
     };
@@ -356,8 +431,8 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
 
   const estimates = estimateFairValues({
     price: close,
-    eps: metrics.eps,
-    bvps: metrics.bvps,
+    eps: metrics.impliedEps,
+    bvps: metrics.impliedBvps,
     sectorPer: perStat,
     sectorPbr: pbrStat,
   });
@@ -448,7 +523,7 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     .sort((a, b) => ((a.publishedAt ?? "") < (b.publishedAt ?? "") ? 1 : -1))
     .slice(0, 12);
 
-  return {
+  const model: Omit<NgxSheetModel, "score"> = {
     ticker: company.ticker,
     name: cleanNgxName(company.name),
     tier: fullTier ? "FULL" : "COMING_SOON",
@@ -512,4 +587,5 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     },
     policies,
   };
+  return { ...model, score: computeNgxScore(model) };
 }

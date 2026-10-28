@@ -2,7 +2,8 @@
 //  - chiffre d'affaires / résultat d'exploitation / résultat net : table financial_ratios
 //    (colonnes revenue, operatingIncome, netIncome). Pour une société NGX, l'unité est le
 //    MILLIARD DE NAIRAS (₦ bn) et non les Mds FCFA historiques de la BRVM.
-//  - titres en circulation, capitaux propres, BPA publié… : JSON companies.profile_meta.ngxFundamentals.
+//  - titres en circulation, capitaux propres, BPA publié, confiance de lecture : JSON companies.profile_meta.ngxFundamentals.
+//    Le nombre de titres (annuaire NGX) est celui d'AUJOURD'HUI : il ne sert qu'à la capitalisation, jamais à un BPA ou un actif net passé.
 // Toute valeur absente reste null : rien n'est déduit ni inventé.
 
 export interface NgxProfileFundamentals {
@@ -25,11 +26,18 @@ export interface NgxProfileFundamentals {
   } | null;
 }
 
+/** Niveau de confiance de la lecture d'une valeur (chargeur NGX). « high » = confirmée par la colonne comparative de l'exercice suivant. */
+export type NgxConfidence = "high" | "medium" | "low";
+
 export interface NgxYearExtras {
   /** Capitaux propres part du groupe, en milliards de ₦. */
   equityBn: number | null;
   /** BPA publié, en ₦ par action. */
   epsNgn: number | null;
+  /** Confiance des capitaux propres ; null si le chargement ne l'a pas enregistrée. */
+  equityConfidence: NgxConfidence | null;
+  /** Confiance du BPA publié ; null si non enregistrée. */
+  epsConfidence?: NgxConfidence | null;
   sourceUrl: string | null;
 }
 
@@ -39,9 +47,17 @@ export interface NgxFinancialYear {
   operatingIncomeBn: number | null;
   netIncomeBn: number | null;
   equityBn: number | null;
-  /** BPA : publié si disponible, sinon calculé (résultat net / titres). */
+  /** Confiance des capitaux propres de l'exercice (null = non enregistrée). */
+  equityConfidence: NgxConfidence | null;
+  /** BPA publié uniquement. Jamais déduit du nombre de titres actuel : il a pu changer depuis. */
   epsNgn: number | null;
-  epsIsReported: boolean;
+  /** Confiance du BPA (donc de la lecture du compte de résultat de l'exercice) ; null = non enregistrée. */
+  epsConfidence?: NgxConfidence | null;
+  /**
+   * Nombre de titres de l'exercice, déduit des comptes (résultat net ÷ BPA publié). Sert uniquement à
+   * ramener les capitaux propres de l'exercice par action ; null si le BPA ou le résultat manque.
+   */
+  eraShares: number | null;
   sourceUrl: string | null;
 }
 
@@ -64,6 +80,10 @@ function safeUrl(value: unknown): string | null {
   } catch {
     return null;
   }
+}
+
+function confidence(value: unknown): NgxConfidence | null {
+  return value === "high" || value === "medium" || value === "low" ? value : null;
 }
 
 function record(value: unknown): Record<string, unknown> | null {
@@ -101,6 +121,8 @@ export function parseNgxProfileMeta(meta: unknown): NgxProfileFundamentals {
       years[year] = {
         equityBn: num(row.equityBn),
         epsNgn: num(row.epsNgn),
+        equityConfidence: confidence(row.equityConfidence),
+        epsConfidence: confidence(row.epsConfidence),
         sourceUrl: safeUrl(row.sourceUrl),
       };
     }
@@ -154,7 +176,6 @@ export function buildFinancialYears(
     if (!current || rank(row) < rank(current)) best.set(row.year, row);
   }
   const allYears = new Set<number>([...best.keys(), ...Object.keys(meta.years).map(Number)]);
-  const shares = meta.sharesOutstanding?.value ?? null;
 
   const out: NgxFinancialYear[] = [];
   for (const year of [...allYears].sort((a, b) => a - b)) {
@@ -163,16 +184,22 @@ export function buildFinancialYears(
     const revenueBn = num(row?.revenue);
     const operatingIncomeBn = num(row?.operatingIncome);
     const netIncomeBn = num(row?.netIncome);
-    const reported = extra?.epsNgn ?? null;
-    const computed = netIncomeBn != null && shares ? (netIncomeBn * 1e9) / shares : null;
+    const eps = extra?.epsNgn ?? null;
+    // Titres de l'exercice : seulement si résultat et BPA publiés sont non nuls et de même signe.
+    const eraShares =
+      netIncomeBn != null && eps != null && netIncomeBn !== 0 && eps !== 0 && netIncomeBn > 0 === eps > 0
+        ? (netIncomeBn * 1e9) / eps
+        : null;
     out.push({
       year,
       revenueBn,
       operatingIncomeBn,
       netIncomeBn,
       equityBn: extra?.equityBn ?? null,
-      epsNgn: reported ?? computed,
-      epsIsReported: reported != null,
+      equityConfidence: extra?.equityConfidence ?? null,
+      epsNgn: eps,
+      epsConfidence: extra?.epsConfidence ?? null,
+      eraShares,
       sourceUrl: extra?.sourceUrl ?? null,
     });
   }

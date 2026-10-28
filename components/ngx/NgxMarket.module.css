@@ -167,3 +167,32 @@
     grid-template-columns: 1fr;
   }
 }
+
+.screenerLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 0 28px;
+  padding: 16px 20px;
+  border: 1px solid var(--c-gold);
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--c-gold-soft), var(--c-panel) 70%);
+  color: var(--c-gold);
+  text-decoration: none;
+  font-size: 1.05rem;
+}
+
+.screenerLink strong {
+  display: block;
+}
+
+.screenerLink .sub {
+  display: block;
+  margin-top: 2px;
+}
+
+.screenerLink:hover,
+.screenerLink:focus-visible {
+  background: var(--c-gold-soft);
+}
