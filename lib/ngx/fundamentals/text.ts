@@ -35,6 +35,30 @@ export function fixLigatures(s: string): string {
     .replace(/\uFB04/g, "ffl");
 }
 
+const SQ_WORDS = "profit loss before after tax taxation income for the year period total equity operating revenue gross cost of sales expenses comprehensive attributable to owners shareholders per share earnings assets liabilities and financial position net interest finance other gains non current dividends paid basic diluted holders parent company group fair value changes retained reserves capital premium turnover statement".split(" ");
+const SQ_SET = new Set(SQ_WORDS);
+/** Libellés OCR/PDF sans espaces (« Profit beforetax », « Totalequity ») : segmente un mot collé s'il se décompose ENTIÈREMENT en mots du lexique. */
+export function unsquashLabel(label: string): string {
+  return label.replace(/[A-Za-z]{6,}/g, (w) => {
+    const l = w.toLowerCase();
+    const best: (number | null)[] = new Array(l.length + 1).fill(null);
+    best[0] = 0;
+    const prev: number[] = new Array(l.length + 1).fill(0);
+    for (let i = 1; i <= l.length; i++) {
+      for (let j = Math.max(0, i - 12); j < i; j++) {
+        if (best[j] !== null && SQ_SET.has(l.slice(j, i)) && (best[i] === null || best[j]! + 1 < best[i]!)) {
+          best[i] = best[j]! + 1;
+          prev[i] = j;
+        }
+      }
+    }
+    if (best[l.length] === null || best[l.length]! < 2) return w;
+    const parts: string[] = [];
+    for (let i = l.length; i > 0; i = prev[i]) parts.unshift(w.slice(prev[i], i));
+    return parts.join(" ");
+  });
+}
+
 /** Sépare le libellé (texte avant la première colonne chiffrée, séparée par ≥2 espaces ou fin de libellé) des nombres. */
 export function parseRow(line: string, idx = 0): Row {
   // « 214,297,747 -      161,085,778 » : un tiret collé au chiffre précédent (une seule espace) puis un grand blanc
@@ -63,7 +87,7 @@ export function parseRow(line: string, idx = 0): Row {
   }
   const tokens = rest ? (rest.match(TOKEN_RE) ?? []).map((s) => s.trim()) : [];
   const nums = tokens.map(parseToken).filter((v): v is number => v !== null);
-  return { label: label.trim(), nums, tokens, raw, line: idx };
+  return { label: unsquashLabel(label.trim()), nums, tokens, raw, line: idx };
 }
 
 export function parsePage(text: string): Row[] {

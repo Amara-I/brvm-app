@@ -243,7 +243,7 @@ function unitFromPages(pages: PageInfo[], incomeIdx: number | null, balanceIdx: 
   return { currency: null, multiplier: null, label: null, source: "none" };
 }
 
-export function extractStatements(text: string, company: NgxCompanyConfig): StatementExtraction {
+export function extractStatements(text: string, company: NgxCompanyConfig, opts: { ocrPages?: number[] } = {}): StatementExtraction {
   const warnings: string[] = [];
   const rawPages = splitPages(text);
   const pages: PageInfo[] = rawPages.map((t, i) => ({ index: i, text: t, rows: parsePage(t) }));
@@ -427,6 +427,16 @@ export function extractStatements(text: string, company: NgxCompanyConfig): Stat
       if (attrib && total) (out.fields as Record<string, RawField>).equityTotal = total.field;
     }
   } else warnings.push("balance_sheet_not_found");
+  // Bilan OCRisé : les libellés et les montants sont souvent décalés d'une ligne (« Total equity » lit la ligne voisine).
+  // Le solde de clôture du tableau de variation des capitaux propres sert alors d'arbitre quand il contredit le bilan.
+  if (out.fields.equity && out.fiscalYear && out.pages.balance !== null && opts.ocrPages?.includes(out.pages.balance)) {
+    const soce = equityFromChangesInEquity(pages, out.fiscalYear);
+    const cur = out.fields.equity.values[0];
+    if (soce && soce.values[0] !== null && cur !== null && Math.abs(soce.values[0] - cur) > 0.01 * Math.abs(soce.values[0])) {
+      out.fields.equity = soce;
+      warnings.push("equity_from_soce_over_ocr_balance_mismatch");
+    }
+  }
   if (!out.fields.equity && out.fiscalYear) {
     const soce = equityFromChangesInEquity(pages, out.fiscalYear);
     if (soce) {
@@ -477,7 +487,7 @@ export function equityFromChangesInEquity(pages: PageInfo[], fy: number): RawFie
     const opening: Array<{ row: Row; year: number }> = [];
     for (const r of p.rows) {
       const l = norm(r.label);
-      const m = /^(?:balance|balances|closing balance|at|as at)\b.*?(20[0-3]\d)\s*$/i.exec(l);
+      const m = /^(?:balances?(?=\b|at|\d)|closing balance|as ?at|at(?=\s|\d)).*?(20[0-3]\d)\s*$/i.exec(l);
       if (!m || r.nums.length < 3) continue;
       const isOpening = /\b0?1(?:st)?\s+(?:january|april|july|october)\b|\bopening\b|\bas restated\b|\brestated\b/i.test(l);
       (isOpening ? opening : closing).push({ row: r, year: Number(m[1]) });

@@ -35,7 +35,7 @@ function main() {
         const metaPath = ocrTxt.replace(/\.ocr\.txt$/, ".ocr.json");
         if (fs.existsSync(metaPath)) ocrPages = (JSON.parse(fs.readFileSync(metaPath, "utf8")).ocr_pages as number[]) ?? [];
       }
-      const extraction = extractStatements(text, company);
+      const extraction = extractStatements(text, company, { ocrPages });
       // « ocr » = au moins un des états utilisés (résultat, bilan) provient d'une page OCRisée
       if (hasOcr && [extraction.pages.income, extraction.pages.balance].some((pg) => pg !== null && ocrPages.includes(pg))) {
         extraction.ocr = true;

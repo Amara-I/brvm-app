@@ -60,3 +60,17 @@ describe("space thousands and ligatures (step 2 fixes)", () => {
     expect(parseRow("Pro\uFB01t for the year      4,299,228   3,100,000").label).toBe("Profit for the year");
   });
 });
+
+import { unsquashLabel } from "./text";
+describe("unsquashLabel", () => {
+  it("splits glued words made only of lexicon words", () => {
+    expect(unsquashLabel("Profit beforetax")).toBe("Profit before tax");
+    expect(unsquashLabel("Totalequity")).toBe("Total equity");
+    expect(unsquashLabel("Profit forthe year")).toBe("Profit for the year");
+  });
+  it("leaves normal words alone", () => {
+    expect(unsquashLabel("Administrative expenses")).toBe("Administrative expenses");
+    expect(unsquashLabel("Property, plant and equipment")).toBe("Property, plant and equipment");
+    expect(unsquashLabel("Shareholders' equity")).toBe("Shareholders' equity");
+  });
+});
