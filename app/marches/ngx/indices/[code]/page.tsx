@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
@@ -31,9 +30,9 @@ export default async function NgxIndexDetailPage({ params }: { params: { code: s
     <AppHeader>
       <div className="ob-page">
         <p>
-          <Link className={styles.back} href="/marches/ngx/indices">
+          <a className={styles.back} href="/marches/ngx/indices">
             ← {t("ngx.indices.detailBack")}
-          </Link>
+          </a>
         </p>
         <PageHeader
           kicker={index.code.replace(/_/g, " ")}

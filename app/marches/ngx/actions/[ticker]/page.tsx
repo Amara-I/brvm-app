@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
@@ -45,9 +44,9 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
       <div className="ob-page">
         <div className={sheetStyles.column}>
         <p>
-          <Link className={styles.back} href="/marches/ngx">
+          <a className={styles.back} href="/marches/ngx">
             ← {t("ngx.company.back")}
-          </Link>
+          </a>
         </p>
         <PageHeader
           kicker={`${company.ticker} · ${ngxSectorLabel(company.sectorSlug, company.sectorName, t)}`}
