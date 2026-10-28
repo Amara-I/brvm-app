@@ -138,3 +138,11 @@ describe("parsePage — stray dash after a number", () => {
     expect(rows[0].nums.slice(-4)).toEqual([214297747, 161085778, 206360656, 158104577]);
   });
 });
+
+describe("PBT label variants", () => {
+  it("accepts 'Operating Profit/(Loss) Before Tax' as profit before tax (Jaiz)", async () => {
+    const { PBT } = await import("./extract");
+    expect(PBT.test("operating profit/(loss) before tax")).toBe(true);
+    expect(PBT.test("operating profit")).toBe(false);
+  });
+});

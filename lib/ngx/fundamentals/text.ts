@@ -60,6 +60,20 @@ export function unsquashLabel(label: string): string {
 }
 
 /** Sépare le libellé (texte avant la première colonne chiffrée, séparée par ≥2 espaces ou fin de libellé) des nombres. */
+/**
+ * Réparation OCR des séparateurs de milliers. Sûr : « 150.373.083 » (≥2 groupes), « 146,549.176 », « 1.132,154 ».
+ * Un groupe unique « 569.237 » n'est converti que si la ligne contient déjà ≥2 montants à virgules de milliers.
+ */
+export function repairDottedThousands(rest: string): string {
+  let r = rest
+    .replace(/(?<![\d,.])(\d{1,3})((?:\.\d{3}){2,})(?![\d.])/g, (_m, a: string, b: string) => a + b.replace(/\./g, ","))
+    .replace(/(?<![\d,.])(\d{1,3}),(\d{3})\.(\d{3})(?![\d])/g, "$1,$2,$3")
+    .replace(/(?<![\d,.])(\d{1,3})\.(\d{3}),(\d{3})(?![\d])/g, "$1,$2,$3");
+  const commaAmounts = (r.match(/(?<![\d,.])\d{1,3}(?:,\d{3})+(?![\d])/g) ?? []).length;
+  if (commaAmounts >= 2) r = r.replace(/(?<![\d,.])(\d{1,3})\.(\d{3})(?![\d.,])/g, "$1,$2");
+  return r;
+}
+
 export function parseRow(line: string, idx = 0): Row {
   // « 214,297,747 -      161,085,778 » : un tiret collé au chiffre précédent (une seule espace) puis un grand blanc
   // est un artefact (renvoi / marque), pas une colonne « nil » : il décalerait toutes les colonnes.
@@ -88,6 +102,8 @@ export function parseRow(line: string, idx = 0): Row {
   if (rest && /(?<![\d,.])\d{1,3}(?: \d{3})+(?![\d,])/.test(rest)) {
     rest = rest.replace(/(?<![\d,.])\d{1,3}(?: \d{3})+(?![\d,])/g, (m0) => m0.replace(/ /g, ","));
   }
+  // OCR : points à la place des virgules de milliers (« 150.373.083 », « 146,549.176 », « (1.132,154) »)
+  if (rest && /\d\.\d{3}/.test(rest)) rest = repairDottedThousands(rest);
   const tokens = rest ? (rest.match(TOKEN_RE) ?? []).map((s) => s.trim()) : [];
   const nums = tokens.map(parseToken).filter((v): v is number => v !== null);
   return { label: unsquashLabel(label.trim()), nums, tokens, raw, line: idx };

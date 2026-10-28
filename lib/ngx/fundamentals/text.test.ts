@@ -82,3 +82,15 @@ describe("parseRow OCR repairs", () => {
     expect(parseRow("Resuits from operating activities     55,698,373   38,213,337").label).toBe("Results from operating activities");
   });
 });
+
+describe("OCR dotted thousands", () => {
+  it("repairs dots used as thousands separators (Dangote Sugar FY2018)", () => {
+    const r = parseRow("Revenue                         150.373.083           204,422,379            146,549.176   198.120.639");
+    expect(r.nums).toEqual([150373083, 204422379, 146549176, 198120639]);
+    const o = parseRow("Otherincome   11     569.237      401.686      234,074      196,233");
+    expect(o.nums.slice(-4)).toEqual([569237, 401686, 234074, 196233]);
+  });
+  it("leaves genuine decimals alone", () => {
+    expect(parseRow("Basic EPS (Naira)       2.835     1.250").nums).toEqual([2.835, 1.25]);
+  });
+});
