@@ -11,7 +11,7 @@ describe("buildLoadPlan", () => {
   it("only plans values at or above the confidence threshold", () => {
     const plan = buildLoadPlan([base], [], "high");
     expect(plan.ratios).toEqual([{ ticker: "GTCO", year: 2024, revenue: 1500.5, operatingIncome: null, netIncome: 500.2 }]);
-    expect(plan.meta[0]).toMatchObject({ equityBn: 1200, epsNgn: 14.5 });
+    expect(plan.meta[0]).toMatchObject({ equityBn: 1200, epsNgn: 14.5, equityConfidence: "high", epsConfidence: "high" });
     expect(plan.documents).toHaveLength(1);
     expect(buildLoadPlan([base], [], "medium").ratios[0].operatingIncome).toBe(600.1);
   });

@@ -67,8 +67,13 @@ The value **as originally reported** is kept. If the next AFS's comparative diff
 `high` is the only level loaded by default (`--min medium` to relax). Everything else goes to `review_queue.csv` with the reason, file and page.
 
 ## Step 5 targets
-`financial_ratios` (₦ bn, source `NGX_OFFICIEL`), `dividends` (₦/share), `company_documents`, and `companies.profile_meta.ngxFundamentals.years.<year>` = `{equityBn, epsNgn, sourceUrl}` (read by `lib/ngx/fundamentals.ts`).
+`financial_ratios` (₦ bn, source `NGX_OFFICIEL`), `dividends` (₦/share), `company_documents`, and `companies.profile_meta.ngxFundamentals.years.<year>` = `{equityBn, epsNgn, equityConfidence, epsConfidence, sourceUrl}` (read by `lib/ngx/fundamentals.ts`).
 Existing rows are never modified.
+
+### Confidence in `profile_meta` and how the sheet uses it
+`equityConfidence` / `epsConfidence` (`high` | `medium` | `low`) are the CSV `conf_equity` / `conf_eps` of the loaded value. `high` means the figure was confirmed by the next year's comparative column, so the latest fiscal year can never be `high`. The NGX sheet computes P/B and ROE only from the latest **`high`** equity year (labelled with its year; a more recent unconfirmed year is shown with a « non confirmé » badge and never used). Where the field is absent (older loads), the sheet treats every year except the latest one in the series as confirmed. P/B and P/E are `market cap ÷ equity` and `market cap ÷ net income`; the directory share count (`sharesOutstanding`) is today's count and is only used for market cap.
+
+Older loads did not store the confidence (and the `new || existing` merge keeps an existing year object whole, so a re-load does not add it). `scripts/ngx/emit-confidence-sql.ts <fundamentals.csv> <out-dir>` writes `backfill_confidence.sql` (reviewed, then run by a human; adds only the two confidence keys to years already in the DB, when the stored value equals the CSV value) and `preview_confidence.sql` (read-only SELECT of the resulting `years`).
 
 ## Chargement par SQL (sans accès direct à Postgres)
 

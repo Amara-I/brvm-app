@@ -45,6 +45,9 @@ export interface MetaPlan {
   year: number;
   equityBn: number | null;
   epsNgn: number | null;
+  /** Confiance de lecture, enregistrée avec la valeur : la fiche n'utilise que les capitaux propres « high » pour PBR et ROE. */
+  equityConfidence?: "high" | "medium" | "low";
+  epsConfidence?: "high" | "medium" | "low";
   sourceUrl: string | null;
 }
 export interface DividendPlan {
@@ -87,6 +90,8 @@ export function buildLoadPlan(fund: FundamentalsCsvRow[], divs: DividendCsvRow[]
     };
     if (ratio.revenue !== null || ratio.operatingIncome !== null || ratio.netIncome !== null) plan.ratios.push(ratio);
     const meta: MetaPlan = { ticker: r.ticker, year, equityBn: pick(r.equity_bn, r.conf_equity), epsNgn: pick(r.eps, r.conf_eps), sourceUrl: r.source_pdf || null };
+    if (meta.equityBn !== null && r.conf_equity !== "none") meta.equityConfidence = r.conf_equity;
+    if (meta.epsNgn !== null && r.conf_eps !== "none") meta.epsConfidence = r.conf_eps;
     if (meta.equityBn !== null || meta.epsNgn !== null) plan.meta.push(meta);
     if (r.source_pdf && !docSeen.has(r.source_pdf) && (ratio.revenue !== null || ratio.netIncome !== null || meta.equityBn !== null)) {
       docSeen.add(r.source_pdf);
