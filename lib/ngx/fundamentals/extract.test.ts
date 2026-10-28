@@ -131,3 +131,10 @@ describe("detectFiscalYear — month/year headers", () => {
     expect(detectFiscalYear("financial statements for the year ended 31 Dec 2021\n")).toEqual({ year: 2021, month: 12 });
   });
 });
+
+describe("parsePage — stray dash after a number", () => {
+  it("does not read « 214,297,747 -   161,085,778 » as a nil column", () => {
+    const rows = parsePage("Revenue                    5           214,297,747 -      161,085,778       206,360,656     158,104,577");
+    expect(rows[0].nums.slice(-4)).toEqual([214297747, 161085778, 206360656, 158104577]);
+  });
+});

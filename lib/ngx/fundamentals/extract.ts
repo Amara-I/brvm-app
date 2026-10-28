@@ -301,6 +301,10 @@ export function extractStatements(text: string, company: NgxCompanyConfig): Stat
     out.interim = true;
     warnings.push("interim_document");
   }
+  if (/\bunaudited\b/i.test(headForPeriod) || /\bunaudited\b/i.test(pages.slice(0, 2).map((p) => p.text.split("\n").slice(0, 15).join(" ")).join(" "))) {
+    out.unaudited = true;
+    warnings.push("unaudited_document");
+  }
   const u = unitFromPages(pages, incomeIdx, balanceIdx >= 0 ? balanceIdx : null);
   out.currency = u.currency ?? (u.multiplier ? company.currency : null);
   out.unitMultiplier = u.multiplier;

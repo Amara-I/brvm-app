@@ -95,6 +95,9 @@ function fieldVal(doc: ExtractedDoc | undefined, name: "revenue" | "operatingPro
   return { cur: sc(f.values[0]), prior: sc(f.values[1]), page: f.page, label: f.label };
 }
 
+/** Documents du même exercice écartés par pickDocs (doublons, réémissions). */
+const ALTERNATES = new WeakMap<ExtractedDoc, ExtractedDoc[]>();
+
 function pickDocs(docs: ExtractedDoc[]): Map<number, ExtractedDoc> {
   const byFy = new Map<number, ExtractedDoc[]>();
   for (const d of docs) {
@@ -103,7 +106,7 @@ function pickDocs(docs: ExtractedDoc[]): Map<number, ExtractedDoc> {
     (byFy.get(fy) ?? byFy.set(fy, []).get(fy)!).push(d);
   }
   const KEYS = ["revenue", "operatingProfit", "netProfit", "equity", "eps"] as const;
-  const score = (d: ExtractedDoc) => CORE_FIELDS.filter((k) => d.extraction.fields[k]).length * 10 + (d.extraction.unitMultiplier ? 5 : 0) + (d.extraction.fields.equity ? 1 : 0);
+  const score = (d: ExtractedDoc) => CORE_FIELDS.filter((k) => d.extraction.fields[k]).length * 10 + (d.extraction.unitMultiplier ? 5 : 0) + (d.extraction.fields.equity ? 1 : 0) - (d.extraction.unaudited ? 4 : 0);
   // accord avec les documents voisins : colonne « précédent » de N+1 = colonne « courant » de N (écarte les trimestriels / doublons)
   const agreement = (d: ExtractedDoc, fy: number) => {
     let n = 0;
@@ -128,6 +131,8 @@ function pickDocs(docs: ExtractedDoc[]): Map<number, ExtractedDoc> {
     const scored = list.map((d) => ({ d, s: score(d) + (list.length > 1 ? agreement(d, fy) * 6 : 0) }));
     scored.sort((a, b) => b.s - a.s || b.d.createdAt.localeCompare(a.d.createdAt));
     out.set(fy, scored[0].d);
+    // Règle des doublons : meilleur score (champs lus + accord avec les exercices voisins, non audité pénalisé), à égalité le dépôt le plus récent.
+    if (scored.length > 1) ALTERNATES.set(scored[0].d, scored.slice(1).map((x) => x.d));
   }
   return out;
 }
@@ -291,6 +296,17 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
     if (unitFixed.has(fy) && !notes.some((n) => n.startsWith("from_comparative"))) {
       notes.push(`unit_corrected_x${unitFixed.get(fy)}_by_eps_shares(${ex.unitLabel})`);
       add(fy, "document", "info", `unité « ${ex.unitLabel} » corrigée ×${unitFixed.get(fy)} d'après EPS × actions (annuaire NGX)`, null, doc.file, ex.pages.income);
+    }
+    if (ex.unaudited) notes.push("unaudited_document");
+    const alts = ALTERNATES.get(doc) ?? [];
+    if (alts.length) {
+      notes.push(`duplicate_documents(${alts.length})`);
+      const mine = fieldVal(doc, "netProfit").cur;
+      const diverging = alts.filter((a) => {
+        const v = fieldVal(a, "netProfit").cur;
+        return mine !== null && v !== null && REL(mine, v) > 0.01;
+      });
+      if (diverging.length) add(fy, "document", "medium", `document(s) du même exercice avec un résultat net différent (${diverging.map((a) => a.file.slice(0, 40)).join(", ")}) : retenu ${doc.file.slice(0, 40)} (meilleur score, puis dépôt le plus récent)`, mine, doc.file, ex.pages.income);
     }
     row.currency = ex.currency;
     row.unit = ex.unitLabel;
@@ -526,6 +542,13 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       }
     }
     row.dpsSource = dpsSource;
+    // Déclarant en USD (ETI, Seplat…) : le DPS des états est libellé dans une autre monnaie que les montants ; sans conversion
+    // sourcée on ne le déclare pas fiable.
+    if (row.dps !== null && ex.currency && ex.currency !== "NGN") {
+      conf.dps = "low";
+      notes.push("dps_currency_unverified");
+      add(fy, "dps", "low", `DPS lu pour un déclarant en ${ex.currency} : monnaie du DPS non vérifiée (états en ${ex.currency}, actions cotées en NGN)`, row.dps, doc.file, null);
+    }
   }
 
   // Changement de base (banques : produits d'intérêts ↔ gross earnings ; corporate : exploitation ↔ avant impôt)

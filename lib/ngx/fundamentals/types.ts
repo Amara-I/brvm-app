@@ -75,5 +75,7 @@ export interface StatementExtraction {
   interim: boolean;
   /** Texte issu d'un OCR (PDF image seule) : confiance plafonnée à « medium » sauf confirmation par un comparatif. */
   ocr?: boolean;
+  /** En-tête « Unaudited … » (états préliminaires non audités) : écarté au profit d'un document audité du même exercice. */
+  unaudited?: boolean;
   warnings: string[];
 }

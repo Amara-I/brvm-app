@@ -37,7 +37,9 @@ export function fixLigatures(s: string): string {
 
 /** Sépare le libellé (texte avant la première colonne chiffrée, séparée par ≥2 espaces ou fin de libellé) des nombres. */
 export function parseRow(line: string, idx = 0): Row {
-  const raw = fixLigatures(line).replace(/\t/g, "    ");
+  // « 214,297,747 -      161,085,778 » : un tiret collé au chiffre précédent (une seule espace) puis un grand blanc
+  // est un artefact (renvoi / marque), pas une colonne « nil » : il décalerait toutes les colonnes.
+  const raw = fixLigatures(line).replace(/\t/g, "    ").replace(/(\d) [-–](?=\s{3,}[\d(])/g, "$1");
   // Le libellé s'arrête au premier jeton numérique précédé d'au moins 2 espaces, ou d'un « N »/« ₦ » collé.
   // Puce « – Basic » : le tiret initial suivi d'un mot fait partie du libellé, pas d'une colonne « zéro ».
   const probe = raw.replace(/^(\s*)[–—-](?=\s+[A-Za-z])/, "$1x");
