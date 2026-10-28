@@ -8,32 +8,11 @@
 // aucune ligne existante n'est modifiée (financial_ratios / dividends / company_documents :
 // créées seulement si absentes ; profile_meta.ngxFundamentals.years.<année> : fusionné sans écraser une valeur présente).
 // Cibles : financial_ratios (₦ bn) · dividends (₦/action, source NGX_OFFICIEL) · company_documents · companies.profile_meta.
-import fs from "node:fs";
 import path from "node:path";
 import { buildLoadPlan, type DividendCsvRow, type FundamentalsCsvRow } from "../../lib/ngx/fundamentals/load-plan";
 import type { Confidence } from "../../lib/ngx/fundamentals/types";
+import { readCsv } from "./csv-read";
 import { STAGED_DIR, arg, flag } from "./stage";
-
-function readCsv<T>(file: string): T[] {
-  const text = fs.readFileSync(file, "utf8").replace(/\r/g, "");
-  const rows: string[][] = [];
-  let cur: string[] = [];
-  let cell = "";
-  let q = false;
-  for (let i = 0; i < text.length; i++) {
-    const ch = text[i];
-    if (q) {
-      if (ch === '"' && text[i + 1] === '"') { cell += '"'; i++; }
-      else if (ch === '"') q = false;
-      else cell += ch;
-    } else if (ch === '"') q = true;
-    else if (ch === ",") { cur.push(cell); cell = ""; }
-    else if (ch === "\n") { cur.push(cell); rows.push(cur); cur = []; cell = ""; }
-    else cell += ch;
-  }
-  const [head, ...body] = rows;
-  return body.filter((r) => r.length === head.length).map((r) => Object.fromEntries(head.map((h, i) => [h, r[i]])) as T);
-}
 
 async function main() {
   const apply = flag("apply");

@@ -69,3 +69,13 @@ The value **as originally reported** is kept. If the next AFS's comparative diff
 ## Step 5 targets
 `financial_ratios` (₦ bn, source `NGX_OFFICIEL`), `dividends` (₦/share), `company_documents`, and `companies.profile_meta.ngxFundamentals.years.<year>` = `{equityBn, epsNgn, sourceUrl}` (read by `lib/ngx/fundamentals.ts`).
 Existing rows are never modified.
+
+## Chargement par SQL (sans accès direct à Postgres)
+
+`scripts/ngx/emit-sql.ts` écrit, depuis les CSV validés, `staged/sql/<TICKER>.sql` (une transaction par société),
+`staged/sql/preview.sql` (lecture seule : sociétés trouvées, lignes NGX déjà présentes) et `staged/rollback.sql`.
+Le SQL est idempotent (`ON CONFLICT DO NOTHING`, clés `company+year+source` / `company+url`), insère seulement,
+cible `exchange = 'NGX'`, `source = NGX_OFFICIEL`, `is_canonical = true` (₦ bn, comme lu par `lib/ngx/fundamentals.ts`),
+et fusionne `profile_meta.ngxFundamentals.years` par `||` (une année déjà présente est conservée).
+Identifiants déterministes `ngx-fr-*`, `ngx-dv-*`, `ngx-doc-*` : le rollback ne supprime que ces lignes.
+Un même PDF qui alimente plusieurs exercices (chiffres retraités) est rattaché à l'exercice de son nom de fichier.

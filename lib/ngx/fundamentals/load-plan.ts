@@ -90,7 +90,9 @@ export function buildLoadPlan(fund: FundamentalsCsvRow[], divs: DividendCsvRow[]
     if (meta.equityBn !== null || meta.epsNgn !== null) plan.meta.push(meta);
     if (r.source_pdf && !docSeen.has(r.source_pdf) && (ratio.revenue !== null || ratio.netIncome !== null || meta.equityBn !== null)) {
       docSeen.add(r.source_pdf);
-      plan.documents.push({ ticker: r.ticker, year, url: r.source_pdf, filename: r.source_file });
+      // Un même PDF peut alimenter plusieurs exercices (chiffres retraités) : l'exercice du document est celui de son nom de fichier.
+      const fileYear = Number(/^AUDITED_FS_(\d{4})_/.exec(r.source_file ?? "")?.[1]);
+      plan.documents.push({ ticker: r.ticker, year: Number.isInteger(fileYear) && fileYear >= 1990 ? fileYear : year, url: r.source_pdf, filename: r.source_file });
     }
   }
   const nonNgn = new Set(fund.filter((r) => r.currency && r.currency !== "NGN").map((r) => r.ticker));

@@ -33,3 +33,10 @@ describe("buildLoadPlan", () => {
     expect(meets("high", "medium")).toBe(true);
   });
 });
+
+describe("document fiscal year", () => {
+  it("uses the year encoded in the file name when a PDF feeds a restated earlier year", () => {
+    const row = { ...base, fiscal_year: "2023", source_file: "AUDITED_FS_2024_03_x.pdf" } as unknown as FundamentalsCsvRow;
+    expect(buildLoadPlan([row], [], "high").documents[0].year).toBe(2024);
+  });
+});
