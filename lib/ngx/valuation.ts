@@ -230,14 +230,23 @@ export interface DividendYearLike {
   amount: number;
 }
 
-/** Nombre d'exercices avec dividende > 0 parmi les `window` derniers exercices connus de la société. */
+/**
+ * Exercices avec dividende > 0 parmi les `window` derniers exercices connus de la société.
+ * `known` = exercices de la fenêtre pour lesquels une ligne DPS existe (montant 0 compris) :
+ * un exercice sans ligne est « non confirmé », il n'est jamais compté comme « sans dividende ».
+ */
 export function dividendYearsPaid(
   dividends: readonly DividendYearLike[],
   lastYear: number,
   window = 5,
-): { paid: number; window: number } {
+): { paid: number; window: number; known: number } {
+  const recorded = new Set(dividends.map((d) => d.year));
   const set = new Set(dividends.filter((d) => d.amount > 0).map((d) => d.year));
   let paid = 0;
-  for (let y = lastYear - window + 1; y <= lastYear; y += 1) if (set.has(y)) paid += 1;
-  return { paid, window };
+  let known = 0;
+  for (let y = lastYear - window + 1; y <= lastYear; y += 1) {
+    if (set.has(y)) paid += 1;
+    if (recorded.has(y)) known += 1;
+  }
+  return { paid, window, known };
 }

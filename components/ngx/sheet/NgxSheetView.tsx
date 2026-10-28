@@ -240,6 +240,11 @@ function Performance({
   const first = years[0]?.year;
   const last = years[years.length - 1]?.year;
   const anyComputedEps = years.some((y) => y.epsNgn != null && !y.epsIsReported);
+  // Dernier exercice publié sans CA : on montre le dernier exercice avec données, étiqueté de son année.
+  const staleNote = (year: number | null) =>
+    year != null && perf.latestYear != null && year < perf.latestYear
+      ? t("ngx.sheet.performance.revenueUnconfirmed", { year: perf.latestYear })
+      : undefined;
   const cell = (v: number | null) => <td className={v != null && v < 0 ? styles.negative : undefined}>{bn(v)}</td>;
   const axis = (v: number) => format.number(v, { notation: "compact", maximumFractionDigits: 1 });
   return (
@@ -273,8 +278,24 @@ function Performance({
                   : undefined
               }
             />
-            <Stat label={t("ngx.sheet.performance.growth")} value={pct(perf.latestRevenueGrowthPercent, 1, true)} />
-            <Stat label={t("ngx.sheet.performance.netMargin")} value={pct(perf.latestNetMarginPercent, 1)} />
+            <Stat
+              label={
+                perf.latestRevenueGrowthYear != null
+                  ? t("ngx.sheet.performance.growthYear", { year: perf.latestRevenueGrowthYear })
+                  : t("ngx.sheet.performance.growth")
+              }
+              value={pct(perf.latestRevenueGrowthPercent, 1, true)}
+              note={staleNote(perf.latestRevenueGrowthYear)}
+            />
+            <Stat
+              label={
+                perf.latestNetMarginYear != null
+                  ? t("ngx.sheet.performance.netMarginYear", { year: perf.latestNetMarginYear })
+                  : t("ngx.sheet.performance.netMargin")
+              }
+              value={pct(perf.latestNetMarginPercent, 1)}
+              note={staleNote(perf.latestNetMarginYear)}
+            />
           </div>
           <h3 className={styles.sub}>{t("ngx.sheet.performance.chartTitle")}</h3>
           <div className={styles.chartBox}>
@@ -690,23 +711,35 @@ function Dividends({
 }) {
   const d = model.dividends;
   if (d.lines.length === 0) return <div className={styles.empty}>{t("ngx.sheet.dividends.empty")}</div>;
+  const unconfirmed = d.currentDps == null;
+  const lateYear =
+    !unconfirmed && d.currentDpsYear != null && d.lastFiscalYear != null && d.currentDpsYear < d.lastFiscalYear;
+  const currentNote = unconfirmed
+    ? t("ngx.sheet.dividends.unconfirmed")
+    : lateYear
+      ? t("ngx.sheet.dividends.latestKnown", { year: d.currentDpsYear ?? "", fiscal: d.lastFiscalYear ?? "" })
+      : undefined;
+  const yieldNote = unconfirmed ? t("ngx.sheet.dividends.unconfirmed") : undefined;
+  const unknownYears = d.yearsPaid ? d.yearsPaid.window - d.yearsPaid.known : 0;
+  const partial = unknownYears > 0;
   return (
     <>
       <div className={styles.grid}>
-        <Stat label={t("ngx.sheet.dividends.current")} value={ngn(d.currentDps)} />
-        <Stat label={t("ngx.sheet.dividends.yield")} value={pct(d.currentYieldPercent, 2)} />
+        <Stat label={t("ngx.sheet.dividends.current")} value={ngn(d.currentDps)} note={currentNote} />
+        <Stat label={t("ngx.sheet.dividends.yield")} value={pct(d.currentYieldPercent, 2)} note={yieldNote} />
         <Stat
           label={t("ngx.sheet.dividends.yearsPaid")}
           value={
-            d.yearsPaid
-              ? t("ngx.sheet.dividends.yearsPaidValue", {
-                  paid: d.yearsPaid.paid,
-                  window: d.yearsPaid.window,
-                })
+            d.yearsPaid && d.yearsPaid.known > 0
+              ? t(
+                  partial ? "ngx.sheet.dividends.yearsPaidPartial" : "ngx.sheet.dividends.yearsPaidValue",
+                  { paid: d.yearsPaid.paid, window: d.yearsPaid.window },
+                )
               : na
           }
+          note={partial ? t("ngx.sheet.dividends.yearsUnknown", { count: unknownYears }) : undefined}
         />
-        <Stat label={t("ngx.sheet.dividends.growth")} value={pct(d.growthPercent, 0, true)} />
+        <Stat label={t("ngx.sheet.dividends.growth")} value={pct(d.growthPercent, 0, true)} note={yieldNote} />
       </div>
       <h3 className={styles.sub}>{t("ngx.sheet.dividends.dps")}</h3>
       <div className={styles.tableWrap}>
@@ -721,6 +754,12 @@ function Dividends({
             </tr>
           </thead>
           <tbody>
+            {d.missingYears.map((m) => (
+              <tr key={`nd-${m.year}`}>
+                <td>{m.year}</td>
+                <td colSpan={4}>{t("ngx.sheet.dividends.unconfirmed")}</td>
+              </tr>
+            ))}
             {d.lines.map((l) => (
               <tr key={l.year}>
                 <td>{l.year}</td>

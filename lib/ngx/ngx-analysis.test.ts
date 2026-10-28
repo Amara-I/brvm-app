@@ -3,7 +3,7 @@ import { fixtureCompany, fixtureSeries, fixtureSheetInput } from "./__fixtures__
 import { buildFinancialYears, parseNgxProfileMeta } from "./fundamentals";
 import { concludeAllPolicies, concludeForPolicy, type PolicyFacts } from "./policy";
 import { priceStats } from "./price-stats";
-import { buildNgxSheet } from "./sheet-model";
+import { buildNgxSheet, computeCompanyMetrics, currentDividend } from "./sheet-model";
 import { cleanNgxName, isFinancialGroup, ngxSectorGroup } from "./sectors";
 import {
   bookValuePerShare,
@@ -110,7 +110,7 @@ describe("valeur indicative", () => {
   });
   it("compte les dividendes versés", () => {
     const d = [2021, 2022, 2024, 2025].map((year) => ({ year, amount: 1 }));
-    expect(dividendYearsPaid(d, 2025, 5)).toEqual({ paid: 4, window: 5 });
+    expect(dividendYearsPaid(d, 2025, 5)).toEqual({ paid: 4, window: 5, known: 4 });
   });
 });
 
@@ -325,7 +325,7 @@ describe("modèle de la fiche", () => {
     expect(model.dividends.lines[0].year).toBe(2025);
     expect(model.dividends.currentDps).toBe(32);
     expect(model.dividends.currentYieldPercent).toBeCloseTo((32 / 420) * 100, 4);
-    expect(model.dividends.yearsPaid).toEqual({ paid: 5, window: 5 });
+    expect(model.dividends.yearsPaid).toEqual({ paid: 5, window: 5, known: 5 });
     expect(model.policies).toHaveLength(4);
   });
   it("sans comptes : état « à venir », seule la lecture graphique reste", () => {
@@ -344,5 +344,161 @@ describe("modèle de la fiche", () => {
     expect(m.valuation.summary.verdict).toBe("UNKNOWN");
     expect(m.policies.map((p) => p.type)).toEqual(["TRADING"]);
     expect(m.sectorComparison.lowConfidence).toBe(true);
+  });
+});
+
+// ───────────── Dividende / CA manquants : N/D, jamais 0 ─────────────
+
+function sheetFor(company: ReturnType<typeof fixtureCompany>, peers: ReturnType<typeof fixtureCompany>[] = []) {
+  const input = fixtureSheetInput();
+  return buildNgxSheet({ ...input, company, universe: [company, ...peers], events: [], documents: [] });
+}
+
+/** Société avec comptes jusqu'en 2025 ; `dps` aligné sur 2025 (dernier élément) puis filtré par année. */
+function companyWithDps(ticker: string, dps: Array<[number, number]>, over: { revenue?: number[] } = {}) {
+  const base = fixtureCompany(ticker, 100, {
+    netIncome: [10, 11, 12, 13, 14],
+    revenue: over.revenue ?? [100, 110, 120, 130, 140],
+    equity: 80,
+    shares: 1e9,
+    sector: "BANKING",
+    sectorSlug: "banking",
+  });
+  return {
+    ...base,
+    dividends: dps.map(([year, amount]) => ({
+      year,
+      amount,
+      exDate: null,
+      paymentDate: null,
+      isCanonical: true,
+      source: "NGX_OFFICIEL",
+    })),
+  };
+}
+
+describe("dividende non confirmé (N/D, jamais 0)", () => {
+  it("currentDividend : ligne récente = valeur, ligne ancienne = null, aucune ligne = NONE", () => {
+    expect(currentDividend([], 2025)).toEqual({ dps: null, year: null, status: "NONE" });
+    expect(currentDividend([{ year: 2025, dps: 3 }], 2025)).toEqual({ dps: 3, year: 2025, status: "CONFIRMED" });
+    expect(currentDividend([{ year: 2024, dps: 3 }], 2025)).toEqual({ dps: 3, year: 2024, status: "CONFIRMED" });
+    expect(currentDividend([{ year: 2022, dps: 3 }], 2025)).toEqual({ dps: null, year: 2022, status: "UNCONFIRMED" });
+  });
+
+  it("comptes 2025 mais DPS arrêté en 2022 : N/D, pas 0 ₦ ni 0 %", () => {
+    const co = companyWithDps("OLDDIV", [
+      [2020, 2],
+      [2021, 2.5],
+      [2022, 3],
+    ]);
+    const m = sheetFor(co);
+    expect(m.dividends.currentStatus).toBe("UNCONFIRMED");
+    expect(m.dividends.currentDps).toBeNull();
+    expect(m.dividends.currentYieldPercent).toBeNull();
+    expect(m.dividends.currentDpsYear).toBe(2022);
+    expect(m.dividends.growthPercent).toBeNull();
+    expect(m.dividends.missingYears.map((x) => x.year)).toEqual([2025, 2024, 2023]);
+    expect(computeCompanyMetrics(co).yieldPercent).toBeNull();
+  });
+
+  it("DPS à 0 enregistré pour l'exercice : 0 ₦ / 0 % explicite", () => {
+    const co = companyWithDps("NODIV", [
+      [2024, 2],
+      [2025, 0],
+    ]);
+    const m = sheetFor(co);
+    expect(m.dividends.currentStatus).toBe("CONFIRMED");
+    expect(m.dividends.currentDps).toBe(0);
+    expect(m.dividends.currentYieldPercent).toBe(0);
+    expect(m.dividends.missingYears).toEqual([]);
+  });
+
+  it("dernier DPS = exercice précédent : valeur affichée, exercice courant listé en N/D", () => {
+    const m = sheetFor(companyWithDps("PREV", [[2024, 4]]));
+    expect(m.dividends.currentDps).toBe(4);
+    expect(m.dividends.currentDpsYear).toBe(2024);
+    expect(m.dividends.lastFiscalYear).toBe(2025);
+    expect(m.dividends.missingYears.map((x) => x.year)).toEqual([2025]);
+  });
+
+  it("exercices sans ligne DPS ne comptent pas comme « sans dividende »", () => {
+    const m = sheetFor(
+      companyWithDps("PARTIAL", [
+        [2021, 1],
+        [2022, 1],
+      ]),
+    );
+    expect(m.dividends.yearsPaid).toEqual({ paid: 2, window: 5, known: 2 });
+    // Rente : régularité N/D (historique incomplet, 2 < 4), rendement/distribution N/D → pas de verdict
+    const rente = m.policies.find((p) => p.type === "RENTE")!;
+    const status = (k: string) => rente.criteria.find((c) => c.key === k)?.status;
+    expect(status("dividendYield")).toBe("ND");
+    expect(status("dividendRegularity")).toBe("ND");
+    expect(status("payout")).toBe("ND");
+    expect(status("dividendGrowth")).toBe("ND");
+    expect(rente.verdict).toBe("INSUFFICIENT");
+  });
+
+  it("une dernière ligne à 0 mais ancienne n'est pas non plus lue comme « 0 »", () => {
+    const m = sheetFor(companyWithDps("OLDZERO", [[2021, 0]]));
+    expect(m.dividends.currentDps).toBeNull();
+    expect(m.dividends.currentYieldPercent).toBeNull();
+  });
+
+  it("médiane sectorielle du rendement : les pairs sans DPS confirmé sont exclus, pas comptés à 0", () => {
+    const peerA = companyWithDps("PA", [[2025, 5]]); // 5 %
+    const peerB = companyWithDps("PB", [[2025, 3]]); // 3 %
+    const peerC = companyWithDps("PC", [[2021, 9]]); // non confirmé
+    const peerD = companyWithDps("PD", []); // aucune ligne
+    const self = companyWithDps("ME", [[2025, 4]]);
+    const m = sheetFor(self, [peerA, peerB, peerC, peerD]);
+    const row = m.sectorComparison.rows.find((r) => r.key === "yield")!;
+    expect(row.stat.n).toBe(2);
+    expect(row.stat.median).toBeCloseTo(4, 6);
+  });
+
+  it("policy : un facts sans rendement/régularité ne note pas la rente à 0", () => {
+    const base = {
+      dividendYearsPaid: 2,
+      dividendYearsKnown: 2,
+      dividendWindow: 5,
+      profitableYears: 5,
+      knownYears: 5,
+    };
+    const r = concludeForPolicy("RENTE", facts({ ...base }));
+    expect(r.criteria.find((c) => c.key === "dividendRegularity")?.status).toBe("ND");
+    // un minimum déjà ≥ 4 suffit à prouver la régularité même si l'historique est incomplet
+    const ok = concludeForPolicy("RENTE", facts({ ...base, dividendYearsPaid: 4, dividendYearsKnown: 4 }));
+    expect(ok.criteria.find((c) => c.key === "dividendRegularity")?.status).toBe("OK");
+    // historique complet à 2 sur 5 : bien évalué, et défavorable
+    const full = concludeForPolicy("RENTE", facts({ ...base, dividendYearsKnown: 5 }));
+    expect(full.criteria.find((c) => c.key === "dividendRegularity")?.status).toBe("NEUTRAL");
+  });
+});
+
+describe("CA / marge manquants : dernier exercice avec données, étiqueté de son année", () => {
+  it("2025 sans CA : croissance et marge nette reprennent 2024", () => {
+    const m = sheetFor(companyWithDps("NOREV", [[2025, 1]], { revenue: [100, 110, 120, 130] }));
+    expect(m.performance.latestYear).toBe(2025);
+    expect(m.performance.latestRevenueGrowthYear).toBe(2024);
+    expect(m.performance.latestRevenueGrowthPercent).toBeCloseTo((130 / 120 - 1) * 100, 6);
+    expect(m.performance.latestNetMarginYear).toBe(2024);
+    expect(m.performance.latestNetMarginPercent).toBeCloseTo((13 / 130) * 100, 6);
+    expect(m.performance.latestOperatingMarginYear).toBe(2024);
+  });
+
+  it("dernier exercice complet : année = dernier exercice", () => {
+    const m = sheetFor(companyWithDps("FULLREV", [[2025, 1]]));
+    expect(m.performance.latestRevenueGrowthYear).toBe(2025);
+    expect(m.performance.latestNetMarginYear).toBe(2025);
+    expect(m.performance.latestNetMarginPercent).toBeCloseTo((14 / 140) * 100, 6);
+  });
+
+  it("aucun CA connu : N/D (null), pas de valeur inventée", () => {
+    const m = sheetFor(companyWithDps("NOREVAT", [[2025, 1]], { revenue: [] }));
+    expect(m.performance.latestRevenueGrowthPercent).toBeNull();
+    expect(m.performance.latestRevenueGrowthYear).toBeNull();
+    expect(m.performance.latestNetMarginPercent).toBeNull();
+    expect(m.performance.latestNetMarginYear).toBeNull();
   });
 });
