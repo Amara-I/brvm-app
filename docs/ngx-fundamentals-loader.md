@@ -23,6 +23,9 @@ npm run ngx:ocr-notices -- [--tickers X]                                        
 ```
 * Only the statement pages are OCR'd: pages are located at 90 dpi (title keyword + ≥5 numbers, comma or space thousands), then OCR'd at 170 dpi (income and balance pages + the next page, equity statement).
 * Output `<pdf>.ocr.txt` (same `\f` page layout as `pdftotext -layout`) and `<pdf>.ocr.json` (located pages). `extract.ts` uses it automatically when the PDF has no text layer and marks the document `ocr: true`.
+* `--expand` re-OCRs the whole neighbourhood (±3 pages around the located statements, up to 5 pages) when the first pass found no income/balance page; `--mixed` handles text PDFs whose statement pages are scanned images.
+* OCR repairs in `text.ts`: squashed labels (`Operatingprofit` → lexicon-based `unsquashLabel`, ≥2 dictionary words only), dotted thousands (`150.373.083`, `146,549.176`, `1.132,154`; a lone `569.237` only when the row already has ≥2 comma-thousand amounts), `Resuits`, stray dashes after a number.
+* OCR balance pages vs equity statement: when the balance page is OCR'd and the SOCE closing balance differs by >1 %, the SOCE value wins (`equity_from_soce_over_ocr_balance_mismatch`).
 * **OCR confidence cap**: values from OCR documents are at most `medium`, unless the next AFS's comparative column confirms them (then `high`).
 
 ## Dividends (DPS)
@@ -35,6 +38,17 @@ earnings-release type, downloads the PDFs to `docs/<T>/notices/`, parses them in
   conflict → AFS value kept, one level lower + review item; notice only → `medium` if total/final+interim is stated, `low` for final-only/interim-only.
   OCR'd sources are capped at `medium` (`low` when notice-only).
 * **Cash-flow check**: `paid(N+1) ≈ shares × (final(N) + interim(N+1))` (12 % tolerance, "dividends paid" from the next AFS's cash flow; shares = implied or directory). A match upgrades one level (`medium` max for OCR); a mismatch is an info review item; the gap is written to `dividends.csv` (`cashflow_gap`).
+
+* **Kobo**: an AFS DPS printed in kobo (e.g. Zenith "270 kobo") is rescaled to naira when it matches a notice (`dps_kobo_to_naira`).
+* **Partial tranche**: an AFS DPS equal to only the interim (or only the final) is completed by the notice total (`medium`).
+* **USD reporters**: DPS currency is unverified (ETI) → capped at `low` with a review item (`dps_currency_unverified`).
+* A single-payment notice confirms an AFS DPS of kind "unspecified".
+
+## Duplicate documents and fiscal-year detection
+* When several AFS cover the same fiscal year (e.g. FY2025 filed twice), `pickDocs` prefers the **audited** one (unaudited −4), then core-field completeness, agreement with neighbours, and finally the latest `createdAt`; losers are kept as alternates, flagged `duplicate_documents(N)`, and a `medium` review item is raised if net profit differs by >1 %.
+* The fiscal year is read from the statement header (`Year ended 31 December 2018`, `31/12/2018` columns) rather than the filing date (`detectFiscalYear`), so late filings land in the right year.
+* Banks: operating profit = profit before tax, also when the label is "Operating Profit/(Loss) Before Tax" (Jaiz).
+* Latest fiscal year (FY2025) has no next-year comparative, so revenue/equity cannot reach `high` (`latest_year_no_comparative`) — this is a structural limit until FY2026 AFS are filed.
 
 ## Restated revenue rule
 The value **as originally reported** is kept. If the next AFS's comparative differs by more than 1 %: confidence `medium`, `restated_in_next_year` records the restated value and `restated_pct` (signed %) quantifies it (columns in `fundamentals.csv`).
