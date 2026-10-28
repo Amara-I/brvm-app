@@ -19,6 +19,11 @@ import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import type { CompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 
+/// Seuil de score (sur 100) utilisé pour compter les « titres à score élevé »
+/// (anciennement libellé « Signaux »). C'est un compte de score, pas un nombre
+/// de signaux d'achat émis : l'UI doit l'étiqueter comme tel.
+export const HIGH_SCORE_THRESHOLD = 65;
+
 export interface MarketSummaryStats {
   companiesCount: number;
   totalMarketCapBnFcfa: number;
@@ -64,7 +69,7 @@ export function computeMarketSummaryStats(
     .map((v) => parseFloat(v));
   const avgPerf5Percent = perf5Values.length ? perf5Values.reduce((a, b) => a + b, 0) / perf5Values.length : null;
 
-  const buySignalsCount = companies.filter((c) => metricsByTicker.get(c.ticker)!.score >= 65).length;
+  const buySignalsCount = companies.filter((c) => metricsByTicker.get(c.ticker)!.score >= HIGH_SCORE_THRESHOLD).length;
 
   return {
     companiesCount: companies.length,

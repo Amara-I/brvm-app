@@ -329,7 +329,7 @@ a.exchangeChip:hover {
 }
 
 .heroFigure {
-  width: min(100%, 520px);
+  width: min(100%, 640px);
   text-align: center;
 }
 
@@ -440,6 +440,308 @@ a.exchangeChip:hover {
   font-family: var(--font-num);
   font-size: var(--fs-body-xs);
   font-variant-numeric: tabular-nums;
+}
+
+/* ── Carte marché BRVM (hero) : capitalisation + graphe BRVM Composite. */
+.hcCard {
+  text-align: left;
+}
+
+.hcTop {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 16px;
+  flex-wrap: wrap;
+}
+
+.hcTopCopy {
+  min-width: 0;
+}
+
+.hcClose {
+  color: var(--lp-textdim);
+  font-family: var(--font-num);
+  font-size: var(--fs-body-xs);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding: 4px 10px;
+  border: 1px solid var(--lp-line);
+  border-radius: 999px;
+}
+
+.hcChart {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--lp-line);
+}
+
+.hcChartHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hcChartTitle {
+  margin: 0;
+  color: var(--lp-cream);
+  font-size: var(--fs-nav);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.hcRanges {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--lp-line);
+  border-radius: 999px;
+}
+
+.hcRange {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--lp-textdim);
+  font: inherit;
+  font-size: var(--fs-body-xs);
+  font-weight: 600;
+  line-height: 1;
+  padding: 6px 11px;
+  min-height: 28px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.hcRange:hover {
+  color: var(--lp-cream);
+}
+
+.hcRange:focus-visible {
+  outline: 2px solid var(--lp-gold);
+  outline-offset: 1px;
+}
+
+.hcRangeOn {
+  background: var(--lp-gold-soft);
+  color: var(--lp-gold);
+  box-shadow: inset 0 0 0 1px rgba(212, 168, 67, 0.35);
+}
+
+.hcDeltaRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.hcDelta {
+  font-family: var(--font-num);
+  font-size: clamp(1.15rem, 1rem + 0.6vw, 1.4rem);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
+}
+
+.hcUp {
+  color: var(--lp-green);
+}
+
+.hcDown {
+  color: var(--lp-red);
+}
+
+.hcDeltaSub {
+  color: var(--lp-textdim);
+  font-size: var(--fs-body-xs);
+}
+
+.hcPlot {
+  position: relative;
+  height: 200px;
+  margin: 10px 6px 0;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+
+.hcSvg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.hcGrid {
+  stroke: rgba(244, 239, 228, 0.1);
+  stroke-width: 1;
+  stroke-dasharray: 3 5;
+  vector-effect: non-scaling-stroke;
+}
+
+.hcYLabel {
+  position: absolute;
+  left: 0;
+  transform: translateY(-115%);
+  color: var(--lp-textdim);
+  font-family: var(--font-num);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  pointer-events: none;
+  text-shadow: 0 0 6px var(--lp-bg), 0 0 2px var(--lp-bg);
+}
+
+.hcYLabelLow {
+  left: auto;
+  right: 0;
+  transform: translateY(35%);
+}
+
+.hcDot {
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  border-radius: 999px;
+  background: var(--lp-gold);
+  box-shadow: 0 0 0 3px rgba(212, 168, 67, 0.22);
+  pointer-events: none;
+}
+
+.hcDotEnd {
+  background: var(--lp-green);
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.2);
+}
+
+.hcCursor {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(244, 239, 228, 0.22);
+  pointer-events: none;
+}
+
+.hcTip {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 9px;
+  border: 1px solid var(--lp-border);
+  border-radius: 8px;
+  background: rgba(8, 11, 17, 0.92);
+  color: var(--lp-cream);
+  font-size: 0.75rem;
+  line-height: 1.2;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.hcTip strong {
+  font-family: var(--font-num);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.hcTip span {
+  color: var(--lp-textdim);
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.hcAxis {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--lp-line);
+}
+
+.hcAxisItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  color: var(--lp-textdim);
+  font-size: var(--fs-body-xs);
+  line-height: 1.25;
+}
+
+.hcAxisEnd {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.hcAxisKey {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.hcAxisDate {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+.hcAxisItem strong {
+  color: var(--lp-cream);
+  font-family: var(--font-num);
+  font-size: var(--fs-nav);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.hcSource {
+  margin: 8px 0 0;
+  color: var(--lp-textdim);
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  opacity: 0.85;
+}
+
+.hcEmpty {
+  margin: 16px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid var(--lp-line);
+  color: var(--lp-textdim);
+  font-size: var(--fs-body-xs);
+}
+
+@media (max-width: 560px) {
+  .hcCard {
+    padding: 16px 16px 14px;
+  }
+
+  .hcPlot {
+    height: 160px;
+  }
+
+  .hcClose {
+    white-space: normal;
+  }
+
+  .hcCard .figureMeta {
+    justify-content: flex-start;
+    gap: 6px 14px;
+  }
+
+  .hcCard .figureMeta li {
+    white-space: normal;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hcRange {
+    transition: none;
+  }
 }
 
 /* ── Sections : colonne centrée, titres centrés. */

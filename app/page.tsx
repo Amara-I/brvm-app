@@ -7,7 +7,7 @@ import type { Viewport } from "next";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { computeMarketSummaryStats, topScoredCompanies } from "@/lib/calc/market-summary-stats";
 import { EDUCATION_TERMS } from "@/lib/education/catalog";
-import { averageYearlySeries } from "@/lib/landing/price-series";
+import { loadHeroIndexSeries } from "@/lib/landing/hero-index-series";
 import LandingPage from "@/components/landing/LandingPage";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { getI18n } from "@/lib/i18n/get-i18n";
@@ -29,10 +29,17 @@ export function generateMetadata() {
 }
 
 export default async function LandingRoute() {
-  const dataset = await getCompaniesFullDataset();
+  const [dataset, heroIndex] = await Promise.all([getCompaniesFullDataset(), loadHeroIndexSeries()]);
   const stats = computeMarketSummaryStats(dataset);
   const topCompanies = topScoredCompanies(dataset, 4);
   const sectorsCount = new Set(dataset.companies.map((c) => c.sector).filter(Boolean)).size;
+
+  // Date de la dernière clôture = séance la plus récente des cours en base
+  // (les cours sont mis à jour une fois par jour, après la clôture).
+  const closeDate =
+    dataset.companies.reduce<string | null>((max, c) => (c.priceAsOf && (!max || c.priceAsOf > max) ? c.priceAsOf : max), null) ??
+    heroIndex?.points[heroIndex.points.length - 1]?.time ??
+    null;
 
   return (
     <LandingChrome>
@@ -41,7 +48,8 @@ export default async function LandingRoute() {
         topCompanies={topCompanies}
         sectorsCount={sectorsCount}
         educationTermsCount={EDUCATION_TERMS.length}
-        marketSeries={averageYearlySeries(dataset.companies, dataset.years)}
+        heroSeries={heroIndex?.points ?? null}
+        closeDate={closeDate}
       />
     </LandingChrome>
   );
