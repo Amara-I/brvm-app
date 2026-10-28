@@ -1,0 +1,46 @@
+// Étape 3 — extraction : texte des états audités téléchargés → champs (CA, résultat, capitaux propres, BPA, DPS).
+//   npx ts-node --transpile-only scripts/ngx/extract.ts [--tickers DANGCEM,GTCO]
+// Écrit staged/extracted/<TICKER>.json. Aucune écriture en base.
+import fs from "node:fs";
+import path from "node:path";
+import { NGX_COMPANIES } from "../../lib/ngx/fundamentals/companies";
+import { extractDividends } from "../../lib/ngx/fundamentals/dividends";
+import { extractStatements } from "../../lib/ngx/fundamentals/extract";
+import type { NgxManifestEntry } from "../../lib/ngx/fundamentals/types";
+import type { ExtractedDoc } from "../../lib/ngx/fundamentals/validate";
+import { DOCS_DIR, EXTRACTED_DIR, MANIFEST_PATH, tickerFilter } from "./stage";
+
+function main() {
+  const manifest: NgxManifestEntry[] = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8"));
+  const only = tickerFilter();
+  fs.mkdirSync(EXTRACTED_DIR, { recursive: true });
+  for (const company of NGX_COMPANIES) {
+    if (only && !only.includes(company.ticker)) continue;
+    const entries = manifest.filter((m) => m.ticker === company.ticker && m.docType === "AUDITED_FS");
+    const docs: ExtractedDoc[] = [];
+    let missing = 0;
+    for (const e of entries) {
+      const txt = path.join(DOCS_DIR, company.ticker, e.file.replace(/\.pdf$/i, ".txt"));
+      if (!fs.existsSync(txt)) {
+        missing++;
+        continue;
+      }
+      const text = fs.readFileSync(txt, "utf8");
+      const extraction = extractStatements(text, company);
+      const fy = extraction.fiscalYear ?? e.guessedFiscalYear;
+      docs.push({
+        file: e.file,
+        url: e.url,
+        guessedFiscalYear: e.guessedFiscalYear,
+        createdAt: e.createdAt,
+        extraction,
+        dividends: extraction.interim ? [] : extractDividends(text, fy),
+      });
+    }
+    fs.writeFileSync(path.join(EXTRACTED_DIR, `${company.ticker}.json`), JSON.stringify({ ticker: company.ticker, docs }, null, 1));
+    const ok = docs.filter((d) => d.extraction.fiscalYear && !d.extraction.interim && d.extraction.fields.netProfit).length;
+    console.log(`${company.ticker.padEnd(12)} docs=${docs.length}/${entries.length} (texte manquant: ${missing}) exploitables=${ok}`);
+  }
+}
+
+main();
