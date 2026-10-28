@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getCompany } from "./companies";
 import type { StatementExtraction } from "./types";
+import type { DividendNotice } from "./notices";
 import { buildStagedRows, unitCorrection, type ExtractedDoc } from "./validate";
 
 const corp = getCompany("DANGCEM")!;
@@ -118,5 +119,45 @@ describe("unit & EPS scale corrections", () => {
     interimLike.file = "interim-like.pdf";
     const { rows } = buildStagedRows(corp, [interimLike, y23, y24], { fromYear: 2023, toYear: 2023, shares: SHARES });
     expect(rows[0].revenueBn).toBe(1000);
+  });
+});
+
+describe("OCR cap, restated pct and notice-based DPS", () => {
+  it("caps OCR'd values at medium without comparative, and lets a confirming comparative restore high", () => {
+    const ocr = { ...y24, extraction: { ...y24.extraction, ocr: true } };
+    const only = buildStagedRows(corp, [ocr], { fromYear: 2024, toYear: 2024, shares: SHARES });
+    expect(only.rows[0].conf.netProfit).toBe("medium");
+    expect(only.rows[0].conf.eps).toBe("medium");
+    const ocr23 = { ...y23, extraction: { ...y23.extraction, ocr: true } };
+    const both = buildStagedRows(corp, [ocr23, y24], { fromYear: 2023, toYear: 2023, shares: SHARES });
+    expect(both.rows[0].conf.revenue).toBe("high");
+  });
+  it("records the restated percentage and keeps the original", () => {
+    const restated = doc(2024, { rev: [1200_000, 950_000], op: [250_000, 200_000], np: [120_000, 100_000], eq: [600_000, 500_000], eps: [120, 100] });
+    const { rows } = buildStagedRows(corp, [y23, restated], { fromYear: 2023, toYear: 2023, shares: SHARES });
+    expect(rows[0].restatedPct.revenue).toBe(-5);
+  });
+  const notice = (type: DividendNotice["type"], dps: number, createdAt: string, pe: { year: number; month: number }): DividendNotice => ({ type, dps, createdAt, periodEnd: pe, snippet: "", file: "n.pdf" });
+  const withDiv = (kind: "total" | "final", dps: number) => ({ ...y23, dividends: [{ fiscalYear: 2023, dps, kind, source: "table" as const, page: 5, snippet: "" }] });
+  it("AFS total confirmed by a complete NGX notice → high; conflict → medium and AFS value kept", () => {
+    const ok = buildStagedRows(corp, [withDiv("total", 30), y24], { fromYear: 2023, toYear: 2023, shares: SHARES, notices: [notice("total", 30, "2024-03-01", { year: 2023, month: 12 })] });
+    expect(ok.rows[0].dps).toBe(30);
+    expect(ok.rows[0].conf.dps).toBe("high");
+    const bad = buildStagedRows(corp, [withDiv("total", 30), y24], { fromYear: 2023, toYear: 2023, shares: SHARES, notices: [notice("total", 45, "2024-03-01", { year: 2023, month: 12 })] });
+    expect(bad.rows[0].dps).toBe(30);
+    expect(bad.rows[0].conf.dps).not.toBe("high");
+    expect(bad.review.some((x) => x.field === "dps" && x.severity === "medium")).toBe(true);
+  });
+  it("notice-only: complete → medium, final only → low; cash flow corroboration upgrades one level", () => {
+    const a = buildStagedRows(corp, [y23, y24], { fromYear: 2023, toYear: 2023, shares: SHARES, notices: [notice("final", 30, "2024-03-01", { year: 2023, month: 12 })] });
+    expect(a.rows[0].dps).toBe(30);
+    expect(a.rows[0].conf.dps).toBe("low");
+    const y24paid = { ...y24, extraction: { ...y24.extraction, dividendsPaid: { values: [30_000, 25_000] as [number, number], label: "Dividends paid", page: 60 } } };
+    const b = buildStagedRows(corp, [y23, y24paid], { fromYear: 2023, toYear: 2023, shares: SHARES, notices: [notice("final", 30, "2024-03-01", { year: 2023, month: 12 })] });
+    expect(b.rows[0].conf.dps).toBe("medium");
+    expect(b.rows[0].dpsCashGap).toBeLessThan(0.01);
+    const c = buildStagedRows(corp, [y23], { fromYear: 2023, toYear: 2023, shares: SHARES, notices: [notice("final", 20, "2024-03-01", { year: 2023, month: 12 }), notice("interim", 10, "2023-09-01", { year: 2023, month: 6 })] });
+    expect(c.rows[0].dps).toBe(30);
+    expect(c.rows[0].conf.dps).toBe("medium");
   });
 });

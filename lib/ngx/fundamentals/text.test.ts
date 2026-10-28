@@ -47,3 +47,16 @@ describe("parsePage", () => {
     expect(splitPages("a\fb\fc")).toHaveLength(3);
   });
 });
+
+describe("space thousands and ligatures (step 2 fixes)", () => {
+  it("reads « 1 519 697 » as 1,519,697 (Fidelity 2025 layout)", async () => {
+    const { parseRow } = await import("./text");
+    const r = parseRow("Gross earnings                      1 519 697     1 215 123");
+    expect(r.nums).toEqual([1519697, 1215123]);
+  });
+  it("fixes the « fi » ligature (Jaiz « Pro¿t »)", async () => {
+    const { fixLigatures, parseRow } = await import("./text");
+    expect(fixLigatures("Pro\uF001t for the year")).toBe("Profit for the year");
+    expect(parseRow("Pro\uFB01t for the year      4,299,228   3,100,000").label).toBe("Profit for the year");
+  });
+});

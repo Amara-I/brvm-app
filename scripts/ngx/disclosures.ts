@@ -105,8 +105,14 @@ function extract() {
     const pdf = path.join(DOCS_DIR, e.ticker, "notices", e.file.endsWith(".pdf") ? e.file : `${e.file}.pdf`);
     const txt = pdf.replace(/\.pdf$/i, ".txt");
     if (!fs.existsSync(txt)) { noText++; continue; }
-    const text = fs.readFileSync(txt, "utf8");
-    const found = parseDividendNotice(text, { createdAt: e.createdAt, title: e.title, kind: e.kind });
+    let text = fs.readFileSync(txt, "utf8");
+    let ocr = false;
+    const ocrTxt = pdf.replace(/\.pdf$/i, ".ocr.txt");
+    if (text.replace(/\s/g, "").length < 60 && fs.existsSync(ocrTxt)) {
+      text = fs.readFileSync(ocrTxt, "utf8");
+      ocr = true;
+    }
+    const found = parseDividendNotice(text, { createdAt: e.createdAt, title: e.title, kind: e.kind, ocr });
     if (!found.length) { empty++; continue; }
     for (const n of found) notices.push({ ...n, ticker: e.ticker, file: path.relative(DOCS_DIR, pdf), url: e.url, title: e.title, createdAt: e.createdAt });
   }

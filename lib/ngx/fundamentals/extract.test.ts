@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getCompany } from "./companies";
-import { columnLayout, extractStatements } from "./extract";
+import { columnLayout, extractStatements, pickColumns } from "./extract";
 import { parsePage } from "./text";
 
 const corp = getCompany("DANGCEM")!;
@@ -87,5 +87,37 @@ describe("extractStatements (bank mapping)", () => {
     expect(r.operatingBasis?.startsWith("PBT")).toBe(true);
     expect(r.fields.operatingProfit?.values[0]).toBe(214_154_094);
     expect(r.unitMultiplier).toBe(1000);
+  });
+});
+
+describe("step-2 company fixes", () => {
+  it("findDividendsPaid reads the cash-flow row (absolute value, both columns)", async () => {
+    const { findDividendsPaid } = await import("./extract");
+    const text = [
+      "Consolidated statement of cash flows",
+      "For the year ended 31 December 2020",
+      "                                   Group        Group",
+      "                                   2020         2019",
+      "                                 N'million    N'million",
+      "Cash generated from operations      500,000      400,000",
+      "Dividends paid                      (82,407)     (70,000)",
+      "Net cash from financing             (90,000)     (75,000)",
+    ].join("\n");
+    const r = findDividendsPaid([{ index: 77, text, rows: parsePage(text) } as never]);
+    expect(r?.values).toEqual([82407, 70000]);
+    expect(r?.page).toBe(78);
+  });
+  it("dual-currency pages (US$ and ₦ columns) keep the first currency pair", () => {
+    const text = [
+      "Group results",
+      "                                  2019      2019      2018      2018",
+      "                                 US$'000   NGN'000   US$'000   NGN'000",
+      "Gross earnings                  2,328,822 840,000,000 2,000,000 700,000,000",
+      "Profit before tax                 405,079 146,000,000   350,000 120,000,000",
+    ].join("\n");
+    const lay = columnLayout(text, parsePage(text));
+    expect(lay.dual).toBe(true);
+    const row = parsePage(text).find((r) => /Gross earnings/.test(r.label))!;
+    expect(pickColumns(row, lay)).toEqual([2328822, 2000000]);
   });
 });

@@ -7,6 +7,7 @@ import path from "node:path";
 import { toCsv, yearRanges } from "../../lib/ngx/fundamentals/csv";
 import { NGX_COMPANIES } from "../../lib/ngx/fundamentals/companies";
 import { ALL_FIELDS, CORE_FIELDS, buildStagedRows, type ExtractedDoc, type ReviewItem, type StagedRow } from "../../lib/ngx/fundamentals/validate";
+import type { DividendNotice } from "../../lib/ngx/fundamentals/notices";
 import { DIRECTORY_PATH, EXTRACTED_DIR, STAGED_DIR, arg, tickerFilter } from "./stage";
 
 function main() {
@@ -16,6 +17,9 @@ function main() {
   const directory: Array<{ Symbol: string; SharesOutstanding: number | null }> = JSON.parse(fs.readFileSync(DIRECTORY_PATH, "utf8"));
   const sharesOf = (t: string) => directory.find((d) => d.Symbol.trim().toUpperCase() === t)?.SharesOutstanding ?? null;
 
+  const NOTICES = path.join(STAGED_DIR, "dividend_notices.json");
+  const allNotices: DividendNotice[] = fs.existsSync(NOTICES) ? JSON.parse(fs.readFileSync(NOTICES, "utf8")) : [];
+  if (!allNotices.length) console.warn("dividend_notices.json absent : DPS issu des seuls états audités");
   const allRows: StagedRow[] = [];
   const allReview: ReviewItem[] = [];
   for (const company of NGX_COMPANIES) {
@@ -26,7 +30,7 @@ function main() {
       continue;
     }
     const { docs } = JSON.parse(fs.readFileSync(f, "utf8")) as { docs: ExtractedDoc[] };
-    const { rows, review } = buildStagedRows(company, docs, { fromYear: from, toYear: to, shares: sharesOf(company.ticker) });
+    const { rows, review } = buildStagedRows(company, docs, { fromYear: from, toYear: to, shares: sharesOf(company.ticker), notices: allNotices.filter((n) => n.ticker === company.ticker) });
     allRows.push(...rows);
     allReview.push(...review);
   }
@@ -49,6 +53,7 @@ function main() {
     eps: r.eps,
     dps: r.dps,
     dps_source: r.dpsKind,
+    dps_notice: r.dpsNotice,
     shares_outstanding_ngx: r.sharesOutstanding,
     implied_shares: r.impliedShares,
     conf_revenue: r.conf.revenue,
@@ -58,6 +63,7 @@ function main() {
     conf_eps: r.conf.eps,
     conf_dps: r.conf.dps,
     restated_in_next_year: Object.entries(r.restated).map(([k, v]) => `${k}=${v}`).join(";"),
+    restated_pct: Object.entries(r.restatedPct).map(([k, v]) => `${k}=${v}%`).join(";"),
     source_pdf: r.sourceUrl,
     source_file: r.sourceFile,
     pages: r.pages,
@@ -69,8 +75,8 @@ function main() {
   // dividends.csv
   const divRows = allRows
     .filter((r) => r.dps !== null)
-    .map((r) => ({ ticker: r.ticker, fiscal_year: r.fiscalYear, dps: r.dps, currency: r.currency ?? "NGN", confidence: r.conf.dps, source: r.dpsKind, source_pdf: r.sourceUrl, restated_in_next_year: r.restated.dps ?? "" }));
-  fs.writeFileSync(path.join(STAGED_DIR, "dividends.csv"), toCsv(divRows, ["ticker", "fiscal_year", "dps", "currency", "confidence", "source", "source_pdf", "restated_in_next_year"]));
+    .map((r) => ({ ticker: r.ticker, fiscal_year: r.fiscalYear, dps: r.dps, currency: r.currency ?? "NGN", confidence: r.conf.dps, source: r.dpsKind, origin: r.dpsSource, ngx_notice: r.dpsNotice, ngx_notice_files: r.dpsNoticeFiles, cashflow_gap: r.dpsCashGap ?? "", source_pdf: r.sourceUrl, restated_in_next_year: r.restated.dps ?? "" }));
+  fs.writeFileSync(path.join(STAGED_DIR, "dividends.csv"), toCsv(divRows, ["ticker", "fiscal_year", "dps", "currency", "confidence", "source", "origin", "ngx_notice", "ngx_notice_files", "cashflow_gap", "source_pdf", "restated_in_next_year"]));
 
   // review_queue.csv
   const order = { low: 0, medium: 1, info: 2 } as const;

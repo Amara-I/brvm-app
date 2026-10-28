@@ -5,6 +5,7 @@
 //   • bon sens (signes, ordres de grandeur) ;
 //   • niveau de confiance par champ + file de revue.
 import { bestDividend, type DividendCandidate } from "./dividends";
+import { summarizeNotices, type DividendNotice, type NoticeDps } from "./notices";
 import type { Confidence, NgxCompanyConfig, StatementExtraction } from "./types";
 
 export interface ExtractedDoc {
@@ -39,11 +40,20 @@ export interface StagedRow {
   eps: number | null;
   dps: number | null;
   dpsKind: string | null;
+  /** « afs », « notice », « afs+notice » */
+  dpsSource: string;
+  /** Résumé des avis NGX retenus pour l'exercice. */
+  dpsNotice: string;
+  dpsNoticeFiles: string;
+  /** Écart relatif flux de trésorerie vs actions × dividendes annoncés (null si non évaluable). */
+  dpsCashGap: number | null;
   sharesOutstanding: number | null;
   impliedShares: number | null;
   conf: Record<AnyField, Confidence>;
   /** Valeurs du comparatif de N+1 quand elles diffèrent de >1 % (retraitement). */
   restated: Partial<Record<AnyField, number>>;
+  /** Écart relatif signé (retraité − original) / |original|, en %, pour chaque valeur retraitée. */
+  restatedPct: Partial<Record<AnyField, number>>;
   sourceFile: string;
   sourceUrl: string;
   pages: string;
@@ -166,12 +176,44 @@ export interface BuildOptions {
   toYear?: number;
   /** Actions en circulation (annuaire NGX). */
   shares: number | null;
+  /** Avis de dividende NGX (étape « disclosures ») de la société. */
+  notices?: DividendNotice[];
+}
+
+const afsSrc = (s: string) => s === "afs";
+const UP: Record<Confidence, Confidence> = { none: "none", low: "medium", medium: "high", high: "high" };
+const DOWN: Record<Confidence, Confidence> = { none: "none", low: "low", medium: "low", high: "medium" };
+const CASH_TOL = 0.12;
+
+/** Dividendes payés (flux de trésorerie) de l'exercice `fy`, en devise entière : colonne courante des états de `fy`, sinon colonne précédente des états de `fy+1`. */
+function cashPaid(byFy: Map<number, ExtractedDoc>, fy: number): number | null {
+  const d = byFy.get(fy);
+  const m = d?.extraction.unitMultiplier;
+  const v = d?.extraction.dividendsPaid?.values[0];
+  if (d && m && v != null && v > 0) return v * m;
+  const n = byFy.get(fy + 1);
+  const m2 = n?.extraction.unitMultiplier;
+  const v2 = n?.extraction.dividendsPaid?.values[1];
+  if (n && m2 && v2 != null && v2 > 0) return v2 * m2;
+  return null;
+}
+
+/**
+ * Recoupement avec le flux de trésorerie : dividendes payés en N+1 ≈ actions × (final N + acompte N+1).
+ * Retourne l'écart relatif du meilleur scénario (acompte N+1 connu, puis nul) ou null si non évaluable.
+ */
+export function cashCheck(finalN: number | null, interimNext: number | null, shares: number | null, paidNext: number | null): { gap: number; expected: number } | null {
+  if (!shares || !paidNext || finalN === null) return null;
+  const cands = [interimNext ?? 0, ...(interimNext ? [0] : [])].map((i) => shares * (finalN + i));
+  const best = cands.map((e) => ({ e, g: REL(e, paidNext) })).sort((a, b) => a.g - b.g)[0];
+  return { gap: best.g, expected: best.e };
 }
 
 export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[], opts: BuildOptions): { rows: StagedRow[]; review: ReviewItem[] } {
   const from = opts.fromYear ?? 2016;
   const to = opts.toYear ?? 2025;
   const byFy = pickDocs(docs);
+  const noticeSums: Map<number, NoticeDps> = summarizeNotices(opts.notices ?? [], company.fyEndMonth);
   const unitFixed = new Map<number, number>();
   for (const [fy, d] of byFy) {
     const f = unitCorrection(d, opts.shares);
@@ -207,6 +249,7 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
     }
     const conf = { revenue: "none", operatingProfit: "none", netProfit: "none", equity: "none", eps: "none", dps: "none" } as Record<AnyField, Confidence>;
     const restated: StagedRow["restated"] = {};
+    const restatedPct: StagedRow["restatedPct"] = {};
     const row: StagedRow = {
       ticker: company.ticker,
       fiscalYear: fy,
@@ -224,10 +267,15 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       eps: null,
       dps: null,
       dpsKind: null,
+      dpsSource: "",
+      dpsNotice: "",
+      dpsNoticeFiles: "",
+      dpsCashGap: null,
       sharesOutstanding: opts.shares,
       impliedShares: null,
       conf,
       restated,
+      restatedPct,
       sourceFile: doc?.file ?? "",
       sourceUrl: doc?.url ?? "",
       pages: "",
@@ -314,6 +362,7 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       else {
         agreed[k] = false;
         restated[k] = k === "eps" ? c : Math.round((c / 1e9) * 1e6) / 1e6;
+        restatedPct[k] = Math.round(((c - p) / Math.abs(p || 1)) * 1000) / 10;
         notes.push(`restated_${k}`);
         add(fy, k, "medium", `valeur différente dans le comparatif des états ${fy + 1} (${(REL(p, c) * 100).toFixed(1)} % d'écart) : retraitement ou erreur de lecture`, p, doc.file, V[k].page);
       }
@@ -395,17 +444,21 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
     if (!next && fy < 2025 && !notes.some((n) => n.startsWith("from_comparative"))) notes.push("no_next_year_comparative");
     if (!next && fy === 2025) notes.push("latest_year_no_comparative");
 
-    // --- DPS
+    // --- DPS : états audités (tableau / phrase), puis avis NGX, puis flux de trésorerie
     const own = bestDividend(doc.dividends.filter((c) => c.fiscalYear === fy));
     const comp = next ? bestDividend(next.dividends.filter((c) => c.fiscalYear === fy)) : null;
+    const nd = noticeSums.get(fy);
+    let dpsSource = "";
     if (own) {
       row.dps = own.dps;
       row.dpsKind = `${own.source}:${own.kind}${own.derived ? ":derived" : ""} p${own.page}`;
+      dpsSource = "afs";
       const partial = own.kind === "final" || own.kind === "interim";
       if (comp && REL(own.dps, comp.dps) <= 0.005) conf.dps = partial ? "medium" : "high";
       else if (comp) {
         conf.dps = "medium";
         restated.dps = comp.dps;
+        restatedPct.dps = Math.round(((comp.dps - own.dps) / Math.abs(own.dps || 1)) * 1000) / 10;
         add(fy, "dps", "medium", `DPS différent dans les états ${fy + 1} (${comp.dps} vs ${own.dps})`, own.dps, doc.file, own.page);
       } else conf.dps = partial ? "low" : "medium";
       if (partial) add(fy, "dps", "low", `DPS partiel (${own.kind} seulement)`, own.dps, doc.file, own.page);
@@ -415,11 +468,63 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
         conf.dps = conf.dps === "high" ? "medium" : conf.dps;
         add(fy, "dps", "info", `plusieurs totaux de DPS dans le document : retenu ${own.dps} (${row.dpsKind}), autres ${[...new Set(alt.map((a) => a.dps))].join("/")}`, own.dps, doc.file, own.page);
       }
+      if (ex.ocr && conf.dps === "high") conf.dps = "medium";
     } else if (comp) {
       row.dps = comp.dps;
       row.dpsKind = `comparative:${comp.kind} p${comp.page}`;
+      dpsSource = "afs";
       conf.dps = "low";
     }
+    if (nd) {
+      row.dpsNotice = [nd.final !== null ? `final ${nd.final}` : "", nd.interim !== null ? `interim ${nd.interim}` : "", nd.statedTotal !== null ? `total ${nd.statedTotal}` : "", `[${nd.completeness}]`, nd.latestCreatedAt.slice(0, 10)].filter(Boolean).join(" ");
+      row.dpsNoticeFiles = nd.files.join(" | ");
+      const nTot = nd.total;
+      const afsPartial = own ? own.kind === "final" || own.kind === "interim" : false;
+      const afsVal = row.dps;
+      if (afsVal !== null && afsSrc(dpsSource)) {
+        const cmp = nTot ?? (nd.final !== null && own?.kind === "final" ? nd.final : nd.interim !== null && own?.kind === "interim" ? nd.interim : null);
+        if (cmp !== null && REL(afsVal, cmp) <= 0.01) {
+          const bothPartial = afsPartial && nd.completeness !== "total_stated" && nd.completeness !== "final+interim";
+          conf.dps = bothPartial ? (conf.dps === "low" ? "medium" : conf.dps) : nd.ocr && ex.ocr ? "medium" : "high";
+          dpsSource = "afs+notice";
+          notes.push("dps_confirmed_by_ngx_notice");
+        } else if (cmp !== null && nTot !== null && afsPartial) {
+          // les états ne donnent qu'une partie ; l'avis donne le total complet
+          row.dps = nTot;
+          row.dpsKind = `notice:${nd.completeness}`;
+          conf.dps = nd.ocr ? "low" : "medium";
+          dpsSource = "notice";
+          add(fy, "dps", "info", `DPS des états (${afsVal}, ${own!.kind}) complété par l'avis NGX (${nTot})`, nTot, nd.files[0] ?? "", null);
+        } else if (cmp !== null) {
+          conf.dps = DOWN[conf.dps];
+          add(fy, "dps", "medium", `avis NGX (${row.dpsNotice}) ≠ états audités (${afsVal}) : valeur des états conservée`, afsVal, nd.files[0] ?? "", null);
+        }
+      } else {
+        // aucun DPS dans les états : l'avis NGX seul
+        const v = nTot ?? nd.final ?? nd.interim;
+        if (v !== null) {
+          row.dps = v;
+          row.dpsKind = `notice:${nd.completeness}`;
+          dpsSource = "notice";
+          conf.dps = nd.completeness === "total_stated" || nd.completeness === "final+interim" ? (nd.ocr ? "low" : "medium") : "low";
+          if (nd.completeness === "final_only" || nd.completeness === "interim_only") add(fy, "dps", "low", `DPS partiel (${nd.completeness}) d'après l'avis NGX ${row.dpsNotice}`, v, nd.files[0] ?? "", null);
+        }
+      }
+    }
+    // flux de trésorerie : payé(N+1) ≈ actions × (final N + acompte N+1)
+    if (row.dps !== null && (nd || own)) {
+      const finalN = nd?.final ?? (own?.kind === "final" ? own.dps : null);
+      const interimNext = noticeSums.get(fy + 1)?.interim ?? null;
+      const cc = cashCheck(finalN, interimNext, row.impliedShares ?? opts.shares, cashPaid(byFy, fy + 1));
+      if (cc) {
+        row.dpsCashGap = Math.round(cc.gap * 1000) / 1000;
+        if (cc.gap <= CASH_TOL) {
+          notes.push(`dps_cashflow_ok(${(cc.gap * 100).toFixed(0)}%)`);
+          conf.dps = nd?.ocr || ex.ocr ? (conf.dps === "low" ? "medium" : conf.dps) : UP[conf.dps];
+        } else add(fy, "dps", "info", `flux de trésorerie : dividendes payés ${fy + 1} ≈ ${(cashPaid(byFy, fy + 1)! / 1e9).toFixed(2)} Md vs attendu ${(cc.expected / 1e9).toFixed(2)} Md (écart ${(cc.gap * 100).toFixed(0)} %)`, row.dps, doc.file, null);
+      }
+    }
+    row.dpsSource = dpsSource;
   }
 
   // Changement de base (banques : produits d'intérêts ↔ gross earnings ; corporate : exploitation ↔ avant impôt)
