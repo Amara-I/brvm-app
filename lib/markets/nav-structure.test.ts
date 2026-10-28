@@ -11,6 +11,7 @@ import {
   isComingSoonMarketSectionOpen,
   isGlobalNavPath,
   marketIndicesHref,
+  marketScreenerHref,
   parseComingSoonMarketPath,
   parseComingSoonMarketSlug,
 } from "./nav-structure";
@@ -98,6 +99,8 @@ describe("coming-soon market routes", () => {
   it("range le slot Indices sous chaque place bientôt", () => {
     expect(marketIndicesHref("BRVM")).toBe("/indices");
     expect(marketIndicesHref("NGX")).toBe("/marches/ngx/indices");
+    expect(marketScreenerHref("NGX")).toBe("/marches/ngx/screener");
+    expect(marketScreenerHref("BRVM")).toBeNull();
     expect(isComingSoonMarketPath("/marches/ngx/indices")).toBe(false);
     expect(isComingSoonMarketPath("/marches/jse/indices")).toBe(true);
     expect(parseComingSoonMarketPath("/marches/jse/indices")?.code).toBe("JSE");

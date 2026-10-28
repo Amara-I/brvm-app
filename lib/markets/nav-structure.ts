@@ -59,6 +59,12 @@ export function marketIndicesHref(code: AfricanExchange["code"]): string {
   return `${comingSoonMarketHref(code)}/indices`;
 }
 
+/** Screener propre à la place, quand il existe (NGX seulement pour l'instant). */
+export function marketScreenerHref(code: AfricanExchange["code"]): string | null {
+  if (code === "NGX") return `${comingSoonMarketHref(code)}/screener`;
+  return null;
+}
+
 export function parseComingSoonMarketSlug(slug: string | undefined): AfricanExchange | null {
   if (!slug) return null;
   const exchange = AFRICAN_EXCHANGES.find((item) => item.code === slug.trim().toUpperCase());
