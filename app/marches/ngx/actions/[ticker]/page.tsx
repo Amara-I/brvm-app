@@ -10,6 +10,9 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxCompany } from "@/lib/markets/ngx-browse";
+import { loadNgxSheet } from "@/lib/markets/ngx-sheet";
+import NgxSheetView from "@/components/ngx/sheet/NgxSheetView";
+import sheetStyles from "@/components/ngx/sheet/NgxSheet.module.css";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +28,9 @@ export async function generateMetadata({ params }: { params: { ticker: string } 
 
 export default async function NgxCompanyPage({ params }: { params: { ticker: string } }) {
   const { t, format } = getI18n();
-  const company = await loadNgxCompany(params.ticker).catch(() => null);
-  if (!company) notFound();
+  const data = await loadNgxSheet(params.ticker).catch(() => null);
+  if (!data) notFound();
+  const { page: company, model } = data;
   const session = company.sessionDate
     ? format.date(`${company.sessionDate}T00:00:00.000Z`, {
         day: "numeric",
@@ -39,6 +43,7 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
   return (
     <AppHeader>
       <div className="ob-page">
+        <div className={sheetStyles.column}>
         <p>
           <Link className={styles.back} href="/marches/ngx">
             ← {t("ngx.company.back")}
@@ -92,6 +97,8 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
           <p className={styles.note}>{t("ngx.company.chartEmpty")}</p>
         )}
         <p className={styles.note}>{t("ngx.company.chartNote")}</p>
+        <NgxSheetView model={model} />
+        </div>
       </div>
       <SiteFooter />
     </AppHeader>
