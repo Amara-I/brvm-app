@@ -461,8 +461,18 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
     if (!next && fy === 2025) notes.push("latest_year_no_comparative");
 
     // --- DPS : états audités (tableau / phrase), puis avis NGX, puis flux de trésorerie
-    const own = bestDividend(doc.dividends.filter((c) => c.fiscalYear === fy));
-    const comp = next ? bestDividend(next.dividends.filter((c) => c.fiscalYear === fy)) : null;
+    const rawOwn = bestDividend(doc.dividends.filter((c) => c.fiscalYear === fy));
+    const rawComp = next ? bestDividend(next.dividends.filter((c) => c.fiscalYear === fy)) : null;
+    // DPS publié en kobo dans les états (« 270 » pour 2,70 ₦) : gain par action absurde vs l'EPS, cohérent une fois divisé par 100
+    const epsCur = V.eps.cur;
+    const koboScaled = (c: typeof rawOwn) => c !== null && ex.currency === "NGN" && epsCur !== null && epsCur > 0 && c.dps >= 10 && c.dps > 4 * epsCur && c.dps / 100 <= 1.6 * epsCur;
+    const rescale = (c: typeof rawOwn) => (c && koboScaled(c) ? { ...c, dps: Math.round(c.dps) / 100 } : c);
+    const own = rescale(rawOwn);
+    const comp = rescale(rawComp);
+    if (own !== rawOwn) {
+      notes.push("dps_kobo_to_naira");
+      add(fy, "dps", "info", `DPS des états (${rawOwn!.dps}) lu en kobo : converti en ₦${own!.dps} (cohérent avec l'EPS ${epsCur})`, own!.dps, doc.file, rawOwn!.page);
+    }
     const nd = noticeSums.get(fy);
     let dpsSource = "";
     if (own) {
@@ -495,7 +505,9 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       row.dpsNotice = [nd.final !== null ? `final ${nd.final}` : "", nd.interim !== null ? `interim ${nd.interim}` : "", nd.statedTotal !== null ? `total ${nd.statedTotal}` : "", `[${nd.completeness}]`, nd.latestCreatedAt.slice(0, 10)].filter(Boolean).join(" ");
       row.dpsNoticeFiles = nd.files.join(" | ");
       const nTot = nd.total;
-      const afsPartial = own ? own.kind === "final" || own.kind === "interim" : false;
+      // un DPS des états égal au seul acompte (ou au seul final) de l'avis, alors que l'avis annonce un total supérieur : valeur partielle
+      const equalsPart = own && nTot !== null && REL(own.dps, nTot) > 0.01 && ((nd.interim !== null && REL(own.dps, nd.interim) <= 0.01) || (nd.final !== null && REL(own.dps, nd.final) <= 0.01));
+      const afsPartial = own ? own.kind === "final" || own.kind === "interim" || !!equalsPart : false;
       const afsVal = row.dps;
       if (afsVal !== null && afsSrc(dpsSource)) {
         const single = !afsPartial ? (nd.completeness === "final_only" ? nd.final : nd.completeness === "interim_only" ? nd.interim : null) : null; // un seul versement annoncé : il vaut le total
@@ -511,7 +523,7 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
           row.dpsKind = `notice:${nd.completeness}`;
           conf.dps = nd.ocr ? "low" : "medium";
           dpsSource = "notice";
-          add(fy, "dps", "info", `DPS des états (${afsVal}, ${own!.kind}) complété par l'avis NGX (${nTot})`, nTot, nd.files[0] ?? "", null);
+          add(fy, "dps", "info", `DPS des états (${afsVal}, ${own!.kind}${equalsPart ? ", égal à une seule tranche de l'avis" : ""}) complété par l'avis NGX (${nTot})`, nTot, nd.files[0] ?? "", null);
         } else if (cmp !== null) {
           conf.dps = DOWN[conf.dps];
           add(fy, "dps", "medium", `avis NGX (${row.dpsNotice}) ≠ états audités (${afsVal}) : valeur des états conservée`, afsVal, nd.files[0] ?? "", null);
