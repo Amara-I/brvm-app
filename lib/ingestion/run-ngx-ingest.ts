@@ -69,10 +69,15 @@ export async function upsertNgxListings(
   const collisions: string[] = [];
   let upserted = 0;
   const sectorCache = new Map<string, string>();
+  // Une requête pour tous les tickers au lieu d'un findUnique par titre.
+  const existingRows = await db.company.findMany({
+    where: { ticker: { in: [...new Set(quotes.map((quote) => quote.symbol.toUpperCase()))] } },
+  });
+  const existingByTicker = new Map(existingRows.map((row) => [row.ticker, row]));
 
   for (const quote of quotes) {
     const ticker = quote.symbol.toUpperCase();
-    const existing = await db.company.findUnique({ where: { ticker } });
+    const existing = existingByTicker.get(ticker);
     if (existing && existing.exchange !== "NGX") {
       collisions.push(ticker);
       continue;
@@ -116,16 +121,19 @@ export async function upsertNgxListings(
       upserted++;
       continue;
     }
-    const updated = await db.company.update({
-      where: { id: existing.id },
-      data: {
-        name: chooseCompanyName(existing.name, quote.name, ticker),
-        sectorId,
-        currency: "NGN",
-        profileMeta,
-      },
-    });
-    companyIdByTicker.set(ticker, updated.id);
+    const nextName = chooseCompanyName(existing.name, quote.name, ticker);
+    const unchanged =
+      nextName === existing.name &&
+      sectorId === existing.sectorId &&
+      existing.currency === "NGN" &&
+      JSON.stringify(profileMeta) === JSON.stringify(prevMeta);
+    if (!unchanged) {
+      await db.company.update({
+        where: { id: existing.id },
+        data: { name: nextName, sectorId, currency: "NGN", profileMeta },
+      });
+    }
+    companyIdByTicker.set(ticker, existing.id);
     upserted++;
   }
 

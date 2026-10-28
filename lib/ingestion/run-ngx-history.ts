@@ -18,8 +18,12 @@ import { persistNgxIndices, persistNgxQuotes, upsertNgxListings } from "./run-ng
 
 const LOG_KIND = "NGX_HISTORY";
 const DONE_COUNT = 80;
-/** Ne pas lancer un PDF s'il reste moins que ça : timeout doclib = 25 s. */
+/** Plancher : ne pas lancer une séance s'il reste moins que ça (timeout doclib = 25 s). */
 const MIN_SLICE_MS = 25_000;
+/** Marge sur la séance la plus longue déjà vue dans ce chunk. */
+const SLICE_SAFETY = 1.5;
+/** Reste minimal pour tenter la page de couverture (délai doclib 2 s + PDF). */
+const MIN_COVER_MS = 8_000;
 const CHECKPOINT = path.join(process.cwd(), ".cache", "ngx-backfill.json");
 
 export interface NgxHistoryOptions {
@@ -54,6 +58,8 @@ export interface NgxHistorySummary {
   weekdayTotal: number;
   processed: number;
   skippedCanonical: number;
+  /** Tickers du PDF absents de la base NGX : ignorés (l'historique ne crée rien). */
+  skippedUnknown: number;
   done: number;
   absent: number;
   failed: number;
@@ -135,6 +141,19 @@ async function canonicalCount(db: PrismaClient, iso: string): Promise<number> {
   });
 }
 
+/** Dates de la fenêtre qui ont déjà un niveau NGX_ASI (une requête, pas une par jour). */
+async function datesWithAsi(db: PrismaClient, from: string, to: string): Promise<Set<string>> {
+  const rows = await db.marketIndexValue.findMany({
+    where: {
+      marketIndex: { code: "NGX_ASI" },
+      source: "NGX_OFFICIEL",
+      date: { gte: new Date(`${from}T00:00:00.000Z`), lte: new Date(`${to}T00:00:00.000Z`) },
+    },
+    select: { date: true },
+  });
+  return new Set(rows.map((row) => row.date.toISOString().slice(0, 10)));
+}
+
 export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Promise<NgxHistorySummary> {
   const db = options.db ?? prisma;
   const now = options.now ?? new Date();
@@ -163,6 +182,7 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
   let cursor = checkpoint.next && days.includes(checkpoint.next) ? days.indexOf(checkpoint.next) : 0;
   let processed = 0;
   let skippedCanonical = 0;
+  let skippedUnknown = 0;
   let failed = 0;
   let quotes = 0;
   let indices = 0;
@@ -211,6 +231,28 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
 
   try {
     if (!skipHistory) {
+      // Les sociétés NGX existantes (une requête par appel, pas par séance).
+      // L'historique n'en crée ni n'en renomme : il n'écrit que des cours.
+      const companyRows = await db.company.findMany({
+        where: { exchange: "NGX" },
+        select: { id: true, ticker: true, name: true },
+      });
+      const companyIdByTicker = new Map(companyRows.map((row) => [row.ticker.toUpperCase(), row.id]));
+      const named = companyRows.map((row) => ({ ticker: row.ticker, name: row.name }));
+      const wantIndices = options.indices !== false;
+      const asiDates = wantIndices ? await datesWithAsi(db, days[cursor] ?? from, to).catch(() => new Set<string>()) : new Set<string>();
+      let longestSliceMs = 0;
+      const sliceNeeded = () => Math.max(MIN_SLICE_MS, Math.ceil(longestSliceMs * SLICE_SAFETY));
+
+      const fillIndices = async (iso: string): Promise<void> => {
+        if (!wantIndices || asiDates.has(iso) || remaining() < MIN_COVER_MS) return;
+        const cover = await loadNgxCover({ onlyDate: iso, deadlineMs: deadline ?? undefined });
+        if (cover.ok) {
+          indices += await persistNgxIndices(db, cover.snapshot, new Date().toISOString());
+          asiDates.add(iso);
+        }
+      };
+
       for (; cursor < days.length; cursor++) {
         const iso = days[cursor]!;
         if (processed >= limit) {
@@ -218,23 +260,32 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
           break;
         }
         checkpoint.next = iso;
-        if (done.has(iso) || absent.has(iso)) continue;
-        const count = await canonicalCount(db, iso);
+        if (done.has(iso) && (!wantIndices || asiDates.has(iso))) continue;
+        if (absent.has(iso)) continue;
+        if (remaining() < sliceNeeded()) {
+          log(options, `budget restant ${remaining()} ms (< ${sliceNeeded()}) — arrêt avant ${iso}`);
+          break;
+        }
+        const sliceStart = Date.now();
+        const count = done.has(iso) ? DONE_COUNT : await canonicalCount(db, iso);
         if (count >= DONE_COUNT) {
           done.add(iso);
           skippedCanonical++;
+          // Cours déjà en base : il ne manque peut-être que le niveau d'indice.
+          if (wantIndices && !asiDates.has(iso)) {
+            processed++;
+            try {
+              await fillIndices(iso);
+            } catch (err) {
+              log(options, `${iso} indices : ${err instanceof Error ? err.message : String(err)}`);
+            }
+            longestSliceMs = Math.max(longestSliceMs, Date.now() - sliceStart);
+            checkpoint.next = days[cursor + 1] ?? null;
+            await persistProgress(IngestionStatus.RUNNING);
+          }
           continue;
         }
-        if (remaining() < MIN_SLICE_MS) {
-          log(options, `budget restant ${remaining()} ms — arrêt avant ${iso}`);
-          break;
-        }
         processed++;
-        const listings = await db.company.findMany({
-          where: { exchange: "NGX" },
-          select: { ticker: true, name: true },
-        });
-        const named = listings.map((row) => ({ ticker: row.ticker, name: row.name }));
         try {
           let loaded = options.tryJson
             ? await loadNgxEquities({
@@ -266,21 +317,31 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
               log(options, `${iso} échec : ${loaded.warnings.join(" | ")}`);
             }
           } else {
-            const upserted = await upsertNgxListings(db, loaded.quotes);
-            const n = await persistNgxQuotes(db, loaded.quotes, upserted.companyIdByTicker, new Date().toISOString());
+            let idMap = companyIdByTicker;
+            let sessionQuotes = loaded.quotes;
+            if (loaded.kind === "json") {
+              // Séance du jour (JSON) = dernière séance : comme l'ingest
+              // quotidien, elle peut créer / mettre à jour les sociétés.
+              const upserted = await upsertNgxListings(db, loaded.quotes);
+              idMap = upserted.companyIdByTicker;
+              for (const [ticker, id] of idMap) companyIdByTicker.set(ticker, id);
+            } else {
+              const known = sessionQuotes.filter((quote) => companyIdByTicker.has(quote.symbol.toUpperCase()));
+              skippedUnknown += sessionQuotes.length - known.length;
+              sessionQuotes = known;
+            }
+            const n = await persistNgxQuotes(db, sessionQuotes, idMap, new Date().toISOString());
             quotes += n;
             done.add(iso);
             log(options, `${iso} ${loaded.kind} ${n} cours`);
-            if (options.indices !== false && remaining() >= 8_000) {
-              const cover = await loadNgxCover({ onlyDate: iso, deadlineMs: deadline ?? undefined });
-              if (cover.ok) indices += await persistNgxIndices(db, cover.snapshot, new Date().toISOString());
-            }
+            await fillIndices(iso);
           }
         } catch (err) {
           failed++;
           failedDates.push(iso);
           log(options, `${iso} exception : ${err instanceof Error ? err.message : String(err)}`);
         }
+        longestSliceMs = Math.max(longestSliceMs, Date.now() - sliceStart);
         checkpoint.next = days[cursor + 1] ?? null;
         checkpoint.absent = [...absent];
         checkpoint.done = [...done];
@@ -355,6 +416,7 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
     weekdayTotal: days.length,
     processed,
     skippedCanonical,
+    skippedUnknown,
     done: done.size,
     absent: absent.size,
     failed,

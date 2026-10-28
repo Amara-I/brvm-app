@@ -30,9 +30,9 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 # 5 ans, par paquets. Répéter tant que data.incomplete est true,
 # en repassant data.next dans cursor.
 curl -H "Authorization: Bearer $CRON_SECRET" \
-  "https://<host>/api/cron/ngx-history?from=2021-10-27&to=2026-10-27&limit=4&budgetMs=240000"
+  "https://<host>/api/cron/ngx-history?from=2021-10-27&to=2026-10-27&limit=20&budgetMs=240000"
 curl -H "Authorization: Bearer $CRON_SECRET" \
-  "https://<host>/api/cron/ngx-history?from=2021-10-27&to=2026-10-27&cursor=NEXT&limit=4&budgetMs=240000"
+  "https://<host>/api/cron/ngx-history?from=2021-10-27&to=2026-10-27&cursor=NEXT&limit=20&budgetMs=240000"
 
 # Séries seules (après l'historique), reprise via data.chartsNext
 curl -H "Authorization: Bearer $CRON_SECRET" \
@@ -41,7 +41,7 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
   "https://<host>/api/cron/ngx-history?limit=0&charts=1&after=CHARTS_NEXT&budgetMs=240000"
 ```
 
-Chaque réponse JSON porte `incomplete`, `next` (même valeur que `cursor`), `weekdayIndex` / `weekdayTotal`, `processed`, `quotes`, `failedDates`, `chartsIncomplete`, `chartsNext`. Une date avec au moins 80 clôtures canoniques NGX est sautée. Les 404 (fériés) sont mémorisés dans `ingestion_logs` (`errors.kind = NGX_HISTORY`, `absentDates`, `next`) — le disque Vercel ne survit pas d'un appel à l'autre. Délai minimum 2 s vers `doclib.ngxgroup.com`. Défaut du chunk : 4 séances, pas de charts ni de fx (le temps part aux PDF). `date=` télécharge une séance, enregistre le taux et rafraîchit les séries. `INGESTION_ENABLE_NGX=false` répond `skipped` sans appel réseau.
+Chaque réponse JSON porte `incomplete`, `next` (même valeur que `cursor`), `weekdayIndex` / `weekdayTotal`, `processed`, `quotes`, `failedDates`, `chartsIncomplete`, `chartsNext`. Une date avec au moins 80 clôtures canoniques NGX est sautée. Les 404 (fériés) sont mémorisés dans `ingestion_logs` (`errors.kind = NGX_HISTORY`, `absentDates`, `next`) — le disque Vercel ne survit pas d'un appel à l'autre. Délai minimum 2 s vers `doclib.ngxgroup.com`. Défaut du chunk : 20 séances (max 60), pas de charts ni de fx ; la boucle s'arrête proprement avant `budgetMs` (marge = max(25 s, 1,5 × la séance la plus longue du chunk)). L'historique n'écrit que des cours pour les tickers déjà présents (`skippedUnknown` compte les autres) : seule l'ingestion quotidienne (et le JSON du jour) crée ou renomme des sociétés. Chaque séance chargée ou déjà en base se voit aussi compléter les niveaux d'indices (ASI + 19 indices) via la page de couverture si `NGX_ASI` manque pour cette date. `date=` télécharge une séance, enregistre le taux et rafraîchit les séries. `INGESTION_ENABLE_NGX=false` répond `skipped` sans appel réseau.
 
 Avec `DATABASE_URL` en local, le même orchestrateur :
 

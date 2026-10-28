@@ -54,10 +54,30 @@ export function parseCoverPageText(text: string): NgxCoverSnapshot | null {
 
   const indices: NgxIndexPrint[] = [];
   const seen = new Set<string>();
-  for (const line of text.split(/\r?\n/)) {
-    const match = line
-      .trim()
-      .match(/^(NGX[A-Z0-9]+)\s+(.+?)\s+((?:\d{1,3}(?:,\d{3})*\.\d{2}\s*)+)$/);
+  // Dans le PDF, le code d'un indice est parfois seul sur sa ligne (le libellé
+  // et les nombres sont alors sur la ligne suivante) : on recolle les deux.
+  const rawLines = text.split(/\r?\n/).map((line) => line.trim());
+  const lines: string[] = [];
+  for (let i = 0; i < rawLines.length; i++) {
+    const line = rawLines[i]!;
+    if (/^NGX[A-Z0-9]+$/.test(line) && i + 1 < rawLines.length) {
+      lines.push(`${line} ${rawLines[i + 1]}`);
+      i++;
+    } else {
+      lines.push(line);
+    }
+  }
+  // Colonnes de la semaine (« Symbol Description 19/10/2026 … 23/10/2026 ») :
+  // on lit la colonne de la séance demandée, pas forcément la dernière.
+  let headerDates: string[] = [];
+  for (const line of lines) {
+    if (/^Symbol\s+Description\b/i.test(line)) {
+      headerDates = [...line.matchAll(/\d{2}\/\d{2}\/\d{4}/g)]
+        .map((hit) => parseNgxDocDate(hit[0]))
+        .filter((date): date is string => Boolean(date));
+      continue;
+    }
+    const match = line.match(/^(NGX[A-Z0-9]+)\s+(.+?)\s+((?:\d{1,3}(?:,\d{3})*\.\d{2}\s*)+)$/);
     if (!match) continue;
     const code = match[1]!;
     if (seen.has(code)) continue;
@@ -65,8 +85,10 @@ export function parseCoverPageText(text: string): NgxCoverSnapshot | null {
       .map((hit) => parseNumber(hit[0]))
       .filter((n): n is number => n != null && n > 0);
     if (numbers.length === 0) continue;
-    const value = numbers[numbers.length - 1]!;
-    const prior = numbers.length >= 2 ? numbers[numbers.length - 2]! : null;
+    const column = numbers.length === headerDates.length ? headerDates.indexOf(current.date) : -1;
+    const at = column >= 0 ? column : numbers.length - 1;
+    const value = numbers[at]!;
+    const prior = at >= 1 ? numbers[at - 1]! : null;
     seen.add(code);
     indices.push({
       code,
