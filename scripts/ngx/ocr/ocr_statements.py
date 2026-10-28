@@ -175,6 +175,35 @@ def process_mixed(args):
     return pdf, f"mixed pages={done}", time.time() - t0
 
 
+def process_expand(args):
+    """Complète un .ocr.txt existant : OCR de toutes les pages entre le premier et le dernier état localisé (+2),
+    car le localisateur peut s'arrêter sur une page « chiffres clés » et manquer le bilan voisin."""
+    pdf, force = args
+    meta_p = pdf[:-4] + ".ocr.json"
+    meta = json.load(open(meta_p))
+    if "found" not in meta or not meta["found"]:
+        return pdf, "pas de pages localisées", 0
+    t0 = time.time()
+    lo, hi = min(meta["found"].values()), max(meta["found"].values())
+    rng = [pn for pn in range(lo, min(hi + 3, lo + 9))]
+    doc = fitz.open(pdf)
+    pages = open(pdf[:-4] + ".ocr.txt", errors="ignore").read().split("\f")
+    pages += [""] * (len(doc) - len(pages))
+    done = set(meta["ocr_pages"])
+    added = []
+    for pn in rng:
+        if pn >= len(doc) or (pn + 1) in done:
+            continue
+        boxes, w, h = ocr_boxes(doc[pn], 170)
+        pages[pn] = layout_text(boxes, w)
+        added.append(pn + 1)
+    meta["ocr_pages"] = sorted(done | set(added))
+    meta["expanded"] = True
+    open(pdf[:-4] + ".ocr.txt", "w").write("\f".join(pages))
+    json.dump(meta, open(meta_p, "w"))
+    return pdf, f"expand +{added}", time.time() - t0
+
+
 def mixed_candidates():
     """Documents non image-seule dont l'extraction texte est incomplète (voir staged/extracted)."""
     res = set()
@@ -207,10 +236,23 @@ if __name__ == "__main__":
     ap.add_argument("--workers", type=int, default=3)
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--files", help="sous-chaîne de nom de fichier")
+    ap.add_argument("--expand", action="store_true", help="complète les .ocr.txt existants avec les pages voisines des états")
     ap.add_argument("--mixed", action="store_true", help="documents texte avec pages d'états en image (OCR des pages vides seulement)")
     a = ap.parse_args()
     only = set(a.tickers.split(",")) if a.tickers else None
     todo = []
+    if a.expand:
+        for jf in sorted(glob.glob(os.path.join(DOCS, "*", "*.ocr.json"))):
+            t = os.path.basename(os.path.dirname(jf))
+            if (only and t not in only) or (a.files and a.files not in jf):
+                continue
+            if "found" in json.load(open(jf)) and not json.load(open(jf)).get("expanded"):
+                todo.append((jf[:-9] + ".pdf", False))
+        print(f"{len(todo)} documents à compléter", flush=True)
+        with Pool(a.workers) as p:
+            for pdf, info, dt in p.imap_unordered(process_expand, todo):
+                print(f"{os.path.basename(os.path.dirname(pdf))} {os.path.basename(pdf)[:48]} {info} {dt:.0f}s", flush=True)
+        sys.exit(0)
     if a.mixed:
         cands = mixed_candidates()
         for pdf in sorted(cands):
