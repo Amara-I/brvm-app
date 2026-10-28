@@ -29,6 +29,8 @@ import {
   seriesCagrPercent,
   summarizeValuation,
   type FairValueEstimate,
+  accountsAreStale,
+  type MultipleResult,
   type MultipleStatus,
   type SectorStat,
   type ValuationSummary,
@@ -98,6 +100,8 @@ export interface SheetInput {
 export interface CompanyMetrics {
   /** Dernier exercice avec un résultat net ou un BPA publié. */
   fiscalYear: number | null;
+  /** Dernier exercice dont les comptes sont publiés, quand il a plus de 2 ans : PER / PBR / ROE sont alors « n/s » et exclus. */
+  staleAccountsYear: number | null;
   /** BPA publié (jamais recalculé avec le nombre de titres actuel) et son exercice. */
   eps: number | null;
   epsYear: number | null;
@@ -243,7 +247,7 @@ function currentDividend(
   return latest.dps;
 }
 
-export function computeCompanyMetrics(company: CompanyInput): CompanyMetrics {
+export function computeCompanyMetrics(company: CompanyInput, today?: string): CompanyMetrics {
   const meta = parseNgxProfileMeta(company.profileMeta);
   const years = buildFinancialYears(company.ratios, meta);
   // Nombre de titres ACTUEL (annuaire NGX) : uniquement pour la capitalisation.
@@ -259,12 +263,16 @@ export function computeCompanyMetrics(company: CompanyInput): CompanyMetrics {
   const equityBn = basis?.equityBn ?? null;
   const equityOk = equityBn != null && equityBn > 0 && (cap == null || equityBn >= cap * EQUITY_MIN_SHARE_OF_CAP);
 
-  const per = priceToEarningsFromCap(cap, netLatest?.value ?? null);
-  const pbr = priceToBookFromCap(cap, equityBn);
+  // Comptes trop anciens (ex. dernier exercice FY2022 en 2026) : le cours actuel n'a plus de rapport avec eux.
+  const lastAccountsYear = years.length > 0 ? years[years.length - 1].year : null;
+  const stale = accountsAreStale(lastAccountsYear, today);
+  const STALE: MultipleResult = { value: null, status: "stale" };
+  const per = stale ? STALE : priceToEarningsFromCap(cap, netLatest?.value ?? null);
+  const pbr = stale ? STALE : priceToBookFromCap(cap, equityBn);
 
   const bvps =
     basis && equityBn != null && equityBn > 0 && basis.eraShares != null ? (equityBn * 1e9) / basis.eraShares : null;
-  const roe = equityOk && basis ? returnOnEquityPercent(basis.netIncomeBn, equityBn) : null;
+  const roe = !stale && equityOk && basis ? returnOnEquityPercent(basis.netIncomeBn, equityBn) : null;
 
   const withMargin = [...years].reverse().find((y) => y.netIncomeBn != null && y.revenueBn != null);
   const fiscalYear = Math.max(epsLatest?.year ?? -Infinity, netLatest?.year ?? -Infinity);
@@ -276,6 +284,7 @@ export function computeCompanyMetrics(company: CompanyInput): CompanyMetrics {
   const dps = currentDividend(lines, fiscalYearOrNull);
   return {
     fiscalYear: fiscalYearOrNull,
+    staleAccountsYear: stale ? lastAccountsYear : null,
     eps,
     epsYear: epsLatest?.year ?? null,
     bvps,
@@ -324,14 +333,14 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
   // Classement par capitalisation (sociétés avec cours et titres connus).
   const universeMetrics = input.universe.map((c) => ({
     c,
-    m: computeCompanyMetrics(c),
+    m: computeCompanyMetrics(c, input.today),
   }));
   const ranked = universeMetrics
     .filter((x) => x.m.marketCapBn != null)
     .sort((a, b) => (b.m.marketCapBn ?? 0) - (a.m.marketCapBn ?? 0));
   const rankIdx = ranked.findIndex((x) => x.c.ticker === company.ticker);
 
-  const metrics = computeCompanyMetrics(company);
+  const metrics = computeCompanyMetrics(company, input.today);
   const peers = universeMetrics.filter(
     (x) => x.c.ticker !== company.ticker && ngxSectorGroup(x.c.ticker, x.c.sectorSlug || x.c.sectorName) === group,
   );
@@ -341,7 +350,14 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     return {
       key,
       company: mine,
-      companyStatus: key === "per" ? metrics.perStatus : key === "pbr" ? metrics.pbrStatus : null,
+      companyStatus:
+        key === "per"
+          ? metrics.perStatus
+          : key === "pbr"
+            ? metrics.pbrStatus
+            : key === "roe" && metrics.staleAccountsYear != null
+              ? "stale"
+              : null,
       stat,
       gapPercent: relativeGapPercent(mine, stat.median),
     };

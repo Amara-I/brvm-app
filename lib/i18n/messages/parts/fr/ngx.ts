@@ -185,6 +185,7 @@ export const ngx = {
       unconfirmedBadge: "non confirmé",
       unconfirmedUsing: "Capitaux propres {year} non confirmés : PBR et ROE calculés sur l'exercice {basis}, le dernier confirmé.",
       unconfirmedNone: "Capitaux propres {year} non confirmés : PBR et ROE non calculés.",
+      staleAccountsNote: "n/s : comptes trop anciens (FY{year}). PER, PBR et ROE ne sont pas calculés et sont exclus des médianes sectorielles et de la valorisation.",
       notSignificantNote: "n/s : non significatif (PBR supérieur à 12× ou capitaux propres inférieurs à 2 % de la capitalisation).",
       howYield: "Rendement = dividende par action ÷ cours",
       howMarketCap: "Capitalisation = cours × titres en circulation",

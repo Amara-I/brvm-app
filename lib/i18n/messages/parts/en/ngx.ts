@@ -185,6 +185,7 @@ export const ngx = {
       unconfirmedBadge: "unconfirmed",
       unconfirmedUsing: "FY{year} equity is unconfirmed: P/B and ROE use FY{basis}, the latest confirmed year.",
       unconfirmedNone: "FY{year} equity is unconfirmed: P/B and ROE are not computed.",
+      staleAccountsNote: "n/m: accounts too old (FY{year}). P/E, P/B and ROE are not computed and are excluded from sector medians and valuation.",
       notSignificantNote: "n/m: not meaningful (P/B above 12× or equity below 2% of market cap).",
       howYield: "Yield = dividend per share ÷ price",
       howMarketCap: "Market cap = price × shares outstanding",

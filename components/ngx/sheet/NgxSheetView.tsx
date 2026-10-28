@@ -472,7 +472,7 @@ function PriceMultiples({
       ? mult(value)
       : status === "negative"
         ? negativeLabel
-        : status === "not_significant"
+        : status === "not_significant" || status === "stale"
           ? t("ngx.sheet.price.notSignificant")
           : t("ngx.sheet.na");
   const yearNote = (label: string, year: number | null) => (year != null ? `${label} · ${year}` : label);
@@ -509,7 +509,7 @@ function PriceMultiples({
         />
         <Stat
           label={t("ngx.sheet.price.roe")}
-          value={pct(m.roePercent, 1)}
+          value={m.staleAccountsYear != null ? t("ngx.sheet.price.notSignificant") : pct(m.roePercent, 1)}
           note={m.roePercent != null ? t("ngx.sheet.price.roeNote", { year: m.roeYear ?? "" }) : undefined}
         />
       </div>
@@ -520,6 +520,9 @@ function PriceMultiples({
             ? t("ngx.sheet.price.unconfirmedUsing", { year: unconfirmed.year, basis: m.equityYear })
             : t("ngx.sheet.price.unconfirmedNone", { year: unconfirmed.year })}
         </p>
+      ) : null}
+      {m.staleAccountsYear != null ? (
+        <p className={styles.note}>{t("ngx.sheet.price.staleAccountsNote", { year: m.staleAccountsYear })}</p>
       ) : null}
       {m.pbrStatus === "not_significant" ? <p className={styles.note}>{t("ngx.sheet.price.notSignificantNote")}</p> : null}
       <p className={styles.note}>{hasAny ? t("ngx.sheet.price.negative") : t("ngx.sheet.price.missing")}</p>
@@ -652,7 +655,7 @@ function SectorAverage({
       ? show(r.key, r.company)
       : r.companyStatus === "negative" && r.key === "pbr"
         ? t("ngx.sheet.price.negativeEquity")
-        : r.companyStatus === "negative" || r.companyStatus === "not_significant"
+        : r.companyStatus === "negative" || r.companyStatus === "not_significant" || r.companyStatus === "stale"
           ? t("ngx.sheet.price.notSignificant")
           : na;
   const gap = (k: SectorMetricKey, company: number | null, median: number | null, rel: number | null) => {
