@@ -77,8 +77,8 @@ async function main() {
       let changed = false;
       for (const m of list) {
         const cur = { ...(years[String(m.year)] ?? {}) };
-        if (cur.equityBn == null && m.equityBn !== null) { cur.equityBn = m.equityBn; changed = true; }
-        if (cur.epsNgn == null && m.epsNgn !== null) { cur.epsNgn = m.epsNgn; changed = true; }
+        if (cur.equityBn == null && m.equityBn !== null) { cur.equityBn = m.equityBn; if (m.equityConfidence) cur.equityConfidence = m.equityConfidence; changed = true; }
+        if (cur.epsNgn == null && m.epsNgn !== null) { cur.epsNgn = m.epsNgn; if (m.epsConfidence) cur.epsConfidence = m.epsConfidence; changed = true; }
         if (!cur.sourceUrl && m.sourceUrl) cur.sourceUrl = m.sourceUrl;
         years[String(m.year)] = cur;
       }

@@ -3,13 +3,21 @@
 import type { CompanyInput, SheetInput } from "./sheet-model";
 import type { PricePoint } from "./price-stats";
 
-function meta(shares: number | null, equityByYear: Record<number, number>, extra: Record<string, unknown> = {}) {
-  const years: Record<string, unknown> = {};
+function meta(
+  shares: number | null,
+  equityByYear: Record<number, number>,
+  extra: Record<string, unknown> = {},
+  confidence: "high" | "medium" | "low" | null = "high",
+  epsByYear: Record<number, number> = {},
+) {
+  const years: Record<string, Record<string, unknown>> = {};
   for (const [y, e] of Object.entries(equityByYear))
     years[y] = {
       equityBn: e,
+      ...(confidence ? { equityConfidence: confidence } : {}),
       sourceUrl: "https://example.org/rapport-annuel.pdf",
     };
+  for (const [y, eps] of Object.entries(epsByYear)) years[y] = { ...(years[y] ?? {}), epsNgn: eps };
   return {
     board: "Premium Board",
     ngxFundamentals: {
@@ -48,6 +56,12 @@ export function fixtureCompany(
     dps?: number[];
     sector?: string;
     sectorSlug?: string;
+    /** Capitaux propres par exercice (remplace `equity`, qui vaut l'exercice 2025). */
+    equityByYear?: Record<number, number>;
+    /** Confiance enregistrée des capitaux propres ; null = champ absent (ancien chargement). Défaut : « high ». */
+    equityConfidence?: "high" | "medium" | "low" | null;
+    /** BPA publié par exercice. */
+    epsByYear?: Record<number, number>;
   } = {},
 ): CompanyInput {
   const net = opts.netIncome ?? [];
@@ -69,7 +83,13 @@ export function fixtureCompany(
     isin: null,
     description: null,
     listedSince: null,
-    profileMeta: meta(opts.shares === undefined ? 1e9 : opts.shares, equity != null ? { 2025: equity } : {}),
+    profileMeta: meta(
+      opts.shares === undefined ? 1e9 : opts.shares,
+      opts.equityByYear ?? (equity != null ? { 2025: equity } : {}),
+      {},
+      opts.equityConfidence === undefined ? "high" : opts.equityConfidence,
+      opts.epsByYear ?? {},
+    ),
     close,
     ratios,
     dividends: (opts.dps ?? []).map((amount, i, arr) => ({

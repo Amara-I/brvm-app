@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { fixtureCompany, fixtureSeries, fixtureSheetInput } from "./__fixtures__";
-import { buildFinancialYears, parseNgxProfileMeta } from "./fundamentals";
+import { buildFinancialYears, parseNgxProfileMeta, type NgxFinancialYear } from "./fundamentals";
 import { concludeAllPolicies, concludeForPolicy, type PolicyFacts } from "./policy";
 import { priceStats } from "./price-stats";
-import { buildNgxSheet } from "./sheet-model";
+import { buildNgxSheet, computeCompanyMetrics } from "./sheet-model";
 import { cleanNgxName, isFinancialGroup, ngxSectorGroup } from "./sectors";
 import {
   bookValuePerShare,
@@ -17,10 +17,13 @@ import {
   median,
   payoutPercent,
   priceToBook,
+  priceToBookFromCap,
   priceToEarnings,
+  priceToEarningsFromCap,
   relativeGapPercent,
   returnOnEquityPercent,
   sectorStat,
+  selectEquityBasis,
   summarizeValuation,
 } from "./valuation";
 
@@ -155,7 +158,7 @@ describe("fondamentaux", () => {
     expect(m.years[2024]).toMatchObject({ equityBn: 12.5, epsNgn: 3 });
     expect(Object.keys(m.years)).toEqual(["2024"]);
   });
-  it("construit 10 exercices max, canonique d'abord, BPA publié sinon calculé", () => {
+  it("construit 10 exercices max, canonique d'abord, BPA publié uniquement", () => {
     const rows = Array.from({ length: 12 }, (_, i) => ({
       year: 2014 + i,
       revenue: 100 + i,
@@ -183,8 +186,11 @@ describe("fondamentaux", () => {
     expect(years[years.length - 1].year).toBe(2025);
     expect(years[years.length - 1].revenueBn).toBe(111);
     expect(years[years.length - 1].epsNgn).toBe(9.9);
-    expect(years[years.length - 1].epsIsReported).toBe(true);
-    expect(years[0].epsNgn).toBeCloseTo(5);
+    // Jamais de BPA déduit du nombre de titres actuel pour un exercice passé.
+    expect(years[0].epsNgn).toBeNull();
+    expect(years[0].eraShares).toBeNull();
+    // Titres de l'exercice = résultat net ÷ BPA publié (5 Mds de ₦ ÷ 9,9 ₦).
+    expect(years[years.length - 1].eraShares).toBeCloseTo(5e9 / 9.9, 0);
   });
 });
 
@@ -302,10 +308,15 @@ describe("modèle de la fiche", () => {
   it("calcule les multiples dans l'application", () => {
     expect(model.tier).toBe("FULL");
     const m = model.price.metrics;
-    expect(m.eps).toBeCloseTo((118 * 1e9) / 1.7e9, 4);
-    expect(m.per).toBeCloseTo(420 / m.eps!, 4);
-    expect(m.pbr).toBeCloseTo(420 / ((520 * 1e9) / 1.7e9), 4);
+    // Capitalisation actuelle = 714 Mds ₦ ; PER = capitalisation ÷ résultat net, PBR = capitalisation ÷ capitaux propres.
     expect(model.presentation.marketCapBn).toBeCloseTo((420 * 1.7e9) / 1e9, 4);
+    expect(m.eps).toBeNull(); // aucun BPA publié : rien n'est déduit du nombre de titres actuel
+    expect(m.per).toBeCloseTo(714 / 118, 4);
+    expect(m.perYear).toBe(2025);
+    expect(m.pbr).toBeCloseTo(714 / 520, 4);
+    expect(m.pbrStatus).toBe("ok");
+    expect(m.equityYear).toBe(2025);
+    expect(m.bvps).toBeNull(); // titres de l'exercice inconnus (pas de BPA publié) : actif net par action masqué
     expect(model.presentation.marketCapRank).toBeGreaterThan(0);
   });
   it("médiane sectorielle sur les pairs (soi-même exclu)", () => {
@@ -344,5 +355,187 @@ describe("modèle de la fiche", () => {
     expect(m.valuation.summary.verdict).toBe("UNKNOWN");
     expect(m.policies.map((p) => p.type)).toEqual(["TRADING"]);
     expect(m.sectorComparison.lowConfidence).toBe(true);
+  });
+});
+
+describe("multiples par capitalisation", () => {
+  it("PBR : n/s si capitaux propres ≤ 0, PBR > 12× ou capitaux propres < 2 % de la capitalisation", () => {
+    expect(priceToBookFromCap(900, 450)).toEqual({ value: 2, status: "ok" });
+    expect(priceToBookFromCap(900, 75)).toEqual({ value: 12, status: "ok" });
+    expect(priceToBookFromCap(900, 70).status).toBe("not_significant");
+    expect(priceToBookFromCap(900, 10).status).toBe("not_significant");
+    expect(priceToBookFromCap(900, 0).status).toBe("negative");
+    expect(priceToBookFromCap(900, -458).status).toBe("negative");
+    expect(priceToBookFromCap(null, 100).status).toBe("unavailable");
+    expect(priceToBookFromCap(900, null).status).toBe("unavailable");
+  });
+  it("PER = capitalisation ÷ résultat net ; négatif = non significatif", () => {
+    expect(priceToEarningsFromCap(900, 90)).toEqual({ value: 10, status: "ok" });
+    expect(priceToEarningsFromCap(900, -5)).toEqual({ value: null, status: "negative" });
+    expect(priceToEarningsFromCap(900, null).status).toBe("unavailable");
+  });
+});
+
+describe("capitaux propres confirmés", () => {
+  const yr = (year: number, equityBn: number | null, equityConfidence: NgxFinancialYear["equityConfidence"] = null) =>
+    ({
+      year,
+      revenueBn: null,
+      operatingIncomeBn: null,
+      netIncomeBn: null,
+      equityBn,
+      equityConfidence,
+      epsNgn: null,
+      eraShares: null,
+      sourceUrl: null,
+    }) satisfies NgxFinancialYear;
+
+  it("confiance enregistrée : seul « high » est confirmé", () => {
+    const sel = selectEquityBasis([yr(2023, 100, "high"), yr(2024, 110, "medium"), yr(2025, 120, "high")]);
+    expect(sel.basis?.year).toBe(2025);
+    expect(sel.unconfirmedLatest).toBeNull();
+    const sel2 = selectEquityBasis([yr(2023, 100, "high"), yr(2024, 110, "high"), yr(2025, 120, "medium")]);
+    expect(sel2.basis?.year).toBe(2024);
+    expect(sel2.unconfirmedLatest?.year).toBe(2025);
+  });
+  it("sans confiance enregistrée : le dernier exercice de la série n'est jamais confirmé", () => {
+    const sel = selectEquityBasis([yr(2024, 100), yr(2025, 120)]);
+    expect(sel.basis?.year).toBe(2024);
+    expect(sel.unconfirmedLatest?.year).toBe(2025);
+    const solo = selectEquityBasis([yr(2025, 120)]);
+    expect(solo.basis).toBeNull();
+    expect(solo.unconfirmedLatest?.year).toBe(2025);
+  });
+  it("lit les confiances stockées et ignore les valeurs inconnues", () => {
+    const m = parseNgxProfileMeta({
+      ngxFundamentals: {
+        years: { "2024": { equityBn: 1, equityConfidence: "high", epsNgn: 2, epsConfidence: "bogus" } },
+      },
+    });
+    expect(m.years[2024].equityConfidence).toBe("high");
+    expect(m.years[2024].epsConfidence).toBeNull();
+  });
+});
+
+describe("ratios de valorisation corrigés (cas réels simplifiés)", () => {
+  it("augmentation de capital : PBR par capitalisation, actif net par action avec les titres de l'exercice", () => {
+    // 3×10¹⁰ titres aujourd'hui, mais 10¹⁰ dans les comptes (résultat 12 Mds ÷ BPA 1,2 ₦).
+    const c = fixtureCompany("ISSUE", 30, {
+      shares: 3e10,
+      netIncome: [10, 12],
+      epsByYear: { 2024: 1, 2025: 1.2 },
+      equityByYear: { 2024: 100, 2025: 110 },
+      equityConfidence: null,
+    });
+    const m = computeCompanyMetrics(c);
+    expect(m.marketCapBn).toBeCloseTo(900);
+    expect(m.eps).toBe(1.2); // publié, jamais résultat ÷ titres actuels (0,4)
+    expect(m.per).toBeCloseTo(900 / 12);
+    expect(m.pbr).toBeCloseTo(9);
+    expect(m.equityYear).toBe(2024);
+    expect(m.equityUnconfirmed).toEqual({ year: 2025, equityBn: 110 });
+    expect(m.bvps).toBeCloseTo(10); // 100 Mds ÷ 10¹⁰ titres ; l'ancien calcul donnait 110 ÷ 3×10¹⁰ = 3,67 ₦
+    expect(m.bvpsYear).toBe(2024);
+    expect(m.roePercent).toBeCloseTo(10); // résultat 2024 ÷ capitaux propres 2024
+    expect(m.roeYear).toBe(2024);
+  });
+  it("capitaux propres négatifs : PBR, ROE et actif net masqués", () => {
+    const c = fixtureCompany("NEGEQ", 100, {
+      shares: 1e9,
+      netIncome: [5, 8],
+      epsByYear: { 2025: 8 },
+      equityByYear: { 2025: -50 },
+    });
+    const m = computeCompanyMetrics(c);
+    expect(m.pbr).toBeNull();
+    expect(m.pbrStatus).toBe("negative");
+    expect(m.bvps).toBeNull();
+    expect(m.roePercent).toBeNull();
+    expect(m.per).toBeCloseTo(100 / 8);
+  });
+  it("PBR > 12× ou capitaux propres < 2 % de la capitalisation : n/s", () => {
+    const high = computeCompanyMetrics(
+      fixtureCompany("PBRHIGH", 100, { shares: 1e9, netIncome: [8], equityByYear: { 2025: 5 } }),
+    );
+    expect(high.pbrStatus).toBe("not_significant");
+    expect(high.pbr).toBeNull();
+    const tiny = computeCompanyMetrics(
+      fixtureCompany("PBRTINY", 100, { shares: 1e9, netIncome: [8], equityByYear: { 2025: 1.5 } }),
+    );
+    expect(tiny.pbrStatus).toBe("not_significant");
+    expect(tiny.roePercent).toBeNull(); // 8 ÷ 1,5 : ROE sans signification quand les capitaux propres sont < 2 % de la capitalisation
+  });
+  it("MTNN : 2024 négatif confirmé, 2025 positif non confirmé → capitaux propres négatifs, 2025 signalé", () => {
+    const c = fixtureCompany("MTNLIKE", 825, {
+      shares: 2.1e10,
+      netIncome: [-730, 1100],
+      epsByYear: { 2025: 53 },
+      equityByYear: { 2024: -458, 2025: 548.7 },
+      equityConfidence: null,
+    });
+    const m = computeCompanyMetrics(c);
+    expect(m.equityYear).toBe(2024);
+    expect(m.pbrStatus).toBe("negative");
+    expect(m.pbr).toBeNull();
+    expect(m.roePercent).toBeNull();
+    expect(m.equityUnconfirmed).toEqual({ year: 2025, equityBn: 548.7 });
+  });
+  it("tous les exercices en confiance moyenne : aucun PBR ni ROE, l'exercice est signalé non confirmé", () => {
+    const c = fixtureCompany("MEDONLY", 100, {
+      shares: 1e9,
+      netIncome: [8],
+      equityByYear: { 2025: 80 },
+      equityConfidence: "medium",
+    });
+    const m = computeCompanyMetrics(c);
+    expect(m.pbrStatus).toBe("unavailable");
+    expect(m.equityYear).toBeNull();
+    expect(m.roePercent).toBeNull();
+    expect(m.equityUnconfirmed).toEqual({ year: 2025, equityBn: 80 });
+  });
+  it("dividende : taux de distribution uniquement avec le BPA publié de l'exercice", () => {
+    const withEps = fixtureCompany("PAYOUT", 100, {
+      shares: 1e9,
+      netIncome: [8],
+      epsByYear: { 2025: 8 },
+      equityByYear: { 2025: 80 },
+      dps: [4],
+    });
+    const without = fixtureCompany("NOEPS", 100, { shares: 1e9, netIncome: [8], equityByYear: { 2025: 80 }, dps: [4] });
+    const inputOf = (company: ReturnType<typeof fixtureCompany>) => ({
+      ...fixtureSheetInput(),
+      company,
+      universe: [company],
+    });
+    expect(buildNgxSheet(inputOf(withEps)).dividends.lines[0].payoutPercent).toBeCloseTo(50);
+    expect(buildNgxSheet(inputOf(without)).dividends.lines[0].payoutPercent).toBeNull();
+  });
+  it("médianes sectorielles : valeurs n/s et capitaux propres négatifs exclus, valeur indicative sans PBR", () => {
+    const input = fixtureSheetInput();
+    const mk = (ticker: string, equity: number) =>
+      fixtureCompany(ticker, 100, {
+        shares: 1e9,
+        netIncome: [8],
+        equityByYear: { 2025: equity },
+        sector: "INDUSTRIAL GOODS",
+        sectorSlug: "industrial-goods",
+      });
+    const peers = [mk("P1", 80), mk("P2", 60), mk("P3", 90), mk("P4", 70), mk("NEG", -10), mk("TINY", 2)];
+    const sub = fixtureCompany("SUBJECT", 100, {
+      shares: 1e9,
+      netIncome: [8],
+      equityByYear: { 2025: -30 },
+      sector: "INDUSTRIAL GOODS",
+      sectorSlug: "industrial-goods",
+    });
+    const m = buildNgxSheet({ ...input, company: sub, universe: [sub, ...peers] });
+    const pbr = m.sectorComparison.rows.find((r) => r.key === "pbr")!;
+    const per = m.sectorComparison.rows.find((r) => r.key === "per")!;
+    expect(per.stat.n).toBe(6); // PER = 100 ÷ 8 = 12,5 pour les six pairs
+    expect(pbr.stat.n).toBe(4); // NEG (négatif) et TINY (n/s) exclus
+    expect(pbr.stat.median).toBeCloseTo((100 / 80 + 100 / 70) / 2); // pairs retenus : 1,25 / 1,67 / 1,11 / 1,43
+    expect(pbr.company).toBeNull();
+    expect(pbr.companyStatus).toBe("negative");
+    expect(m.valuation.estimates.map((e) => e.method)).toEqual(["SECTOR_PER"]);
   });
 });

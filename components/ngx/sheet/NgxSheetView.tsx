@@ -239,7 +239,6 @@ function Performance({
   const years = perf.years;
   const first = years[0]?.year;
   const last = years[years.length - 1]?.year;
-  const anyComputedEps = years.some((y) => y.epsNgn != null && !y.epsIsReported);
   const cell = (v: number | null) => <td className={v != null && v < 0 ? styles.negative : undefined}>{bn(v)}</td>;
   const axis = (v: number) => format.number(v, { notation: "compact", maximumFractionDigits: 1 });
   return (
@@ -314,10 +313,7 @@ function Performance({
                     {cell(y.revenueBn)}
                     {cell(y.operatingIncomeBn)}
                     {cell(y.netIncomeBn)}
-                    <td>
-                      {y.epsNgn == null ? na : format.decimal(y.epsNgn, 2)}
-                      {y.epsNgn != null && !y.epsIsReported ? "*" : ""}
-                    </td>
+                    <td>{y.epsNgn == null ? na : format.decimal(y.epsNgn, 2)}</td>
                     <td>
                       {y.sourceUrl ? (
                         <a
@@ -344,7 +340,6 @@ function Performance({
               from: first ?? "",
               to: last ?? "",
             })}
-            {anyComputedEps ? ` * ${t("ngx.sheet.performance.epsComputed")}` : ""}
           </p>
         </>
       )}
@@ -471,6 +466,17 @@ function PriceMultiples({
   const m = model.price.metrics;
   const fy = m.fiscalYear != null ? t("ngx.sheet.price.fiscalYear", { year: m.fiscalYear }) : undefined;
   const hasAny = m.per != null || m.pbr != null || m.yieldPercent != null || m.marketCapBn != null;
+  // Multiple non calculé pour une raison précise : « n/s » ou capitaux propres négatifs, jamais un nombre trompeur.
+  const ratio = (value: number | null, status: typeof m.pbrStatus, negativeLabel: string) =>
+    value != null
+      ? mult(value)
+      : status === "negative"
+        ? negativeLabel
+        : status === "not_significant"
+          ? t("ngx.sheet.price.notSignificant")
+          : t("ngx.sheet.na");
+  const yearNote = (label: string, year: number | null) => (year != null ? `${label} · ${year}` : label);
+  const unconfirmed = m.equityUnconfirmed;
   return (
     <>
       <div className={styles.grid}>
@@ -482,15 +488,40 @@ function PriceMultiples({
         />
         <Stat
           label={t("ngx.sheet.price.per")}
-          value={mult(m.per)}
-          note={`${t("ngx.sheet.price.howPer")}${fy ? ` · ${fy}` : ""}`}
+          value={ratio(m.per, m.perStatus, t("ngx.sheet.price.notSignificant"))}
+          note={yearNote(t("ngx.sheet.price.howPer"), m.perYear)}
         />
-        <Stat label={t("ngx.sheet.price.pbr")} value={mult(m.pbr)} note={t("ngx.sheet.price.howPbr")} />
+        <Stat
+          label={t("ngx.sheet.price.pbr")}
+          value={ratio(m.pbr, m.pbrStatus, t("ngx.sheet.price.negativeEquity"))}
+          note={yearNote(t("ngx.sheet.price.howPbr"), m.equityYear)}
+        />
         <Stat label={t("ngx.sheet.price.yield")} value={pct(m.yieldPercent, 2)} note={t("ngx.sheet.price.howYield")} />
-        <Stat label={t("ngx.sheet.price.eps")} value={ngn(m.eps)} note={fy} />
-        <Stat label={t("ngx.sheet.price.bvps")} value={ngn(m.bvps)} />
-        <Stat label={t("ngx.sheet.price.roe")} value={pct(m.roePercent, 1)} />
+        <Stat
+          label={t("ngx.sheet.price.eps")}
+          value={ngn(m.eps)}
+          note={m.eps != null ? yearNote(t("ngx.sheet.price.epsPublished"), m.epsYear) : fy}
+        />
+        <Stat
+          label={t("ngx.sheet.price.bvps")}
+          value={ngn(m.bvps)}
+          note={m.bvps != null ? t("ngx.sheet.price.bvpsNote", { year: m.bvpsYear ?? "" }) : undefined}
+        />
+        <Stat
+          label={t("ngx.sheet.price.roe")}
+          value={pct(m.roePercent, 1)}
+          note={m.roePercent != null ? t("ngx.sheet.price.roeNote", { year: m.roeYear ?? "" }) : undefined}
+        />
       </div>
+      {unconfirmed ? (
+        <p className={styles.note}>
+          <span className={`${styles.badge} ${styles.mid}`}>{t("ngx.sheet.price.unconfirmedBadge")}</span>{" "}
+          {m.equityYear != null
+            ? t("ngx.sheet.price.unconfirmedUsing", { year: unconfirmed.year, basis: m.equityYear })
+            : t("ngx.sheet.price.unconfirmedNone", { year: unconfirmed.year })}
+        </p>
+      ) : null}
+      {m.pbrStatus === "not_significant" ? <p className={styles.note}>{t("ngx.sheet.price.notSignificantNote")}</p> : null}
       <p className={styles.note}>{hasAny ? t("ngx.sheet.price.negative") : t("ngx.sheet.price.missing")}</p>
     </>
   );
@@ -615,6 +646,15 @@ function SectorAverage({
   const usable = rows.some((r) => r.stat.median != null);
   const isRatio = (k: SectorMetricKey) => k === "per" || k === "pbr";
   const show = (k: SectorMetricKey, v: number | null) => (isRatio(k) ? mult(v) : pct(v, 1));
+  // Société : « n/s » ou capitaux propres négatifs plutôt qu'un tiret quand le multiple existe mais n'a pas de sens.
+  const own = (r: (typeof rows)[number]) =>
+    r.company != null
+      ? show(r.key, r.company)
+      : r.companyStatus === "negative" && r.key === "pbr"
+        ? t("ngx.sheet.price.negativeEquity")
+        : r.companyStatus === "negative" || r.companyStatus === "not_significant"
+          ? t("ngx.sheet.price.notSignificant")
+          : na;
   const gap = (k: SectorMetricKey, company: number | null, median: number | null, rel: number | null) => {
     if (isRatio(k)) return rel == null ? na : format.percent(rel, 0, true);
     if (company == null || median == null) return na;
@@ -648,7 +688,7 @@ function SectorAverage({
                 {rows.map((r) => (
                   <tr key={r.key}>
                     <td>{t(`ngx.sheet.sector.metrics.${r.key}`)}</td>
-                    <td>{show(r.key, r.company)}</td>
+                    <td>{own(r)}</td>
                     <td>
                       {show(r.key, r.stat.median)}
                       {r.stat.median != null && r.stat.lowConfidence ? "*" : ""}

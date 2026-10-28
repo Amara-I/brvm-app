@@ -66,6 +66,8 @@ export function buildCompanySql(plan: LoadPlan, ticker: string): CompanySql {
       const y: Record<string, unknown> = {};
       if (m.equityBn !== null) y.equityBn = Number(m.equityBn.toFixed(3));
       if (m.epsNgn !== null) y.epsNgn = Number(m.epsNgn.toFixed(4));
+      if (m.equityBn !== null && m.equityConfidence) y.equityConfidence = m.equityConfidence;
+      if (m.epsNgn !== null && m.epsConfidence) y.epsConfidence = m.epsConfidence;
       if (m.sourceUrl) y.sourceUrl = m.sourceUrl;
       years[String(m.year)] = y;
     }
