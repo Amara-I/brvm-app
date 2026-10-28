@@ -1,4 +1,5 @@
 // Historique NGX (5 ans par défaut), à lancer sur une machine qui a DATABASE_URL.
+// Sans sortie Postgres : GET /api/cron/ngx-history (voir docs/ngx-phase1.md).
 //
 //   npm run history:ngx
 //   npm run history:ngx -- --from=2021-10-27 --to=2026-10-27

@@ -16,9 +16,34 @@ Source : JSON `doclib.ngxgroup.com/.../statistics/equities` (contrôle : 80–25
 
 Les séries `chart_series` NGX sont rafraîchies dans le temps restant de cette étape.
 
-## Historique 5 ans
+## Historique 5 ans — sur Vercel
 
-À lancer sur une machine qui a `DATABASE_URL` (pas dans le cron Hobby) :
+`npm run history:ngx` a besoin d'un Postgres joignable. Depuis une machine sans sortie vers la base, enchaîner `GET /api/cron/ngx-history` (secret `CRON_SECRET`, comme les autres `/api/cron/*`). Cette route n'est **pas** dans `vercel.json` : les créneaux cron Hobby sont déjà pris. `budgetMs` est plafonné à 240000 (la fonction est coupée à 300 s).
+
+Pas de nouvelle migration.
+
+```bash
+# Séance du 27/10/2026 + taux EUR→NGN + chart_series NGX (sociétés et indices)
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/ngx-history?date=27/10&budgetMs=240000"
+
+# 5 ans, par paquets. Répéter tant que data.incomplete est true,
+# en repassant data.next dans cursor.
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/ngx-history?from=2021-10-27&to=2026-10-27&limit=4&budgetMs=240000"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/ngx-history?from=2021-10-27&to=2026-10-27&cursor=NEXT&limit=4&budgetMs=240000"
+
+# Séries seules (après l'historique), reprise via data.chartsNext
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/ngx-history?limit=0&charts=1&fx=1&budgetMs=240000"
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/ngx-history?limit=0&charts=1&after=CHARTS_NEXT&budgetMs=240000"
+```
+
+Chaque réponse JSON porte `incomplete`, `next` (même valeur que `cursor`), `weekdayIndex` / `weekdayTotal`, `processed`, `quotes`, `failedDates`, `chartsIncomplete`, `chartsNext`. Une date avec au moins 80 clôtures canoniques NGX est sautée. Les 404 (fériés) sont mémorisés dans `ingestion_logs` (`errors.kind = NGX_HISTORY`, `absentDates`, `next`) — le disque Vercel ne survit pas d'un appel à l'autre. Délai minimum 2 s vers `doclib.ngxgroup.com`. Défaut du chunk : 4 séances, pas de charts ni de fx (le temps part aux PDF). `date=` télécharge une séance, enregistre le taux et rafraîchit les séries. `INGESTION_ENABLE_NGX=false` répond `skipped` sans appel réseau.
+
+Avec `DATABASE_URL` en local, le même orchestrateur :
 
 ```bash
 npm run history:ngx
@@ -26,9 +51,7 @@ npm run history:ngx
 # npm run history:ngx -- --indices=off --charts=off
 ```
 
-`npm run history:ngx` charge `scripts/register-paths.cjs` pour que ts-node résolve l'alias `@/`. Le même enregistrement est dans `tsconfig.json` (`ts-node.require`).
-
-Reprise : `.cache/ngx-backfill.json`. Une date avec au moins 80 clôtures canoniques NGX est sautée. Les 404 (jours fériés) ne sont pas retéléchargés. Journal : `ingestion_logs.errors.kind = NGX_HISTORY`.
+`npm run history:ngx` charge `scripts/register-paths.cjs` pour que ts-node résolve l'alias `@/`.
 
 Volume visé : ~146 titres × ~250 séances × 5 ans ≈ 180 000 cours, plus des `chart_series` compactes. Aucun PDF en base. Rester sous ~200 Mo sur le palier gratuit Supabase (base ~70 Mo avant NGX).
 
