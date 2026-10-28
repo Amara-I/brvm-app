@@ -160,4 +160,29 @@ describe("OCR cap, restated pct and notice-based DPS", () => {
     expect(c.rows[0].dps).toBe(30);
     expect(c.rows[0].conf.dps).toBe("medium");
   });
+  it("rescales a DPS printed in kobo in the AFS (900 for ₦9) and lets the notice confirm it", () => {
+    const r = buildStagedRows(corp, [withDiv("total", 900), y24], { fromYear: 2023, toYear: 2023, shares: SHARES, notices: [notice("total", 9, "2024-03-01", { year: 2023, month: 12 })] });
+    expect(r.rows[0].dps).toBe(9);
+    expect(r.rows[0].conf.dps).toBe("high");
+    expect(r.rows[0].notes).toContain("dps_kobo_to_naira");
+  });
+  it("AFS DPS equal to the interim tranche only is completed by the notices' total (medium)", () => {
+    const r = buildStagedRows(corp, [withDiv("total", 10), y24], { fromYear: 2023, toYear: 2023, shares: SHARES, notices: [notice("final", 20, "2024-03-01", { year: 2023, month: 12 }), notice("interim", 10, "2023-09-01", { year: 2023, month: 6 })] });
+    expect(r.rows[0].dps).toBe(30);
+    expect(r.rows[0].conf.dps).toBe("medium");
+  });
+  it("USD reporters: DPS never above low", () => {
+    const usd = { ...withDiv("total", 0.11), extraction: { ...y23.extraction, currency: "USD" } };
+    const r = buildStagedRows(corp, [usd], { fromYear: 2023, toYear: 2023, shares: SHARES });
+    expect(r.rows[0].conf.dps).toBe("low");
+  });
+  it("duplicate documents: the unaudited one loses even if filed later; divergence is queued for review", () => {
+    const unaud = doc(2023, { rev: [900_000, 800_000], op: [200_000, 150_000], np: [90_000, 80_000], eq: [500_000, 450_000], eps: [90, 80] }, { unaudited: true });
+    unaud.file = "unaudited.pdf";
+    unaud.createdAt = "2025-01-01T00:00:00Z";
+    const r = buildStagedRows(corp, [y23, unaud], { fromYear: 2023, toYear: 2023, shares: SHARES });
+    expect(r.rows[0].netProfitBn).toBe(100);
+    expect(r.rows[0].notes).toContain("duplicate_documents(1)");
+    expect(r.review.some((x) => x.field === "document" && x.severity === "medium")).toBe(true);
+  });
 });

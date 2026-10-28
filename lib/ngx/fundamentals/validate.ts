@@ -489,7 +489,7 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       } else conf.dps = partial ? "low" : "medium";
       if (partial) add(fy, "dps", "low", `DPS partiel (${own.kind} seulement)`, own.dps, doc.file, own.page);
       // désaccord entre sources internes (tableau « déclaré » vs interim+final)
-      const alt = doc.dividends.filter((c) => c.fiscalYear === fy && c.kind === "total" && REL(c.dps, own.dps) > 0.02);
+      const alt = doc.dividends.filter((c) => c.fiscalYear === fy && c.kind === "total" && REL(rescale(c)!.dps, own.dps) > 0.02);
       if (alt.length) {
         conf.dps = conf.dps === "high" ? "medium" : conf.dps;
         add(fy, "dps", "info", `plusieurs totaux de DPS dans le document : retenu ${own.dps} (${row.dpsKind}), autres ${[...new Set(alt.map((a) => a.dps))].join("/")}`, own.dps, doc.file, own.page);
