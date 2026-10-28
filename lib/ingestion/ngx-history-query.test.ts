@@ -64,3 +64,12 @@ describe("parseNgxHistorySearchParams", () => {
     expect(parsed.limit).toBe(1);
   });
 });
+
+describe("force=1", () => {
+  it("est désactivé par défaut et activable", () => {
+    expect(parseNgxHistorySearchParams(new URLSearchParams("limit=0&charts=1"), NOW).chartsForce).toBe(false);
+    const parsed = parseNgxHistorySearchParams(new URLSearchParams("limit=0&charts=1&force=1&after=dangcem"), NOW);
+    expect(parsed.chartsForce).toBe(true);
+    expect(parsed.chartsAfter).toBe("DANGCEM");
+  });
+});
