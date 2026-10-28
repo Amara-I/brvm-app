@@ -65,6 +65,12 @@ export function marketScreenerHref(code: AfricanExchange["code"]): string | null
   return null;
 }
 
+/** Dividendes propres à la place, quand ils existent (NGX seulement pour l'instant ; la BRVM a /calendrier-dividendes). */
+export function marketDividendsHref(code: AfricanExchange["code"]): string | null {
+  if (code === "NGX") return `${comingSoonMarketHref(code)}/dividendes`;
+  return null;
+}
+
 export function parseComingSoonMarketSlug(slug: string | undefined): AfricanExchange | null {
   if (!slug) return null;
   const exchange = AFRICAN_EXCHANGES.find((item) => item.code === slug.trim().toUpperCase());

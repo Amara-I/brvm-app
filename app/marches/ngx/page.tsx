@@ -67,6 +67,14 @@ export default async function NgxMarketPage() {
           <span aria-hidden="true">→</span>
         </Link>
 
+        <Link href="/marches/ngx/dividendes" className={styles.screenerLink} data-testid="ngx-dividends-link">
+          <span>
+            <strong>{t("ngx.dividends.link")}</strong>
+            <span className={styles.sub}>{t("ngx.dividends.linkHint")}</span>
+          </span>
+          <span aria-hidden="true">→</span>
+        </Link>
+
         {shares.length === 0 ? (
           <EmptyState title={t("ngx.market.emptyTitle")} body={t("ngx.market.emptyBody")} />
         ) : (

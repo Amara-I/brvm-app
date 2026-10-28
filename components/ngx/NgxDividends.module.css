@@ -1,0 +1,33 @@
+.yield {
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-gold);
+}
+
+.dim {
+  color: var(--c-textdim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.note {
+  margin: 14px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--c-text-dim, var(--c-textdim));
+}
+
+.disclaimer {
+  margin: 6px 0 0;
+  font-size: 0.74rem;
+  color: var(--c-textdim);
+}
+
+.back {
+  display: inline-block;
+  margin: 0 0 12px;
+  color: var(--c-gold);
+  text-decoration: none;
+  font-size: 0.85rem;
+}
