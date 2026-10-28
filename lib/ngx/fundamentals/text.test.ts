@@ -74,3 +74,11 @@ describe("unsquashLabel", () => {
     expect(unsquashLabel("Shareholders' equity")).toBe("Shareholders' equity");
   });
 });
+
+describe("parseRow OCR repairs", () => {
+  it("repairs a dot used as thousands separator and 'Resuits'", () => {
+    const r = parseRow("Profit for the year          33.723,730        7,924,968");
+    expect(r.nums).toEqual([33723730, 7924968]);
+    expect(parseRow("Resuits from operating activities     55,698,373   38,213,337").label).toBe("Results from operating activities");
+  });
+});
