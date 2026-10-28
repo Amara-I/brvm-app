@@ -11,7 +11,8 @@
 //   date=2026-10-27     une séance (aussi 27/10 ou 27/10/2026).
 //                       Active charts + fx, et le JSON du jour si la date colle.
 //   cursor=YYYY-MM-DD   reprise : le `next` de la réponse précédente
-//   limit=4             séances téléchargées par appel (défaut 4, max 20, 0 = aucun PDF)
+//   limit=20            séances traitées par appel (défaut 20, max 60, 0 = aucun PDF).
+//                       Le budget arrête la boucle avant le plafond de temps.
 //   budgetMs=240000     plafond, jamais au-dessus de 240000
 //   charts=1|0          chart_series NGX (sociétés + indices). Défaut : 1 si date=, sinon 0
 //   fx=1|0              dernier EUR→NGN dans fx_rates. Défaut : 1 si date=, sinon 0
@@ -19,7 +20,9 @@
 //   after=DANGCEM       reprise du refresh chart_series
 //   resume=0            ignore le curseur mémorisé (les clôtures déjà là restent sautées)
 //
-// Réponse : data.incomplete, data.next / data.cursor, data.chartsNext.
+// Réponse : data.incomplete, data.next / data.cursor, data.chartsNext,
+// data.skippedUnknown (tickers du PDF absents de la base NGX : ignorés,
+// l'historique n'écrit que des cours, il ne crée ni ne renomme de société).
 // Répéter en passant cursor=next jusqu'à incomplete=false.
 // Les 404 (fériés) sont mémorisés dans ingestion_logs. Une séance avec
 // ≥ 80 clôtures canoniques NGX n'est pas retéléchargée.

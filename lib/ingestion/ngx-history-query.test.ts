@@ -44,6 +44,11 @@ describe("parseNgxHistorySearchParams", () => {
     expect(parsed.resume).toBe(true);
   });
 
+  it("défaut 20 séances par appel, plafonné à 60", () => {
+    expect(parseNgxHistorySearchParams(new URLSearchParams("from=2021-10-27"), NOW).limit).toBe(20);
+    expect(parseNgxHistorySearchParams(new URLSearchParams("limit=500"), NOW).limit).toBe(60);
+  });
+
   it("limit=0 ne télécharge pas de PDF et peut rafraîchir les séries", () => {
     const parsed = parseNgxHistorySearchParams(new URLSearchParams("limit=0&charts=1&fx=1&after=DANGCEM"), NOW);
     expect(parsed.limit).toBe(0);

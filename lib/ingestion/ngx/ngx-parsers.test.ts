@@ -5,7 +5,7 @@ import { parseNgxDocDate, recentWeekdays, weekdaysBetween } from "./dates";
 import { parseEquitiesPayload } from "./equities-json";
 import { indicativeFcfa, parseErApiNgn } from "@/lib/markets/fx";
 import { chooseCompanyName, colorForTicker, normalizeLegalName, sectorSlug } from "./names";
-import { parseOfficialListItems, parseOfficialListText } from "./official-list";
+import { parseOfficialListItems, parseOfficialListText, stripColumnHeaders } from "./official-list";
 
 const COVER = `
 Print Date 14/10/2026
@@ -70,6 +70,27 @@ describe("parseurs NGX", () => {
     expect(ngx30?.name).toBe("NGX 30 Index");
   });
 
+  it("lit les indices dont le code est seul sur sa ligne et la colonne de la séance", () => {
+    const cover = parseCoverPageText(`
+Daily Official List For 21/10/2026
+Print Date 21/10/2026
+Monday 19/10/2026 159,256,938,933,081.25 245,278.34
+Tuesday 20/10/2026 159,667,802,615,863.41 245,911.13
+Wednesday 21/10/2026 159,151,850,636,020.56 245,116.49
+Symbol Description 19/10/2026 20/10/2026 21/10/2026
+NGXMAINBOARD
+NGX Main-Board Index 10,771.39 10,777.17 10,769.39
+NGX30 NGX 30 Index 9,019.16 9,043.59 9,015.45
+NGXBNK
+NGX Banking Index 2,497.01 2,493.34 2,456.31
+`);
+    expect(cover?.asi.value).toBe(245116.49);
+    const byCode = new Map((cover?.indices ?? []).map((row) => [row.code, row]));
+    expect([...byCode.keys()]).toEqual(["NGXMAINBOARD", "NGX30", "NGXBNK"]);
+    expect(byCode.get("NGXMAINBOARD")).toMatchObject({ name: "NGX Main-Board Index", value: 10769.39, previous: 10777.17 });
+    expect(byCode.get("NGXBNK")?.value).toBe(2456.31);
+  });
+
   it("prend le deuxième nombre (après le nominal) comme clôture", () => {
     const rows = parseOfficialListText(OFFICIAL);
     const bySymbol = new Map(rows.map((row) => [row.symbol, row]));
@@ -125,6 +146,36 @@ describe("parseurs NGX", () => {
     });
     expect(rows[0]?.name).toContain("DANGOTE CEMENT");
     expect(rows[0]?.name).toContain("PLC");
+  });
+
+  it("n'ajoute pas l'en-tête de colonne « Security Name » à la raison sociale", () => {
+    const rows = parseOfficialListItems([
+      [
+        { str: "FINANCIAL SERVICES", x: 30, y: 500 },
+        { str: "ZENITHBANK", x: 34, y: 480 },
+        { str: "ZENITH BANK", x: 95, y: 480 },
+        { str: "1,111.00", x: 391, y: 480 },
+        { str: "23/10/26", x: 535, y: 480 },
+        { str: "PLC", x: 95, y: 466 },
+        // en-tête répété avant le sous-secteur suivant, sous le titre précédent
+        { str: "Security Name", x: 107.24, y: 440 },
+        { str: "OIL AND GAS", x: 30, y: 420 },
+        { str: "OANDO", x: 34, y: 400 },
+        { str: "OANDO PLC", x: 95, y: 400 },
+        { str: "7.00", x: 391, y: 400 },
+        { str: "23/10/26", x: 535, y: 400 },
+      ],
+    ]);
+    const byName = new Map(rows.map((row) => [row.symbol, row.name]));
+    expect(byName.get("ZENITHBANK")).toBe("ZENITH BANK PLC");
+    expect(byName.get("OANDO")).toBe("OANDO PLC");
+    expect(rows.every((row) => !/security name/i.test(row.name))).toBe(true);
+  });
+
+  it("retire aussi « Security Name » dans le parseur texte", () => {
+    expect(stripColumnHeaders("PRESCO PLC Security Name")).toBe("PRESCO PLC");
+    expect(stripColumnHeaders("NESTLE NIGERIA PLC security  name")).toBe("NESTLE NIGERIA PLC");
+    expect(stripColumnHeaders("SECURITY BANK")).toBe("SECURITY BANK");
   });
 
   it("apparie le daily summary par raison sociale", () => {

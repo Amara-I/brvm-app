@@ -6,8 +6,8 @@ import { parseNgxDocDate } from "./ngx/dates";
 
 export const NGX_HISTORY_MAX_BUDGET_MS = 240_000;
 export const NGX_HISTORY_DEFAULT_BUDGET_MS = 240_000;
-export const NGX_HISTORY_DEFAULT_LIMIT = 4;
-export const NGX_HISTORY_MAX_LIMIT = 20;
+export const NGX_HISTORY_DEFAULT_LIMIT = 20;
+export const NGX_HISTORY_MAX_LIMIT = 60;
 
 export interface NgxHistoryQuery {
   from?: string;

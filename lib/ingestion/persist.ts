@@ -96,7 +96,11 @@ export interface PersistPricesResult {
   collarRejected: number;
 }
 
-const PRICE_UPSERT_CHUNK = 40;
+const PRICE_UPSERT_CHUNK = 400;
+/// Paires (société, date) traitées par requête pour le marquage canonique et
+/// la recherche du cours précédent : 2-3 paramètres par paire, bien sous la
+/// limite de 65 535 paramètres de Postgres.
+const CANONICAL_BATCH_PAIRS = 500;
 
 /// Un seul INSERT … ON CONFLICT par lot (le pooler Supabase :6543 facture
 /// chaque aller-retour). Repli ligne à ligne si le SQL groupé est refusé.
@@ -137,6 +141,111 @@ async function bulkUpsertPriceHistory(
         "ingested_at" = CURRENT_TIMESTAMP
     `;
   }
+}
+
+export interface CanonicalPair {
+  companyId: string;
+  /** YYYY-MM-DD */
+  date: string;
+}
+
+export interface CanonicalWinner extends CanonicalPair {
+  source: DataSourceCode;
+}
+
+/// Pure : pour chaque (société, date) demandé, la source gagnante parmi les
+/// lignes déjà en base — même règle que `canonicalSourceForDay` (BRVM_OFFICIEL
+/// d'abord, puis NGX_OFFICIEL, SIKAFINANCE, OUESTBOURSE, RICHBOURSE, MANUEL).
+export function pickCanonicalWinners(
+  wanted: CanonicalPair[],
+  existing: Array<{ companyId: string; date: string; source: string }>
+): CanonicalWinner[] {
+  const sourcesByKey = new Map<string, DataSourceCode[]>();
+  for (const row of existing) {
+    const key = `${row.companyId}__${row.date.slice(0, 10)}`;
+    const list = sourcesByKey.get(key) ?? [];
+    list.push(row.source as DataSourceCode);
+    sourcesByKey.set(key, list);
+  }
+  const winners: CanonicalWinner[] = [];
+  const seen = new Set<string>();
+  for (const pair of wanted) {
+    const key = `${pair.companyId}__${pair.date.slice(0, 10)}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const winner = canonicalSourceForDay(sourcesByKey.get(key) ?? []);
+    if (!winner) continue;
+    winners.push({ companyId: pair.companyId, date: pair.date.slice(0, 10), source: winner });
+  }
+  return winners;
+}
+
+/// Marque la ligne canonique de chaque (société, date) par lots : une lecture
+/// des sources présentes puis un seul UPDATE qui remet `is_canonical` à
+/// `source = gagnante` pour tout le jour (invariant : au plus un canonique par
+/// société et date). Remplace 4 requêtes par ticker.
+export async function markCanonicalPriceRows(db: PrismaClient, pairs: CanonicalPair[]): Promise<number> {
+  const unique = new Map<string, CanonicalPair>();
+  for (const pair of pairs) unique.set(`${pair.companyId}__${pair.date.slice(0, 10)}`, { companyId: pair.companyId, date: pair.date.slice(0, 10) });
+  const all = [...unique.values()];
+  let marked = 0;
+  for (let i = 0; i < all.length; i += CANONICAL_BATCH_PAIRS) {
+    const chunk = all.slice(i, i + CANONICAL_BATCH_PAIRS);
+    const wantedValues = chunk.map((p) => Prisma.sql`(${p.companyId}::text, ${p.date}::date)`);
+    const existing = await db.$queryRaw<Array<{ companyId: string; date: string; source: string }>>`
+      SELECT ph."company_id" AS "companyId", ph."date"::text AS "date", ph."source"::text AS "source"
+      FROM "price_history" AS ph
+      JOIN (VALUES ${Prisma.join(wantedValues)}) AS v("company_id", "date")
+        ON ph."company_id" = v."company_id" AND ph."date" = v."date"
+    `;
+    const winners = pickCanonicalWinners(chunk, existing);
+    if (winners.length === 0) continue;
+    const winnerValues = winners.map(
+      (w) => Prisma.sql`(${w.companyId}::text, ${w.date}::date, CAST(${w.source} AS "data_source"))`
+    );
+    await db.$executeRaw`
+      UPDATE "price_history" AS ph
+      SET "is_canonical" = (ph."source" = v."source")
+      FROM (VALUES ${Prisma.join(winnerValues)}) AS v("company_id", "date", "source")
+      WHERE ph."company_id" = v."company_id"
+        AND ph."date" = v."date"
+        AND ph."is_canonical" IS DISTINCT FROM (ph."source" = v."source")
+    `;
+    marked += winners.length;
+  }
+  return marked;
+}
+
+/// Dernier cours canonique strictement avant `minDate`, par société : une
+/// seule requête (LATERAL) par lot au lieu d'un `findFirst` par ticker.
+export async function loadPreviousCanonicalCloses(
+  db: PrismaClient,
+  lookups: Array<{ ticker: string; companyId: string; minDate: string }>
+): Promise<Map<string, { date: string; closePrice: number }>> {
+  const out = new Map<string, { date: string; closePrice: number }>();
+  for (let i = 0; i < lookups.length; i += CANONICAL_BATCH_PAIRS) {
+    const chunk = lookups.slice(i, i + CANONICAL_BATCH_PAIRS);
+    const values = chunk.map((l) => Prisma.sql`(${l.companyId}::text, ${l.minDate.slice(0, 10)}::date)`);
+    const rows = await db.$queryRaw<Array<{ companyId: string; date: string; closePrice: number }>>`
+      SELECT v."company_id" AS "companyId", prev."date"::text AS "date", prev."close_price"::float8 AS "closePrice"
+      FROM (VALUES ${Prisma.join(values)}) AS v("company_id", "min_date")
+      CROSS JOIN LATERAL (
+        SELECT ph."date", ph."close_price"
+        FROM "price_history" AS ph
+        WHERE ph."company_id" = v."company_id"
+          AND ph."is_canonical" = true
+          AND ph."date" < v."min_date"
+        ORDER BY ph."date" DESC
+        LIMIT 1
+      ) AS prev
+    `;
+    const tickerByCompany = new Map(chunk.map((l) => [l.companyId, l.ticker]));
+    for (const row of rows) {
+      const ticker = tickerByCompany.get(row.companyId);
+      if (ticker) out.set(ticker, { date: row.date.slice(0, 10), closePrice: Number(row.closePrice) });
+    }
+  }
+  return out;
 }
 
 /// Upserte toutes les cotations brutes (`price_history`), puis marque la
@@ -221,29 +330,18 @@ export async function persistPriceQuotes(
   }
 
   const previousByTicker = new Map<string, { date: string; closePrice: number }>();
+  const previousLookups: Array<{ ticker: string; companyId: string; minDate: string }> = [];
   for (const [ticker, rows] of byTicker) {
     const companyId = companyIdByTicker.get(ticker);
     if (!companyId || rows.length === 0) continue;
     const minDate = rows.reduce((m, r) => (r.date < m ? r.date : m), rows[0]!.date);
-    try {
-      const prev = await db.priceHistory.findFirst({
-        where: {
-          companyId,
-          isCanonical: true,
-          date: { lt: new Date(`${minDate}T00:00:00.000Z`) },
-        },
-        orderBy: { date: "desc" },
-        select: { date: true, closePrice: true },
-      });
-      if (prev) {
-        previousByTicker.set(ticker.toUpperCase(), {
-          date: prev.date.toISOString().slice(0, 10),
-          closePrice: Number(prev.closePrice),
-        });
-      }
-    } catch {
-      /* table absente / hors ligne — collier appliqué sans précédent DB */
-    }
+    previousLookups.push({ ticker, companyId, minDate });
+  }
+  try {
+    const previous = await loadPreviousCanonicalCloses(db, previousLookups);
+    for (const [ticker, prev] of previous) previousByTicker.set(ticker.toUpperCase(), prev);
+  } catch {
+    /* table absente / hors ligne — collier appliqué sans précédent DB */
   }
 
   const actionsBySymbol = new Map<string, Awaited<ReturnType<typeof loadCorporateActions>>>();
@@ -298,37 +396,13 @@ export async function persistPriceQuotes(
     markByTicker.set(r.ticker, arr);
   }
 
-  let markedCanonical = 0;
+  const toMark: CanonicalPair[] = [];
   for (const [ticker, rows] of markByTicker) {
     const companyId = companyIdByTicker.get(ticker);
     if (!companyId) continue;
-
-    for (const r of rows) {
-      const date = new Date(`${r.date}T00:00:00.000Z`);
-      const dayEnd = new Date(date);
-      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
-      const existing = await db.priceHistory.findMany({
-        where: { companyId, date: { gte: date, lt: dayEnd } },
-        select: { source: true },
-      });
-      const winner = canonicalSourceForDay([
-        ...existing.map((row) => row.source as DataSourceCode),
-        r.resolvedSource,
-      ]);
-      if (!winner) continue;
-      const winningSource = toPrismaDataSource(winner);
-      // Jour calendaire entier : évite 2 canoniques si timestamps UTC diffèrent.
-      await db.priceHistory.updateMany({
-        where: { companyId, date: { gte: date, lt: dayEnd } },
-        data: { isCanonical: false },
-      });
-      await db.priceHistory.update({
-        where: { uniq_price_company_date_source: { companyId, date, source: winningSource } },
-        data: { isCanonical: true },
-      });
-      markedCanonical++;
-    }
+    for (const r of rows) toMark.push({ companyId, date: r.date.slice(0, 10) });
   }
+  const markedCanonical = await markCanonicalPriceRows(db, toMark);
 
   return {
     upserted,

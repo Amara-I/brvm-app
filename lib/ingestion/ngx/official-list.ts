@@ -75,6 +75,18 @@ const STOP = new Set([
   "QUOTATION",
 ]);
 
+/**
+ * L'en-tête de colonne « Security Name » est répété avant chaque sous-secteur
+ * du PDF : sans filtre il se colle à la raison sociale du titre précédent
+ * (ZENITHBANK, PRESCO, OANDO…).
+ */
+export function stripColumnHeaders(name: string): string {
+  return name
+    .replace(/\bSecurity\s+Name\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function boardFromLine(line: string): string | null {
   const upper = line.toUpperCase();
   if (upper.startsWith("EQTY")) return "Main Board";
@@ -135,7 +147,7 @@ function parseRecord(blob: string, symbol: string, sector: string | null, board:
     if (/^[\d.,]+$/.test(token)) return false;
     return /[A-Za-z]/.test(token);
   });
-  const nameBody = nameParts.filter((token) => token.toUpperCase() !== symbol).join(" ").trim();
+  const nameBody = stripColumnHeaders(nameParts.filter((token) => token.toUpperCase() !== symbol).join(" "));
   return {
     symbol,
     name: nameBody || symbol,
@@ -278,7 +290,7 @@ export function parseOfficialListItems(pages: NgxPdfItem[][]): OfficialListRow[]
       const volume = page
         .map((item) => (sameRow(item) && item.x >= QTY_X_MIN && item.x <= QTY_X_MAX ? firstNumber(item.str) : null))
         .find((value) => value != null && value >= 0 && value < 1e12);
-      const name = page
+      const rawName = page
         .filter((item) => {
           if (item.x < NAME_X_MIN || item.x > NAME_X_MAX) return false;
           const between = item.y < event.y - 1 && item.y > nextY + 1;
@@ -287,9 +299,8 @@ export function parseOfficialListItems(pages: NgxPdfItem[][]): OfficialListRow[]
         .sort((a, b) => b.y - a.y || a.x - b.x)
         .map((item) => item.str.replace(/\s+/g, " ").trim())
         .filter((token) => token && !/^[\d.,]+$/.test(token) && !SECTOR_SET.has(token.toUpperCase()))
-        .join(" ")
-        .replace(/\s+/g, " ")
-        .trim();
+        .join(" ");
+      const name = stripColumnHeaders(rawName);
       rows.push({
         symbol: event.text,
         name: name || event.text,
