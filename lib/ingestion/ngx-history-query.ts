@@ -27,6 +27,8 @@ export interface NgxHistoryQuery {
   /** force=1 : reconstruit toutes les chart_series NGX, même à jour. */
   chartsForce: boolean;
   resume: boolean;
+  /** refill=1 : rattrapage ciblé des anciens codes (voir NgxHistoryOptions.refill). */
+  refill: boolean;
   /** La séance demandée peut être le JSON du jour. */
   tryJson: boolean;
 }
@@ -91,6 +93,7 @@ export function parseNgxHistorySearchParams(q: URLSearchParams, now = new Date()
     chartsAfter: q.get("after")?.trim().toUpperCase() || undefined,
     chartsForce: flag(q.get("force"), false),
     resume: flag(q.get("resume"), true),
+    refill: flag(q.get("refill"), false),
     tryJson: singleDay,
   };
 }

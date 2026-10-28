@@ -42,6 +42,8 @@ describe("parseNgxHistorySearchParams", () => {
     expect(parsed.cursor).toBe("2024-03-01");
     expect(parsed.tryJson).toBe(false);
     expect(parsed.resume).toBe(true);
+    expect(parsed.refill).toBe(false);
+    expect(parseNgxHistorySearchParams(new URLSearchParams("refill=1&indices=0")).refill).toBe(true);
   });
 
   it("défaut 20 séances par appel, plafonné à 60", () => {

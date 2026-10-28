@@ -14,7 +14,9 @@ vi.mock("@/lib/markets/fx", () => ({ fetchEurNgnRate: vi.fn(), upsertEurNgnRate:
 
 const loadNgxEquities = vi.fn();
 const loadNgxCover = vi.fn();
+const loadNgxSummaryQuotes = vi.fn();
 vi.mock("./ngx/load-session", () => ({
+  loadNgxSummaryQuotes: (...args: unknown[]) => loadNgxSummaryQuotes(...args),
   loadNgxEquities: (...args: unknown[]) => loadNgxEquities(...args),
   loadNgxCover: (...args: unknown[]) => loadNgxCover(...args),
 }));
@@ -29,7 +31,7 @@ vi.mock("./run-ngx-ingest", () => ({
 
 import { runNgxHistoryBackfill } from "./run-ngx-history";
 
-function fakeDb(opts: { canonical?: number; asiDates?: string[] } = {}) {
+function fakeDb(opts: { canonical?: number; asiDates?: string[]; existing?: { companyId: string; date: string }[] } = {}) {
   return {
     ingestionLog: {
       create: vi.fn(async () => ({ id: "log1" })),
@@ -40,9 +42,14 @@ function fakeDb(opts: { canonical?: number; asiDates?: string[] } = {}) {
       findMany: vi.fn(async () => [
         { id: "c-dangcem", ticker: "DANGCEM", name: "DANGOTE CEMENT PLC" },
         { id: "c-uba", ticker: "UBA", name: "UBA PLC" },
+        { id: "c-fh", ticker: "FIRSTHOLDCO", name: "FIRST HOLDCO PLC" },
+        { id: "c-zi", ticker: "ZICHIS", name: "ZICHIS AGRO ALLIED INDUSTRIES PLC" },
       ]),
     },
-    priceHistory: { count: vi.fn(async () => opts.canonical ?? 0) },
+    priceHistory: {
+      count: vi.fn(async () => opts.canonical ?? 0),
+      findMany: vi.fn(async () => (opts.existing ?? []).map((row) => ({ companyId: row.companyId, date: new Date(`${row.date}T00:00:00.000Z`) }))),
+    },
     marketIndexValue: {
       findMany: vi.fn(async () => (opts.asiDates ?? []).map((d) => ({ date: new Date(`${d}T00:00:00.000Z`) }))),
     },
@@ -167,5 +174,96 @@ describe("runNgxHistoryBackfill", () => {
     expect(summary.processed).toBe(0);
     expect(summary.incomplete).toBe(true);
     expect(summary.next).toBe("2026-10-19");
+  });
+  it("rattache un ancien code (FBNH) au ticker courant sans créer de société", async () => {
+    loadNgxEquities.mockResolvedValue({
+      ok: true,
+      kind: "official-list",
+      date: "2024-05-02",
+      warnings: [],
+      quotes: [quote("FBNH", "2024-05-02"), quote("UBA", "2024-05-02")],
+    });
+    const summary = await runNgxHistoryBackfill({
+      db: fakeDb(),
+      from: "2024-05-02",
+      to: "2024-05-02",
+      charts: false,
+      indices: false,
+      resume: false,
+      logger: () => undefined,
+    });
+    const [, sent] = persistNgxQuotes.mock.calls[0] as unknown as [unknown, { symbol: string }[]];
+    expect(sent.map((q) => q.symbol).sort()).toEqual(["FIRSTHOLDCO", "UBA"]);
+    expect(summary.aliasRemapped).toBe(1);
+    expect(summary.skippedUnknown).toBe(0);
+  });
+
+  it("refill : retraite une séance déjà complète mais n'écrit que les cours manquants des tickers visés", async () => {
+    loadNgxEquities.mockResolvedValue({
+      ok: true,
+      kind: "official-list",
+      date: "2024-05-02",
+      warnings: [],
+      quotes: [quote("FBNH", "2024-05-02"), quote("UBA", "2024-05-02"), quote("DANGCEM", "2024-05-02")],
+    });
+    const db = fakeDb({ canonical: 120 });
+    const summary = await runNgxHistoryBackfill({
+      db,
+      from: "2024-05-02",
+      to: "2024-05-02",
+      refill: true,
+      charts: false,
+      resume: false,
+      logger: () => undefined,
+    });
+    expect(loadNgxEquities).toHaveBeenCalledTimes(1);
+    const [, sent] = persistNgxQuotes.mock.calls[0] as unknown as [unknown, { symbol: string }[]];
+    expect(sent.map((q) => q.symbol)).toEqual(["FIRSTHOLDCO"]);
+    expect(summary.indices).toBe(0);
+    expect(loadNgxCover).not.toHaveBeenCalled();
+  });
+
+  it("refill : ne réécrit pas un cours déjà présent", async () => {
+    loadNgxEquities.mockResolvedValue({
+      ok: true,
+      kind: "official-list",
+      date: "2024-05-02",
+      warnings: [],
+      quotes: [quote("FBNH", "2024-05-02")],
+    });
+    await runNgxHistoryBackfill({
+      db: fakeDb({ existing: [{ companyId: "c-fh", date: "2024-05-02" }] }),
+      from: "2024-05-02",
+      to: "2024-05-02",
+      refill: true,
+      charts: false,
+      resume: false,
+      logger: () => undefined,
+    });
+    const [, sent] = persistNgxQuotes.mock.calls[0] as unknown as [unknown, unknown[]];
+    expect(sent).toHaveLength(0);
+  });
+
+  it("refill : va chercher le Daily Summary pour un titre absent de la liste officielle (ZICHIS)", async () => {
+    loadNgxEquities.mockResolvedValue({
+      ok: true,
+      kind: "official-list",
+      date: "2026-03-03",
+      warnings: [],
+      quotes: [quote("UBA", "2026-03-03")],
+    });
+    loadNgxSummaryQuotes.mockResolvedValue({ quotes: [quote("ZICHIS", "2026-03-03"), quote("OTHER", "2026-03-03")] });
+    await runNgxHistoryBackfill({
+      db: fakeDb(),
+      from: "2026-03-03",
+      to: "2026-03-03",
+      refill: true,
+      charts: false,
+      resume: false,
+      logger: () => undefined,
+    });
+    expect(loadNgxSummaryQuotes).toHaveBeenCalledTimes(1);
+    const [, sent] = persistNgxQuotes.mock.calls[0] as unknown as [unknown, { symbol: string }[]];
+    expect(sent.map((q) => q.symbol)).toEqual(["ZICHIS"]);
   });
 });

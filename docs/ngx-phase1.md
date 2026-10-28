@@ -43,7 +43,15 @@ curl -H "Authorization: Bearer $CRON_SECRET" \
 # Reconstruire TOUTES les chart_series NGX depuis price_history (force=1), puis enchaîner after=chartsNext
 curl -H "Authorization: Bearer $CRON_SECRET" \
   "https://<host>/api/cron/ngx-history?limit=0&charts=1&force=1&budgetMs=240000"
+
+# Rattrapage ciblé (anciens codes FBNH→FIRSTHOLDCO, WAPCO→HBMNG…, tickers longs, ZICHIS) :
+# retraite les séances déjà complètes, n'ajoute que les cours manquants de ces tickers.
+# Écrit des lignes price_history : à lancer après validation. Enchaîner avec cursor=<next>.
+curl -H "Authorization: Bearer $CRON_SECRET" \
+  "https://<host>/api/cron/ngx-history?refill=1&indices=0&from=2021-10-27&to=2026-10-27&limit=20&budgetMs=240000"
 ```
+
+`refill=1` utilise son propre curseur (`errors.kind = NGX_HISTORY_REFILL`), ne touche pas aux indices et ne modifie aucune ligne existante. Table des anciens codes : `lib/ingestion/ngx/ticker-aliases.ts`.
 
 Chaque réponse JSON porte `incomplete`, `next` (même valeur que `cursor`), `weekdayIndex` / `weekdayTotal`, `processed`, `quotes`, `failedDates`, `chartsIncomplete`, `chartsNext`. Une date avec au moins 80 clôtures canoniques NGX est sautée. Les 404 (fériés) sont mémorisés dans `ingestion_logs` (`errors.kind = NGX_HISTORY`, `absentDates`, `next`) — le disque Vercel ne survit pas d'un appel à l'autre. Délai minimum 2 s vers `doclib.ngxgroup.com`. Défaut du chunk : 20 séances (max 60), pas de charts ni de fx ; la boucle s'arrête proprement avant `budgetMs` (marge = max(25 s, 1,5 × la séance la plus longue du chunk)). L'historique n'écrit que des cours pour les tickers déjà présents (`skippedUnknown` compte les autres) : seule l'ingestion quotidienne (et le JSON du jour) crée ou renomme des sociétés. Chaque séance chargée ou déjà en base se voit aussi compléter les niveaux d'indices (ASI + 19 indices) via la page de couverture si `NGX_ASI` manque pour cette date. `date=` télécharge une séance, enregistre le taux et rafraîchit les séries. `INGESTION_ENABLE_NGX=false` répond `skipped` sans appel réseau.
 
