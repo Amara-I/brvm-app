@@ -147,6 +147,12 @@ export interface IndicatorOverlayChip {
 }
 
 const EMPTY_SPLIT_MARKERS: Array<{ effectiveDate: string; label: string }> = [];
+/**
+ * Référence stable : un `= []` en valeur par défaut crée un nouveau tableau à chaque rendu,
+ * relance l'effet de création du graphique (qui fait un setState) et boucle sans fin.
+ * La boucle affamait les navigations du menu sur les fiches NGX (NgxChart ne passe pas compareSeries).
+ */
+const EMPTY_COMPARE_SERIES: Array<{ id: string; color: string; points: ChartClosePoint[] }> = [];
 
 export interface TradingChartProps {
   /** Ticker pour persister les tracés (localStorage) entre les visites. */
@@ -221,7 +227,7 @@ export default function TradingChart({
   series,
   fullSeries,
   interval = "1D",
-  compareSeries = [],
+  compareSeries = EMPTY_COMPARE_SERIES,
   indicators = DEFAULT_INDICATORS,
   showVolume = true,
   splitMarkers = EMPTY_SPLIT_MARKERS,
