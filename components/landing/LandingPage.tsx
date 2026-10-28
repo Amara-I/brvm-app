@@ -195,12 +195,15 @@ export default function LandingPage({
                     ? t("landing.hero.regionBrvm")
                     : exchange.region
                   : t("landing.hero.soon");
+                const chipClass = exchange.live
+                  ? `${styles.exchangeChip} ${styles.exchangeLive}`
+                  : styles.exchangeChip;
                 if (exchange.live && exchange.code !== "BRVM") {
                   return (
                     <Link
                       key={exchange.code}
                       href={`/marches/${exchange.code.toLowerCase()}`}
-                      className={styles.exchangeChip}
+                      className={chipClass}
                       title={title}
                     >
                       {exchange.shortLabel}
@@ -208,7 +211,7 @@ export default function LandingPage({
                   );
                 }
                 return (
-                  <span key={exchange.code} className={styles.exchangeChip} title={title}>
+                  <span key={exchange.code} className={chipClass} title={title}>
                     {exchange.shortLabel}
                   </span>
                 );
@@ -296,17 +299,17 @@ export default function LandingPage({
                       </span>
                       <span className={styles.stockMeta}>
                         <span
-                          className={
+                          className={`${styles.stockSignal} ${
                             tone === "up"
                               ? styles.stockChangeUp
                               : tone === "down"
                                 ? styles.stockChangeDown
                                 : styles.stockFlat
-                          }
+                          }`}
                         >
                           {labels.signal(rawSignal)}
                         </span>
-                        <span className={perfClass(metrics.perf5Percent)}>
+                        <span className={`${styles.stockPerf} ${perfClass(metrics.perf5Percent)}`}>
                           {showPerf(metrics.perf5Percent)}
                         </span>
                       </span>
@@ -384,9 +387,13 @@ export default function LandingPage({
       <div className={styles.belowHero}>
         <section className={styles.section}>
           <div className={styles.rail}>
-          <p className={styles.sectionEyebrow}>{t("landing.why.eyebrow", { brand: BRAND_NAME })}</p>
-          <h2 className={styles.sectionTitle}>{t("landing.why.title")}</h2>
-          <p className={styles.sectionLead}>{t("landing.why.lead")}</p>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionHeadCopy}>
+              <p className={styles.sectionEyebrow}>{t("landing.why.eyebrow", { brand: BRAND_NAME })}</p>
+              <h2 className={styles.sectionTitle}>{t("landing.why.title")}</h2>
+            </div>
+            <p className={styles.sectionLead}>{t("landing.why.lead")}</p>
+          </div>
           <div className={styles.grid2}>
             <div className={styles.trustBlock}>
               <h3>{t("landing.why.avoidTitle")}</h3>
@@ -408,9 +415,13 @@ export default function LandingPage({
 
         <section className={`${styles.section} ${styles.sectionAlt}`}>
           <div className={styles.rail}>
-          <p className={styles.sectionEyebrow}>{t("landing.modules.eyebrow")}</p>
-          <h2 className={styles.sectionTitle}>{t("landing.modules.title")}</h2>
-          <p className={styles.sectionLead}>{t("landing.modules.lead", { brand: BRAND_NAME })}</p>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionHeadCopy}>
+              <p className={styles.sectionEyebrow}>{t("landing.modules.eyebrow")}</p>
+              <h2 className={styles.sectionTitle}>{t("landing.modules.title")}</h2>
+            </div>
+            <p className={styles.sectionLead}>{t("landing.modules.lead", { brand: BRAND_NAME })}</p>
+          </div>
           <div className={styles.grid4}>
             {modules.map((f) => (
               <article key={f.href} className={styles.featureCard}>
@@ -429,9 +440,13 @@ export default function LandingPage({
 
         <section className={styles.section}>
           <div className={styles.rail}>
-          <p className={styles.sectionEyebrow}>{t("landing.cycle.eyebrow")}</p>
-          <h2 className={styles.sectionTitle}>{t("landing.cycle.title")}</h2>
-          <p className={styles.sectionLead}>{t("landing.cycle.lead")}</p>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionHeadCopy}>
+              <p className={styles.sectionEyebrow}>{t("landing.cycle.eyebrow")}</p>
+              <h2 className={styles.sectionTitle}>{t("landing.cycle.title")}</h2>
+            </div>
+            <p className={styles.sectionLead}>{t("landing.cycle.lead")}</p>
+          </div>
           <div className={styles.grid3}>
             {[
               {

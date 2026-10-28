@@ -51,7 +51,9 @@ export default function LandingTopBar({
               <LanguageSwitcher landing />
               <ThemeToggle />
             </div>
-            <NotificationBell isAuthenticated={Boolean(user)} />
+            <span className={styles.topBell}>
+              <NotificationBell isAuthenticated={Boolean(user)} />
+            </span>
             {user ? (
               <AccountMenu user={user} variant="landing" />
             ) : (
