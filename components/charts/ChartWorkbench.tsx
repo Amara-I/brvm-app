@@ -18,6 +18,13 @@ import {
   seriesCoversChartRange,
   seriesCoversIntervalLookback,
 } from "@/lib/charts/chart-window";
+import {
+  chartMarketConfig,
+  chartStorageKey,
+  ngxChartApiPath,
+  ngxSymbolHref,
+  type ChartMarket,
+} from "@/lib/charts/chart-market";
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import { buildSyncedChartView } from "@/lib/charts/synced-chart-view";
 import { computeWindowChangeFromCandles } from "@/lib/charts/window-change";
@@ -48,6 +55,7 @@ import {
   localizeIntervalNote,
   loosePercent,
   ohlcLegend as formatOhlcLegend,
+  priceText,
   signedGrouped,
   windowChangeAbs,
   windowChangePercent,
@@ -105,6 +113,8 @@ export interface ChartUniverseItem {
   color: string;
   sector: string;
   countryFlag: string;
+  /** NGX : un indice se rouvre sur sa fiche d'indice, pas sur une fiche société. */
+  kind?: "company" | "index";
 }
 
 interface ChartApiPayload {
@@ -159,6 +169,13 @@ interface ChartApiPayload {
     horizonScores: { court: number; moyen: number; long: number };
     riskTier: string;
     riskScore: number;
+  };
+  /** NGX : repères de cours (naira) renvoyés par `/api/ngx/charts`. */
+  ngx?: {
+    kind: "company" | "index";
+    high52: number | null;
+    low52: number | null;
+    mktCapBn: number | null;
   };
   /** Série déjà peinte (fiche) — remplacée quand l'API renvoie une fenêtre différente. */
   provisional?: boolean;
@@ -248,7 +265,10 @@ export default function ChartWorkbench({
   isAuthenticated = false,
   initialSeries,
   initialSeriesComplete = false,
+  market = "BRVM",
 }: {
+  /** Marché : BRVM (défaut, comportement historique) ou NGX (naira, indices NGX, sans outils compte). */
+  market?: ChartMarket;
   universe: ChartUniverseItem[];
   initialTicker: string;
   /** Sur fiche société : masque le lien « Ouvrir la fiche » (déjà sur place). */
@@ -262,7 +282,13 @@ export default function ChartWorkbench({
 }) {
   const { t, format, labels, locale } = useI18n();
   const router = useRouter();
+  const marketCfg = chartMarketConfig(market);
+  const isNgx = market === "NGX";
+  const priceDecimals = marketCfg.priceDecimals;
+  const seriesPath = isNgx ? ngxChartApiPath : companyChartApiPath;
   const [ticker, setTicker] = useState(initialTicker);
+  /** Clé des tracés locaux : `NGX:SYMBOL` côté NGX (aucune collision avec un ticker BRVM). */
+  const chartKey = chartStorageKey(market, ticker);
 
   useEffect(() => {
     setTicker(initialTicker);
@@ -401,7 +427,7 @@ export default function ChartWorkbench({
     try {
       // Sans `cache: "no-store"` : le navigateur peut réutiliser la réponse
       // (max-age du prefetch fiche) au lieu de relancer Sika/Rich.
-      const res = await fetch(companyChartApiPath(symbol, apiRange, viewInterval));
+      const res = await fetch(seriesPath(symbol, apiRange, viewInterval));
       const text = await res.text();
       let json: { ok?: boolean; error?: string; data?: unknown } = {};
       try {
@@ -430,7 +456,7 @@ export default function ChartWorkbench({
     } finally {
       if (loadSeq.current === seq) setLoading(false);
     }
-  }, [t]);
+  }, [t, seriesPath]);
 
   useEffect(() => {
     void loadTicker(ticker, range, interval);
@@ -444,7 +470,7 @@ export default function ChartWorkbench({
       await Promise.all(
         compare.map(async (symbol) => {
           try {
-            const res = await fetch(companyChartApiPath(symbol, apiRange, interval));
+            const res = await fetch(seriesPath(symbol, apiRange, interval));
             const json = await res.json();
             if (json.ok) {
               const data = json.data as ChartApiPayload;
@@ -462,7 +488,7 @@ export default function ChartWorkbench({
     return () => {
       cancelled = true;
     };
-  }, [compare, range, interval]);
+  }, [compare, range, interval, seriesPath]);
 
   const payloadSeries = payload?.series;
   const payloadLookback = payload?.lookback;
@@ -523,6 +549,11 @@ export default function ChartWorkbench({
     setQuery("");
     setSeedDrawings(null);
     setActiveSavedAnalysis(null);
+    if (isNgx) {
+      const kind = universe.find((u) => u.ticker === next)?.kind ?? "company";
+      router.push(ngxSymbolHref(next, kind));
+      return;
+    }
     if (embedded) {
       router.push(`/actions/${next}?tab=charts`);
       return;
@@ -675,6 +706,9 @@ export default function ChartWorkbench({
       if (prev.length >= 3 || symbol === ticker) return prev;
       return [...prev, symbol];
     });
+    // NGX : un indice (~100 000 pts) et un titre (quelques ₦) n'ont pas la même échelle —
+    // la comparaison n'est lisible qu'en base 100 (%).
+    if (isNgx && !compare.includes(symbol)) setPercentScale(true);
   }
 
   function onToolClick(id: DrawToolId) {
@@ -706,14 +740,15 @@ export default function ChartWorkbench({
       chg,
       last.volume,
       locale,
-      format
+      format,
+      priceDecimals
     );
-  }, [mainSeries, locale, format]);
+  }, [mainSeries, locale, format, priceDecimals]);
 
   const intervalLabel = t(`charts.intervals.${interval}.label`);
   const visibleRangeLabel = t(`charts.ranges.${range}`);
   const changeLabel = t("charts.metrics.rangeChange", { range: visibleRangeLabel });
-  const changeAbs = windowChangeAbs(windowChange?.abs, locale, format);
+  const changeAbs = windowChangeAbs(windowChange?.abs, locale, format, isNgx);
   const changePct = windowChangePercent(windowChange?.percent, locale, format);
   const changeTitle = windowChange
     ? `${changeAbs} · ${locale === "fr" ? range : visibleRangeLabel}${
@@ -726,7 +761,8 @@ export default function ChartWorkbench({
     const day = now.getUTCDay();
     if (day === 0 || day === 6) return t("charts.market.closed");
     const mins = now.getUTCHours() * 60 + now.getUTCMinutes();
-    if (mins >= 9 * 60 + 30 && mins <= 14 * 60 + 30) return t("charts.market.open");
+    const { open, close } = marketCfg.sessionUtcMinutes;
+    if (mins >= open && mins <= close) return t("charts.market.open");
     return t("charts.market.closed");
   }
 
@@ -829,11 +865,15 @@ export default function ChartWorkbench({
 
         <div className={styles.priceBlock}>
           <div className={styles.lastPrice} style={{ color: priceUp ? "#26a69a" : "#ef5350" }}>
-            {stats?.lastClose != null ? `${format.number(stats.lastClose)} FCFA` : "N/D"}
+            {stats?.lastClose != null
+              ? isNgx
+                ? format.money(stats.lastClose, marketCfg.currency)
+                : `${format.number(stats.lastClose)} FCFA`
+              : "N/D"}
           </div>
           <div className={styles.dayChange} style={{ color: priceUp ? "#26a69a" : "#ef5350" }}>
             {stats?.dayChangeAbs != null && stats.dayChangePercent != null
-              ? `${signedGrouped(stats.dayChangeAbs, format)} (${loosePercent(stats.dayChangePercent, locale, format)})`
+              ? `${isNgx ? format.signed(stats.dayChangeAbs, priceDecimals) : signedGrouped(stats.dayChangeAbs, format)} (${loosePercent(stats.dayChangePercent, locale, format)})`
               : "N/D"}
             <span className={styles.marketStatus}>
               {t("charts.market.today")}
@@ -855,77 +895,104 @@ export default function ChartWorkbench({
               stats?.lastVolume != null && stats.lastVolume > 0 ? format.number(stats.lastVolume) : "N/D"
             }
           />
-          <Metric
-            label={t("charts.metrics.marketCap")}
-            value={
-              fund?.mktCapMds != null && fund.mktCapMds > 0
-                ? t("charts.metrics.mktCapValue", { value: format.number(fund.mktCapMds) })
-                : "N/D"
-            }
-          />
-          <Metric
-            label={t("charts.metrics.pe")}
-            value={fund?.per != null && fund.per > 0 ? format.decimal(fund.per, 1) : "N/D"}
-          />
-          <Metric
-            label={t("charts.metrics.dividend")}
-            value={
-              fund?.dividendYieldPercent != null && fund.dividendYieldPercent > 0
-                ? yieldLabel(Number(fund.dividendYieldPercent), locale, format)
-                : "N/D"
-            }
-          />
+          {isNgx ? (
+            <>
+              {payload?.ngx?.kind !== "index" && (
+              <Metric
+                label={t("charts.metrics.marketCap")}
+                value={
+                  payload?.ngx?.mktCapBn != null && payload.ngx.mktCapBn > 0
+                    ? t("charts.metrics.mktCapValueNgn", { value: format.number(payload.ngx.mktCapBn, { maximumFractionDigits: 1 }) })
+                    : "N/D"
+                }
+              />
+              )}
+              <Metric
+                label={t("charts.metrics.high52")}
+                value={payload?.ngx?.high52 != null ? priceText(payload.ngx.high52, format, priceDecimals) : "N/D"}
+              />
+              <Metric
+                label={t("charts.metrics.low52")}
+                value={payload?.ngx?.low52 != null ? priceText(payload.ngx.low52, format, priceDecimals) : "N/D"}
+              />
+            </>
+          ) : (
+            <>
+              <Metric
+                label={t("charts.metrics.marketCap")}
+                value={
+                  fund?.mktCapMds != null && fund.mktCapMds > 0
+                    ? t("charts.metrics.mktCapValue", { value: format.number(fund.mktCapMds) })
+                    : "N/D"
+                }
+              />
+              <Metric
+                label={t("charts.metrics.pe")}
+                value={fund?.per != null && fund.per > 0 ? format.decimal(fund.per, 1) : "N/D"}
+              />
+              <Metric
+                label={t("charts.metrics.dividend")}
+                value={
+                  fund?.dividendYieldPercent != null && fund.dividendYieldPercent > 0
+                    ? yieldLabel(Number(fund.dividendYieldPercent), locale, format)
+                    : "N/D"
+                }
+              />
+            </>
+          )}
         </div>
 
-        <div className={styles.headerActions}>
-          <ChartAnalysisControls
-            isAuthenticated={isAuthenticated}
-            ticker={ticker}
-            drawings={drawings}
-            indicators={indicators}
-            range={range}
-            interval={interval}
-            compare={compare}
-            onApply={applySavedAnalysis}
-            onSaved={() => {
-              autoLoadedTickerRef.current = ticker;
-              void fetch(`/api/charts/analyses?ticker=${encodeURIComponent(ticker)}`, {
-                cache: "no-store",
-              })
-                .then((r) => r.json())
-                .then((json) => {
-                  if (json.ok) {
-                    setSavedAnalysesCount((json.data?.analyses ?? []).length);
-                  }
+        {marketCfg.accountTools && (
+          <div className={styles.headerActions}>
+            <ChartAnalysisControls
+              isAuthenticated={isAuthenticated}
+              ticker={ticker}
+              drawings={drawings}
+              indicators={indicators}
+              range={range}
+              interval={interval}
+              compare={compare}
+              onApply={applySavedAnalysis}
+              onSaved={() => {
+                autoLoadedTickerRef.current = ticker;
+                void fetch(`/api/charts/analyses?ticker=${encodeURIComponent(ticker)}`, {
+                  cache: "no-store",
                 })
-                .catch(() => undefined);
-            }}
-            open={analysisPanelOpen}
-            onOpenChange={setAnalysisPanelOpen}
-            savedCount={savedAnalysesCount}
-            loginCallbackPath={
-              embedded ? `/actions/${ticker}` : `/graphes?ticker=${encodeURIComponent(ticker)}`
-            }
-          />
-          <ChartAlertControls
-            isAuthenticated={isAuthenticated}
-            ticker={ticker}
-            lastClose={stats?.lastClose ?? null}
-            loginCallbackPath={
-              embedded ? `/actions/${ticker}` : `/graphes?ticker=${encodeURIComponent(ticker)}`
-            }
-          />
-          <PortfolioTickerAction
-            ticker={ticker}
-            isAuthenticated={isAuthenticated}
-            signal={{
-              label: displaySignalLabel(payload?.analysis?.signalLabel ?? "CONSERVER", labels),
-              color: payload?.analysis?.signalColor ?? C.gold,
-              score: payload?.analysis?.score,
-            }}
-            addClassName={styles.primaryBtn}
-          />
-        </div>
+                  .then((r) => r.json())
+                  .then((json) => {
+                    if (json.ok) {
+                      setSavedAnalysesCount((json.data?.analyses ?? []).length);
+                    }
+                  })
+                  .catch(() => undefined);
+              }}
+              open={analysisPanelOpen}
+              onOpenChange={setAnalysisPanelOpen}
+              savedCount={savedAnalysesCount}
+              loginCallbackPath={
+                embedded ? `/actions/${ticker}` : `/graphes?ticker=${encodeURIComponent(ticker)}`
+              }
+            />
+            <ChartAlertControls
+              isAuthenticated={isAuthenticated}
+              ticker={ticker}
+              lastClose={stats?.lastClose ?? null}
+              loginCallbackPath={
+                embedded ? `/actions/${ticker}` : `/graphes?ticker=${encodeURIComponent(ticker)}`
+              }
+            />
+            <PortfolioTickerAction
+              ticker={ticker}
+              isAuthenticated={isAuthenticated}
+              signal={{
+                label: displaySignalLabel(payload?.analysis?.signalLabel ?? "CONSERVER", labels),
+                color: payload?.analysis?.signalColor ?? C.gold,
+                score: payload?.analysis?.score,
+              }}
+              addClassName={styles.primaryBtn}
+            />
+          </div>
+        )}
       </header>
 
       {isAuthenticated && activeSavedAnalysis ? (
@@ -1052,9 +1119,9 @@ export default function ChartWorkbench({
               <div className={styles.dropdown}>
                 {universe
                   .filter((u) => u.ticker !== ticker)
-                  .slice(0, 20)
+                  .slice(0, isNgx ? universe.length : 20)
                   .map((u) => (
-                    <label key={u.ticker} className={styles.dropItem}>
+                    <label key={u.ticker} className={styles.dropItem} title={isNgx ? u.name : undefined}>
                       <input
                         type="checkbox"
                         checked={compare.includes(u.ticker)}
@@ -1180,7 +1247,7 @@ export default function ChartWorkbench({
           <div className={styles.chartShell}>
             {payload ? (
               <TradingChart
-                ticker={ticker}
+                ticker={chartKey}
                 series={mainSeries}
                 fullSeries={historySeries}
                 interval={interval}
@@ -1190,6 +1257,7 @@ export default function ChartWorkbench({
                 showVolume={hasRealVolume}
                 percentScale={percentScale}
                 logScale={logScale}
+                priceDecimals={priceDecimals}
                 height={chartHeight}
                 drawTool={activeTool}
                 clearDrawToken={clearDrawToken}
@@ -1220,12 +1288,17 @@ export default function ChartWorkbench({
             )}
           </div>
           <div className={styles.footerNote}>
-            {!embedded && (
+            {!isNgx && !embedded && (
               <Link href={`/actions/${ticker}`} className={styles.ficheLink}>
                 {t("charts.footer.openSheet", { ticker })}
               </Link>
             )}
-            {embedded && (
+            {isNgx && (
+              <span className={styles.embeddedTickerHint}>
+                {t("charts.footer.switchSymbol", { symbol: payload?.ticker ?? ticker })}
+              </span>
+            )}
+            {!isNgx && embedded && (
               <>
                 <Link href={`/graphes?ticker=${ticker}`} className={styles.ficheLink}>
                   {t("charts.footer.openCharts")}

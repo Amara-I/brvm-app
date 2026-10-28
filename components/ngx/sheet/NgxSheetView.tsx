@@ -8,7 +8,8 @@ import { type CriterionKey, type PolicyCriterion } from "@/lib/ngx/policy";
 import type { NgxSheetModel, SectorMetricKey } from "@/lib/ngx/sheet-model";
 import { VALUATION_BAND_PERCENT, type FairValueEstimate } from "@/lib/ngx/valuation";
 import FinancialBars from "./FinancialBars";
-import NgxScoreBlock from "./NgxScoreBlock";
+import { NGX_MARKET_PILLARS, NGX_SCORE_WEIGHTS } from "@/lib/ngx/score";
+import NgxScoreBlock, { PillarCard } from "./NgxScoreBlock";
 import styles from "./NgxSheet.module.css";
 
 type Fmt = ReturnType<typeof getI18n>["format"];
@@ -22,6 +23,7 @@ const SECTION_IDS = [
   "valuation",
   "sector",
   "dividends",
+  "chartAnalysis",
   "conclusion",
 ] as const;
 type SectionId = (typeof SECTION_IDS)[number];
@@ -65,7 +67,7 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
 }
 
 export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
-  const { t, format, locale } = getI18n();
+  const { t, format, locale, labels } = getI18n();
   const na = t("ngx.sheet.na");
   const full = model.tier === "FULL";
 
@@ -84,7 +86,7 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
         })
       : na;
 
-  const visible: SectionId[] = full ? [...SECTION_IDS] : ["presentation", "conclusion"];
+  const visible: SectionId[] = full ? [...SECTION_IDS] : ["presentation", "chartAnalysis", "conclusion"];
 
   return (
     <div>
@@ -129,10 +131,153 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
         </div>
       )}
 
+      <Section id="chartAnalysis" title={t("ngx.sheet.sections.chartAnalysis")} lead={t("ngx.sheet.chartAnalysis.lead")}>
+        <ChartAnalysis model={model} t={t} format={format} labels={labels} na={na} pct={pct} />
+      </Section>
+
       <Section id="conclusion" title={t("ngx.sheet.sections.conclusion")} lead={t("ngx.sheet.conclusion.lead")}>
         <Conclusion model={model} t={t} format={format} locale={locale} />
       </Section>
     </div>
+  );
+}
+
+// ───────────── Analyse graphique (mêmes fonctions partagées que la fiche BRVM) ─────────────
+
+const SIGNAL_TONE: Record<string, string> = {
+  "ACHAT FORT": styles.good,
+  ACHAT: styles.good,
+  CONSERVER: styles.mid,
+  "ALLÉGER": styles.bad,
+  VENDRE: styles.bad,
+};
+
+function ChartAnalysis({
+  model,
+  t,
+  format,
+  labels,
+  na,
+  pct,
+}: {
+  model: NgxSheetModel;
+  t: T;
+  format: Fmt;
+  labels: ReturnType<typeof getI18n>["labels"];
+  na: string;
+  pct: (v: number | null, d?: number, s?: boolean) => string;
+}) {
+  const { technical, composite } = model.chartAnalysis;
+  const stats = model.price.stats;
+  const price = (v: number | null | undefined) => (v == null ? na : format.decimal(v, 2));
+  const num = (v: number | null | undefined, d = 1) => (v == null ? na : format.decimal(v, d));
+  const ok = technical.available;
+  const macd = ok ? technical.macd : null;
+  const crossText =
+    !ok || stats.sma200 == null
+      ? na
+      : technical.maCross === "golden_cross"
+        ? t("ngx.sheet.chartAnalysis.crossGolden")
+        : technical.maCross === "death_cross"
+          ? t("ngx.sheet.chartAnalysis.crossDeath")
+          : technical.maCross === "none"
+            ? t("ngx.sheet.chartAnalysis.crossNone")
+            : na;
+  const pillars = model.score.pillars;
+  return (
+    <>
+      <h3 className={styles.sub}>{t("ngx.sheet.chartAnalysis.signalTitle")}</h3>
+      {composite ? (
+        <>
+          <div className={styles.grid}>
+            <Stat label={t("ngx.sheet.chartAnalysis.score")} value={format.integer(composite.score)} />
+            <div className={styles.stat}>
+              <span className={styles.statLabel}>{t("ngx.sheet.chartAnalysis.signal")}</span>
+              <span className={styles.statValue}>
+                <span className={`${styles.badge} ${SIGNAL_TONE[composite.signal.label] ?? ""}`}>
+                  {labels.signal(composite.signal.label)}
+                </span>
+              </span>
+              <span className={styles.statNote}>
+                {t("ngx.sheet.chartAnalysis.confidence")} : {labels.confidence(composite.confidence)}
+              </span>
+            </div>
+            <Stat label={t("ngx.sheet.chartAnalysis.techScore")} value={format.integer(composite.technicalScore)} />
+            <Stat label={t("ngx.sheet.chartAnalysis.risk")} value={format.integer(composite.riskScore)} />
+            <Stat label={t("ngx.sheet.chartAnalysis.horizonShort")} value={format.integer(composite.horizonScores.court)} />
+            <Stat label={t("ngx.sheet.chartAnalysis.horizonMedium")} value={format.integer(composite.horizonScores.moyen)} />
+            <Stat label={t("ngx.sheet.chartAnalysis.horizonLong")} value={format.integer(composite.horizonScores.long)} />
+          </div>
+        </>
+      ) : (
+        <p className={styles.note}>{t("ngx.sheet.chartAnalysis.compositeNd")}</p>
+      )}
+
+      <h3 className={styles.sub}>{t("ngx.sheet.chartAnalysis.indicatorsTitle")}</h3>
+      {!ok ? <p className={styles.note}>{t("ngx.sheet.chartAnalysis.techNd", { points: stats.points })}</p> : null}
+      <div className={styles.grid}>
+        <Stat
+          label={t("ngx.sheet.chartAnalysis.rsi")}
+          value={ok ? num(technical.rsi14) : na}
+          note={t("ngx.sheet.chartAnalysis.rsiNote")}
+        />
+        <Stat
+          label={t("ngx.sheet.chartAnalysis.macdHist")}
+          value={macd ? format.signed(macd.histogram, 3) : na}
+          note={
+            macd
+              ? t("ngx.sheet.chartAnalysis.macdNote", {
+                  macd: format.signed(macd.macd, 3),
+                  signal: format.signed(macd.signal, 3),
+                })
+              : undefined
+          }
+        />
+        <Stat label={t("ngx.sheet.chartAnalysis.sma10")} value={ok ? price(technical.sma10) : na} note={t("ngx.sheet.chartAnalysis.smaNote")} />
+        <Stat label={t("ngx.sheet.chartAnalysis.sma20")} value={ok ? price(technical.sma20) : na} note={t("ngx.sheet.chartAnalysis.smaNote")} />
+        <Stat label={t("ngx.sheet.chartAnalysis.sma50")} value={price(stats.sma50)} note={t("ngx.sheet.chartAnalysis.smaNote")} />
+        <Stat label={t("ngx.sheet.chartAnalysis.sma200")} value={price(stats.sma200)} note={t("ngx.sheet.chartAnalysis.smaNote")} />
+        <Stat label={t("ngx.sheet.chartAnalysis.cross")} value={crossText} />
+        <Stat
+          label={t("ngx.sheet.chartAnalysis.shortScore")}
+          value={ok && technical.shortTermScore != null ? format.integer(technical.shortTermScore) : na}
+          note={t("ngx.sheet.chartAnalysis.points", { points: stats.points })}
+        />
+      </div>
+      {ok && technical.notes.length > 0 ? (
+        <>
+          <h3 className={styles.sub}>{t("ngx.sheet.chartAnalysis.notesTitle")}</h3>
+          <ul className={styles.criteria}>
+            {technical.notes.map((note) => (
+              <li key={note}>{labels.technicalNote(note)}</li>
+            ))}
+          </ul>
+        </>
+      ) : null}
+
+      <h3 className={styles.sub}>{t("ngx.sheet.chartAnalysis.momentumTitle")}</h3>
+      <div className={styles.grid}>
+        <Stat label={t("ngx.sheet.chartAnalysis.return1m")} value={pct(stats.return1mPercent, 1, true)} />
+        <Stat label={t("ngx.sheet.chartAnalysis.return3m")} value={pct(stats.return3mPercent, 1, true)} />
+        <Stat label={t("ngx.sheet.chartAnalysis.return1y")} value={pct(stats.return1yPercent, 1, true)} />
+        <Stat label={t("ngx.sheet.chartAnalysis.high52")} value={price(stats.high52)} />
+        <Stat label={t("ngx.sheet.chartAnalysis.low52")} value={price(stats.low52)} />
+        <Stat label={t("ngx.sheet.chartAnalysis.drawdown")} value={pct(stats.drawdownFromHighPercent, 1)} />
+        <Stat label={t("ngx.sheet.chartAnalysis.volatility")} value={pct(stats.volatilityPercent, 1)} />
+      </div>
+
+      <h3 className={styles.sub}>{t("ngx.sheet.chartAnalysis.pillarsTitle")}</h3>
+      <div className={styles.pillars}>
+        {NGX_MARKET_PILLARS.map((k) => (
+          <PillarCard key={k} pillar={pillars[k]} weight={NGX_SCORE_WEIGHTS.OVERALL[k]} t={t} format={format} />
+        ))}
+      </div>
+      <p className={styles.note}>
+        <a className={styles.link} href="#ngx-chart">
+          {t("ngx.sheet.chartAnalysis.seeChart")}
+        </a>
+      </p>
+    </>
   );
 }
 

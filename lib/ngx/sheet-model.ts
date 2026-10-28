@@ -12,6 +12,8 @@ import {
 import { priceStats, type PricePoint, type PriceStats } from "./price-stats";
 import { computeNgxScore, type NgxScore } from "./score";
 import { cleanNgxName, ngxSectorGroup, type NgxSectorGroup } from "./sectors";
+import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
+import { computeTechnicalSnapshot, type TechnicalSnapshot } from "@/lib/charts/technical-indicators";
 import {
   EQUITY_MIN_SHARE_OF_CAP,
   dividendYearsPaid,
@@ -160,6 +162,24 @@ export interface MissingDividendYear {
   year: number;
 }
 
+/**
+ * Analyse graphique (comme la fiche BRVM) : indicateurs de lib/charts/technical-indicators.ts
+ * et score / signal de lib/calc/calc-metrics.ts, calculés sur la série de clôtures NGX.
+ */
+export interface NgxChartAnalysis {
+  /** Indicateurs techniques ; `available` = false sous 30 clôtures (tout est alors N/D, jamais 0). */
+  technical: TechnicalSnapshot;
+  /** Score composite et signal (calcMetrics). null si la série est trop courte ou si la fiche n'a pas de comptes. */
+  composite: {
+    score: number;
+    technicalScore: number;
+    signal: CalcMetricsResult["signal"];
+    confidence: CalcMetricsResult["confidence"];
+    horizonScores: CalcMetricsResult["horizonScores"];
+    riskScore: number;
+  } | null;
+}
+
 export interface NgxSheetModel {
   ticker: string;
   name: string;
@@ -213,6 +233,7 @@ export interface NgxSheetModel {
     shares: number | null;
   };
   valuation: { estimates: FairValueEstimate[]; summary: ValuationSummary };
+  chartAnalysis: NgxChartAnalysis;
   sectorComparison: {
     rows: SectorRow[];
     peers: number;
@@ -381,6 +402,47 @@ const ROW_PICK: Record<SectorMetricKey, (m: CompanyMetrics) => number | null> = 
   revenueCagr: (m) => m.revenueCagrPercent,
 };
 const SECTOR_KEYS: SectorMetricKey[] = ["per", "pbr", "yield", "netMargin", "roe", "revenueCagr"];
+
+/** Dernière clôture de chaque année (même construction que GET /api/charts/[ticker]). */
+function yearEndCloses(series: readonly { time: string; value: number }[]): { years: number[]; prices: Record<number, number> } {
+  const prices: Record<number, number> = {};
+  for (const p of series) {
+    const y = Number(p.time.slice(0, 4));
+    if (Number.isFinite(y)) prices[y] = p.value;
+  }
+  return { years: Object.keys(prices).map(Number).sort((a, b) => a - b), prices };
+}
+
+export function buildChartAnalysis(
+  series: readonly PricePoint[],
+  dividendLines: ReadonlyArray<{ year: number; dps: number }>,
+  per: number | null,
+  hasAccounts: boolean,
+): NgxChartAnalysis {
+  const closes = series
+    .filter((p) => p.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(p.time))
+    .sort((a, b) => (a.time < b.time ? -1 : 1))
+    .map((p) => ({ time: p.time, value: p.value, volume: p.volume ?? null }));
+  const technical = computeTechnicalSnapshot(closes);
+  // Sous 30 clôtures ou sans comptes publiés, le score composite serait construit sur du vide : N/D.
+  if (!technical.available || !hasAccounts) return { technical, composite: null };
+
+  const { years, prices } = yearEndCloses(closes);
+  const dividends: Record<number, number> = {};
+  for (const line of dividendLines) if (line.dps > 0) dividends[line.year] = line.dps;
+  const result = calcMetrics({ years, prices, dividends, per: per ?? 0, closes });
+  return {
+    technical: result.technical,
+    composite: {
+      score: result.score,
+      technicalScore: result.technicalScore,
+      signal: result.signal,
+      confidence: result.confidence,
+      horizonScores: result.horizonScores,
+      riskScore: result.riskAnalysis.riskScore,
+    },
+  };
+}
 
 export function buildNgxSheet(input: SheetInput): NgxSheetModel {
   const { company } = input;
@@ -569,6 +631,7 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     },
     price: { stats, metrics, shares },
     valuation: { estimates, summary },
+    chartAnalysis: buildChartAnalysis(input.series, lines, metrics.per, fullTier),
     sectorComparison: {
       rows: sectorRows,
       peers: peerWithData,

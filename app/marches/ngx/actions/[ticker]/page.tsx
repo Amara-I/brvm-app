@@ -9,6 +9,7 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxCompany } from "@/lib/markets/ngx-browse";
+import { loadNgxChartUniverse } from "@/lib/markets/ngx-chart";
 import { loadNgxSheet } from "@/lib/markets/ngx-sheet";
 import NgxSheetView from "@/components/ngx/sheet/NgxSheetView";
 import sheetStyles from "@/components/ngx/sheet/NgxSheet.module.css";
@@ -27,7 +28,10 @@ export async function generateMetadata({ params }: { params: { ticker: string } 
 
 export default async function NgxCompanyPage({ params }: { params: { ticker: string } }) {
   const { t, format } = getI18n();
-  const data = await loadNgxSheet(params.ticker).catch(() => null);
+  const [data, chartUniverse] = await Promise.all([
+    loadNgxSheet(params.ticker).catch(() => null),
+    loadNgxChartUniverse().catch(() => []),
+  ]);
   if (!data) notFound();
   const { page: company, model } = data;
   const session = company.sessionDate
@@ -89,9 +93,9 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
             <strong style={{ fontSize: "1rem" }}>{ngxBoardLabel(company.board, t)}</strong>
           </div>
         </div>
-        <h2 className={styles.sectionTitle}>{t("ngx.company.chartTitle")}</h2>
+        <h2 className={styles.sectionTitle} id="ngx-chart">{t("ngx.company.chartTitle")}</h2>
         {company.series.length > 1 ? (
-          <NgxChart storageKey={`NGX:${company.ticker}`} series={company.series} />
+          <NgxChart symbol={company.ticker} universe={chartUniverse} />
         ) : (
           <p className={styles.note}>{t("ngx.company.chartEmpty")}</p>
         )}

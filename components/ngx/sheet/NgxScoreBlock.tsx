@@ -78,7 +78,7 @@ function formatComponent(c: NgxScoreComponent, format: Fmt, t: T): string {
   }
 }
 
-function PillarCard({
+export function PillarCard({
   pillar,
   weight,
   t,

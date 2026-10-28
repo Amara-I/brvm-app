@@ -86,6 +86,11 @@ export function legendVolume(vol: number | null | undefined, format: FormatApi):
   return vol && vol > 0 ? ` Vol ${format.number(vol)}` : " Vol N/D";
 }
 
+/** Cours affiché : entier pour la BRVM (0 décimale), `decimals` décimales pour la NGX. */
+export function priceText(value: number, format: FormatApi, decimals = 0): string {
+  return decimals > 0 ? format.decimal(value, decimals) : format.integer(value);
+}
+
 export function ohlcLegend(
   open: number,
   high: number,
@@ -94,9 +99,11 @@ export function ohlcLegend(
   chg: number,
   vol: number | null | undefined,
   locale: Locale,
-  format: FormatApi
+  format: FormatApi,
+  decimals = 0
 ): string {
-  return `O ${format.integer(open)} H ${format.integer(high)} L ${format.integer(low)} C ${format.integer(close)} ${legendPercent(chg, locale, format)}${legendVolume(vol, format)}`;
+  const p = (n: number) => priceText(n, format, decimals);
+  return `O ${p(open)} H ${p(high)} L ${p(low)} C ${p(close)} ${legendPercent(chg, locale, format)}${legendVolume(vol, format)}`;
 }
 
 export function windowChangePercent(
@@ -112,8 +119,14 @@ export function windowChangePercent(
 export function windowChangeAbs(
   value: number | null | undefined,
   locale: Locale,
-  format: FormatApi
+  format: FormatApi,
+  /** NGX : variation en naira avec décimales (BRVM : FCFA entiers, inchangé). */
+  ngn = false
 ): string {
+  if (ngn) {
+    if (value == null || !Number.isFinite(value)) return "N/D";
+    return `${value > 0 ? "+" : ""}${format.money(value, "NGN")}`;
+  }
   if (locale === "fr") return formatWindowChangeAbs(value);
   if (value == null || !Number.isFinite(value)) return "N/D";
   const rounded = Math.round(value);
@@ -121,12 +134,19 @@ export function windowChangeAbs(
   return `${body} FCFA`;
 }
 
-export function measureText(p1: number, p2: number, locale: Locale, format: FormatApi): string {
+export function measureText(
+  p1: number,
+  p2: number,
+  locale: Locale,
+  format: FormatApi,
+  decimals = 0
+): string {
   const base = formatMeasureLabel(p1, p2);
-  if (locale === "fr") return base.text;
+  if (decimals === 0 && locale === "fr") return base.text;
   const arrow = base.up ? "↑" : "↓";
-  const abs = Math.round(p2 - p1);
-  return `${arrow} ${format.percent(base.pct, 2, true)} (${format.signed(abs, 0)})`;
+  const abs = decimals > 0 ? p2 - p1 : Math.round(p2 - p1);
+  const pct = locale === "fr" ? `${base.up ? "+" : ""}${base.pct.toFixed(2).replace(".", ",")} %` : format.percent(base.pct, 2, true);
+  return `${arrow} ${pct} (${format.signed(abs, decimals)})`;
 }
 
 export function yieldLabel(value: number, locale: Locale, format: FormatApi): string {

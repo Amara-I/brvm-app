@@ -84,6 +84,9 @@ export const charts = {
     dividend: "Dividend",
     changeNd: "Change N/D — fewer than 2 points in this window",
     mktCapValue: "{value} bn",
+    mktCapValueNgn: "₦{value} bn",
+    high52: "52-week high",
+    low52: "52-week low",
   },
   market: {
     today: " · today",
