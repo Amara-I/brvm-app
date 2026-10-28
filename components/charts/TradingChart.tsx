@@ -51,7 +51,7 @@ import {
 } from "@/lib/charts/fib-levels";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { localizeSplitLabel } from "@/lib/i18n/split-label";
-import { measureText, ohlcLegend } from "./chart-locale";
+import { measureText, ohlcLegend, priceText } from "./chart-locale";
 import {
   cloneDrawings,
   cloneZoom,
@@ -172,6 +172,8 @@ export interface TradingChartProps {
   splitMarkers?: Array<{ effectiveDate: string; label: string }>;
   percentScale?: boolean;
   logScale?: boolean;
+  /** Décimales des cours (BRVM : 0, NGX : 2). Valeur primitive : stable dans les deps de l'effet. */
+  priceDecimals?: number;
   height?: number;
   drawTool?: DrawToolId;
   clearDrawToken?: number;
@@ -233,6 +235,7 @@ export default function TradingChart({
   splitMarkers = EMPTY_SPLIT_MARKERS,
   percentScale = false,
   logScale = false,
+  priceDecimals = 0,
   height = 560,
   drawTool = "cross",
   clearDrawToken = 0,
@@ -250,7 +253,7 @@ export default function TradingChart({
   onSeedConsumed,
 }: TradingChartProps) {
   const { t, format, locale } = useI18n();
-  const fmt = (n: number) => format.integer(n);
+  const fmt = (n: number) => priceText(n, format, priceDecimals);
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -637,7 +640,7 @@ export default function TradingChart({
       priceScaleId: "right",
       priceFormat: percentScale
         ? { type: "percent" }
-        : { type: "price", precision: 0, minMove: 1 },
+        : { type: "price", precision: priceDecimals, minMove: priceDecimals > 0 ? 10 ** -priceDecimals : 1 },
     });
     candleRef.current = candleSeries;
 
@@ -763,7 +766,7 @@ export default function TradingChart({
             id: drawing.id,
             left: (x1 + x2) / 2,
             top: (y1 + y2) / 2,
-            text: measureText(drawing.p1, drawing.p2, locale, format),
+            text: measureText(drawing.p1, drawing.p2, locale, format, priceDecimals),
             up: label.up,
           });
         }
@@ -818,7 +821,7 @@ export default function TradingChart({
       if (drawing.type === "measure") {
         const up = drawing.p2 >= drawing.p1;
         const color = up ? TV.measureUp : TV.measureDown;
-        const measureLabel = measureText(drawing.p1, drawing.p2, locale, format);
+        const measureLabel = measureText(drawing.p1, drawing.p2, locale, format, priceDecimals);
         const line = chart.addLineSeries({
           color,
           lineWidth: 2,
@@ -1289,7 +1292,7 @@ export default function TradingChart({
       const prev = i > 0 ? candles[i - 1]!.close : raw.open;
       const chg = prev > 0 ? ((raw.close - prev) / prev) * 100 : 0;
       const vol = i >= 0 ? candles[i]!.volume : null;
-      onCrosshair(ohlcLegend(raw.open, raw.high, raw.low, raw.close, chg, vol, locale, format));
+      onCrosshair(ohlcLegend(raw.open, raw.high, raw.low, raw.close, chg, vol, locale, format, priceDecimals));
     };
     chart.subscribeCrosshairMove(handler);
 
@@ -1364,6 +1367,7 @@ export default function TradingChart({
     splitMarkers,
     percentScale,
     logScale,
+    priceDecimals,
     height,
     onCrosshair,
     onIntervalNote,

@@ -8,6 +8,7 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxIndex } from "@/lib/markets/ngx-browse";
+import { loadNgxChartUniverse } from "@/lib/markets/ngx-chart";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ export async function generateMetadata({ params }: { params: { code: string } })
 
 export default async function NgxIndexDetailPage({ params }: { params: { code: string } }) {
   const { t, format } = getI18n();
-  const index = await loadNgxIndex(params.code).catch(() => null);
+  const [index, chartUniverse] = await Promise.all([
+    loadNgxIndex(params.code).catch(() => null),
+    loadNgxChartUniverse().catch(() => []),
+  ]);
   if (!index) notFound();
 
   return (
@@ -60,7 +64,7 @@ export default async function NgxIndexDetailPage({ params }: { params: { code: s
           </div>
         </div>
         {index.series.length > 1 ? (
-          <NgxChart storageKey={`NGX:${index.code}`} series={index.series} />
+          <NgxChart symbol={index.code} universe={chartUniverse} />
         ) : (
           <p className={styles.note}>{t("ngx.indices.chartEmpty")}</p>
         )}
