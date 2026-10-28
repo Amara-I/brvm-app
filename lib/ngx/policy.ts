@@ -58,6 +58,11 @@ export interface PolicyFacts {
   dividendYieldPercent: number | null;
   dividendYearsPaid: number | null;
   dividendWindow: number;
+  /**
+   * Exercices de la fenêtre dont le DPS est enregistré (0 compris). Si < dividendWindow, les autres
+   * exercices sont « non confirmés » (jamais comptés comme « sans dividende »). Absent = fenêtre complète.
+   */
+  dividendYearsKnown?: number | null;
   payoutPercent: number | null;
   /** DPS le plus récent ≥ DPS le plus ancien sur ≥ 3 exercices : ratio en % de variation. */
   dividendGrowthPercent: number | null;
@@ -201,8 +206,11 @@ export function concludeForPolicy(type: PortfolioTypeId, f: PolicyFacts): Policy
         valuationCriterion(f.valuationVerdict),
       ]);
     case "RENTE": {
+      // Historique DPS incomplet : le nombre d'exercices payés n'est qu'un minimum. Il ne prouve « favorable »
+      // que s'il atteint déjà le seuil ; sinon le critère est N/D (un exercice sans ligne n'est pas un 0).
+      const incomplete = f.dividendYearsKnown != null && f.dividendYearsKnown < f.dividendWindow;
       const regularity =
-        f.dividendYearsPaid == null
+        f.dividendYearsPaid == null || (incomplete && f.dividendYearsPaid < T.rente.regularityHigh)
           ? nd("dividendRegularity", T.rente.regularityHigh)
           : graded("dividendRegularity", f.dividendYearsPaid, T.rente.regularityHigh, T.rente.regularityLow);
       return evaluate(type, [

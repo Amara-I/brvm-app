@@ -155,6 +155,11 @@ export interface DividendLine {
   paymentDate: string | null;
 }
 
+/** Exercice avec comptes publiés mais sans ligne DPS : affiché « N/D », jamais comme 0. */
+export interface MissingDividendYear {
+  year: number;
+}
+
 export interface NgxSheetModel {
   ticker: string;
   name: string;
@@ -183,9 +188,16 @@ export interface NgxSheetModel {
     years: NgxFinancialYear[];
     revenueCagr: ReturnType<typeof seriesCagrPercent>;
     netIncomeCagr: ReturnType<typeof seriesCagrPercent>;
+    /** Dernier exercice publié (comptes chargés). */
+    latestYear: number | null;
+    /** Croissance du CA du dernier exercice où le CA de N et de N-1 sont connus (peut être antérieur à latestYear). */
     latestRevenueGrowthPercent: number | null;
+    latestRevenueGrowthYear: number | null;
     latestOperatingMarginPercent: number | null;
+    latestOperatingMarginYear: number | null;
+    /** Dernier exercice où résultat net et CA sont connus. */
     latestNetMarginPercent: number | null;
+    latestNetMarginYear: number | null;
     documents: DocumentRowLike[];
   };
   outlook: {
@@ -208,10 +220,19 @@ export interface NgxSheetModel {
   };
   dividends: {
     lines: DividendLine[];
-    yearsPaid: { paid: number; window: number } | null;
+    yearsPaid: { paid: number; window: number; known: number } | null;
     growthPercent: number | null;
     currentYieldPercent: number | null;
+    /** null = non confirmé pour l'exercice courant (à afficher N/D) ; 0 seulement si un DPS à 0 est enregistré. */
     currentDps: number | null;
+    /** Exercice du DPS courant (ou du dernier DPS connu quand il n'est plus confirmé). */
+    currentDpsYear: number | null;
+    /** Dernier exercice avec comptes publiés. */
+    lastFiscalYear: number | null;
+    /** NONE = aucune ligne ; CONFIRMED = DPS de l'exercice (ou du précédent) enregistré ; UNCONFIRMED = trop ancien. */
+    currentStatus: "NONE" | "CONFIRMED" | "UNCONFIRMED";
+    /** Exercices récents avec comptes mais sans ligne DPS (du plus récent au plus ancien). */
+    missingYears: MissingDividendYear[];
   };
   policies: PolicyConclusion[];
   /** Note 0–100 (global + 4 politiques), dérivée des sections ci-dessus. */
@@ -241,15 +262,50 @@ function latestWith<T>(
   return null;
 }
 
-/** Dividende retenu pour le rendement : exercice le plus récent des deux derniers exercices publiés. */
-function currentDividend(
+/** Dernière croissance du CA calculable (N et N-1 consécutifs, CA connus), avec son exercice. */
+function latestRevenueGrowth(years: readonly NgxFinancialYear[]): { year: number; percent: number } | null {
+  for (let i = years.length - 1; i >= 1; i -= 1) {
+    if (years[i].year - years[i - 1].year !== 1) continue;
+    const g = growthPercent(years[i - 1].revenueBn, years[i].revenueBn);
+    if (g != null) return { year: years[i].year, percent: g };
+  }
+  return null;
+}
+
+/** Dernière marge calculable (numérateur et CA connus pour le même exercice), avec son exercice. */
+function latestMargin(
+  years: readonly NgxFinancialYear[],
+  numerator: (y: NgxFinancialYear) => number | null,
+): { year: number; percent: number } | null {
+  for (let i = years.length - 1; i >= 0; i -= 1) {
+    const m = marginPercent(numerator(years[i]), years[i].revenueBn);
+    if (m != null) return { year: years[i].year, percent: m };
+  }
+  return null;
+}
+
+export interface CurrentDividend {
+  /** null = non confirmé (aucune ligne pour l'exercice courant ou le précédent). 0 = « pas de dividende » enregistré. */
+  dps: number | null;
+  /** Exercice de la dernière ligne DPS connue. */
+  year: number | null;
+  status: "NONE" | "CONFIRMED" | "UNCONFIRMED";
+}
+
+/**
+ * Dividende retenu pour le rendement : dernière ligne DPS si elle porte sur l'un des deux derniers exercices
+ * publiés. Plus ancienne, elle n'est plus confirmée pour l'exercice courant : on renvoie null (N/D) et jamais 0,
+ * car l'absence de ligne ne signifie pas « pas de dividende ». Seul un DPS enregistré à 0 vaut 0.
+ */
+export function currentDividend(
   lines: ReadonlyArray<{ year: number; dps: number }>,
   lastFiscalYear: number | null,
-): number | null {
-  if (lines.length === 0) return null;
+): CurrentDividend {
+  if (lines.length === 0) return { dps: null, year: null, status: "NONE" };
   const latest = lines[lines.length - 1];
-  if (lastFiscalYear != null && latest.year < lastFiscalYear - 1) return 0;
-  return latest.dps;
+  if (lastFiscalYear != null && latest.year < lastFiscalYear - 1)
+    return { dps: null, year: latest.year, status: "UNCONFIRMED" };
+  return { dps: latest.dps, year: latest.year, status: "CONFIRMED" };
 }
 
 export function computeCompanyMetrics(company: CompanyInput, today?: string): CompanyMetrics {
@@ -286,7 +342,7 @@ export function computeCompanyMetrics(company: CompanyInput, today?: string): Co
     year: d.year,
     dps: d.amount,
   }));
-  const dps = currentDividend(lines, fiscalYearOrNull);
+  const dps = currentDividend(lines, fiscalYearOrNull).dps;
   return {
     fiscalYear: fiscalYearOrNull,
     staleAccountsYear: stale ? lastAccountsYear : null,
@@ -386,11 +442,9 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
   const revenueCagr = seriesCagrPercent(years, (y) => y.revenueBn);
   const netIncomeCagr = seriesCagrPercent(years, (y) => y.netIncomeBn);
   const lastYear = years[years.length - 1];
-  const prevYear = years.length >= 2 ? years[years.length - 2] : null;
-  const latestRevenueGrowthPercent =
-    lastYear && prevYear && lastYear.year - prevYear.year === 1
-      ? growthPercent(prevYear.revenueBn, lastYear.revenueBn)
-      : null;
+  const revenueGrowth = latestRevenueGrowth(years);
+  const operatingMargin = latestMargin(years, (y) => y.operatingIncomeBn);
+  const netMargin = latestMargin(years, (y) => y.netIncomeBn);
 
   // Dividendes
   const divRows = bestPerYear(company.dividends);
@@ -408,10 +462,18 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     .sort((a, b) => b.year - a.year);
   const asc = [...lines].sort((a, b) => a.year - b.year);
   const lastFiscal = metrics.fiscalYear;
-  const currentDps = currentDividend(asc, lastFiscal);
+  const current = currentDividend(asc, lastFiscal);
+  const currentDps = current.dps;
+  const confirmed = current.status === "CONFIRMED";
   const window = asc.slice(-5);
+  // Évolution et taux de distribution ne se lisent que si le dividende courant est confirmé.
   const dividendGrowth =
-    window.length >= 3 && window[0].dps > 0 ? growthPercent(window[0].dps, window[window.length - 1].dps) : null;
+    confirmed && window.length >= 3 && window[0].dps > 0
+      ? growthPercent(window[0].dps, window[window.length - 1].dps)
+      : null;
+  const missingYears: MissingDividendYear[] = [];
+  if (current.year != null && lastFiscal != null)
+    for (let y = lastFiscal; y > current.year && missingYears.length < 5; y -= 1) missingYears.push({ year: y });
   const yearsPaid =
     asc.length > 0 && lastFiscal != null
       ? dividendYearsPaid(
@@ -421,7 +483,7 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
         )
       : null;
   const lastDividendLine = lines[0];
-  const payoutLatest = lastDividendLine?.payoutPercent ?? null;
+  const payoutLatest = confirmed ? (lastDividendLine?.payoutPercent ?? null) : null;
 
   // Résultats positifs sur les 5 derniers exercices connus
   const recent = years.filter((y) => y.netIncomeBn != null).slice(-5);
@@ -438,6 +500,7 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     dividendYieldPercent: dividendYieldPercent(currentDps, close),
     dividendYearsPaid: yearsPaid?.paid ?? null,
     dividendWindow: yearsPaid?.window ?? 5,
+    dividendYearsKnown: yearsPaid?.known ?? null,
     payoutPercent: payoutLatest,
     dividendGrowthPercent: dividendGrowth,
     price: stats,
@@ -488,9 +551,13 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
       years,
       revenueCagr,
       netIncomeCagr,
-      latestRevenueGrowthPercent,
-      latestOperatingMarginPercent: lastYear ? marginPercent(lastYear.operatingIncomeBn, lastYear.revenueBn) : null,
-      latestNetMarginPercent: lastYear ? marginPercent(lastYear.netIncomeBn, lastYear.revenueBn) : null,
+      latestYear: lastYear?.year ?? null,
+      latestRevenueGrowthPercent: revenueGrowth?.percent ?? null,
+      latestRevenueGrowthYear: revenueGrowth?.year ?? null,
+      latestOperatingMarginPercent: operatingMargin?.percent ?? null,
+      latestOperatingMarginYear: operatingMargin?.year ?? null,
+      latestNetMarginPercent: netMargin?.percent ?? null,
+      latestNetMarginYear: netMargin?.year ?? null,
       documents: docs,
     },
     outlook: {
@@ -513,6 +580,10 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
       growthPercent: dividendGrowth,
       currentYieldPercent: dividendYieldPercent(currentDps, close),
       currentDps,
+      currentDpsYear: current.year,
+      lastFiscalYear: lastFiscal,
+      currentStatus: current.status,
+      missingYears,
     },
     policies,
   };
