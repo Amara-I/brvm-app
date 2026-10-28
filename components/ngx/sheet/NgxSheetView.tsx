@@ -8,6 +8,7 @@ import { type CriterionKey, type PolicyCriterion } from "@/lib/ngx/policy";
 import type { NgxSheetModel, SectorMetricKey } from "@/lib/ngx/sheet-model";
 import { VALUATION_BAND_PERCENT, type FairValueEstimate } from "@/lib/ngx/valuation";
 import FinancialBars from "./FinancialBars";
+import NgxScoreBlock from "./NgxScoreBlock";
 import styles from "./NgxSheet.module.css";
 
 type Fmt = ReturnType<typeof getI18n>["format"];
@@ -472,7 +473,7 @@ function PriceMultiples({
       ? mult(value)
       : status === "negative"
         ? negativeLabel
-        : status === "not_significant"
+        : status === "not_significant" || status === "stale"
           ? t("ngx.sheet.price.notSignificant")
           : t("ngx.sheet.na");
   const yearNote = (label: string, year: number | null) => (year != null ? `${label} · ${year}` : label);
@@ -509,7 +510,7 @@ function PriceMultiples({
         />
         <Stat
           label={t("ngx.sheet.price.roe")}
-          value={pct(m.roePercent, 1)}
+          value={m.staleAccountsYear != null ? t("ngx.sheet.price.notSignificant") : pct(m.roePercent, 1)}
           note={m.roePercent != null ? t("ngx.sheet.price.roeNote", { year: m.roeYear ?? "" }) : undefined}
         />
       </div>
@@ -520,6 +521,9 @@ function PriceMultiples({
             ? t("ngx.sheet.price.unconfirmedUsing", { year: unconfirmed.year, basis: m.equityYear })
             : t("ngx.sheet.price.unconfirmedNone", { year: unconfirmed.year })}
         </p>
+      ) : null}
+      {m.staleAccountsYear != null ? (
+        <p className={styles.note}>{t("ngx.sheet.price.staleAccountsNote", { year: m.staleAccountsYear })}</p>
       ) : null}
       {m.pbrStatus === "not_significant" ? <p className={styles.note}>{t("ngx.sheet.price.notSignificantNote")}</p> : null}
       <p className={styles.note}>{hasAny ? t("ngx.sheet.price.negative") : t("ngx.sheet.price.missing")}</p>
@@ -652,7 +656,7 @@ function SectorAverage({
       ? show(r.key, r.company)
       : r.companyStatus === "negative" && r.key === "pbr"
         ? t("ngx.sheet.price.negativeEquity")
-        : r.companyStatus === "negative" || r.companyStatus === "not_significant"
+        : r.companyStatus === "negative" || r.companyStatus === "not_significant" || r.companyStatus === "stale"
           ? t("ngx.sheet.price.notSignificant")
           : na;
   const gap = (k: SectorMetricKey, company: number | null, median: number | null, rel: number | null) => {
@@ -791,8 +795,10 @@ function criterionValue(c: PolicyCriterion, t: T, format: Fmt, v: number | null)
 function Conclusion({ model, t, format, locale }: { model: NgxSheetModel; t: T; format: Fmt; locale: "fr" | "en" }) {
   return (
     <>
+      <NgxScoreBlock score={model.score} t={t} format={format} locale={locale} />
       <div className={styles.policies}>
         {model.policies.map((p) => {
+          const ps = model.score.policies.find((x) => x.type === p.type);
           const def = localizedTypeDef(getPortfolioTypeDef(p.type), locale);
           const tone =
             p.verdict === "FAVORABLE"
@@ -808,6 +814,16 @@ function Conclusion({ model, t, format, locale }: { model: NgxSheetModel; t: T; 
                 <h3>{def.label}</h3>
                 <span className={`${styles.badge} ${tone}`}>{t(`ngx.sheet.conclusion.verdict.${p.verdict}`)}</span>
               </header>
+              <p className={`${styles.policySummary} ${styles.policyScore}`} data-policy-score={p.type}>
+                <strong>
+                  {ps?.score != null
+                    ? t("ngx.sheet.score.policyScore", { score: format.integer(ps.score) })
+                    : t("ngx.sheet.score.policyNd")}
+                </strong>
+                {ps?.score == null && ps && ps.missing.length > 0
+                  ? ` · ${t("ngx.sheet.score.policyMissing", { pillars: ps.missing.map((k) => t(`ngx.sheet.score.pillar.${k}`)).join(", ") })}`
+                  : ""}
+              </p>
               <p className={styles.policySummary}>
                 {t("ngx.sheet.conclusion.criteria", {
                   ok: p.okCount,

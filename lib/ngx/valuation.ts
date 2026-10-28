@@ -75,7 +75,18 @@ export const PBR_NOT_SIGNIFICANT_ABOVE = 12;
 /** Capitaux propres inférieurs à cette part de la capitalisation : PBR non significatif. */
 export const EQUITY_MIN_SHARE_OF_CAP = 0.02;
 
-export type MultipleStatus = "ok" | "negative" | "not_significant" | "unavailable";
+/** `stale` : derniers comptes trop anciens pour valoriser sur la base du cours actuel. */
+export type MultipleStatus = "ok" | "negative" | "not_significant" | "stale" | "unavailable";
+
+/** Ancienneté maximale (en années civiles) du dernier exercice publié pour que PER / PBR / ROE aient un sens. */
+export const STALE_ACCOUNTS_MAX_AGE_YEARS = 2;
+
+/** Dernier exercice publié « trop ancien » par rapport à `today` (YYYY-MM-DD) : plus de 2 ans d'écart. */
+export function accountsAreStale(lastFiscalYear: number | null, today: string | undefined): boolean {
+  if (lastFiscalYear == null || !today) return false;
+  const thisYear = Number(today.slice(0, 4));
+  return Number.isFinite(thisYear) && thisYear - lastFiscalYear > STALE_ACCOUNTS_MAX_AGE_YEARS;
+}
 
 export interface MultipleResult {
   value: number | null;

@@ -538,4 +538,50 @@ describe("ratios de valorisation corrigés (cas réels simplifiés)", () => {
     expect(pbr.companyStatus).toBe("negative");
     expect(m.valuation.estimates.map((e) => e.method)).toEqual(["SECTOR_PER"]);
   });
+
+  describe("comptes trop anciens", () => {
+    const ending = (ticker: string, lastYear: number) => {
+      const c = fixtureCompany(ticker, 100, {
+        shares: 1e9,
+        netIncome: [6, 8],
+        revenue: [60, 80],
+        equityByYear: { [lastYear - 1]: 80, [lastYear]: 90 },
+        epsByYear: { [lastYear]: 0.8 },
+        sector: "INDUSTRIAL GOODS",
+        sectorSlug: "industrial-goods",
+      });
+      const shift = lastYear - 2025;
+      return { ...c, ratios: c.ratios.map((r) => ({ ...r, year: r.year + shift })) };
+    };
+    it("dernier exercice > 2 ans : PER, PBR et ROE n/s, rien pour la valorisation", () => {
+      const m = computeCompanyMetrics(ending("OLD", 2022), "2026-10-28");
+      expect(m.staleAccountsYear).toBe(2022);
+      expect([m.per, m.pbr, m.roePercent, m.impliedEps, m.impliedBvps]).toEqual([null, null, null, null, null]);
+      expect(m.perStatus).toBe("stale");
+      expect(m.pbrStatus).toBe("stale");
+      expect(m.marketCapBn).toBeCloseTo(100); // la capitalisation reste affichée
+    });
+    it("2 ans d'écart au plus : ratios calculés ; sans date : pas de test d'ancienneté", () => {
+      const ok = computeCompanyMetrics(ending("OK", 2024), "2026-10-28");
+      expect(ok.staleAccountsYear).toBeNull();
+      expect(ok.per).toBeCloseTo(100 / 8);
+      expect(ok.pbr).toBeCloseTo(100 / 90);
+      expect(computeCompanyMetrics(ending("OLD", 2022)).staleAccountsYear).toBeNull();
+      expect(computeCompanyMetrics(ending("EDGE", 2023), "2026-01-02").staleAccountsYear).toBe(2023);
+    });
+    it("exclu des médianes sectorielles et de la valorisation", () => {
+      const input = fixtureSheetInput();
+      const peers = [ending("P1", 2025), ending("P2", 2025), ending("STALE", 2022)];
+      const subject = ending("SUBJECT", 2022);
+      const m = buildNgxSheet({ ...input, company: subject, universe: [subject, ...peers] });
+      const per = m.sectorComparison.rows.find((r) => r.key === "per")!;
+      const roe = m.sectorComparison.rows.find((r) => r.key === "roe")!;
+      expect(per.stat.n).toBe(2); // le pair STALE est exclu
+      expect(per.company).toBeNull();
+      expect(per.companyStatus).toBe("stale");
+      expect(roe.companyStatus).toBe("stale");
+      expect(m.valuation.estimates).toEqual([]);
+      expect(m.valuation.summary.verdict).toBe("UNKNOWN");
+    });
+  });
 });

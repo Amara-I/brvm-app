@@ -1,0 +1,89 @@
+.pill {
+  display: inline-block;
+  min-width: 2.4em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  text-align: center;
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  font-size: 0.82rem;
+  border: 1px solid var(--c-border);
+  color: var(--c-text-dim, var(--c-textdim));
+}
+
+.pillHigh {
+  color: var(--c-green);
+  border-color: var(--c-green);
+  background: var(--c-green-soft);
+}
+
+.pillGood {
+  color: var(--c-gold);
+  border-color: var(--c-gold);
+  background: var(--c-gold-soft);
+}
+
+.pillMixed {
+  color: var(--c-text);
+}
+
+.pillLow {
+  color: var(--c-red);
+  border-color: var(--c-red);
+  background: var(--c-red-soft);
+}
+
+.scoreCell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.tag {
+  font-size: 0.64rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 700;
+  color: var(--c-golddim);
+  border: 1px dashed var(--c-gold);
+  border-radius: 999px;
+  padding: 1px 7px;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.note {
+  margin: 18px 0 0;
+  color: var(--c-text-dim);
+  font-size: 0.82rem;
+  line-height: 1.6;
+  max-width: 78ch;
+}
+
+.coverage {
+  margin: 0 0 14px;
+  color: var(--c-gold);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.back {
+  display: inline-block;
+  margin-bottom: 14px;
+  color: var(--c-gold);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.disclaimer {
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-left: 3px solid var(--c-gold);
+  background: var(--c-gold-soft);
+  border-radius: 0 10px 10px 0;
+  color: var(--c-text);
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
