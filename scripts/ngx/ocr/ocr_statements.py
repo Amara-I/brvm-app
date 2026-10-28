@@ -107,6 +107,7 @@ def process(args):
     doc = fitz.open(pdf)
     n = len(doc)
     found = {}
+    loose = {}
     scan_to = max(12, int(n * 0.75))
     for pn in range(2, min(n, scan_to)):
         boxes, w, h = ocr_boxes(doc[pn], 90, 0.5)
@@ -114,14 +115,20 @@ def process(args):
         hits = classify(text)
         if len(re.findall(r"(?<!\d)\d{1,3}(?:[, ]\d{3})+(?!\d)", text)) < 10:
             continue  # sommaire, rapport, notes narratives : pas de tableau chiffré
-        # titre d'un état : mot-clé présent ET page numérique (vérifiée après OCR plein)
+        has_note = bool(re.search(r"\bnotes?\b", text, re.I))
+        # titre d'un état : mot-clé présent ET page numérique. Les pages « chiffres clés » (sans colonne Notes) ne servent qu'en repli.
         for k, v in hits.items():
             if v and k not in found:
-                found[k] = pn
+                if has_note:
+                    found[k] = pn
+                else:
+                    loose.setdefault(k, pn)
         if "income" in found and "balance" in found and "equity" in found:
             break
         if "income" in found and "balance" in found and pn > max(found["income"], found["balance"]) + 4:
             break
+    for k, pn in loose.items():
+        found.setdefault(k, pn)
     want = set()
     for k, pn in found.items():
         want.add(pn)
