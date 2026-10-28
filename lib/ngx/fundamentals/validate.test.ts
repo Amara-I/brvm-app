@@ -80,7 +80,7 @@ describe("buildStagedRows", () => {
     expect(review.some((x) => x.reason.includes("aucun état audité"))).toBe(true);
   });
   it("does not convert amounts when the unit is missing", () => {
-    const nounit = doc(2024, { rev: [1200_000, 1000_000], op: [250_000, 200_000], np: [120_000, 100_000], eq: [600_000, 500_000], eps: [120, 100] }, { unitMultiplier: null, unitLabel: null });
+    const nounit = doc(2024, { rev: [1200_000, 1000_000], op: [250_000, 200_000], np: [120_000, 100_000], eq: [600_000, 500_000], eps: [7, 7] }, { unitMultiplier: null, unitLabel: null });
     const { rows } = buildStagedRows(corp, [nounit], { fromYear: 2024, toYear: 2024, shares: SHARES });
     expect(rows[0].revenueBn).toBeNull();
     expect(rows[0].conf.revenue).toBe("none");
@@ -184,5 +184,14 @@ describe("OCR cap, restated pct and notice-based DPS", () => {
     expect(r.rows[0].netProfitBn).toBe(100);
     expect(r.rows[0].notes).toContain("duplicate_documents(1)");
     expect(r.review.some((x) => x.field === "document" && x.severity === "medium")).toBe(true);
+  });
+});
+
+describe("inferUnit", () => {
+  it("infers thousands from EPS × shares when the header has no unit (Guinness FY2020)", async () => {
+    const { inferUnit } = await import("./validate");
+    const doc = { file: "x", guessedFiscalYear: 2020, extraction: { unitMultiplier: null, fields: { netProfit: { values: [-12578818, 5483732] }, eps: { values: [-5.74, 2.5] } } } } as never;
+    expect(inferUnit(doc, 2_190_000_000)).toBe(1000);
+    expect(inferUnit({ ...(doc as object), extraction: { unitMultiplier: 1000, fields: {} } } as never, 2_190_000_000)).toBeNull();
   });
 });

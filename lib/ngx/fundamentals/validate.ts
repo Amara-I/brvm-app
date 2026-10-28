@@ -176,6 +176,23 @@ export function unitCorrection(doc: ExtractedDoc, shares: number | null): number
   return 1;
 }
 
+/**
+ * Unité absente de l'en-tête (« N » seul, texte perdu) : déduite de résultat net ≈ BPA × actions (tolérance ±15 %).
+ * Retourne le multiplicateur (1, 1000 ou 1e6) ou null si aucun ne colle.
+ */
+export function inferUnit(doc: ExtractedDoc, shares: number | null): number | null {
+  const x = doc.extraction;
+  if (!shares || x.unitMultiplier) return null;
+  const np = (x.fields.netProfitOwners ?? x.fields.netProfit)?.values[0];
+  const eps = x.fields.eps?.values[0];
+  if (np == null || !eps) return null;
+  for (const m of [1000, 1, 1e6]) {
+    const r = Math.abs((np * m) / eps) / shares;
+    if (r >= 0.85 && r <= 1.15) return m;
+  }
+  return null;
+}
+
 export interface BuildOptions {
   fromYear?: number;
   toYear?: number;
@@ -220,11 +237,21 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
   const byFy = pickDocs(docs);
   const noticeSums: Map<number, NoticeDps> = summarizeNotices(opts.notices ?? [], company.fyEndMonth);
   const unitFixed = new Map<number, number>();
-  for (const [fy, d] of byFy) {
+  for (const [fy, d0] of [...byFy]) {
+    let d = d0;
+    const inferred = inferUnit(d, opts.shares);
+    if (inferred) {
+      d = { ...d, extraction: { ...d.extraction, unitMultiplier: inferred, unitLabel: `${inferred === 1 ? "units" : inferred === 1000 ? "thousands" : "millions"} (inferred from EPS × shares)`, warnings: [...d.extraction.warnings, "unit_inferred_by_eps_shares"] } };
+    }
     const f = unitCorrection(d, opts.shares);
     if (f !== 1) {
       unitFixed.set(fy, f);
-      byFy.set(fy, { ...d, extraction: { ...d.extraction, unitMultiplier: d.extraction.unitMultiplier! * f, warnings: [...d.extraction.warnings, `unit_corrected_x${f}_by_eps_shares`] } });
+      d = { ...d, extraction: { ...d.extraction, unitMultiplier: d.extraction.unitMultiplier! * f, warnings: [...d.extraction.warnings, `unit_corrected_x${f}_by_eps_shares`] } };
+    }
+    if (d !== d0) {
+      const alts = ALTERNATES.get(d0);
+      if (alts) ALTERNATES.set(d, alts);
+      byFy.set(fy, d);
     }
   }
   const rows: StagedRow[] = [];
