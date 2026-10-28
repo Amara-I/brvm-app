@@ -47,6 +47,9 @@ const MIN_PILLAR_WEIGHT_SHARE = 0.4;
 /** Facteur de prudence d'un pilier fondé sur des chiffres non confirmés (confiance « medium » ou non enregistrée). */
 export const UNCONFIRMED_FACTOR = 0.9;
 export const HIGH_SCORE_THRESHOLD = 65;
+/** Au-delà, la série de cours est jugée suspecte (opération sur titres ou erreur de cotation non corrigée) : piliers de marché écartés. */
+export const PRICE_ANOMALY_VOLATILITY_PERCENT = 150;
+export const PRICE_ANOMALY_RETURN_PERCENT = 300;
 
 export type NgxScoreMode = "FULL" | "PARTIAL" | "CHART_ONLY" | "NONE";
 export type NgxScoreConfidence = "HIGH" | "MEDIUM" | "LOW";
@@ -88,6 +91,8 @@ export interface NgxScore {
   confidence: NgxScoreConfidence;
   /** Part (pondérée) des critères fondamentaux utilisés dont les chiffres sont confirmés ; null sans fondamentaux. */
   confirmedShare: number | null;
+  /** Série de cours aberrante (volatilité ou performance extrêmes) : tendance et risque écartés de la note. */
+  priceAnomaly: boolean;
   /** Dernier exercice publié quand il a plus de 2 ans : fondamentaux exclus. */
   staleAccountsYear: number | null;
   pillars: Record<NgxPillarKey, NgxPillar>;
@@ -358,13 +363,17 @@ export function computeNgxScore(m: ScoreInput): NgxScore {
   const stale = m.price.metrics.staleAccountsYear;
   const hasFundamentals = m.tier === "FULL" && stale == null;
   const empty = (key: NgxPillarKey): NgxPillar => ({ key, score: null, reliability: null, components: [] });
+  const st = m.price.stats;
+  const priceAnomaly =
+    (st.volatilityPercent != null && st.volatilityPercent > PRICE_ANOMALY_VOLATILITY_PERCENT) ||
+    [st.return3mPercent, st.return1yPercent].some((r) => r != null && Math.abs(r) > PRICE_ANOMALY_RETURN_PERCENT);
   const pillars: Record<NgxPillarKey, NgxPillar> = {
     growth: hasFundamentals ? growthPillar(m) : empty("growth"),
     quality: hasFundamentals ? qualityPillar(m) : empty("quality"),
     valuation: hasFundamentals ? valuationPillar(m) : empty("valuation"),
     dividends: hasFundamentals ? dividendsPillar(m) : empty("dividends"),
-    momentum: momentumPillar(m),
-    risk: riskPillar(m),
+    momentum: priceAnomaly ? empty("momentum") : momentumPillar(m),
+    risk: priceAnomaly ? empty("risk") : riskPillar(m),
   };
 
   const fundamentalCount = NGX_FUNDAMENTAL_PILLARS.filter((k) => pillars[k].score != null).length;
@@ -405,6 +414,7 @@ export function computeNgxScore(m: ScoreInput): NgxScore {
     band: scoreBand(overallRes.score),
     confidence,
     confirmedShare,
+    priceAnomaly,
     staleAccountsYear: stale,
     pillars,
     policies,

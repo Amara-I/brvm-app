@@ -33,6 +33,7 @@ export interface NgxScreenerRow {
   /** Fondamentaux exploitables (comptes à jour) ; false = lecture graphique seule. */
   hasFundamentals: boolean;
   staleAccountsYear: number | null;
+  priceAnomaly: boolean;
   mode: NgxScoreMode;
   confidence: NgxScoreConfidence;
   band: NgxScoreBand | null;
@@ -138,6 +139,7 @@ export async function loadNgxScreener(): Promise<NgxScreenerData> {
       return1yPercent: model.price.stats.return1yPercent,
       hasFundamentals: score.mode === "FULL" || score.mode === "PARTIAL",
       staleAccountsYear: score.staleAccountsYear,
+      priceAnomaly: score.priceAnomaly,
       mode: score.mode,
       confidence: score.confidence,
       band: score.band,

@@ -221,6 +221,7 @@ export default function NgxScoreBlock({
           {t("ngx.sheet.score.staleNote", { year: score.staleAccountsYear })}
         </p>
       ) : null}
+      {score.priceAnomaly ? <p className={styles.disclaimer}>{t("ngx.sheet.score.priceAnomalyNote")}</p> : null}
       {score.mode === "NONE" ? (
         <p className={styles.disclaimer}>{t("ngx.sheet.score.noneNote")}</p>
       ) : null}

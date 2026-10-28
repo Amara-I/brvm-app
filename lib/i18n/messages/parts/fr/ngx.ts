@@ -39,7 +39,7 @@ export const ngx = {
       "Notes sur 100 des sociétés de la Nigerian Exchange, par politique d'investissement : croissance, rente, trading, croissance max.",
     kicker: "Nigéria · Nigerian Exchange",
     title: "Screener NGX",
-    lead: "Notes sur 100 des sociétés cotées à la NGX, calculées sur les comptes publiés et le cours. {fund} sociétés sur {total} ont des fondamentaux exploitables ; les {chart} autres n'ont qu'une note de graphique, clairement indiquée.",
+    lead: "Notes sur 100 des sociétés cotées à la NGX, calculées sur les comptes publiés et le cours. {fund} sociétés sur {total} ont des fondamentaux exploitables ; les autres n'ont qu'une note de graphique (ou pas de note), clairement indiquée.",
     back: "Marché NGX",
     link: "Screener NGX",
     linkHint: "Notes sur 100 par politique d'investissement",
@@ -70,6 +70,8 @@ export const ngx = {
     },
     tags: {
       chartOnly: "Graphique seul",
+      priceAnomaly: "Cours à vérifier",
+      priceAnomalyTitle: "Cours aberrants : tendance et risque écartés de la note.",
       partial: "Partiel",
       stale: "Comptes {year}",
       staleTitle: "Derniers comptes publiés en {year} : fondamentaux exclus.",
@@ -321,6 +323,8 @@ export const ngx = {
         "Cette société n'a pas de comptes exploitables : la note ne repose que sur le cours (tendance, performance, risque, liquidité). Elle n'est pas comparable à une note complète.",
       staleNote:
         "Derniers comptes publiés : exercice {year}, soit plus de 2 ans. Les piliers fondamentaux sont exclus de la note.",
+      priceAnomalyNote:
+        "Le cours de cette société présente des variations extrêmes (volatilité ou performance aberrante), souvent le signe d'une opération sur titres ou d'une erreur de cotation non corrigée. Tendance et risque sont écartés de la note, qui repose sur les seuls fondamentaux.",
       noneNote: "Données insuffisantes pour calculer une note.",
       modeLabel: "Données utilisées",
       confidenceLabel: "Confiance",

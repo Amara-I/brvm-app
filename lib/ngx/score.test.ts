@@ -172,3 +172,19 @@ describe("computeNgxScore", () => {
     expect(m.score.pillars.growth.components.find((x) => x.key === "revenueYoy")).toBeUndefined();
   });
 });
+
+describe("cours aberrants", () => {
+  it("écarte tendance et risque quand la série explose (opération sur titres non corrigée)", () => {
+    const series = fixtureSeries(420, 1, 0.0006, 2_000_000);
+    const jump = series.slice(-60).map((p) => ({ ...p, value: p.value * 10 }));
+    const m = build(undefined, { series: [...series.slice(0, -60), ...jump] });
+    expect(m.score.priceAnomaly).toBe(true);
+    expect(m.score.pillars.momentum.score).toBeNull();
+    expect(m.score.pillars.risk.score).toBeNull();
+    expect(m.score.overall).not.toBeNull();
+    expect(m.score.confidence).not.toBe("HIGH");
+  });
+  it("ne signale rien sur une série normale", () => {
+    expect(build().score.priceAnomaly).toBe(false);
+  });
+});

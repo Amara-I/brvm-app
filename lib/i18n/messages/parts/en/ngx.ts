@@ -39,7 +39,7 @@ export const ngx = {
       "Scores out of 100 for Nigerian Exchange companies, by investment policy: growth, income, trading, max growth.",
     kicker: "Nigeria · Nigerian Exchange",
     title: "NGX screener",
-    lead: "Scores out of 100 for NGX-listed companies, computed from published accounts and the share price. {fund} of {total} companies have usable fundamentals; the other {chart} only get a chart score, clearly flagged.",
+    lead: "Scores out of 100 for NGX-listed companies, computed from published accounts and the share price. {fund} of {total} companies have usable fundamentals; the others only get a chart score (or none), clearly flagged.",
     back: "NGX market",
     link: "NGX screener",
     linkHint: "Scores out of 100 by investment policy",
@@ -70,6 +70,8 @@ export const ngx = {
     },
     tags: {
       chartOnly: "Chart only",
+      priceAnomaly: "Check price",
+      priceAnomalyTitle: "Outlier prices: trend and risk left out of the score.",
       partial: "Partial",
       stale: "Accounts {year}",
       staleTitle: "Latest accounts published in {year}: fundamentals left out.",
@@ -321,6 +323,8 @@ export const ngx = {
         "This company has no usable accounts: the score rests on the share price only (trend, performance, risk, liquidity). It is not comparable to a full score.",
       staleNote:
         "Latest published accounts: fiscal year {year}, more than 2 years ago. The fundamental pillars are left out of the score.",
+      priceAnomalyNote:
+        "This company's share price shows extreme moves (outlier volatility or performance), often a sign of an uncorrected corporate action or a quote error. Trend and risk are left out of the score, which rests on fundamentals only.",
       noneNote: "Not enough data to compute a score.",
       modeLabel: "Data used",
       confidenceLabel: "Confidence",

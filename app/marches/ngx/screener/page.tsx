@@ -45,7 +45,6 @@ export default async function NgxScreenerPage() {
               ? t("ngx.screener.lead", {
                   fund: format.integer(cov.fundamentals),
                   total: format.integer(cov.total),
-                  chart: format.integer(cov.chartOnly + cov.unscored),
                 })
               : t("ngx.screener.emptyBody")
           }

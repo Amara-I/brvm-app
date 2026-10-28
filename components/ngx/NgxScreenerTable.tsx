@@ -215,6 +215,11 @@ export default function NgxScreenerTable({
                           {t("ngx.screener.tags.partial")}
                         </span>
                       ) : null}
+                      {r.priceAnomaly ? (
+                        <span className={local.tag} title={t("ngx.screener.tags.priceAnomalyTitle")}>
+                          {t("ngx.screener.tags.priceAnomaly")}
+                        </span>
+                      ) : null}
                       {r.staleAccountsYear != null ? (
                         <span className={local.tag} title={t("ngx.screener.tags.staleTitle", { year: r.staleAccountsYear })}>
                           {t("ngx.screener.tags.stale", { year: r.staleAccountsYear })}
