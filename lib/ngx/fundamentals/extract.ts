@@ -68,7 +68,7 @@ function incomeScore(p: PageInfo, kind: NgxCompanyConfig["kind"], currency: NgxC
   if (isNotesPage(p.text)) return 0;
   if (wrongCurrencyPage(p, currency)) return 0;
   const head = headBlock(p.text, 12);
-  if (!INCOME_HEAD.test(head)) return 0;
+  if (!INCOME_HEAD.test(head) && !/statements?of(?:profitorloss|profitandloss|comprehensiveincome|income)|incomestatements?/i.test(head.replace(/\s+/g, ""))) return 0;
   let s = 1;
   if (currency === "USD" && /\bUSD\b|US\$/.test(p.text.split("\n").slice(0, 30).join("\n"))) s += 1;
   const labels = p.rows.filter((r) => r.nums.length >= 2).map((r) => norm(r.label));
@@ -90,7 +90,7 @@ function balanceScore(p: PageInfo, currency: NgxCompanyConfig["currency"] = "NGN
   if (isNotesPage(p.text)) return 0;
   if (wrongCurrencyPage(p, currency)) return 0;
   const head = headBlock(p.text, 12);
-  if (!BALANCE_HEAD.test(head)) return 0;
+  if (!BALANCE_HEAD.test(head) && !/statements?offinancialposition|balancesheets?/i.test(head.replace(/\s+/g, ""))) return 0;
   const labels = p.rows.filter((r) => r.nums.length >= 1).map((r) => norm(r.label));
   let s = 1;
   if (labels.some((l) => /^total assets/.test(l))) s += 2;
@@ -482,19 +482,19 @@ const SOCE_HEAD = /statements?\s+of\s+changes\s+in\s+(?:shareholders'?\s+|owners
  */
 export function equityFromChangesInEquity(pages: PageInfo[], fy: number): RawField | null {
   for (const p of pages) {
-    if (isNotesPage(p.text) || !SOCE_HEAD.test(headBlock(p.text, 8))) continue;
+    if (isNotesPage(p.text) || !(SOCE_HEAD.test(headBlock(p.text, 8)) || /statements?ofchangesin(?:shareholders'?|owners'?)?equity/i.test(headBlock(p.text, 8).replace(/\s+/g, "")))) continue;
     const closing: Array<{ row: Row; year: number }> = [];
     const opening: Array<{ row: Row; year: number }> = [];
     for (const r of p.rows) {
       const l = norm(r.label);
-      const m = /^(?:balances?(?=\b|at|\d)|closing balance|as ?at|at(?=\s|\d)).*?(20[0-3]\d)\s*$/i.exec(l);
+      const m = /^(?:balances?(?=\b|as|at|\d)|closing balance|as ?at|at(?=\s|\d)).*?(20[0-3]\d)\s*$/i.exec(l);
       if (!m || r.nums.length < 3) continue;
-      const isOpening = /\b0?1(?:st)?\s+(?:january|april|july|october)\b|\bopening\b|\bas restated\b|\brestated\b/i.test(l);
+      const isOpening = /(?<!\d)0?1(?:st)?\s*(?:january|januarv|april|july|october)(?![a-z])|\bopening\b|\bas restated\b|\brestated\b/i.test(l);
       (isOpening ? opening : closing).push({ row: r, year: Number(m[1]) });
     }
     const cur = [...closing].reverse().find((c) => c.year === fy);
     if (!cur) continue;
-    const prev = closing.find((c) => c.year === fy - 1 && c.row.line < cur.row.line) ?? opening.find((c) => c.year === fy && c.row.line < cur.row.line);
+    const prev = [...closing].reverse().find((c) => c.year === fy - 1 && c.row.line < cur.row.line) ?? [...opening].reverse().find((c) => c.year === fy && c.row.line < cur.row.line);
     return {
       values: [cur.row.nums[cur.row.nums.length - 1], prev ? prev.row.nums[prev.row.nums.length - 1] : null],
       label: `${cur.row.label.slice(0, 60)} [total equity, statement of changes in equity]`,

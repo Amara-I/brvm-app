@@ -80,7 +80,9 @@ export function parseRow(line: string, idx = 0): Row {
   const raw = fixLigatures(line).replace(/\t/g, "    ").replace(/(\d) [-–](?=\s{3,}[\d(])/g, "$1")
     // confusions OCR : « 33.723,730 » (point au lieu de virgule), « Resuits »
     .replace(/(?<![\d,.])(\d{1,3})\.(\d{3}),(\d{3})(?![\d])/g, "$1,$2,$3")
-    .replace(/\bResuits\b/g, "Results");
+    .replace(/\bResuits\b/g, "Results")
+    .replace(/\b(for the|of the|during the) vear\b/gi, "$1 year")
+    .replace(/(\d)Januarv\b|\bJanuarv\b/g, (m0, d) => (d ? `${d}January` : "January"));
   // Le libellé s'arrête au premier jeton numérique précédé d'au moins 2 espaces, ou d'un « N »/« ₦ » collé.
   // Puce « – Basic » : le tiret initial suivi d'un mot fait partie du libellé, pas d'une colonne « zéro ».
   const probe = raw.replace(/^(\s*)[–—-](?=\s+[A-Za-z])/, "$1x");

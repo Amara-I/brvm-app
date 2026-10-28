@@ -94,3 +94,10 @@ describe("OCR dotted thousands", () => {
     expect(parseRow("Basic EPS (Naira)       2.835     1.250").nums).toEqual([2.835, 1.25]);
   });
 });
+
+describe("OCR typo repairs (Dangote Sugar FY2018)", () => {
+  it("repairs 'vear' and 'Januarv'", () => {
+    expect(parseRow("Profit for the vear        25.830.941     37,822,609").label).toBe("Profit for the year");
+    expect(parseRow("Balanceasat1Januarv2017     6,000,000    6,320,524   62,264,226   74,584,750").label).toContain("1January2017");
+  });
+});
