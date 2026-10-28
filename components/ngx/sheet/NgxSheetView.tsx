@@ -8,6 +8,7 @@ import { type CriterionKey, type PolicyCriterion } from "@/lib/ngx/policy";
 import type { NgxSheetModel, SectorMetricKey } from "@/lib/ngx/sheet-model";
 import { VALUATION_BAND_PERCENT, type FairValueEstimate } from "@/lib/ngx/valuation";
 import FinancialBars from "./FinancialBars";
+import NgxScoreBlock from "./NgxScoreBlock";
 import styles from "./NgxSheet.module.css";
 
 type Fmt = ReturnType<typeof getI18n>["format"];
@@ -794,8 +795,10 @@ function criterionValue(c: PolicyCriterion, t: T, format: Fmt, v: number | null)
 function Conclusion({ model, t, format, locale }: { model: NgxSheetModel; t: T; format: Fmt; locale: "fr" | "en" }) {
   return (
     <>
+      <NgxScoreBlock score={model.score} t={t} format={format} locale={locale} />
       <div className={styles.policies}>
         {model.policies.map((p) => {
+          const ps = model.score.policies.find((x) => x.type === p.type);
           const def = localizedTypeDef(getPortfolioTypeDef(p.type), locale);
           const tone =
             p.verdict === "FAVORABLE"
@@ -811,6 +814,16 @@ function Conclusion({ model, t, format, locale }: { model: NgxSheetModel; t: T; 
                 <h3>{def.label}</h3>
                 <span className={`${styles.badge} ${tone}`}>{t(`ngx.sheet.conclusion.verdict.${p.verdict}`)}</span>
               </header>
+              <p className={`${styles.policySummary} ${styles.policyScore}`} data-policy-score={p.type}>
+                <strong>
+                  {ps?.score != null
+                    ? t("ngx.sheet.score.policyScore", { score: format.integer(ps.score) })
+                    : t("ngx.sheet.score.policyNd")}
+                </strong>
+                {ps?.score == null && ps && ps.missing.length > 0
+                  ? ` · ${t("ngx.sheet.score.policyMissing", { pillars: ps.missing.map((k) => t(`ngx.sheet.score.pillar.${k}`)).join(", ") })}`
+                  : ""}
+              </p>
               <p className={styles.policySummary}>
                 {t("ngx.sheet.conclusion.criteria", {
                   ok: p.okCount,

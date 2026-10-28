@@ -10,6 +10,7 @@ import {
   type RatioRowLike,
 } from "./fundamentals";
 import { priceStats, type PricePoint, type PriceStats } from "./price-stats";
+import { computeNgxScore, type NgxScore } from "./score";
 import { cleanNgxName, ngxSectorGroup, type NgxSectorGroup } from "./sectors";
 import {
   EQUITY_MIN_SHARE_OF_CAP,
@@ -93,6 +94,8 @@ export interface SheetInput {
   documents: DocumentRowLike[];
   /** Tous les titres NGX (y compris celui-ci) : médianes sectorielles et classement par capitalisation. */
   universe: CompanyInput[];
+  /** Métriques de l'univers déjà calculées (écran de tri : évite de les recalculer pour chaque société). */
+  universeMetrics?: Array<{ c: CompanyInput; m: CompanyMetrics }>;
   /** YYYY-MM-DD */
   today: string;
 }
@@ -211,6 +214,8 @@ export interface NgxSheetModel {
     currentDps: number | null;
   };
   policies: PolicyConclusion[];
+  /** Note 0–100 (global + 4 politiques), dérivée des sections ci-dessus. */
+  score: NgxScore;
 }
 
 // ───────────── Aides ─────────────
@@ -331,10 +336,12 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
   const stats = priceStats(input.series);
 
   // Classement par capitalisation (sociétés avec cours et titres connus).
-  const universeMetrics = input.universe.map((c) => ({
-    c,
-    m: computeCompanyMetrics(c, input.today),
-  }));
+  const universeMetrics =
+    input.universeMetrics ??
+    input.universe.map((c) => ({
+      c,
+      m: computeCompanyMetrics(c, input.today),
+    }));
   const ranked = universeMetrics
     .filter((x) => x.m.marketCapBn != null)
     .sort((a, b) => (b.m.marketCapBn ?? 0) - (a.m.marketCapBn ?? 0));
@@ -453,7 +460,7 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     .sort((a, b) => ((a.publishedAt ?? "") < (b.publishedAt ?? "") ? 1 : -1))
     .slice(0, 12);
 
-  return {
+  const model: Omit<NgxSheetModel, "score"> = {
     ticker: company.ticker,
     name: cleanNgxName(company.name),
     tier: fullTier ? "FULL" : "COMING_SOON",
@@ -509,4 +516,5 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
     },
     policies,
   };
+  return { ...model, score: computeNgxScore(model) };
 }

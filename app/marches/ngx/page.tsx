@@ -59,6 +59,14 @@ export default async function NgxMarketPage() {
           </div>
         </div>
 
+        <Link href="/marches/ngx/screener" className={styles.screenerLink} data-testid="ngx-screener-link">
+          <span>
+            <strong>{t("ngx.screener.link")}</strong>
+            <span className={styles.sub}>{t("ngx.screener.linkHint")}</span>
+          </span>
+          <span aria-hidden="true">→</span>
+        </Link>
+
         {shares.length === 0 ? (
           <EmptyState title={t("ngx.market.emptyTitle")} body={t("ngx.market.emptyBody")} />
         ) : (

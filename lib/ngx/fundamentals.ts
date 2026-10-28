@@ -37,7 +37,7 @@ export interface NgxYearExtras {
   /** Confiance des capitaux propres ; null si le chargement ne l'a pas enregistrée. */
   equityConfidence: NgxConfidence | null;
   /** Confiance du BPA publié ; null si non enregistrée. */
-  epsConfidence: NgxConfidence | null;
+  epsConfidence?: NgxConfidence | null;
   sourceUrl: string | null;
 }
 
@@ -51,6 +51,8 @@ export interface NgxFinancialYear {
   equityConfidence: NgxConfidence | null;
   /** BPA publié uniquement. Jamais déduit du nombre de titres actuel : il a pu changer depuis. */
   epsNgn: number | null;
+  /** Confiance du BPA (donc de la lecture du compte de résultat de l'exercice) ; null = non enregistrée. */
+  epsConfidence?: NgxConfidence | null;
   /**
    * Nombre de titres de l'exercice, déduit des comptes (résultat net ÷ BPA publié). Sert uniquement à
    * ramener les capitaux propres de l'exercice par action ; null si le BPA ou le résultat manque.
@@ -196,6 +198,7 @@ export function buildFinancialYears(
       equityBn: extra?.equityBn ?? null,
       equityConfidence: extra?.equityConfidence ?? null,
       epsNgn: eps,
+      epsConfidence: extra?.epsConfidence ?? null,
       eraShares,
       sourceUrl: extra?.sourceUrl ?? null,
     });

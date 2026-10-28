@@ -60,10 +60,11 @@ export interface NgxSheetData {
   model: NgxSheetModel;
 }
 
-export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null> {
-  const page = await loadNgxCompany(ticker);
-  if (!page) return null;
-
+/** Toutes les sociétés NGX actives avec leurs comptes, dividendes et dernier cours (une seule requête). */
+export async function loadNgxUniverse(): Promise<{
+  rows: Array<{ id: string; ticker: string }>;
+  universe: CompanyInput[];
+}> {
   const universeRows = await prisma.company.findMany({
     where: { exchange: "NGX", isActive: true },
     select: {
@@ -122,6 +123,14 @@ export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null>
       dividends: c.dividends.map(toDividend),
     };
   });
+  return { rows: universeRows, universe };
+}
+
+export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null> {
+  const page = await loadNgxCompany(ticker);
+  if (!page) return null;
+
+  const { rows: universeRows, universe } = await loadNgxUniverse();
 
   const me = universe.find((c) => c.ticker === page.ticker);
   const meRow = universeRows.find((c) => c.ticker === page.ticker);
