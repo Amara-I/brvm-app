@@ -30,6 +30,14 @@ export interface RefreshChartSeriesOptions {
   timeBudgetMs?: number;
   /** Ne traite que les symboles strictement après celui-ci (reprise). */
   after?: string;
+  /** Reconstruit toutes les séries ciblées, même si le cache semble à jour. */
+  force?: boolean;
+  /**
+   * Reconstruit aussi une série dont le cache a moins de points que
+   * price_history / market_index_values (historique chargé après coup).
+   * Défaut : actif pour NGX, inactif pour BRVM.
+   */
+  depthCheck?: boolean;
   logger?: (msg: string) => void;
 }
 
@@ -131,30 +139,14 @@ async function upsertRangeRows(opts: {
     ...(opts.adjustmentFingerprint ? { adjustmentFingerprint: opts.adjustmentFingerprint } : {}),
   };
   const fingerprint = fingerprintForSeries(full);
-  let upserted = 0;
-  for (const rangeKey of CHART_SERIES_RANGE_KEYS) {
-    const slice = sliceForCacheRange(full, rangeKey);
-    const first = slice[0]?.time ?? null;
-    const last = slice[slice.length - 1]?.time ?? null;
-    await db.chartSeries.upsert({
-      where: {
-        uniq_chart_series_kind_symbol_range: { kind, symbol, rangeKey },
-      },
-      create: {
-        kind,
-        symbol,
-        exchange,
-        companyId,
-        rangeKey,
-        points: toCompactPoints(slice) as unknown as Prisma.InputJsonValue,
-        pointCount: slice.length,
-        firstDate: first ? new Date(`${first}T00:00:00.000Z`) : null,
-        lastDate: last ? new Date(`${last}T00:00:00.000Z`) : null,
-        fingerprint,
-        meta: meta as unknown as Prisma.InputJsonValue,
-        builtAt: new Date(),
-      },
-      update: {
+  // Fenêtres en parallèle : 7 aller-retours séquentiels par titre coûtent cher
+  // quand la base est distante (le pool Prisma borne la concurrence réelle).
+  await Promise.all(
+    CHART_SERIES_RANGE_KEYS.map(async (rangeKey) => {
+      const slice = sliceForCacheRange(full, rangeKey);
+      const first = slice[0]?.time ?? null;
+      const last = slice[slice.length - 1]?.time ?? null;
+      const data = {
         exchange,
         companyId,
         points: toCompactPoints(slice) as unknown as Prisma.InputJsonValue,
@@ -164,10 +156,15 @@ async function upsertRangeRows(opts: {
         fingerprint,
         meta: meta as unknown as Prisma.InputJsonValue,
         builtAt: new Date(),
-      },
-    });
-    upserted++;
-  }
+      };
+      await db.chartSeries.upsert({
+        where: { uniq_chart_series_kind_symbol_range: { kind, symbol, rangeKey } },
+        create: { kind, symbol, rangeKey, ...data },
+        update: data,
+      });
+    })
+  );
+  const upserted = CHART_SERIES_RANGE_KEYS.length;
   return upserted;
 }
 
@@ -231,9 +228,15 @@ export function chartSeriesNeedsRebuild(input: {
   latestCloseDate: string | null;
   cacheFingerprint: string | null | undefined;
   actionsFingerprint: string;
+  /** Points de la ligne MAX en cache. */
+  cachePoints?: number | null;
+  /** Jours canoniques distincts en base. Renseignés seulement si le contrôle de profondeur est actif. */
+  canonicalDays?: number | null;
 }): boolean {
   if (!input.latestCloseDate) return !input.cacheLastDate;
   if (!input.cacheLastDate || input.latestCloseDate > input.cacheLastDate) return true;
+  // Même dernière date mais historique plus profond en base (backfill) : le cache est incomplet.
+  if (input.canonicalDays != null && (input.cachePoints ?? 0) < input.canonicalDays) return true;
   if (input.actionsFingerprint === "none") return false;
   return (input.cacheFingerprint ?? null) !== input.actionsFingerprint;
 }
@@ -460,19 +463,21 @@ async function keepStaleSymbols(
   db: PrismaClient,
   kind: ChartSeriesKindCode,
   symbols: Array<{ id: string; symbol: string }>,
-  actionsFor: (symbol: string) => AdjustmentAction[]
+  actionsFor: (symbol: string) => AdjustmentAction[],
+  depthCheck = false
 ): Promise<Array<{ id: string; symbol: string }>> {
   if (symbols.length === 0) return symbols;
   const names = symbols.map((row) => row.symbol);
   const caches = await db.chartSeries.findMany({
     where: { kind, rangeKey: "MAX", symbol: { in: names } },
-    select: { symbol: true, lastDate: true, meta: true },
+    select: { symbol: true, lastDate: true, meta: true, pointCount: true },
   });
   const cacheBySymbol = new Map(caches.map((row) => [row.symbol, row]));
   let latest = new Map<string, string>();
+  let days = new Map<string, number>();
   if (kind === "COMPANY") {
-    const rows = await db.$queryRaw<Array<{ symbol: string; last_date: Date }>>`
-      SELECT c.ticker AS symbol, MAX(ph.date) AS last_date
+    const rows = await db.$queryRaw<Array<{ symbol: string; last_date: Date; days: number }>>`
+      SELECT c.ticker AS symbol, MAX(ph.date) AS last_date, COUNT(DISTINCT ph.date) FILTER (WHERE ph.close_price > 0)::int AS days
       FROM "companies" c
       JOIN "price_history" ph ON ph.company_id = c.id
       WHERE ph.is_canonical = true
@@ -481,9 +486,10 @@ async function keepStaleSymbols(
       GROUP BY c.ticker
     `;
     latest = new Map(rows.map((row) => [row.symbol, isoDate(row.last_date)]));
+    days = new Map(rows.map((row) => [row.symbol, row.days]));
   } else {
-    const rows = await db.$queryRaw<Array<{ symbol: string; last_date: Date }>>`
-      SELECT mi.code AS symbol, MAX(v.date) AS last_date
+    const rows = await db.$queryRaw<Array<{ symbol: string; last_date: Date; days: number }>>`
+      SELECT mi.code AS symbol, MAX(v.date) AS last_date, COUNT(DISTINCT v.date) FILTER (WHERE v.value > 0)::int AS days
       FROM "market_indices" mi
       JOIN "market_index_values" v ON v.market_index_id = mi.id
       WHERE v.is_canonical = true
@@ -492,6 +498,7 @@ async function keepStaleSymbols(
       GROUP BY mi.code
     `;
     latest = new Map(rows.map((row) => [row.symbol, isoDate(row.last_date)]));
+    days = new Map(rows.map((row) => [row.symbol, row.days]));
   }
   return symbols.filter((row) => {
     const cache = cacheBySymbol.get(row.symbol);
@@ -501,9 +508,14 @@ async function keepStaleSymbols(
       latestCloseDate: latest.get(row.symbol) ?? null,
       cacheFingerprint: meta?.adjustmentFingerprint,
       actionsFingerprint: adjustmentFingerprint(actionsFor(row.symbol)),
+      cachePoints: cache?.pointCount ?? null,
+      canonicalDays: depthCheck ? (days.get(row.symbol) ?? null) : null,
     });
   });
 }
+
+/** Sentinelle : `force` saute le filtre de fraîcheur. */
+class ForceRebuild extends Error {}
 
 export async function refreshChartSeries(
   options: RefreshChartSeriesOptions = {},
@@ -521,6 +533,8 @@ export async function refreshChartSeries(
   let skippedMissingTable = false;
 
   const exchangeScope = options.exchange ?? (only?.length ? undefined : "BRVM");
+  const force = options.force === true;
+  const depthCheck = options.depthCheck ?? exchangeScope === "NGX";
 
   try {
     if (kinds.has("COMPANY")) {
@@ -536,17 +550,19 @@ export async function refreshChartSeries(
       });
       if (after) companies = companies.filter((row) => row.ticker > after);
       try {
+        if (force) throw new ForceRebuild();
         const actionMap = await actionsByTicker();
         const stale = await keepStaleSymbols(
           db,
           "COMPANY",
           companies.map((row) => ({ id: row.id, symbol: row.ticker })),
-          (symbol) => actionMap.get(symbol) ?? []
+          (symbol) => actionMap.get(symbol) ?? [],
+          depthCheck
         );
         const staleTickers = new Set(stale.map((row) => row.symbol));
         companies = companies.filter((row) => staleTickers.has(row.ticker));
       } catch (err) {
-        if (!isMissingDatabaseObject(err)) {
+        if (!(err instanceof ForceRebuild) && !isMissingDatabaseObject(err)) {
           log(options, `fraîcheur chart_series ignorée : ${err instanceof Error ? err.message : String(err)}`);
         }
       }
@@ -587,16 +603,18 @@ export async function refreshChartSeries(
       });
       if (after && !kinds.has("COMPANY")) indices = indices.filter((row) => row.code > after);
       try {
+        if (force) throw new ForceRebuild();
         const stale = await keepStaleSymbols(
           db,
           "INDEX",
           indices.map((row) => ({ id: row.id, symbol: row.code })),
-          () => []
+          () => [],
+          depthCheck
         );
         const staleCodes = new Set(stale.map((row) => row.symbol));
         indices = indices.filter((row) => staleCodes.has(row.code));
       } catch (err) {
-        if (!isMissingDatabaseObject(err)) {
+        if (!(err instanceof ForceRebuild) && !isMissingDatabaseObject(err)) {
           log(options, `fraîcheur indices ignorée : ${err instanceof Error ? err.message : String(err)}`);
         }
       }

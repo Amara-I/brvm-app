@@ -24,6 +24,8 @@ export interface NgxHistoryQuery {
   indices: boolean;
   /** Reprise du refresh `chart_series` (`after` de refreshChartSeries). */
   chartsAfter?: string;
+  /** force=1 : reconstruit toutes les chart_series NGX, même à jour. */
+  chartsForce: boolean;
   resume: boolean;
   /** La séance demandée peut être le JSON du jour. */
   tryJson: boolean;
@@ -87,6 +89,7 @@ export function parseNgxHistorySearchParams(q: URLSearchParams, now = new Date()
     fx: flag(q.get("fx"), singleDay),
     indices: flag(q.get("indices"), true),
     chartsAfter: q.get("after")?.trim().toUpperCase() || undefined,
+    chartsForce: flag(q.get("force"), false),
     resume: flag(q.get("resume"), true),
     tryJson: singleDay,
   };

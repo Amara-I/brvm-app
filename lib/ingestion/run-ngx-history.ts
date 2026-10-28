@@ -38,6 +38,8 @@ export interface NgxHistoryOptions {
   /** Défaut CLI : true. Le cron de chunk passe false. */
   charts?: boolean;
   chartsAfter?: string;
+  /** true = reconstruire les chart_series NGX même si le cache semble à jour. */
+  chartsForce?: boolean;
   /** true = enregistrer le dernier EUR→NGN. Défaut false. */
   fx?: boolean;
   /** Séance unique : accepter le JSON du jour s'il porte cette date. */
@@ -384,7 +386,7 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
       }
       const slice = options.budgetMs == null ? 60_000 : Math.max(3_000, Math.min(chartBudget, remaining() - 1_000));
       const charts = await refreshChartSeries(
-        { exchange: "NGX", timeBudgetMs: slice, after, logger: options.logger },
+        { exchange: "NGX", timeBudgetMs: slice, after, force: options.chartsForce === true, logger: options.logger },
         db
       );
       chartsUpdated += charts.companiesUpdated + charts.indicesUpdated;

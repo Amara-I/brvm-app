@@ -18,6 +18,9 @@
 //   fx=1|0              dernier EUR→NGN dans fx_rates. Défaut : 1 si date=, sinon 0
 //   indices=0           saute la page de couverture
 //   after=DANGCEM       reprise du refresh chart_series
+//   force=1            reconstruit TOUTES les chart_series NGX (sociétés + indices), même à jour.
+//                       Sans force, une série est refaite si sa dernière date est en retard OU si
+//                       son historique en cache a moins de points que la base (backfill).
 //   resume=0            ignore le curseur mémorisé (les clôtures déjà là restent sautées)
 //
 // Réponse : data.incomplete, data.next / data.cursor, data.chartsNext,
@@ -65,6 +68,7 @@ async function handle(request: NextRequest) {
       indices: parsed.indices,
       charts: parsed.charts,
       chartsAfter: parsed.chartsAfter,
+      chartsForce: parsed.chartsForce,
       fx: parsed.fx,
       tryJson: parsed.tryJson,
       resume: parsed.resume,
