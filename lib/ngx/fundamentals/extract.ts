@@ -208,14 +208,14 @@ function islamicGrossEarnings(pages: PageInfo[], idxs: number[], layoutOf: (p: P
 /** Détermine l'exercice (année de la date de clôture) d'après l'en-tête d'un état. */
 export function detectFiscalYear(page: string): { year: number | null; month: number | null } {
   const head = page.split("\n").slice(0, 30).join("\n");
-  const re =
-    /(\d{1,2})(?:st|nd|rd|th)?\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+(20[0-3]\d)|(january|february|march|april|may|june|july|august|september|october|november|december)\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20[0-3]\d)/gi;
-  const months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+  const MON = "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+  const withDay = new RegExp(String.raw`(?<![\d,.])(\d{1,2})(?:st|nd|rd|th)?\s+(${MON})\.?,?\s+(20[0-3]\d)|\b(${MON})\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(20[0-3]\d)`, "gi");
+  const monthYear = new RegExp(String.raw`\b(${MON})\.?,?\s+(20[0-3]\d)\b`, "gi");
+  const monthIdx = (name: string) => ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(name.toLowerCase().slice(0, 3)) + 1;
   const found: Array<{ y: number; m: number }> = [];
-  for (const m of head.matchAll(re)) {
-    const mon = (m[2] ?? m[4]).toLowerCase();
-    found.push({ y: Number(m[3] ?? m[6]), m: months.indexOf(mon) + 1 });
-  }
+  for (const m of head.matchAll(withDay)) found.push({ y: Number(m[3] ?? m[6]), m: monthIdx(m[2] ?? m[4]) });
+  // en-têtes « December 2023 | December 2022 » (mois + année, sans jour)
+  if (!found.length) for (const m of head.matchAll(monthYear)) found.push({ y: Number(m[2]), m: monthIdx(m[1]) });
   if (found.length) {
     // première date de colonne = exercice courant ; on prend la plus récente (colonnes courant/précédent)
     const best = found.reduce((a, b) => (b.y * 12 + b.m > a.y * 12 + a.m ? b : a));

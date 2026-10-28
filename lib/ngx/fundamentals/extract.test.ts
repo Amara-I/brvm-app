@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { getCompany } from "./companies";
-import { columnLayout, extractStatements, pickColumns } from "./extract";
+import { columnLayout, detectFiscalYear, extractStatements, pickColumns } from "./extract";
 import { parsePage } from "./text";
 
 const corp = getCompany("DANGCEM")!;
@@ -119,5 +119,15 @@ describe("step-2 company fixes", () => {
     expect(lay.dual).toBe(true);
     const row = parsePage(text).find((r) => /Gross earnings/.test(r.label))!;
     expect(pickColumns(row, lay)).toEqual([2328822, 2000000]);
+  });
+});
+
+describe("detectFiscalYear — month/year headers", () => {
+  it("reads « December 2023  December 2022 » without picking the trailing 23 as a day", () => {
+    const page = "Consolidated statement of comprehensive income\n\nIn millions of Naira   Group  Group\n   Notes  December 2023      December 2022\n";
+    expect(detectFiscalYear(page)).toEqual({ year: 2023, month: 12 });
+  });
+  it("reads abbreviated months", () => {
+    expect(detectFiscalYear("financial statements for the year ended 31 Dec 2021\n")).toEqual({ year: 2021, month: 12 });
   });
 });

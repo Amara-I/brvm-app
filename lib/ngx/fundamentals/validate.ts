@@ -482,7 +482,8 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       const afsPartial = own ? own.kind === "final" || own.kind === "interim" : false;
       const afsVal = row.dps;
       if (afsVal !== null && afsSrc(dpsSource)) {
-        const cmp = nTot ?? (nd.final !== null && own?.kind === "final" ? nd.final : nd.interim !== null && own?.kind === "interim" ? nd.interim : null);
+        const single = !afsPartial ? (nd.completeness === "final_only" ? nd.final : nd.completeness === "interim_only" ? nd.interim : null) : null; // un seul versement annoncé : il vaut le total
+        const cmp = nTot ?? (nd.final !== null && own?.kind === "final" ? nd.final : nd.interim !== null && own?.kind === "interim" ? nd.interim : single);
         if (cmp !== null && REL(afsVal, cmp) <= 0.01) {
           const bothPartial = afsPartial && nd.completeness !== "total_stated" && nd.completeness !== "final+interim";
           conf.dps = bothPartial ? (conf.dps === "low" ? "medium" : conf.dps) : nd.ocr && ex.ocr ? "medium" : "high";
