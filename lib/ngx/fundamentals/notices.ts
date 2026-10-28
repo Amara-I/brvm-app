@@ -81,16 +81,45 @@ function toNaira(cur: string | undefined, num: string, suffix: string | undefine
   return v;
 }
 
+/** Réparations minimales d'un texte OCR dont les espaces sont perdus (« AFinalDividendof20koboper5okoboordinaryshare »). */
+export function repairOcr(t: string): string {
+  return t
+    .replace(/[\[\]]/g, " ")
+    .replace(/(\d)[oO](?=\s*k(?:obo)?\b)/gi, "$10") // « 5okobo », « 15oK » → « 50kobo », « 150K »
+    .replace(/(dividend\s*(?:of|in\s+the\s+sum\s+of)?\s*)[~=_—]/gi, "$1N") // « of ~1.07 » = N1.07
+    .replace(/(dividend\s*(?:of|in\s+the\s+sum\s+of)?\s*)[mMwW](?=\d)/gi, "$1N") // « M1.25K » = N1.25K
+    .replace(/\bof(?=[N₦])/g, "of ")
+    .replace(/(dividend\s*of\s*)N\.(?=\d)/gi, "$1N0.")
+    .replace(/(dividend\s+of)\.(?=\d)/gi, "$1 ") // « of.35kobo »
+    .replace(/div\s+idend/gi, "dividend")
+    .replace(/in\s*the\s*sum\s*of/gi, " in the sum of ")
+    .replace(/(dividend\s+of\s+)(?:[A-Za-z-]+\s+){1,5}?\(\s*((?:N|₦)?\s?\d[\d.,]*\s*(?:kobo|k)?)\s*\)/gi, "$1$2") // « of Ten Kobo (10 kobo) »
+    .replace(/\bA(?=(?:Final|Interim|Dividend)\b|Final[A-Z]|Interim[A-Z]|Dividend)/g, "A ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/dividends?(of|at|to|is|was)(?=[\s\dN₦])/gi, (m, w) => `dividend ${w} `)
+    .replace(/([a-z])(\d)/gi, "$1 $2")
+    .replace(/(\d)([a-z])/gi, "$1 $2")
+    .replace(/(kobo)(per)/gi, "$1 $2")
+    .replace(/(\d[\d.,]*)\s*\(\s*[A-Za-z][A-Za-z\s,-]{2,70}\)/g, "$1"); // « 50 (Fifty) kobo » → « 50 kobo »
+}
+
 /**
  * @param text texte brut d'un avis (pdftotext ou OCR)
  */
 export function parseDividendNotice(text: string, meta: { createdAt?: string; title?: string; kind?: string; ocr?: boolean }): DividendNotice[] {
-  const flat = fixLigatures(text).replace(/[\u00a0\s]+/g, " ");
+  let src = fixLigatures(text)
+    .replace(/\bN[lI]\s?[:;]\s?(\d\d)/g, "N1.$1") // « Nl:00 » = N1.00 (OCR du PDF source)
+    .replace(/\bNo\.(\d)/g, "N0.$1") // « No.40 » = N0.40
+    .replace(/\bN\.(\d)/g, "N0.$1") // « N.30k » = N0.30k
+    .replace(/\bInferim\b/gi, "Interim");
+  src = repairOcr(src); // PDF à espaces perdus ou OCR : mêmes réparations
+  const flat = src.replace(/[\u00a0\s]+/g, " ");
   if (!/dividend/i.test(flat)) return [];
   const pe = periodEnd(flat);
   const out: DividendNotice[] = [];
   const seen = new Set<string>();
   const push = (type: NoticeType, cur: string | undefined, num: string, suffix: string | undefined, idx: number, len: number) => {
+    if (/\b(?:scrip|reference\s+price|share\s+price)\b/i.test(flat.slice(Math.max(0, idx - 60), idx + len))) return; // prix de référence d'un dividende en actions
     const dps = toNaira(cur, num, suffix);
     if (dps === null || dps <= 0 || dps >= 1000) return;
     const key = `${type}:${dps}`;
@@ -103,14 +132,31 @@ export function parseDividendNotice(text: string, meta: { createdAt?: string; ti
     return /final/.test(k) ? "final" : /interim/.test(k) ? "interim" : /total/.test(k) ? "total" : /special/.test(k) ? "special" : "unspecified";
   };
   // (1) « [Proposed] [Final|Interim|Total] Dividend [(Final)] [per share]: 25k »
-  const r1 = new RegExp(String.raw`\b(proposed\s+final|proposed\s+interim|final|interim|total|special|proposed)?\s*dividends?\s*(?:\(\s*(final|interim)\s*\))?\s*(?:per\s+(?:ordinary\s+)?share\s*(?:\(dps\))?\s*)?(?::|-|–)\s*${AMOUNT}${NOT_AMOUNT}`, "gi");
+  const r1 = new RegExp(String.raw`\b(proposed\s+final|proposed\s+interim|final|interim|total|special|proposed)?\s*dividends?\s*(?:\(\s*(final|interim)\s*\))?\s*(?:declared|recommended|proposed)?\s*(?:per\s+(?:ordinary\s+)?share\s*(?:\(dps\))?\s*)?(?::|-|–)\s*${AMOUNT}${NOT_AMOUNT}`, "gi");
   for (const m of flat.matchAll(r1)) {
     if (new RegExp(`^\\s*(?:st|nd|rd|th)?\\s*(?:of\\s+)?${MONTH_RE}\\b`, "i").test(flat.slice(m.index! + m[0].length, m.index! + m[0].length + 14))) continue;
     push(kindOf(m[2] ?? m[1]), m[3], m[4], m[5], m.index!, m[0].length);
   }
   // (2) « a final dividend of N16.00 per share », « dividend of 50 kobo per share », « total dividend ... to N2.75k »
-  const r2 = new RegExp(String.raw`\b(final|interim|special|total|proposed)?\s*dividends?(?:\s+per\s+(?:ordinary\s+)?share)?(?:\s*\(dps\))?\s+(?:of|at|to|is|was)\s+(?:a\s+)?(?:total\s+of\s+)?${AMOUNT}${NOT_AMOUNT}`, "gi");
-  for (const m of flat.matchAll(r2)) push(kindOf(m[1]), m[2], m[3], m[4], m.index!, m[0].length);
+  const r2 = new RegExp(String.raw`(final|interim|special|total|proposed)?\s*dividends?(?:\s+per\s+(?:ordinary\s+)?share)?(?:\s*\(dps\))?\s+(?:of|at|to|is|was|in\s+the\s+(?:sum|amount)\s+of|(?:at\s+)?(?:a|the)\s+rate\s+of)\s+(?:a\s+)?(?:total\s+of\s+)?${AMOUNT}${NOT_AMOUNT}`, "gi");
+  for (const m of flat.matchAll(r2)) {
+    // « unclaimed dividends is 8. » : un nombre nu n'est un DPS que s'il est suivi de « per share »
+    if (!m[2] && !m[4] && !m[3].includes(".") && !/^\s*per\b/i.test(flat.slice(m.index! + m[0].length, m.index! + m[0].length + 12))) continue;
+    push(kindOf(m[1]), m[2], m[3], m[4], m.index!, m[0].length);
+  }
+  // (2b) « PROPOSED DIVIDEND 16 KOBO PER SHARE » (sans « of »/« : ») — montant avec N ou kobo obligatoire
+  const r2b = new RegExp(String.raw`(proposed\s+final|proposed\s+interim|final|interim|total|proposed)?\s*dividends?\s+${AMOUNT}\s*(?:per\s+(?:ordinary\s+)?share)?${NOT_AMOUNT}`, "gi");
+  for (const m of flat.matchAll(r2b)) {
+    if (!m[2] && !m[4]) continue;
+    push(kindOf(m[1]), m[2], m[3], m[4], m.index!, m[0].length);
+  }
+  // (2c) montant avant le libellé : « Proposed 3 Kobo Dividend », « 65 kobo for every ordinary share of 50 kobo each Dividend », « N1.00 (one naira) Interim Dividend »
+  const r5 = new RegExp(String.raw`(?:proposed\s+(final\s+|interim\s+)?)?${AMOUNT}\s*(?:for\s*every\s*(?:ordinary\s*)?share\s*of\s*50\s*kobo\s*each\s*)?(final|interim)?\s*dividend\b`, "gi");
+  for (const m of flat.matchAll(r5)) {
+    if (!m[2] && !m[4]) continue;
+    if (!/^proposed/i.test(m[0]) && !/for\s*every/i.test(m[0])) continue;
+    push(kindOf(m[5] ?? m[1]), m[2], m[3], m[4], m.index!, m[0].length);
+  }
   // (3) « bringing the total dividend for the year to N2.75k »
   const r3 = new RegExp(String.raw`total\s+dividends?\s+for\s+the\s+(?:financial\s+)?year(?:\s+ended\s+[^,]{0,25}?20\d\d)?\s+to\s+${AMOUNT}${NOT_AMOUNT}`, "gi");
   for (const m of flat.matchAll(r3)) push("total", m[1], m[2], m[3], m.index!, m[0].length);

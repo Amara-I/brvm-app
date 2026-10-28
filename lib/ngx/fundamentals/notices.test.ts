@@ -89,3 +89,29 @@ describe("cashCheck", () => {
     expect(cashCheck(null, null, 1e9, 1e9)).toBeNull();
   });
 });
+
+describe("parseDividendNotice — squashed spaces and OCR noise", () => {
+  const one = (t: string) => parseDividendNotice(t, meta).map((x) => [x.type, x.dps, x.periodEnd?.year, x.periodEnd?.month]);
+  it("handles « in the sum of » and merged words", () => {
+    expect(one("Period Ended December31,2018 AFinalDividend in the sumofN2.45KoboperOrdinary Shareof 50Kobo")).toEqual([["final", 2.45, 2018, 12]]);
+    expect(one("Period Ended June30,2018 AnInterimDividend inthesumof30KoboperOrdinaryShareof50Kobo")).toEqual([["interim", 0.3, 2018, 6]]);
+  });
+  it("reads N.30k, Nl:00 and « 50 (Fifty) kobo »", () => {
+    expect(one("Period Ended 30th June, 2019 AnInterimDividendofN.30kforevery shareof50K")[0].slice(0, 2)).toEqual(["interim", 0.3]);
+    expect(one("Period Ended June30,2024 An Interim Dividend in the sum of Nl:00 per Ordinary Share of 50 Kobo")[0].slice(0, 2)).toEqual(["interim", 1]);
+    expect(one("Period Ended 31 December 2017 A Final Dividend of 50 (Fifty) kobo per ordinary share of 50 kobo each")[0].slice(0, 2)).toEqual(["final", 0.5]);
+  });
+  it("repairs OCR slips (5okobo, N1.1oKobo, M1.25K)", () => {
+    expect(one("Period Ended 31December2019. AFinal Dividend of 20 kobo per 5okoboordinaryshare")[0].slice(0, 2)).toEqual(["final", 0.2]);
+    expect(one("Period Ended 31December2021 ADividend of N1.1oKobo per 50 kobo ordinary share")[0][1]).toBe(1.1);
+    expect(one("Period Ended 31December2017 A Final Dividend of M1.25K per 50k ordinary share")[0][1]).toBe(1.25);
+  });
+  it("reads « Proposed 3 Kobo Dividend » and ignores 'Interim Dividend:25 k Final Dividend:40 k' mix-ups", () => {
+    expect(one("Period Ended 31stDecember,2019 Proposed 3 Kobo Dividend Proposed Bonus")[0][1]).toBe(0.03);
+    expect(one("Proposed Bonus: N/A Interim Dividend:25 k Final Dividend:40 k Total Dividend:65 k")).toEqual([["interim", 0.25, undefined, undefined], ["final", 0.4, undefined, undefined], ["total", 0.65, undefined, undefined]]);
+  });
+  it("ignores unclaimed dividends lists and scrip reference prices", () => {
+    expect(one("A list of unclaimed dividends is 8. To grant the Company a general mandate")).toEqual([]);
+    expect(one("The reference price applicable to the 2026 Interim Scrip Dividend is ₦159.86 (one hundred) per ordinary share")).toEqual([]);
+  });
+});
