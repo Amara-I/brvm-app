@@ -64,7 +64,7 @@ The value **as originally reported** is kept. If the next AFS's comparative diff
 * banks: revenue = gross earnings (else interest income), "operating profit" = profit before tax (basis recorded);
 * USD reporters (ETI) keep `currency=USD` (values extracted from the US$'000 column of dual-currency pages) and are **skipped** by step 5. Proposal: store a `currency` in `profile_meta.ngxFundamentals.years.<year>` and display natively as "US$", or use the NGN columns ETI itself publishes on the same pages rather than an invented FX rate; nothing is loaded for ETI until decided. ETI EPS is published in US cents.
 
-`high` is the only level loaded by default (`--min=medium` to relax). Everything else goes to `review_queue.csv` with the reason, file and page.
+`high` is the only level loaded by default (`--min medium` to relax). Everything else goes to `review_queue.csv` with the reason, file and page.
 
 ## Step 5 targets
 `financial_ratios` (₦ bn, source `NGX_OFFICIEL`), `dividends` (₦/share), `company_documents`, and `companies.profile_meta.ngxFundamentals.years.<year>` = `{equityBn, epsNgn, sourceUrl}` (read by `lib/ngx/fundamentals.ts`).

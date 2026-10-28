@@ -272,9 +272,10 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
   const unitFixed = new Map<number, number>();
   for (const [fy, d0] of [...byFy]) {
     let d = d0;
-    const inferred = inferUnit(d, opts.shares) ?? inferUnitFromNeighbours(d, [byFy.get(fy + 1), byFy.get(fy - 1)].filter((n): n is ExtractedDoc => !!n));
+    const hint = !d.extraction.unitMultiplier ? company.unitHints?.[fy] ?? null : null;
+    const inferred = hint ?? inferUnit(d, opts.shares) ?? inferUnitFromNeighbours(d, [byFy.get(fy + 1), byFy.get(fy - 1)].filter((n): n is ExtractedDoc => !!n));
     if (inferred) {
-      d = { ...d, extraction: { ...d.extraction, unitMultiplier: inferred, unitLabel: `${inferred === 1 ? "units" : inferred === 1000 ? "thousands" : "millions"} (inferred from EPS × shares)`, warnings: [...d.extraction.warnings, "unit_inferred_by_eps_shares"] } };
+      d = { ...d, extraction: { ...d.extraction, unitMultiplier: inferred, unitLabel: `${inferred === 1 ? "units" : inferred === 1000 ? "thousands" : "millions"} (${hint ? "company unit hint" : "inferred from EPS × shares"})`, warnings: [...d.extraction.warnings, hint ? "unit_from_company_hint" : "unit_inferred_by_eps_shares"] } };
     }
     const f = unitCorrection(d, opts.shares);
     if (f !== 1) {
@@ -413,6 +414,30 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
     // Le comparatif de N+1 doit porter sur la même base de montants (propriétaires ↔ propriétaires)
     const sameNpBasis = (next?.extraction.fields.netProfitOwners ? 1 : 0) === (doc.extraction.fields.netProfitOwners ? 1 : 0);
 
+    // Lecture OCR du document de l'exercice : un seul chiffre mal lu (ex. 33 112 774 au lieu de 53 112 774) est corrigé
+    // par le comparatif N+1 (autre scan/texte). La valeur reste « medium » (deux lectures indépendantes mais OCR).
+    if (ex.ocr && next) {
+      for (const k of ["revenue", "operatingProfit", "netProfit", "equity"] as const) {
+        const a = V[k].cur;
+        if (a === null) continue;
+        const tot = next.extraction.fields.equityTotal?.values[1];
+        const cands = [C[k].prior, k === "equity" && tot != null && next.extraction.unitMultiplier ? tot * next.extraction.unitMultiplier : null];
+        for (const b of cands) {
+          if (b === null || REL(a, b) <= AGREE) continue;
+          const sa = String(Math.round(Math.abs(a) / 1000));
+          const sb = String(Math.round(Math.abs(b) / 1000));
+          if (sa.length !== sb.length || Math.sign(a) !== Math.sign(b)) continue;
+          let diff = 0;
+          for (let i = 0; i < sa.length; i++) if (sa[i] !== sb[i]) diff++;
+          if (diff === 1) {
+            V[k].cur = b;
+            notes.push(`ocr_misread_${k}_corrected_from_${fy + 1}_comparative`);
+            break;
+          }
+        }
+      }
+    }
+
     const bn = (v: number | null) => (v === null ? null : Math.round((v / 1e9) * 1e6) / 1e6);
     row.revenueBn = bn(V.revenue.cur);
     row.revenueBasis = ex.revenueBasis;
@@ -461,7 +486,14 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       notes.push("negative_or_zero_equity");
       add(fy, "equity", "medium", "capitaux propres ≤ 0 (réel ou erreur de ligne)", eq, doc.file, V.equity.page);
     }
-    if (eq !== null && np !== null && eq > 0 && Math.abs(np / eq) > 3) fail.equity = `ROE ${(np / eq * 100).toFixed(0)} % : capitaux propres ou résultat suspects`;
+    if (eq !== null && np !== null && eq > 0 && Math.abs(np / eq) > 3) {
+      // Un ROE extrême est légitime quand les capitaux propres sortent d'un trou (Nestlé 2025 : −92,3 Md + 105,0 Md ≈ +12,9 Md) :
+      // on vérifie la continuité « capitaux propres N−1 + résultat net ≈ capitaux propres N » avec le solde d'ouverture du même document.
+      const eqPrev = V.equity.prior;
+      const roll = eqPrev !== null && Math.abs(eq - (eqPrev + np)) <= 0.1 * Math.max(Math.abs(np), Math.abs(eq));
+      if (roll) notes.push("equity_rollforward_consistent(extreme_roe)");
+      else fail.equity = `ROE ${(np / eq * 100).toFixed(0)} % : capitaux propres ou résultat suspects`;
+    }
 
     // --- EPS × actions
     let epsOk: "tight" | "loose" | "fail" | null = null;

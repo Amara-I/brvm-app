@@ -42,3 +42,11 @@ describe("buildCompanySql", () => {
     expect(rb).toContain("source_name = 'NGX' AND id LIKE 'ngx-doc-%'");
   });
 });
+
+describe("buildRollbackSql — profile_meta", () => {
+  it("ne retire que ngxFundamentals.years et garde sharesOutstanding", () => {
+    const sql = buildRollbackSql(["MTNN"]);
+    expect(sql).toContain("#- '{ngxFundamentals,years}'");
+    expect(sql).not.toMatch(/profile_meta - 'ngxFundamentals', updated_at = now\(\)\nWHERE exchange = 'NGX' AND profile_meta \?/);
+  });
+});

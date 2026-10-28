@@ -1,6 +1,6 @@
 // Étape 5 (variante SQL) — écrit, depuis les CSV validés, un script SQL par société + preview.sql + rollback.sql
 // dans staged/sql/ (hors dépôt). Aucune connexion base. À appliquer ensuite via l'outil SQL de Supabase.
-//   npx ts-node --transpile-only scripts/ngx/emit-sql.ts [--min=high|medium] [--tickers=A,B]
+//   npx ts-node --transpile-only scripts/ngx/emit-sql.ts [--min high|medium] [--tickers A,B]
 import fs from "node:fs";
 import path from "node:path";
 import { buildLoadPlan, type DividendCsvRow, type FundamentalsCsvRow } from "../../lib/ngx/fundamentals/load-plan";

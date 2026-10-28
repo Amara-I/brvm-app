@@ -33,8 +33,14 @@ async function main() {
     const afs = new Set(entries.filter((e) => e.docType === "AUDITED_FS").map((e) => e.guessedFiscalYear));
     console.log(`${company.ticker}: ${entries.length} docs, AFS years ${[...afs].sort().join(",")}`);
   }
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(manifest, null, 1));
-  console.log(`manifest: ${manifest.length} entries → ${MANIFEST_PATH}`);
+  // Avec --tickers : on fusionne dans le manifeste existant au lieu de l'écraser.
+  let out = manifest;
+  if (only && fs.existsSync(MANIFEST_PATH)) {
+    const prev = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) as NgxManifestEntry[];
+    out = [...prev.filter((e) => !only.includes(e.ticker)), ...manifest];
+  }
+  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(out, null, 1));
+  console.log(`manifest: ${out.length} entries → ${MANIFEST_PATH}`);
 }
 main().catch((e) => {
   console.error(e);

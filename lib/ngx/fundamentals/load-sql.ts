@@ -107,9 +107,11 @@ export function buildRollbackSql(tickers: string[]): string {
     `DELETE FROM financial_ratios WHERE source = '${NGX_SOURCE}' AND id LIKE '${ID_PREFIX.ratio}%' AND company_id IN ${ngx};\n` +
     `DELETE FROM dividends WHERE source = '${NGX_SOURCE}' AND id LIKE '${ID_PREFIX.dividend}%' AND company_id IN ${ngx};\n` +
     `DELETE FROM company_documents WHERE source_name = 'NGX' AND id LIKE '${ID_PREFIX.document}%' AND company_id IN ${ngx};\n` +
-    `-- profile_meta.ngxFundamentals n'existait sur aucune société avant le chargement (vérifié en lecture seule).\n` +
+    `-- Ne retire que profile_meta.ngxFundamentals.years (sharesOutstanding, chargé séparément, est conservé) ; la clé est supprimée si elle devient vide.\n` +
+    `UPDATE companies SET profile_meta = profile_meta #- '{ngxFundamentals,years}', updated_at = now()\n` +
+    `WHERE exchange = 'NGX' AND profile_meta #> '{ngxFundamentals,years}' IS NOT NULL AND ticker IN (${list});\n` +
     `UPDATE companies SET profile_meta = profile_meta - 'ngxFundamentals', updated_at = now()\n` +
-    `WHERE exchange = 'NGX' AND profile_meta ? 'ngxFundamentals' AND ticker IN (${list});\n` +
+    `WHERE exchange = 'NGX' AND profile_meta->'ngxFundamentals' = '{}'::jsonb AND ticker IN (${list});\n` +
     `COMMIT;\n`
   );
 }

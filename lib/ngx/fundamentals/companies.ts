@@ -50,6 +50,26 @@ export const NGX_COMPANIES: NgxCompanyConfig[] = [
   c("NAHCO", "NAHCO Aviance Plc", "corporate"),
   c("TRANSCORP", "Transnational Corporation Plc", "corporate"),
   c("BETAGLAS", "Beta Glass Plc", "corporate"),
+  // Extension : sociétés du top-50 (capitalisation NGX) ajoutées après le premier lot.
+  c("AIRTELAFRI", "Airtel Africa Plc", "corporate", { currency: "USD", fyEndMonth: 3, note: "États consolidés en USD (millions), exercice clos au 31 mars" }),
+  c("MTNN", "MTN Nigeria Communications Plc", "corporate"),
+  c("BUAFOODS", "BUA Foods Plc", "corporate"),
+  c("BUACEMENT", "BUA Cement Plc", "corporate"),
+  c("ARADEL", "Aradel Holdings Plc", "corporate"),
+  c("NB", "Nigerian Breweries Plc", "corporate", { unitHints: { 2022: 1000 }, note: "AFS 2022 : montants arrondis au millier (« nearest thousand »), unité absente de l'en-tête" }),
+  c("GEREGU", "Geregu Power Plc", "corporate"),
+  c("TRANSPOWER", "Transcorp Power Plc", "corporate"),
+  c("UACN", "UAC of Nigeria Plc", "corporate"),
+  c("NGXGROUP", "Nigerian Exchange Group Plc", "bank", { symbols: ["NGXGROUP", "NSE"], note: "ex-Nigerian Stock Exchange (NSE)" }),
+  c("CUSTODIAN", "Custodian Investment Plc", "insurance"),
+  c("UCAP", "United Capital Plc", "bank"),
+  c("VITAFOAM", "Vitafoam Nigeria Plc", "corporate", { fyEndMonth: 9, note: "Exercice clos au 30 septembre" }),
+  c("PZ", "PZ Cussons Nigeria Plc", "corporate", { fyEndMonth: 5, note: "Exercice clos au 31 mai" }),
+  c("FIDSON", "Fidson Healthcare Plc", "corporate"),
+  c("ABBEYBANK", "Abbey Mortgage Bank Plc", "bank", { symbols: ["ABBEYBANK", "ABBEYBDS"], note: "ex-Abbey Building Society (ABBEYBDS)" }),
+  c("SKYAVN", "Skyway Aviation Handling Company Plc", "corporate"),
+  c("MECURE", "Mecure Industries Plc", "corporate"),
+  c("TOTAL", "TotalEnergies Marketing Nigeria Plc", "corporate"),
 ];
 
 export function getCompany(ticker: string): NgxCompanyConfig | undefined {

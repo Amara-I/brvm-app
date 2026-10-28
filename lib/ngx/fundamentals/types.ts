@@ -40,6 +40,11 @@ export interface NgxCompanyConfig {
   fyEndMonth: number;
   /** Note libre reprise dans le CSV. */
   note?: string;
+  /**
+   * Multiplicateur d'unité lu à la main dans l'en-tête des états, par exercice, pour les documents dont le texte ne porte
+   * pas l'unité et où EPS × actions ne permet pas de l'inférer (nombre d'actions différent de l'annuaire).
+   */
+  unitHints?: Record<number, number>;
 }
 
 export type Confidence = "high" | "medium" | "low" | "none";

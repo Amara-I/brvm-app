@@ -93,7 +93,8 @@ function balanceScore(p: PageInfo, currency: NgxCompanyConfig["currency"] = "NGN
   if (!BALANCE_HEAD.test(head) && !/statements?offinancialposition|balancesheets?/i.test(head.replace(/\s+/g, ""))) return 0;
   const labels = p.rows.filter((r) => r.nums.length >= 1).map((r) => norm(r.label));
   let s = 1;
-  if (labels.some((l) => /^total assets/.test(l))) s += 2;
+  // OCR : les montants du « Total assets » sont parfois décalés sur la ligne voisine ; le libellé seul suffit pour reconnaître la page.
+  if (labels.some((l) => /^total assets/.test(l)) || p.rows.some((r) => /^total assets$/.test(norm(r.label)))) s += 2;
   if (labels.some((l) => /total equity|shareholders'? (equity|funds)|net assets|total liabilities and equity/.test(l))) s += 2;
   if (/consolidated/i.test(head)) s += 0.5;
   return s;
@@ -336,6 +337,22 @@ export function extractStatements(text: string, company: NgxCompanyConfig, opts:
     if (rev) {
       out.fields.revenue = rev.field;
       out.revenueBasis = norm(rev.row.label);
+    } else {
+      // Libellé « Revenue » illisible (OCR de scan) : CA = marge brute + coût des ventes, si les deux lignes sont lues.
+      const cos = findRow(pages, only, (l) => /^cost of (?:sales|revenue|goods sold|contracts?)$/.test(l), layoutOfIncome);
+      const gp = findRow(pages, only, (l) => /^gross profit$/.test(l), layoutOfIncome);
+      if (cos && gp) {
+        const v = [0, 1].map((i) => {
+          const a = gp.field.values[i];
+          const b = cos.field.values[i];
+          return a === null || b === null ? null : a + Math.abs(b);
+        }) as [number | null, number | null];
+        if (v[0] !== null) {
+          out.fields.revenue = { values: v, label: "Gross profit + cost of sales (derived)", page: gp.field.page };
+          out.revenueBasis = "gross profit + cost of sales";
+          warnings.push("revenue_derived_gross_profit_plus_cost_of_sales");
+        }
+      }
     }
   }
   // --- Résultat d'exploitation
@@ -377,6 +394,13 @@ export function extractStatements(text: string, company: NgxCompanyConfig, opts:
       const direct = /^(?:profit|loss|\(?loss\)?).{0,50}attributable to (?:the )?(?:owners|equity holders|shareholders)/.test(l);
       const under = ATTRIB_OWNERS.test(l) && ip.slice(Math.max(0, k - 3), k).some((q) => /attributable/i.test(q.raw) && !/comprehensive/i.test(q.raw));
       if (!direct && !under) continue;
+      // « Attributable to » placé sous « Total comprehensive income » : parts du résultat global, pas du résultat net.
+      if (
+        !direct &&
+        !ip.slice(Math.max(0, k - 3), k).some((q) => /attributable/i.test(q.raw) && /profit|loss|year|period/i.test(q.raw)) &&
+        ip.some((q) => q.line > npLine && q.line < r.line && q.line >= r.line - 4 && /^total comprehensive (?:income|loss)/.test(norm(q.label)))
+      )
+        continue;
       const cols = pickColumns(r, layoutOfIncome());
       if (cols) {
         out.fields.netProfitOwners = { values: cols, label: r.label.slice(0, 90), page: inc.index + 1 };
@@ -396,7 +420,10 @@ export function extractStatements(text: string, company: NgxCompanyConfig, opts:
       const bullet = /^[–—-]?\s*(?:basic|diluted|basic and diluted)\b/i.test(r.label);
       const from = /^from\s+(?:profit|the\s+(?:year|period)|total|continuing|profit\s+for)/i.test(norm(r.label));
       if (!direct && !((bullet || from) && ctxRow)) return;
-      const cols = pickColumns(r, layoutOfIncome());
+      // Colonne « Note » lue comme une valeur (OCR : « 15  5.53  4.60  4.86 » pour 4 colonnes) : le BPA a des décimales, pas la note.
+      const lay = layoutOfIncome();
+      const noteLead = r.nums.length === lay.n && lay.n >= 4 && /^\d{1,2}$/.test(r.tokens[0] ?? "") && r.nums.slice(1).every((x) => !Number.isInteger(x));
+      const cols = pickColumns(noteLead ? { ...r, nums: r.nums.slice(1) } : r, noteLead ? { ...lay, n: lay.n - 1 } : lay);
       if (!cols) return;
       const prio = from && /continuing/i.test(r.label) ? 1 : 0;
       if (epsRow && epsRow.prio <= prio) return;
@@ -430,7 +457,7 @@ export function extractStatements(text: string, company: NgxCompanyConfig, opts:
   // Bilan OCRisé : les libellés et les montants sont souvent décalés d'une ligne (« Total equity » lit la ligne voisine).
   // Le solde de clôture du tableau de variation des capitaux propres sert alors d'arbitre quand il contredit le bilan.
   if (out.fields.equity && out.fiscalYear && out.pages.balance !== null && opts.ocrPages?.includes(out.pages.balance)) {
-    const soce = equityFromChangesInEquity(pages, out.fiscalYear);
+    const soce = equityFromChangesInEquity(pages, out.fiscalYear, true);
     const cur = out.fields.equity.values[0];
     if (soce && soce.values[0] !== null && cur !== null && Math.abs(soce.values[0] - cur) > 0.01 * Math.abs(soce.values[0])) {
       out.fields.equity = soce;
@@ -480,7 +507,7 @@ const SOCE_HEAD = /statements?\s+of\s+changes\s+in\s+(?:shareholders'?\s+|owners
  * capitaux propres (dernier nombre de la ligne « Balance at 31 December <exercice> » = total des capitaux propres).
  * Seule la première page de l'état (colonnes Groupe) est lue ; la valeur « précédente » est le solde d'ouverture.
  */
-export function equityFromChangesInEquity(pages: PageInfo[], fy: number): RawField | null {
+export function equityFromChangesInEquity(pages: PageInfo[], fy: number, preferGroup = false): RawField | null {
   for (const p of pages) {
     if (isNotesPage(p.text) || !(SOCE_HEAD.test(headBlock(p.text, 8)) || /statements?ofchangesin(?:shareholders'?|owners'?)?equity/i.test(headBlock(p.text, 8).replace(/\s+/g, "")))) continue;
     const closing: Array<{ row: Row; year: number }> = [];
@@ -492,9 +519,20 @@ export function equityFromChangesInEquity(pages: PageInfo[], fy: number): RawFie
       const isOpening = /(?<!\d)0?1(?:st)?\s*(?:january|januarv|april|july|october)(?![a-z])|\bopening\b|\bas restated\b|\brestated\b/i.test(l);
       (isOpening ? opening : closing).push({ row: r, year: Number(m[1]) });
     }
-    const cur = [...closing].reverse().find((c) => c.year === fy);
+    // Deux tableaux sur la page (Groupe puis Société) : deux soldes de clôture pour l'exercice ; on garde le premier (Groupe).
+    const curAll = closing.filter((c) => c.year === fy);
+    const tl = p.text.split("\n");
+    const tableOf = (c: { row: Row }): "group" | "company" | null => {
+      for (let q = Math.min(c.row.line, tl.length) - 1; q >= 0; q--) {
+        const m = /^\s*(group|company|consolidated|separate)\b(?!\s+(?:secretary|and\s+(?:company|group)))/i.exec(tl[q]);
+        if (m && tl[q].trim().replace(/\s+/g, " ").length < 90) return /group|consolidated/i.test(m[1]) ? "group" : "company";
+      }
+      return null;
+    };
+    const grp = preferGroup && curAll.length >= 2 ? curAll.find((c) => tableOf(c) === "group") : undefined;
+    const cur = grp ?? [...closing].reverse().find((c) => c.year === fy);
     if (!cur) continue;
-    const prev = [...closing].reverse().find((c) => c.year === fy - 1 && c.row.line < cur.row.line) ?? [...opening].reverse().find((c) => c.year === fy && c.row.line < cur.row.line);
+    const prev = [...closing].reverse().find((c) => c.year === fy - 1 && c.row.line < cur.row.line) ?? [...opening].reverse().find((c) => c.row.line < cur.row.line && (c.year === fy || (c.year === fy - 1 && !/january|januarv/i.test(norm(c.row.label)))));
     return {
       values: [cur.row.nums[cur.row.nums.length - 1], prev ? prev.row.nums[prev.row.nums.length - 1] : null],
       label: `${cur.row.label.slice(0, 60)} [total equity, statement of changes in equity]`,
