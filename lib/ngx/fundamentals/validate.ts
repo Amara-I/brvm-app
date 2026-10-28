@@ -377,6 +377,8 @@ export function buildStagedRows(company: NgxCompanyConfig, docs: ExtractedDoc[],
       if (!ex.unitMultiplier && k !== "eps") return "low";
       if (fail[k]) return "low";
       if (hasComp[k]) return agreed[k] ? "high" : "medium";
+      // OCR sans confirmation par une colonne comparative : « medium » au mieux
+      if (ex.ocr) return "medium";
       // pas de comparatif : seuls résultat net et EPS peuvent être validés par EPS × actions
       if ((k === "netProfit" || k === "eps") && epsOk === "tight") return "high";
       return "medium";

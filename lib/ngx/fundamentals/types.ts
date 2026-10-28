@@ -65,11 +65,15 @@ export interface StatementExtraction {
   revenueBasis: string | null;
   operatingBasis: string | null;
   pages: { income: number | null; balance: number | null };
+  /** « Dividendes payés » (tableau des flux de trésorerie, valeurs absolues dans l'unité du document). */
+  dividendsPaid?: RawField;
   /** Colonne retenue ("group" par défaut), avec la raison si ambigu. */
   columnNote: string | null;
   /** Mois de clôture (1-12) lu dans l'en-tête, si présent. */
   periodEndMonth: number | null;
   /** Document intermédiaire (semestriel / trimestriel) : exclu des séries annuelles. */
   interim: boolean;
+  /** Texte issu d'un OCR (PDF image seule) : confiance plafonnée à « medium » sauf confirmation par un comparatif. */
+  ocr?: boolean;
   warnings: string[];
 }

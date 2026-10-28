@@ -19,8 +19,10 @@ export interface DividendCandidate {
 const NUM = String.raw`(\d{1,3}(?:,\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)`;
 const CUR = String.raw`(?:₦|N|NGN|NGN\s|naira\s)?\s?`;
 
-function toNaira(value: string, kobo: boolean): number {
+/** `kobo` : unité kobo détectée ; `abbrev` : écrit « k » (et non « kobo »). « N2.45k » = ₦2.45 (décimale), « 245k » = 245 kobo. */
+function toNaira(value: string, kobo: boolean, abbrev = false): number {
   const v = Number(value.replace(/,/g, ""));
+  if (kobo && abbrev && value.includes(".")) return v;
   return kobo ? v / 100 : v;
 }
 
@@ -59,13 +61,13 @@ export function extractDividends(text: string, fy: number): DividendCandidate[] 
       const kind = /final/i.test(m[1] ?? "") ? "final" : /interim/i.test(m[1] ?? "") ? "interim" : /total/i.test(m[1] ?? "") ? "total" : "unspecified";
       const tail = flat.slice(m.index!, m.index! + 330);
       const inRespect = /current\s+year|in\s+respect\s+of\s+the\s+(?:financial\s+)?year|financial\s+year/i.test(flat.slice(Math.max(0, m.index! - 80), m.index! + 80));
-      const dps = toNaira(m[2], !!m[3]);
+      const dps = toNaira(m[2], !!m[3], /^k$/i.test(m[3] ?? ""));
       // la phrase d'approbation en assemblée (« On 17 June, a dividend ... was approved ») concerne l'exercice précédent
       const approved = /was\s+approved\s+by\s+shareholders|was\s+paid|paid\s+to\s+holders/i.test(tail.slice(0, 200)) && !inRespect && /\bon\s+\d{1,2}(?:st|nd|rd|th)?\s+[a-z]+\s+20\d\d/i.test(flat.slice(Math.max(0, m.index! - 60), m.index! + 20));
       if (approved) continue;
       out.push({ fiscalYear: fy, dps, kind, source: "text", page: pi + 1, snippet: tail.slice(0, 220) });
       const prior = new RegExp(String.raw`\(\s*(?:dec(?:ember)?\s+|31\s+december\s+)?(20\d\d)\s*:\s*(?:interim[;:,]?\s*)?${CUR}${NUM}\s?(k\b|kobo)?`, "i").exec(tail);
-      if (prior && Number(prior[1]) === fy - 1 && !/interim\s*[;:]/i.test(tail)) out.push({ fiscalYear: fy - 1, dps: toNaira(prior[2], !!prior[3]), kind, source: "text", page: pi + 1, snippet: tail.slice(0, 220) });
+      if (prior && Number(prior[1]) === fy - 1 && !/interim\s*[;:]/i.test(tail)) out.push({ fiscalYear: fy - 1, dps: toNaira(prior[2], !!prior[3], /^k$/i.test(prior[3] ?? "")), kind, source: "text", page: pi + 1, snippet: tail.slice(0, 220) });
     }
   });
   // Total « au titre de l'exercice » = interim payé + final proposé (évite le total « déclaré pendant l'exercice »,
@@ -81,7 +83,7 @@ export function extractDividends(text: string, fy: number): DividendCandidate[] 
 /** Choisit le meilleur DPS pour un exercice parmi les candidats (tableau « total » > phrase « total » > phrase). */
 export function bestDividend(cands: DividendCandidate[]): DividendCandidate | null {
   const rank = (c: DividendCandidate) =>
-    c.derived ? 0 : (c.source === "table" ? 1 : 10) + (c.kind === "total" ? 0 : c.kind === "unspecified" ? 1 : c.kind === "final" ? 2 : 3);
+    c.derived ? 2.5 : (c.source === "table" ? 1 : 10) + (c.kind === "total" ? 0 : c.kind === "unspecified" ? 1 : c.kind === "final" ? 2 : 3);
   const ok = cands.filter((c) => c.dps > 0 && c.dps < 1000);
   if (!ok.length) return null;
   return ok.slice().sort((a, b) => rank(a) - rank(b) || a.page - b.page)[0];

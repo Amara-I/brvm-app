@@ -1,0 +1,2 @@
+export interface DividendNotice { ticker?: string; fiscalYear: number; dps: number; type: "final" | "interim" | "total" | "special"; qualificationDate?: string; paymentDate?: string; agmDate?: string; file?: string; url?: string; title?: string; createdAt?: string; snippet: string }
+export function parseDividendNotice(_t: string, _m: { createdAt: string; title: string; kind: string }): DividendNotice[] { return []; }

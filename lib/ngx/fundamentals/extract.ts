@@ -16,7 +16,7 @@ const REVENUE_BANK_FALLBACK = /^(?:total\s+)?(?:operating\s+income|income|intere
 const OPERATING =
   /^(?:operating\s+(?:profit|income|result)s?(?:\s*\/\s*\(?loss\)?)?(?:\s+before[a-z\s]*)?|\(?loss\)?\s*\/?\s*profit\s+from\s+operat[a-z\s]*|profit\s*\/?\s*\(?loss\)?\s+from\s+operat[a-z\s]*|profit\s+from\s+operat[a-z\s]*|results?\s+from\s+operating\s+activities|operating\s+\(?(?:loss|profit)\)?(?:\s*\/\s*\(?(?:loss|profit)\)?)?|trading\s+profit|profit\s+from\s+operations|operating\s+profit\s*\/?\s*\(?loss\)?)$/;
 const PBT =
-  /^(?:profit|\(?loss\)?)(?:\s*\/?\s*\(?(?:loss|profit)\)?)?\s+(?:before\s+(?:income\s+)?tax(?:ation)?|before\s+taxation|for\s+the\s+year\s+before\s+tax[a-z\s]*)$|^(?:profit|\(?loss\)?)\s*\/?\s*\(?(?:loss|profit)?\)?\s*before\s+(?:income\s+)?tax(?:ation)?$|^(?:loss|profit)\s+before\s+tax$|^(?:profit|\(?loss\)?)\s+before\s+(?:minimum\s+tax|levy|income\s+tax\s+and\s+levy)[a-z\s]*$/;
+  /^(?:profit|\(?loss\)?)(?:\s*\/?\s*\(?(?:loss|profit)\)?)?\s+(?:before\s+(?:income\s+)?tax(?:ation)?|before\s+taxation|for\s+the\s+year\s+before\s+tax[a-z\s]*)$|^(?:profit|\(?loss\)?)\s*\/?\s*\(?(?:loss|profit)?\)?\s*before\s+(?:income\s+)?tax(?:ation)?$|^(?:loss|profit)\s+before\s+tax$|^(?:profit|\(?loss\)?)\s+before\s+(?:minimum\s+tax|levy|income\s+tax\s+and\s+levy)[a-z\s]*$|^(?:profit|\(?loss\)?)\s+before\s+(?:income\s+and\s+windfall|windfall|[a-z]+\s+and\s+[a-z]+)\s+tax(?:es|ation)?$|^(?:profit|\(?loss\)?)\s*\/?\s*\(?(?:loss|profit)?\)?\s+before\s+(?:income\s+)?tax(?:ation)?\s+(?:expenses?|charge)$/;
 const NET_PROFIT =
   /^(?:profit|\(?loss\)?|net\s+profit|net\s+income|total\s+profit)(?:\s*\/?\s*\(?(?:loss|profit)\)?)?\s*(?:for\s+the\s+(?:year|period)|after\s+(?:income\s+)?tax(?:ation)?|for\s+the\s+financial\s+year|for\s+the\s+year\s+after\s+tax[a-z\s]*|from\s+continuing\s+operations)?(?:\s*\(?(?:note[^)]*)\)?)?$|^(?:profit|loss)\s*\/?\s*\(?(?:loss|profit)?\)?\s+(?:for\s+the\s+(?:year|period)|after\s+(?:income\s+)?tax(?:ation)?)(?:\s+from\s+continuing\s+operations)?$/;
 const ATTRIB_OWNERS =
@@ -44,15 +44,33 @@ function headBlock(page: string, n = 14): string {
 
 function isNotesPage(page: string): boolean {
   const head = headBlock(page, 8);
-  return /^\s*notes?\s+to\s+the|\bnotes?\s+to\s+the\s+(?:consolidated\s+)?(?:and\s+separate\s+)?financial|accounting\s+policies|key\s+audit\s+matters|^\s*independent\s+auditor[^\n]{0,10}report|report\s+of\s+the\s+(?:independent\s+)?auditor|table\s+of\s+contents|\bcontents\b|segment(?:al)?\s+(?:information|report)/im.test(head);
+  return /^\s*notes?\s+to\s+the|\bnotes?\s+to\s+the\s+(?:consolidated\s+)?(?:and\s+separate\s+)?financial|accounting\s+policies|key\s+audit\s+matters|^\s*independent\s+auditor[^\n]{0,10}report|report\s+of\s+the\s+(?:independent\s+)?auditor|table\s+of\s+contents|\bcontents\b|segment(?:al)?\s+(?:information|report)|five[\s-]+year\s+(?:financial\s+)?summary/im.test(head);
 }
 
 /** Score d'une page comme compte de résultat. */
-function incomeScore(p: PageInfo, kind: NgxCompanyConfig["kind"]): number {
+/**
+ * Sociétés déclarant en USD (ETI) : les états sont publiés en version « - USD » et « - NGN », et les
+ * communiqués de presse juxtaposent US$'000 et NGN'000. On ne retient que la page USD pure.
+ */
+function wrongCurrencyPage(p: PageInfo, currency: NgxCompanyConfig["currency"]): boolean {
+  if (currency !== "USD") return false;
+  const top = p.text.split("\n").slice(0, 30).join("\n");
+  return /\bNGN\b|\bN'000|₦/.test(top) && !/US\$|\bUSD\b/.test(top);
+}
+
+/** Page à colonnes US$ et NGN juxtaposées (états ETI 2016-2018) : courant USD = 1re valeur, précédent USD = 3e. */
+function isDualCurrency(page: string): boolean {
+  const top = page.split("\n").slice(0, 30).join("\n");
+  return /US\$/.test(top) && /\bNGN'?\s*000|\bN'000|₦/.test(top);
+}
+
+function incomeScore(p: PageInfo, kind: NgxCompanyConfig["kind"], currency: NgxCompanyConfig["currency"] = "NGN"): number {
   if (isNotesPage(p.text)) return 0;
+  if (wrongCurrencyPage(p, currency)) return 0;
   const head = headBlock(p.text, 12);
   if (!INCOME_HEAD.test(head)) return 0;
   let s = 1;
+  if (currency === "USD" && /\bUSD\b|US\$/.test(p.text.split("\n").slice(0, 30).join("\n"))) s += 1;
   const labels = p.rows.filter((r) => r.nums.length >= 2).map((r) => norm(r.label));
   const has = (re: RegExp) => labels.some((l) => re.test(l));
   if (kind === "bank") {
@@ -68,8 +86,9 @@ function incomeScore(p: PageInfo, kind: NgxCompanyConfig["kind"]): number {
   return s;
 }
 
-function balanceScore(p: PageInfo): number {
+function balanceScore(p: PageInfo, currency: NgxCompanyConfig["currency"] = "NGN"): number {
   if (isNotesPage(p.text)) return 0;
+  if (wrongCurrencyPage(p, currency)) return 0;
   const head = headBlock(p.text, 12);
   if (!BALANCE_HEAD.test(head)) return 0;
   const labels = p.rows.filter((r) => r.nums.length >= 1).map((r) => norm(r.label));
@@ -84,7 +103,7 @@ function balanceScore(p: PageInfo): number {
  * Nombre de colonnes numériques d'après les lignes de données (mode du nombre de valeurs des lignes dont
  * le premier jeton a un séparateur de milliers, donc pas de colonne « Note »), sinon d'après l'en-tête.
  */
-export function columnLayout(page: string, rows?: Row[]): { n: number; groupFirst: boolean; hasNote: boolean } {
+export function columnLayout(page: string, rows?: Row[]): { n: number; groupFirst: boolean; hasNote: boolean; dual?: boolean } {
   const lines = page.split("\n").slice(0, 40);
   let headYears = 0;
   let bestLine = "";
@@ -122,10 +141,10 @@ export function columnLayout(page: string, rows?: Row[]): { n: number; groupFirs
     if (bestC < 3) n = 0;
   }
   if (!n) n = headYears >= 2 ? headYears : 2;
-  return { n, groupFirst, hasNote };
+  return { n, groupFirst, hasNote, dual: isDualCurrency(page) };
 }
 
-export function pickColumns(r: Row, layout: { n: number; groupFirst: boolean }): [number | null, number | null] | null {
+export function pickColumns(r: Row, layout: { n: number; groupFirst: boolean; dual?: boolean }): [number | null, number | null] | null {
   let v = r.nums.slice();
   const { n } = layout;
   // Colonne « Note » : entier court sans séparateur, en tête de ligne, quand il y a une colonne de trop.
@@ -134,6 +153,7 @@ export function pickColumns(r: Row, layout: { n: number; groupFirst: boolean }):
   if (v.length === n + 1 && looksNote) v = v.slice(1);
   else if (v.length > n + 1 && looksNote) v = v.slice(v.length - n);
   if (v.length < 2) return null;
+  if (layout.dual && v.length >= 4) return [v[0], v[2]];
   if (!layout.groupFirst && v.length >= n && n >= 4) return [v[n / 2], v[n / 2 + 1]];
   return [v[0], v[1]];
 }
@@ -147,7 +167,7 @@ function findRow(
   pages: PageInfo[],
   pageIdxs: number[],
   matcher: (label: string, row: Row) => boolean,
-  layoutOf: (p: PageInfo) => { n: number; groupFirst: boolean },
+  layoutOf: (p: PageInfo) => { n: number; groupFirst: boolean; dual?: boolean },
   opts: { minLine?: number } = {},
 ): FindResult | null {
   for (const pi of pageIdxs) {
@@ -165,6 +185,24 @@ function findRow(
     }
   }
   return null;
+}
+
+/**
+ * Banque islamique (Jaiz) : pas de ligne « gross earnings » ; revenu brut = produits bruts de financement et
+ * d'investissement + commissions + autres produits d'exploitation (vérifié : 2021 = 24 177 427 + 1 108 774 + 557 162 = 25 843 363,
+ * valeur « gross earnings » du comparatif 2022).
+ */
+function islamicGrossEarnings(pages: PageInfo[], idxs: number[], layoutOf: (p: PageInfo) => { n: number; groupFirst: boolean; dual?: boolean }): RawField | null {
+  const g = findRow(pages, idxs, (l) => /^gross income from (?:islamic )?(?:financing|fiancing|fi?nancing)/.test(l), layoutOf);
+  if (!g) return null;
+  const fee = findRow(pages, idxs, (l) => /^fees? and commis+ions?$/.test(l), layoutOf);
+  const oth = findRow(pages, idxs, (l) => /^other operating income$/.test(l), layoutOf);
+  const sum = (i: 0 | 1) => {
+    const a = g.field.values[i];
+    if (a === null) return null;
+    return a + (fee?.field.values[i] ?? 0) + (oth?.field.values[i] ?? 0);
+  };
+  return { values: [sum(0), sum(1)], label: "gross financing income + fees + other income [derived]", page: g.field.page };
 }
 
 /** Détermine l'exercice (année de la date de clôture) d'après l'en-tête d'un état. */
@@ -215,7 +253,7 @@ export function extractStatements(text: string, company: NgxCompanyConfig): Stat
   let balanceIdx = -1;
   let balanceBest = 0;
   pages.forEach((p, i) => {
-    const s = incomeScore(p, company.kind);
+    const s = incomeScore(p, company.kind, company.currency);
     if (s >= 4 && s > incomeBest) {
       incomeBest = s;
       incomeIdx = i;
@@ -224,7 +262,7 @@ export function extractStatements(text: string, company: NgxCompanyConfig): Stat
   // Le bilan suit le compte de résultat : chercher d'abord dans les 10 pages suivantes, sinon dans tout le document.
   const pickBalance = (from: number, to: number) => {
     for (let i = from; i < Math.min(to, pages.length); i++) {
-      const sc = balanceScore(pages[i]);
+      const sc = balanceScore(pages[i], company.currency);
       if (sc >= 4 && sc > balanceBest) {
         balanceBest = sc;
         balanceIdx = i;
@@ -277,9 +315,14 @@ export function extractStatements(text: string, company: NgxCompanyConfig): Stat
     const interest = findRow(pages, only, (l) => REVENUE_BANK_FALLBACK.test(l) && !/net interest/.test(l), layoutOfIncome);
     const gross =
       findRow(pages, only, (l) => REVENUE_BANK_PRIMARY.test(l), layoutOfIncome) ?? findGrossEarnings(pages, interest?.field.values ?? null, incLayout);
+    const derived = gross ? null : islamicGrossEarnings(pages, only, layoutOfIncome);
     if (gross) {
       out.fields.revenue = gross.field;
       out.revenueBasis = "gross earnings";
+    } else if (derived) {
+      out.fields.revenue = derived;
+      out.revenueBasis = "gross earnings";
+      warnings.push("gross_earnings_derived_financing_income_plus_fees_and_other_income");
     } else if (interest) {
       out.fields.revenue = interest.field;
       out.revenueBasis = norm(interest.row.label);
@@ -299,7 +342,15 @@ export function extractStatements(text: string, company: NgxCompanyConfig): Stat
   }
   if (!opRow) {
     opRow = findRow(pages, only, (l) => PBT.test(l), layoutOfIncome);
-    if (opRow) out.operatingBasis = `PBT:${norm(opRow.row.label)}`;
+    // Banque sans ligne « profit before tax » (ex. Jaiz 2016-2018) : « Operating profit » placé juste avant l'impôt
+    if (!opRow && company.kind === "bank") {
+      const r = findRow(pages, only, (l) => /^operating profit(?: before tax)?$/.test(l), layoutOfIncome);
+      if (r && inc.rows.some((q) => q.line > r.row.line && /^(?:income\s+)?tax/.test(norm(q.label)))) {
+        opRow = r;
+        out.operatingBasis = `PBT:${norm(r.row.label)}`;
+      }
+    }
+    if (opRow && !out.operatingBasis) out.operatingBasis = `PBT:${norm(opRow.row.label)}`;
   }
   if (opRow) out.fields.operatingProfit = opRow.field;
   // --- Résultat net (total), puis part du groupe
@@ -379,7 +430,33 @@ export function extractStatements(text: string, company: NgxCompanyConfig): Stat
       warnings.push("equity_from_statement_of_changes_in_equity");
     }
   }
+  const dp = findDividendsPaid(pages);
+  if (dp) out.dividendsPaid = dp;
   return out;
+}
+
+const CASHFLOW_HEAD = /statements?\s+of\s+cash\s*[- ]?flows?|cash\s*flows?\s+statements?/i;
+const DIV_PAID_ROW = /^(?:\(?cash\)?\s+)?dividends?\s+(?:paid|payments?)(?!\s+to\s+(?:non|minority))|^payments?\s+of\s+(?:ordinary\s+|final\s+|interim\s+)?dividends?\b|^dividends?\s+paid\s+to\s+(?:equity\s+holders|shareholders|owners|ordinary|the\s+company'?s)/;
+
+/**
+ * « Dividendes payés » du tableau des flux de trésorerie (valeur absolue, unité du document ; [exercice, exercice précédent]).
+ * Sert au recoupement DPS × nombre d'actions ≈ dividendes décaissés.
+ */
+export function findDividendsPaid(pages: PageInfo[]): RawField | null {
+  for (const p of pages) {
+    const head = p.text.split("\n").slice(0, 14).join(" ");
+    if (!CASHFLOW_HEAD.test(head) || isNotesPage(p.text)) continue;
+    const layout = columnLayout(p.text, p.rows);
+    for (const r of p.rows) {
+      if (r.nums.length < 1) continue;
+      const label = norm(r.label);
+      if (!DIV_PAID_ROW.test(label) || /non[- ]?controlling|minority|dividends?\s+received|tax/.test(label)) continue;
+      const cols = pickColumns(r, layout);
+      if (!cols || cols[0] === null) continue;
+      return { values: [Math.abs(cols[0]), cols[1] === null ? null : Math.abs(cols[1])], label: r.label.slice(0, 90), page: p.index + 1 };
+    }
+  }
+  return null;
 }
 
 const SOCE_HEAD = /statements?\s+of\s+changes\s+in\s+(?:shareholders'?\s+|owners'?\s+)?equity|statements?\s+of\s+changes\s+in\s+equity/i;
@@ -423,7 +500,7 @@ export function findGrossEarnings(pages: PageInfo[], interest: [number | null, n
     if (isNotesPage(p.text) && !/value\s+added|highlights|financial\s+summary/i.test(headBlock(p.text, 10))) continue;
     for (const r of p.rows) {
       if (r.nums.length < 2 || !/^(?:total\s+)?gross\s+earnings(?:\s*\(?note[^)]*\)?)?$/.test(norm(r.label))) continue;
-      const v = r.nums.slice(0, 2);
+      const v = isDualCurrency(p.text) && r.nums.length >= 4 ? [r.nums[0], r.nums[2]] : r.nums.slice(0, 2);
       if (interest && interest[0] !== null && interest[0] > 0) {
         const ratio = v[0] / interest[0];
         if (ratio < 0.999 || ratio > 3.5) continue;

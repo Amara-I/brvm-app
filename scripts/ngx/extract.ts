@@ -25,8 +25,22 @@ function main() {
         missing++;
         continue;
       }
-      const text = fs.readFileSync(txt, "utf8");
+      let text = fs.readFileSync(txt, "utf8");
+      // PDF image seule : texte OCR des pages d'états (scripts/ngx/ocr/ocr_statements.py), pages non OCRisées vides
+      const ocrTxt = txt.replace(/\.txt$/, ".ocr.txt");
+      const hasOcr = fs.existsSync(ocrTxt);
+      let ocrPages: number[] = [];
+      if (hasOcr) {
+        text = fs.readFileSync(ocrTxt, "utf8");
+        const metaPath = ocrTxt.replace(/\.ocr\.txt$/, ".ocr.json");
+        if (fs.existsSync(metaPath)) ocrPages = (JSON.parse(fs.readFileSync(metaPath, "utf8")).ocr_pages as number[]) ?? [];
+      }
       const extraction = extractStatements(text, company);
+      // « ocr » = au moins un des états utilisés (résultat, bilan) provient d'une page OCRisée
+      if (hasOcr && [extraction.pages.income, extraction.pages.balance].some((pg) => pg !== null && ocrPages.includes(pg))) {
+        extraction.ocr = true;
+        extraction.warnings.push("ocr_text");
+      }
       const fy = extraction.fiscalYear ?? e.guessedFiscalYear;
       docs.push({
         file: e.file,
