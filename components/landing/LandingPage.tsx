@@ -174,20 +174,14 @@ export default function LandingPage({
         })
       : "";
 
+  const signalCount =
+    stats.companiesCount > 0 ? `${stats.buySignalsCount}/${stats.companiesCount}` : t("common.nd");
+
   return (
     <div className={styles.page}>
       <section className={styles.hero}>
         <div className={`${styles.rail} ${styles.heroStack}`}>
-        <div className={styles.heroInner}>
           <div className={styles.heroCopy}>
-            <h1 className={styles.h1}>
-              {t("landing.hero.line1")}
-              <br />
-              {t("landing.hero.line2")}
-              <br />
-              <span className={styles.h1Accent}>{t("landing.hero.accent")}</span>
-            </h1>
-
             <div className={styles.exchangeRow} aria-label={t("landing.hero.exchangesAria")}>
               {landingExchanges.map((exchange) => {
                 const title = exchange.live
@@ -218,6 +212,14 @@ export default function LandingPage({
               })}
             </div>
 
+            <h1 className={styles.h1}>
+              {t("landing.hero.line1")}
+              <br />
+              {t("landing.hero.line2")}
+              <br />
+              <span className={styles.h1Accent}>{t("landing.hero.accent")}</span>
+            </h1>
+
             <p className={styles.paragraph}>{t("landing.hero.lead")}</p>
 
             <div className={styles.ctaRow}>
@@ -230,43 +232,90 @@ export default function LandingPage({
             </div>
           </div>
 
-          <div className={styles.heroRight}>
-            <div className={`${styles.card} ${styles.cardPortfolio}`}>
-              <div className={styles.cardPortfolioMain}>
-                <div className={styles.cardPortfolioCopy}>
-                  <div className={styles.cardLabel}>
-                    <span className={styles.liveDot} />
-                    {t("landing.card.live")}
-                  </div>
-                  <div className={styles.cardValue}>{format.mdsFcfa(stats.totalMarketCapBnFcfa)}</div>
+          <div className={`${styles.card} ${styles.cardPortfolio} ${styles.heroFigure}`}>
+            <div className={styles.cardPortfolioMain}>
+              <div className={styles.cardPortfolioCopy}>
+                <div className={styles.cardLabel}>
+                  <span className={styles.liveDot} />
+                  {t("landing.card.live")}
                 </div>
-                <LandingSparkline values={marketSeries} width={148} height={56} variant="hero" />
+                <div className={styles.cardValue}>{format.mdsFcfa(stats.totalMarketCapBnFcfa)}</div>
               </div>
-              <div className={styles.cardMetrics}>
-                <div className={styles.metricCell}>
-                  <strong className={styles.chipGreen}>{showAvgPerf(stats.avgPerf5Percent)}</strong>
-                  <span>{t("landing.card.years5")}</span>
+              <LandingSparkline values={marketSeries} width={168} height={64} variant="hero" />
+            </div>
+            <ul className={styles.figureMeta}>
+              <li>
+                <strong className={styles.chipGreen}>{showAvgPerf(stats.avgPerf5Percent)}</strong>
+                {t("landing.card.years5")}
+              </li>
+              <li>
+                <strong>{stats.companiesCount}</strong>
+                {t("landing.card.companies")}
+              </li>
+              <li>
+                <strong>{sectorsCount}</strong>
+                {t("landing.card.sectors")}
+              </li>
+              <li>
+                <strong>{signalCount}</strong>
+                {t("landing.card.signals")}
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <div className={styles.belowHero}>
+        <section className={styles.section}>
+          <div className={styles.rail}>
+            <div className={styles.statsInner}>
+              <div className={styles.statItem}>
+                <span className={styles.statIcon}>
+                  <IconBuilding size={16} />
+                </span>
+                <div>
+                  <div className={styles.statValue}>{stats.companiesCount}</div>
+                  <div className={styles.statLabel}>{t("landing.stats.listed")}</div>
+                  <div className={styles.statHint}>{t("landing.stats.listedHint")}</div>
                 </div>
-                <div className={styles.metricCell}>
-                  <strong>{stats.companiesCount}</strong>
-                  <span>{t("landing.card.companies")}</span>
-                </div>
-                <div className={styles.metricCell}>
-                  <strong>{sectorsCount}</strong>
-                  <span>{t("landing.card.sectors")}</span>
-                </div>
-                <div className={styles.metricCell}>
-                  <strong>
-                    {stats.companiesCount > 0
-                      ? `${stats.buySignalsCount}/${stats.companiesCount}`
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statIcon}>
+                  <IconCalendar size={16} />
+                </span>
+                <div>
+                  <div className={styles.statValue}>{yearsSpan !== null ? `${yearsSpan}` : t("common.nd")}</div>
+                  <div className={styles.statLabel}>{t("landing.stats.historyYears")}</div>
+                  <div className={styles.statHint}>
+                    {horizonLabel !== t("common.nd")
+                      ? t("landing.stats.historyIncluded", { span: horizonLabel })
                       : t("common.nd")}
-                  </strong>
-                  <span>{t("landing.card.signals")}</span>
+                  </div>
+                </div>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statIcon}>
+                  <IconPie size={16} />
+                </span>
+                <div>
+                  <div className={styles.statValue}>{sectorsCount}</div>
+                  <div className={styles.statLabel}>{t("landing.stats.sectors")}</div>
+                  <div className={styles.statHint}>{t("landing.stats.sectorsHint")}</div>
+                </div>
+              </div>
+              <div className={styles.statItem}>
+                <span className={styles.statIcon}>
+                  <IconBook size={16} />
+                </span>
+                <div>
+                  <div className={styles.statValue}>{educationTermsCount}</div>
+                  <div className={styles.statLabel}>{t("landing.stats.lexicon")}</div>
+                  <div className={styles.statHint}>{t("landing.stats.lexiconHint")}</div>
                 </div>
               </div>
             </div>
 
-            <div className={`${styles.card} ${styles.cardStock}`}>
+            <div className={`${styles.card} ${styles.cardStock} ${styles.scoreWrap}`}>
               <div className={styles.cardStockHead}>
                 <div className={styles.cardLabel}>
                   <IconStar size={14} />
@@ -285,11 +334,7 @@ export default function LandingPage({
                   const rawSignal = metrics.signal?.label || "N/D";
                   const tone = signalTone(rawSignal);
                   return (
-                    <Link
-                      key={co.ticker}
-                      href={`/actions/${co.ticker}`}
-                      className={styles.stockRow}
-                    >
+                    <Link key={co.ticker} href={`/actions/${co.ticker}`} className={styles.stockRow}>
                       <span className={styles.stockIdentity}>
                         <span className={styles.stockTicker}>{co.ticker}</span>
                         <span className={styles.stockName}>{co.name || t("common.nd")}</span>
@@ -319,97 +364,21 @@ export default function LandingPage({
               )}
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className={styles.featureRow}>
-          {heroFeatures.map((item) => (
-            <Link key={item.href} href={item.href} className={styles.featureItem}>
-              <span className={styles.featureIcon}>{item.icon}</span>
-              <span className={styles.featureText}>
-                <strong>{item.t}</strong>
-                {item.d}
-              </span>
-            </Link>
-          ))}
-        </div>
-
-        <div className={styles.statsBar}>
-          <div className={styles.statsInner}>
-            <div className={styles.statItem}>
-              <span className={styles.statIcon}>
-                <IconBuilding size={16} />
-              </span>
-              <div>
-                <div className={styles.statValue}>{stats.companiesCount}</div>
-                <div className={styles.statLabel}>{t("landing.stats.listed")}</div>
-                <div className={styles.statHint}>{t("landing.stats.listedHint")}</div>
-              </div>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statIcon}>
-                <IconCalendar size={16} />
-              </span>
-              <div>
-                <div className={styles.statValue}>{yearsSpan !== null ? `${yearsSpan}` : t("common.nd")}</div>
-                <div className={styles.statLabel}>{t("landing.stats.historyYears")}</div>
-                <div className={styles.statHint}>
-                  {horizonLabel !== t("common.nd")
-                    ? t("landing.stats.historyIncluded", { span: horizonLabel })
-                    : t("common.nd")}
-                </div>
-              </div>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statIcon}>
-                <IconPie size={16} />
-              </span>
-              <div>
-                <div className={styles.statValue}>{sectorsCount}</div>
-                <div className={styles.statLabel}>{t("landing.stats.sectors")}</div>
-                <div className={styles.statHint}>{t("landing.stats.sectorsHint")}</div>
-              </div>
-            </div>
-            <div className={styles.statItem}>
-              <span className={styles.statIcon}>
-                <IconBook size={16} />
-              </span>
-              <div>
-                <div className={styles.statValue}>{educationTermsCount}</div>
-                <div className={styles.statLabel}>{t("landing.stats.lexicon")}</div>
-                <div className={styles.statHint}>{t("landing.stats.lexiconHint")}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        </div>
-      </section>
-
-      <div className={styles.belowHero}>
         <section className={styles.section}>
           <div className={styles.rail}>
-          <div className={styles.sectionHead}>
-            <div className={styles.sectionHeadCopy}>
-              <p className={styles.sectionEyebrow}>{t("landing.why.eyebrow", { brand: BRAND_NAME })}</p>
-              <h2 className={styles.sectionTitle}>{t("landing.why.title")}</h2>
+            <div className={styles.featureRow}>
+              {heroFeatures.map((item) => (
+                <Link key={item.href} href={item.href} className={styles.featureItem}>
+                  <span className={styles.featureIcon}>{item.icon}</span>
+                  <span className={styles.featureText}>
+                    <strong>{item.t}</strong>
+                    {item.d}
+                  </span>
+                </Link>
+              ))}
             </div>
-            <p className={styles.sectionLead}>{t("landing.why.lead")}</p>
-          </div>
-          <div className={styles.grid2}>
-            <div className={styles.trustBlock}>
-              <h3>{t("landing.why.avoidTitle")}</h3>
-              <p>{t("landing.why.avoidBody")}</p>
-            </div>
-            <div className={`${styles.trustBlock} ${styles.trustBlockGain}`}>
-              <h3>{t("landing.why.useTitle")}</h3>
-              <p>
-                {t("landing.why.useBody", {
-                  companies: stats.companiesCount,
-                  sectors: sectorsCount,
-                  horizon: horizonLabel,
-                })}
-              </p>
-            </div>
-          </div>
           </div>
         </section>
 
@@ -439,6 +408,34 @@ export default function LandingPage({
         </section>
 
         <section className={styles.section}>
+          <div className={styles.rail}>
+          <div className={styles.sectionHead}>
+            <div className={styles.sectionHeadCopy}>
+              <p className={styles.sectionEyebrow}>{t("landing.why.eyebrow", { brand: BRAND_NAME })}</p>
+              <h2 className={styles.sectionTitle}>{t("landing.why.title")}</h2>
+            </div>
+            <p className={styles.sectionLead}>{t("landing.why.lead")}</p>
+          </div>
+          <div className={styles.grid2}>
+            <div className={styles.trustBlock}>
+              <h3>{t("landing.why.avoidTitle")}</h3>
+              <p>{t("landing.why.avoidBody")}</p>
+            </div>
+            <div className={`${styles.trustBlock} ${styles.trustBlockGain}`}>
+              <h3>{t("landing.why.useTitle")}</h3>
+              <p>
+                {t("landing.why.useBody", {
+                  companies: stats.companiesCount,
+                  sectors: sectorsCount,
+                  horizon: horizonLabel,
+                })}
+              </p>
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <section className={`${styles.section} ${styles.sectionAlt}`}>
           <div className={styles.rail}>
           <div className={styles.sectionHead}>
             <div className={styles.sectionHeadCopy}>
