@@ -14,6 +14,7 @@ import { buildNgxSheet, computeCompanyMetrics } from "@/lib/ngx/sheet-model";
 import { policyScore, type NgxPillarKey, type NgxScoreBand, type NgxScoreConfidence, type NgxScoreMode } from "@/lib/ngx/score";
 import { NGX_PILLAR_KEYS } from "@/lib/ngx/score";
 import { ngxSectorGroup, cleanNgxName, type NgxSectorGroup } from "@/lib/ngx/sectors";
+import { ngxSparkValues } from "./ngx-spark";
 import { loadNgxUniverse } from "./ngx-sheet";
 
 export interface NgxScreenerRow {
@@ -44,6 +45,8 @@ export interface NgxScreenerRow {
 
 export interface NgxScreenerData {
   rows: NgxScreenerRow[];
+  /** Aperçu 1 an par ticker (≈48 clôtures ajustées), absent = N/D. Utilisé par la vue d'ensemble NGX. */
+  sparks: Record<string, number[]>;
   /** Sociétés actives, notées avec fondamentaux (FULL + PARTIAL), notées sur le graphique seul, non notées. */
   coverage: { total: number; fundamentals: number; full: number; partial: number; chartOnly: number; unscored: number };
   asOf: string;
@@ -153,8 +156,14 @@ export async function loadNgxScreener(): Promise<NgxScreenerData> {
   const full = count("FULL");
   const partial = count("PARTIAL");
   const chartOnly = out.filter((r) => r.mode === "CHART_ONLY" && r.overall != null).length;
+  const sparks: Record<string, number[]> = {};
+  for (const [ticker, series] of seriesByTicker) {
+    const values = ngxSparkValues(series);
+    if (values.length >= 2) sparks[ticker] = values;
+  }
   return {
     rows: out,
+    sparks,
     coverage: {
       total: out.length,
       fundamentals: full + partial,
