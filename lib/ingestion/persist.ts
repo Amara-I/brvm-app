@@ -746,6 +746,9 @@ export async function persistCompanyProfiles(
     const prev = (existing.profileMeta as ProfileMetaJson | null) ?? {};
     const listingDate = pickStr(row.listingDate ?? null, prev.listingDate) ?? null;
     const profileMeta: ProfileMetaJson = {
+      // Conserve les clés ajoutées hors ingestion (brvmOutlook, ngxOutlook, ngxFundamentals…) : sans cela
+      // la prochaine synchronisation du profil les effacerait.
+      ...prev,
       phone: pickStr(row.phone, prev.phone),
       fax: pickStr(row.fax, prev.fax),
       address: pickStr(row.address, prev.address),
