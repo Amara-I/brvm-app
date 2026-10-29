@@ -6,6 +6,7 @@ import { localizedTypeDef } from "@/lib/i18n/portfolio-type-copy";
 import { getPortfolioTypeDef } from "@/lib/portfolio-types/catalog";
 import { type CriterionKey, type PolicyCriterion } from "@/lib/ngx/policy";
 import type { NgxSheetModel, SectorMetricKey } from "@/lib/ngx/sheet-model";
+import { outlookSummary, outlookText, type NgxOutlookItem } from "@/lib/ngx/outlook";
 import { VALUATION_BAND_PERCENT, type FairValueEstimate } from "@/lib/ngx/valuation";
 import FinancialBars from "./FinancialBars";
 import { NGX_MARKET_PILLARS, NGX_SCORE_WEIGHTS } from "@/lib/ngx/score";
@@ -108,7 +109,7 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
             <Performance model={model} t={t} format={format} na={na} bn={bn} pct={pct} />
           </Section>
           <Section id="outlook" title={t("ngx.sheet.sections.outlook")} lead={t("ngx.sheet.outlook.lead")}>
-            <Outlook model={model} t={t} pct={pct} day={day} />
+            <Outlook model={model} t={t} locale={locale} pct={pct} day={day} />
           </Section>
           <Section id="price" title={t("ngx.sheet.sections.price")} lead={t("ngx.sheet.price.lead")}>
             <PriceMultiples model={model} t={t} ngn={ngn} bn={bn} pct={pct} mult={mult} />
@@ -533,14 +534,119 @@ function Performance({
 
 // ───────────── 3. Perspectives ─────────────
 
+const OUTLOOK_DATE_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const CONFIDENCE_TONE: Record<string, string> = { high: styles.good, medium: styles.mid };
+
+function OutlookSynthesis({
+  model,
+  t,
+  locale,
+  day,
+}: {
+  model: NgxSheetModel;
+  t: T;
+  locale: "fr" | "en";
+  day: (iso: string | null) => string;
+}) {
+  const synthesis = model.outlook.synthesis;
+  const title = <h3 className={styles.sub}>{t("ngx.sheet.outlook.synthesis.title")}</h3>;
+  if (!synthesis) {
+    return (
+      <>
+        {title}
+        <div className={styles.empty}>{t("ngx.sheet.outlook.synthesis.empty")}</div>
+      </>
+    );
+  }
+  const summary = outlookSummary(synthesis, locale);
+  const analysts = synthesis.items.filter((i) => i.type === "analyst");
+  const others = synthesis.items.filter((i) => i.type !== "analyst");
+  const when = (i: NgxOutlookItem) =>
+    i.date ? (OUTLOOK_DATE_ISO.test(i.date) ? day(i.date) : i.date) : t("ngx.sheet.outlook.synthesis.noDate");
+  const itemLine = (i: NgxOutlookItem, key: string) => (
+    <li key={key} className={styles.item}>
+      <span className={styles.outlookTags}>
+        <span className={styles.badge}>{t(`ngx.sheet.outlook.synthesis.types.${i.type}`)}</span>
+        {i.confidence ? (
+          <span
+            className={`${styles.badge} ${CONFIDENCE_TONE[i.confidence] ?? ""}`}
+            title={t("ngx.sheet.outlook.synthesis.confidenceLabel")}
+          >
+            {t(`ngx.sheet.outlook.synthesis.confidence.${i.confidence}`)}
+          </span>
+        ) : null}
+      </span>
+      <span className={styles.outlookText}>{outlookText(i, locale)}</span>
+      <span className={styles.meta}>
+        {t("ngx.sheet.outlook.synthesis.sourceLine", { source: i.sourceName ?? "—", date: when(i) })}
+        {i.url ? (
+          <>
+            {" · "}
+            <a className={styles.link} href={i.url} target="_blank" rel="noopener noreferrer">
+              {t("ngx.sheet.outlook.open")} ↗
+            </a>
+          </>
+        ) : null}
+      </span>
+    </li>
+  );
+  return (
+    <div className={styles.synthesis}>
+      <div className={styles.synthesisHead}>
+        {title}
+        {synthesis.updatedAt ? (
+          <span className={styles.meta}>
+            {t("ngx.sheet.outlook.synthesis.updatedOn", { date: day(synthesis.updatedAt.slice(0, 10)) })}
+          </span>
+        ) : null}
+      </div>
+      <p className={styles.lead}>{t("ngx.sheet.outlook.synthesis.lead")}</p>
+      {summary.bullets.length > 0 ? (
+        <div className={styles.card}>
+          <h4 className={styles.synthesisTitle}>{t("ngx.sheet.outlook.synthesis.keyPointsTitle")}</h4>
+          <ul className={styles.synthesisList}>
+            {summary.bullets.map((b, idx) => (
+              <li key={`b-${idx}`}>{b}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      {summary.watch.length > 0 ? (
+        <div className={`${styles.card} ${styles.synthesisWatch}`}>
+          <h4 className={styles.synthesisTitle}>{t("ngx.sheet.outlook.synthesis.watchTitle")}</h4>
+          <ul className={styles.synthesisList}>
+            {summary.watch.map((w, idx) => (
+              <li key={`w-${idx}`}>{w}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+      <h4 className={styles.synthesisTitle}>{t("ngx.sheet.outlook.synthesis.analystsTitle")}</h4>
+      {analysts.length === 0 ? (
+        <div className={styles.empty}>{t("ngx.sheet.outlook.synthesis.analystsEmpty")}</div>
+      ) : (
+        <ul className={styles.list}>{analysts.map((i, idx) => itemLine(i, `a-${idx}`))}</ul>
+      )}
+      {others.length > 0 ? (
+        <details className={styles.synthesisMore}>
+          <summary>{t("ngx.sheet.outlook.synthesis.sourcesTitle", { count: others.length })}</summary>
+          <ul className={styles.list}>{others.map((i, idx) => itemLine(i, `o-${idx}`))}</ul>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function Outlook({
   model,
   t,
+  locale,
   pct,
   day,
 }: {
   model: NgxSheetModel;
   t: T;
+  locale: "fr" | "en";
   pct: (v: number | null, d?: number, s?: boolean) => string;
   day: (iso: string | null) => string;
 }) {
@@ -570,6 +676,7 @@ function Outlook({
     );
   return (
     <>
+      <OutlookSynthesis model={model} t={t} locale={locale} day={day} />
       <h3 className={styles.sub}>{t("ngx.sheet.outlook.guidanceTitle")}</h3>
       {o.guidance.length === 0 ? (
         <div className={styles.empty}>{t("ngx.sheet.outlook.guidanceEmpty")}</div>

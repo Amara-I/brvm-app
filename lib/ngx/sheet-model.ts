@@ -1,6 +1,7 @@
 // Construction pure du modèle de la fiche NGX (8 sections). Aucune lecture base ici :
 // le chargeur (lib/markets/ngx-sheet.ts) fournit les lignes, ce module calcule.
 
+import { parseNgxOutlook, type NgxOutlookSynthesis } from "./outlook";
 import { concludeAllPolicies, type PolicyConclusion, type PolicyFacts } from "./policy";
 import {
   buildFinancialYears,
@@ -221,6 +222,8 @@ export interface NgxSheetModel {
     documents: DocumentRowLike[];
   };
   outlook: {
+    /** Synthèse sourcée des perspectives (profile_meta.ngxOutlook) ; null = non chargée. */
+    synthesis: NgxOutlookSynthesis | null;
     guidance: EventRowLike[];
     upcoming: EventRowLike[];
     past: EventRowLike[];
@@ -623,6 +626,7 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
       documents: docs,
     },
     outlook: {
+      synthesis: parseNgxOutlook(company.profileMeta),
       guidance,
       upcoming,
       past,
