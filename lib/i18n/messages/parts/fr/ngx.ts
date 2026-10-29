@@ -29,6 +29,8 @@ export const ngx = {
     colPrice: "Cours",
     colChange: "Var. jour",
     colChange1y: "Var. 1 an",
+    colSpark: "Aperçu 1 an",
+    colSparkTitle: "Évolution du cours sur 1 an (clôtures ajustées des opérations sur titres) — vert si hausse, rouge si baisse",
     colScore: "Score",
     colChangeTitle: "Variation du jour : dernier cours vs séance précédente",
     colChange1yTitle: "Variation sur 1 an : cours ajusté des opérations sur titres, séance la plus proche avant la date J-365",

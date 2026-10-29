@@ -5,6 +5,7 @@ import Link from "next/link";
 import ChangeValue from "@/components/ui/ChangeValue";
 import { scoreBand, type NgxScoreBand, type NgxScoreMode } from "@/lib/ngx/score";
 import { nextNgxOverviewSort, sortNgxOverview, type NgxOverviewSort, type NgxOverviewSortKey as SortKey } from "@/lib/markets/ngx-overview-sort";
+import MarketSparkline from "@/components/marche/MarketSparkline";
 import styles from "./NgxMarket.module.css";
 import local from "./NgxScreener.module.css";
 
@@ -27,6 +28,8 @@ export interface NgxShareTableRow {
   changePercent: number | null;
   /** Performance sur 1 an (cours ajusté), null = N/D. */
   return1yPercent: number | null;
+  /** Aperçu 1 an : clôtures ajustées (≈48 points), [] = N/D. */
+  spark: number[];
   /** Note globale /100 (même calcul que le screener et la fiche), null = N/D. */
   score: number | null;
   scoreMode: NgxScoreMode | null;
@@ -52,6 +55,8 @@ export default function NgxShareTable({
     colChange: string;
     colChange1y: string;
     colScore: string;
+    colSpark: string;
+    colSparkTitle: string;
     colChangeTitle: string;
     colChange1yTitle: string;
     colScoreTitle: string;
@@ -131,6 +136,9 @@ export default function NgxShareTable({
                 <th scope="col">{labels.colPrice}</th>
                 {sortHead("change", labels.colChange, labels.colChangeTitle)}
                 {sortHead("change1y", labels.colChange1y, labels.colChange1yTitle)}
+                <th scope="col" title={labels.colSparkTitle}>
+                  {labels.colSpark}
+                </th>
                 {sortHead("score", labels.colScore, labels.colScoreTitle)}
                 <th scope="col">{labels.colFcfa}</th>
               </tr>
@@ -150,6 +158,15 @@ export default function NgxShareTable({
                   </td>
                   <td data-testid={`ngx-1y-${row.ticker}`}>
                     <ChangeValue value={row.return1yPercent} digits={1} />
+                  </td>
+                  <td data-testid={`ngx-spark-${row.ticker}`}>
+                    <div className={styles.sparkCell} title={labels.colSparkTitle}>
+                      {row.spark.length >= 2 ? (
+                        <MarketSparkline values={row.spark} width={120} height={32} />
+                      ) : (
+                        <span className="ob-nd">N/D</span>
+                      )}
+                    </div>
                   </td>
                   <td data-testid={`ngx-score-${row.ticker}`}>
                     {row.score == null ? (

@@ -29,6 +29,8 @@ export const ngx = {
     colPrice: "Price",
     colChange: "Day chg",
     colChange1y: "1Y chg",
+    colSpark: "1Y preview",
+    colSparkTitle: "1-year price trend (adjusted closes) — green if up, red if down",
     colScore: "Score",
     colChangeTitle: "Day change: latest close vs previous session",
     colChange1yTitle: "1-year change: split/corporate-action adjusted close, nearest prior session to D-365",

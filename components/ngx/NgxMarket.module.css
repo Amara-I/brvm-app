@@ -227,3 +227,22 @@ th[aria-sort="descending"] .sortArrow {
 .screenerLink:focus-visible {
   background: var(--c-gold-soft);
 }
+
+/* Aperçu 1 an : même cadre que la colonne « Aperçu » de la BRVM (MarketBoard.module.css). */
+.sparkCell {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 9.5rem;
+  min-height: 2.6rem;
+  padding: 0.3rem 0.5rem;
+  border-radius: 10px;
+  background: var(--c-bg);
+  border: 1px solid var(--c-border);
+}
+
+@media (max-width: 640px) {
+  .sparkCell {
+    min-width: 8rem;
+  }
+}

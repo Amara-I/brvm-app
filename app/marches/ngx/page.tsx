@@ -136,6 +136,7 @@ export default async function NgxMarketPage() {
                 fcfaLabel: row.indicativeFcfa == null ? "N/D" : format.money(row.indicativeFcfa, "XOF"),
                 changePercent: row.changePercent,
                 return1yPercent: stats.get(row.ticker)?.return1yPercent ?? null,
+                spark: screener?.sparks[row.ticker] ?? [],
                 score: stats.get(row.ticker)?.overall ?? null,
                 scoreMode: stats.get(row.ticker)?.mode ?? null,
               }))}
@@ -156,6 +157,8 @@ export default async function NgxMarketPage() {
                 colPrice: t("ngx.market.colPrice"),
                 colChange: t("ngx.market.colChange"),
                 colChange1y: t("ngx.market.colChange1y"),
+                colSpark: t("ngx.market.colSpark"),
+                colSparkTitle: t("ngx.market.colSparkTitle"),
                 colScore: t("ngx.market.colScore"),
                 colChangeTitle: t("ngx.market.colChangeTitle"),
                 colChange1yTitle: t("ngx.market.colChange1yTitle"),
