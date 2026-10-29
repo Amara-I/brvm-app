@@ -1,0 +1,159 @@
+.card {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-top: 2px solid var(--c-gold);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--c-text);
+}
+
+.lead {
+  margin: 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: var(--c-textdim);
+}
+
+.meta {
+  font-size: 0.72rem;
+  color: var(--c-textdim);
+  overflow-wrap: anywhere;
+}
+
+.empty {
+  margin: 0;
+  color: var(--c-textdim);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.block {
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--c-gold);
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  background: rgba(212, 175, 55, 0.04);
+}
+
+.watch {
+  border-left-color: var(--c-red);
+  background: rgba(220, 80, 80, 0.04);
+}
+
+.blockTitle {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-gold);
+  font-weight: 700;
+}
+
+.block .blockTitle {
+  margin-top: 0;
+}
+
+.list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+  line-height: 1.6;
+  font-size: 0.93rem;
+  color: var(--c-text);
+}
+
+.items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--c-border);
+  color: var(--c-textdim);
+}
+
+.good {
+  color: var(--c-gold);
+  border-color: var(--c-gold);
+}
+
+.mid {
+  color: var(--c-text);
+}
+
+.low {
+  color: var(--c-red);
+  border-color: var(--c-red);
+}
+
+.itemText {
+  color: var(--c-text);
+  font-size: 0.93rem;
+  line-height: 1.55;
+}
+
+.link {
+  color: var(--c-gold);
+  text-decoration: none;
+}
+
+.link:hover {
+  text-decoration: underline;
+}
+
+.more summary {
+  cursor: pointer;
+  color: var(--c-gold);
+  font-size: 0.88rem;
+  margin: 4px 0 10px;
+}
+
+@media (max-width: 400px) {
+  .card {
+    padding: 12px;
+  }
+}

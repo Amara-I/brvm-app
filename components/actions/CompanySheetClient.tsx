@@ -41,6 +41,7 @@ import {
 } from "@/lib/charts/window-change";
 import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel";
 import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel";
+import OutlookSynthesisCard from "./OutlookSynthesisCard";
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
@@ -217,6 +218,7 @@ export default function CompanySheetClient({
     description,
     listedSince,
     profileMeta,
+    outlook,
     documents: initialDocuments,
     events,
     news,
@@ -1140,6 +1142,8 @@ export default function CompanySheetClient({
                   </section>
                 </div>
 
+                <OutlookSynthesisCard synthesis={outlook} />
+
                 <div className={styles.eventsNewsSplit}>
                   <section className={styles.card}>
                     <div className={styles.cardHead}>
@@ -1479,6 +1483,7 @@ export default function CompanySheetClient({
         <>
           <PortfolioTypePerspective perspective={analysisPerspective} compact />
           <CompanyProjectionPanel company={company} years={payload.years} metrics={metrics} />
+          <OutlookSynthesisCard synthesis={outlook} />
         </>
       )}
 

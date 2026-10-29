@@ -26,6 +26,7 @@ import {
   isOuestbourseSupabaseConfigured,
 } from "@/lib/ingestion/connectors/ouestbourse_supabase";
 import { companyDocumentKind, type CompanyDocumentKind } from "@/lib/ingestion/document-kinds";
+import { parseOutlook, type OutlookSynthesis } from "@/lib/outlook/synthesis";
 
 function mdFromFcfa(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v) || v === 0) return null;
@@ -150,6 +151,8 @@ export interface CompanySheetPayload {
   listedSince: string | null;
   /** Profil étendu (téléphone, dirigeants, actionnaires…). */
   profileMeta: CompanyProfileMeta | null;
+  /** Synthèse sourcée des perspectives d'avenir (profile_meta.brvmOutlook) ; null = non chargée. */
+  outlook: OutlookSynthesis | null;
   documents: CompanyDocumentRow[];
   events: CompanyEventRow[];
   news: CompanyNewsRow[];
@@ -157,6 +160,13 @@ export interface CompanySheetPayload {
   dividendSchedule: EnrichedDividendRow[];
   /** Série annuelle CA / résultat net / résultat d'exploitation (Md FCFA). */
   incomeStatement: AnnualIncomePoint[];
+}
+
+function stripOutlook(meta: CompanyProfileMeta | null): CompanyProfileMeta | null {
+  if (!meta || typeof meta !== "object" || !("brvmOutlook" in meta)) return meta;
+  const { brvmOutlook: _omitted, ...rest } = meta as CompanyProfileMeta & { brvmOutlook?: unknown };
+  void _omitted;
+  return rest;
 }
 
 export interface CompanyProfileMeta {
@@ -556,7 +566,9 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
       corporateActions
     ),
   }));
-  const rawProfile = (dbCompany?.profileMeta as CompanyProfileMeta | null) ?? null;
+  const outlook = parseOutlook(dbCompany?.profileMeta, "brvmOutlook");
+  // La synthèse est analysée côté serveur : on ne renvoie pas sa version brute au navigateur.
+  const rawProfile = stripOutlook((dbCompany?.profileMeta as CompanyProfileMeta | null) ?? null);
   const sharesOutstanding = restateSharesOutstanding(rawProfile?.sharesOutstanding, corporateActions);
   const profileMeta = rawProfile
     ? { ...rawProfile, sharesOutstanding: sharesOutstanding ?? rawProfile.sharesOutstanding ?? null }
@@ -584,6 +596,7 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
       ? dbCompany.listedSince.toISOString().slice(0, 10)
       : ((dbCompany?.profileMeta as CompanyProfileMeta | null)?.listingDate ?? null),
     profileMeta,
+    outlook,
     documents: [...docRows]
       .sort((a, b) => {
         if (!a.publishedAt && !b.publishedAt) {
