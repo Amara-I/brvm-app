@@ -27,7 +27,12 @@ export const ngx = {
     colSector: "Sector",
     colBoard: "Board",
     colPrice: "Price",
-    colChange: "Chg",
+    colChange: "Day chg",
+    colChange1y: "1Y chg",
+    colScore: "Score",
+    colChangeTitle: "Day change: latest close vs previous session",
+    colChange1yTitle: "1-year change: split/corporate-action adjusted close, nearest prior session to D-365",
+    colScoreTitle: "Score /100, same as the screener and the company sheet (overall score). Click to sort.",
     colFcfa: "Indicative CFA",
     attribution:
       "EUR→NGN rate: open.er-api.com. Indicative CFA = ₦ price × 655.957 / rate. This is not an official FX fixing.",
