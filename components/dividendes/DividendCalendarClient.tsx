@@ -11,6 +11,7 @@ import {
   type ColumnSortState,
 } from "@/lib/ui/column-filters";
 import type { DividendCalendarDataset, DividendCalendarEvent } from "@/lib/api/dividend-calendar";
+import { topYieldByCompany } from "@/lib/api/dividend-calendar-build";
 import type { TFunc } from "@/lib/i18n/create-i18n";
 import type { FormatApi } from "@/lib/i18n/format";
 import styles from "./DividendCalendar.module.css";
@@ -76,11 +77,24 @@ function EventsTable({ rows }: { rows: DividendCalendarEvent[] }) {
       { key: "ticker", label: t("market.columns.ticker"), sortKind: "text", getValue: (ev) => ev.ticker },
       { key: "name", label: t("market.columns.company"), sortKind: "text", getValue: (ev) => ev.name },
       { key: "sector", label: t("market.indices.col.sector"), sortKind: "text", getValue: (ev) => ev.sector },
+      { key: "year", label: t("market.dividends.col.year"), sortKind: "number", getValue: (ev) => String(ev.year) },
       {
         key: "amount",
         label: t("market.dividends.col.amount"),
         sortKind: "number",
         getValue: (ev) => String(ev.amount),
+      },
+      {
+        key: "close",
+        label: t("market.dividends.col.price"),
+        sortKind: "number",
+        getValue: (ev) => (ev.close == null ? "N/D" : String(ev.close)),
+      },
+      {
+        key: "yield",
+        label: t("market.dividends.col.yield"),
+        sortKind: "number",
+        getValue: (ev) => (ev.yieldPercent == null ? "N/D" : String(ev.yieldPercent)),
       },
       {
         key: "exDate",
@@ -125,7 +139,10 @@ function EventsTable({ rows }: { rows: DividendCalendarEvent[] }) {
                 </span>
               </td>
               <td>{labels.sector(ev.sector)}</td>
+              <td className={styles.mono}>{ev.year}</td>
               <td className={styles.amount}>{format.fcfa(Math.round(ev.amount))}</td>
+              <td className={styles.mono}>{ev.close == null ? "N/D" : format.fcfa(Math.round(ev.close))}</td>
+              <td className={styles.yield}>{ev.yieldPercent == null ? "N/D" : format.percent(ev.yieldPercent, 2)}</td>
               <td>{fmtDateShort(ev.exDate, format)}</td>
               <td>{fmtDateShort(ev.paymentDate, format)}</td>
               <td className={styles.source}>{translateDataSourceLabel(ev.source, t)}</td>
@@ -200,7 +217,9 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
   // Décembre : ancrage des dividendes sans date précise (exercice)
   const initialMonth = data.datedCount > 0 ? now.getMonth() : 11;
 
+  // 0 = « tous les exercices » (liste uniquement) ; les vues calendrier retombent sur l'année par défaut.
   const [viewYear, setViewYear] = useState(defaultYear);
+  const calYear = viewYear || defaultYear;
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [sector, setSector] = useState("Tous");
   const [query, setQuery] = useState("");
@@ -221,17 +240,17 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
   const byDay = useMemo(() => {
     const map = new Map<string, DividendCalendarEvent[]>();
     for (const ev of filtered) {
-      if (!ev.displayDate.startsWith(`${viewYear}-`)) continue;
+      if (!ev.displayDate.startsWith(`${calYear}-`)) continue;
       const list = map.get(ev.displayDate) ?? [];
       list.push(ev);
       map.set(ev.displayDate, list);
     }
     return map;
-  }, [filtered, viewYear]);
+  }, [filtered, calYear]);
 
-  const monthCells = useMemo(() => buildMonthCells(viewYear, viewMonth), [viewYear, viewMonth]);
+  const monthCells = useMemo(() => buildMonthCells(calYear, viewMonth), [calYear, viewMonth]);
 
-  const monthPrefix = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}`;
+  const monthPrefix = `${calYear}-${String(viewMonth + 1).padStart(2, "0")}`;
   const monthRows = useMemo(
     () =>
       filtered
@@ -243,8 +262,10 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
   const dayRows = selectedDay ? byDay.get(selectedDay) ?? [] : [];
 
   const listForYear = useMemo(() => {
-    return filtered.filter((ev) => ev.year === viewYear).sort((a, b) => a.ticker.localeCompare(b.ticker, "fr"));
+    return filtered.filter((ev) => viewYear === 0 || ev.year === viewYear).sort((a, b) => b.year - a.year || a.ticker.localeCompare(b.ticker, "fr"));
   }, [filtered, viewYear]);
+
+  const topYield = useMemo(() => topYieldByCompany(data.events), [data.events]);
 
   const upcomingRows = useMemo(() => {
     return filtered
@@ -253,16 +274,40 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
   }, [filtered, todayIso]);
 
   function shiftMonth(delta: number) {
-    const d = new Date(Date.UTC(viewYear, viewMonth + delta, 1));
+    const d = new Date(Date.UTC(calYear, viewMonth + delta, 1));
     setViewYear(d.getUTCFullYear());
     setViewMonth(d.getUTCMonth());
     setSelectedDay(null);
   }
 
-  const monthName = monthLabel(viewYear, viewMonth, format);
+  const monthName = monthLabel(calYear, viewMonth, format);
 
   return (
     <div className={styles.wrap}>
+      {data.events.length > 0 ? (
+        <div className={styles.kpis}>
+          <div className={styles.kpi}>
+            <span>{t("market.dividends.kpiPayers")}</span>
+            <strong>{format.integer(data.companies)}</strong>
+          </div>
+          <div className={styles.kpi}>
+            <span>{t("market.dividends.kpiRows")}</span>
+            <strong>{format.integer(data.events.length)}</strong>
+          </div>
+          <div className={styles.kpi}>
+            <span>{t("market.dividends.kpiTopYield")}</span>
+            <strong>
+              {topYield && topYield.yieldPercent != null
+                ? `${topYield.ticker} · ${format.percent(topYield.yieldPercent, 1)}`
+                : t("market.dividends.kpiTopYieldNone")}
+            </strong>
+          </div>
+          <div className={styles.kpi}>
+            <span>{t("market.dividends.kpiLatestYear")}</span>
+            <strong>{data.years[0] ?? "N/D"}</strong>
+          </div>
+        </div>
+      ) : null}
       <div className={styles.toolbar}>
         <div className={styles.toolbarTop}>
           <div className={styles.tabs} role="tablist" aria-label={t("market.dividends.modeAria")}>
@@ -312,12 +357,13 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
               {mode === "mois" ? t("market.dividends.calendarYear") : t("market.dividends.fiscalYear")}
               <select
                 className={styles.control}
-                value={viewYear}
+                value={mode === "mois" ? calYear : viewYear}
                 onChange={(e) => {
                   setViewYear(Number(e.target.value));
                   setSelectedDay(null);
                 }}
               >
+                {mode === "liste" ? <option value={0}>{t("market.dividends.allYears")}</option> : null}
                 {(mode === "mois" ? calendarYears : data.years.length > 0 ? data.years : [viewYear]).map((y) => (
                   <option key={y} value={y}>
                     {y}
@@ -354,10 +400,14 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
 
       <p className={styles.count}>
         {mode === "liste"
-          ? t(listForYear.length > 1 ? "market.dividends.listMany" : "market.dividends.listOne", {
-              count: listForYear.length,
-              year: viewYear,
-            })
+          ? viewYear === 0
+            ? t(listForYear.length > 1 ? "market.dividends.listAllMany" : "market.dividends.listAllOne", {
+                count: listForYear.length,
+              })
+            : t(listForYear.length > 1 ? "market.dividends.listMany" : "market.dividends.listOne", {
+                count: listForYear.length,
+                year: viewYear,
+              })
           : mode === "avenir"
             ? t(upcomingRows.length > 1 ? "market.dividends.upcomingMany" : "market.dividends.upcomingOne", {
                 count: upcomingRows.length,
@@ -376,7 +426,11 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
       </p>
 
       {mode === "liste" ? (
-        <section className={styles.panel} aria-label={t("market.dividends.yearPanel", { year: viewYear })}>
+        <section className={styles.panel} aria-label={
+            viewYear === 0
+              ? t("market.dividends.allYears")
+              : t("market.dividends.yearPanel", { year: viewYear })
+          }>
           <EventsTable rows={listForYear} />
         </section>
       ) : mode === "avenir" ? (
@@ -458,6 +512,13 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
           </section>
         </div>
       )}
+
+      {data.events.length > 0 ? (
+        <>
+          <p className={styles.note}>{t("market.dividends.note", { date: data.priceDate ?? "N/D" })}</p>
+          <p className={styles.disclaimer}>{t("market.dividends.disclaimer")}</p>
+        </>
+      ) : null}
     </div>
   );
 }
