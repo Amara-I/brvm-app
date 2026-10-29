@@ -27,7 +27,12 @@ export const ngx = {
     colSector: "Secteur",
     colBoard: "Compartiment",
     colPrice: "Cours",
-    colChange: "Var.",
+    colChange: "Var. jour",
+    colChange1y: "Var. 1 an",
+    colScore: "Score",
+    colChangeTitle: "Variation du jour : dernier cours vs séance précédente",
+    colChange1yTitle: "Variation sur 1 an : cours ajusté des opérations sur titres, séance la plus proche avant la date J-365",
+    colScoreTitle: "Score /100 identique à celui du screener et de la fiche société (note globale). Clic pour trier.",
     colFcfa: "FCFA indicatif",
     attribution:
       "Taux EUR→NGN : open.er-api.com. FCFA indicatif = cours ₦ × 655,957 / taux. Ce n'est pas un cours de change officiel.",

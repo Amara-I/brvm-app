@@ -10,6 +10,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxOverview } from "@/lib/markets/ngx-browse";
+import { loadNgxScreener } from "@/lib/markets/ngx-screener";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,10 @@ export function generateMetadata() {
 
 export default async function NgxMarketPage() {
   const { t, format } = getI18n();
-  const overview = await loadNgxOverview().catch(() => null);
+  // Score et variation 1 an : mêmes chiffres que le screener et la fiche (lib/markets/ngx-screener.ts).
+  // Si ce calcul échoue, la liste reste affichée avec N/D plutôt que de casser la page.
+  const [overview, screener] = await Promise.all([loadNgxOverview().catch(() => null), loadNgxScreener().catch(() => null)]);
+  const stats = new Map((screener?.rows ?? []).map((row) => [row.ticker, row] as const));
   const shares = overview?.shares ?? [];
   const session = overview?.sessionDate
     ? t("ngx.market.session", {
@@ -131,6 +135,9 @@ export default async function NgxMarketPage() {
                 closeLabel: row.close == null ? "N/D" : format.money(row.close, "NGN"),
                 fcfaLabel: row.indicativeFcfa == null ? "N/D" : format.money(row.indicativeFcfa, "XOF"),
                 changePercent: row.changePercent,
+                return1yPercent: stats.get(row.ticker)?.return1yPercent ?? null,
+                score: stats.get(row.ticker)?.overall ?? null,
+                scoreMode: stats.get(row.ticker)?.mode ?? null,
               }))}
               sectors={(overview?.sectors ?? []).map((sector) => ({
                 slug: sector.slug,
@@ -148,6 +155,15 @@ export default async function NgxMarketPage() {
                 colBoard: t("ngx.market.colBoard"),
                 colPrice: t("ngx.market.colPrice"),
                 colChange: t("ngx.market.colChange"),
+                colChange1y: t("ngx.market.colChange1y"),
+                colScore: t("ngx.market.colScore"),
+                colChangeTitle: t("ngx.market.colChangeTitle"),
+                colChange1yTitle: t("ngx.market.colChange1yTitle"),
+                colScoreTitle: t("ngx.market.colScoreTitle"),
+                tagChartOnly: t("ngx.screener.tags.chartOnly"),
+                tagChartOnlyTitle: t("ngx.screener.tags.chartOnlyTitle"),
+                tagPartial: t("ngx.screener.tags.partial"),
+                tagPartialTitle: t("ngx.screener.tags.partialTitle"),
                 colFcfa: t("ngx.market.colFcfa"),
                 empty: t("market.board.empty"),
               }}

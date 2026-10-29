@@ -3,7 +3,18 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import ChangeValue from "@/components/ui/ChangeValue";
+import { scoreBand, type NgxScoreBand, type NgxScoreMode } from "@/lib/ngx/score";
+import { nextNgxOverviewSort, sortNgxOverview, type NgxOverviewSort, type NgxOverviewSortKey as SortKey } from "@/lib/markets/ngx-overview-sort";
 import styles from "./NgxMarket.module.css";
+import local from "./NgxScreener.module.css";
+
+const BAND_CLASS: Record<NgxScoreBand, string> = {
+  HIGH: local.pillHigh,
+  GOOD: local.pillGood,
+  MIXED: local.pillMixed,
+  LOW: local.pillLow,
+};
+
 
 export interface NgxShareTableRow {
   ticker: string;
@@ -14,6 +25,11 @@ export interface NgxShareTableRow {
   closeLabel: string;
   fcfaLabel: string;
   changePercent: number | null;
+  /** Performance sur 1 an (cours ajusté), null = N/D. */
+  return1yPercent: number | null;
+  /** Note globale /100 (même calcul que le screener et la fiche), null = N/D. */
+  score: number | null;
+  scoreMode: NgxScoreMode | null;
 }
 
 export default function NgxShareTable({
@@ -34,20 +50,47 @@ export default function NgxShareTable({
     colBoard: string;
     colPrice: string;
     colChange: string;
+    colChange1y: string;
+    colScore: string;
+    colChangeTitle: string;
+    colChange1yTitle: string;
+    colScoreTitle: string;
+    tagChartOnly: string;
+    tagChartOnlyTitle: string;
+    tagPartial: string;
+    tagPartialTitle: string;
     colFcfa: string;
     empty: string;
   };
 }) {
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState("");
+  const [sort, setSort] = useState<NgxOverviewSort>(null);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return rows.filter((row) => {
+    const list = rows.filter((row) => {
       if (sector && row.sectorSlug !== sector) return false;
       if (!q) return true;
       return row.ticker.toLowerCase().includes(q) || row.name.toLowerCase().includes(q);
     });
-  }, [query, rows, sector]);
+    return sortNgxOverview(list, sort);
+  }, [query, rows, sector, sort]);
+
+  const toggleSort = (key: SortKey) => setSort((current) => nextNgxOverviewSort(current, key));
+
+  const sortHead = (key: SortKey, label: string, title?: string) => {
+    const active = sort?.key === key ? sort.dir : null;
+    return (
+      <th scope="col" aria-sort={active === "asc" ? "ascending" : active === "desc" ? "descending" : "none"} title={title}>
+        <button type="button" className={styles.sortBtn} onClick={() => toggleSort(key)} data-testid={`ngx-sort-${key}`}>
+          {label}
+          <span aria-hidden="true" className={styles.sortArrow}>
+            {active === "asc" ? "▲" : active === "desc" ? "▼" : "↕"}
+          </span>
+        </button>
+      </th>
+    );
+  };
 
   return (
     <>
@@ -81,12 +124,14 @@ export default function NgxShareTable({
           <table className="ob-table">
             <thead>
               <tr>
-                <th scope="col">{labels.colTicker}</th>
+                {sortHead("ticker", labels.colTicker)}
                 <th scope="col">{labels.colName}</th>
                 <th scope="col">{labels.colSector}</th>
                 <th scope="col">{labels.colBoard}</th>
                 <th scope="col">{labels.colPrice}</th>
-                <th scope="col">{labels.colChange}</th>
+                {sortHead("change", labels.colChange, labels.colChangeTitle)}
+                {sortHead("change1y", labels.colChange1y, labels.colChange1yTitle)}
+                {sortHead("score", labels.colScore, labels.colScoreTitle)}
                 <th scope="col">{labels.colFcfa}</th>
               </tr>
             </thead>
@@ -102,6 +147,27 @@ export default function NgxShareTable({
                   <td className={styles.price}>{row.closeLabel}</td>
                   <td>
                     <ChangeValue value={row.changePercent} />
+                  </td>
+                  <td data-testid={`ngx-1y-${row.ticker}`}>
+                    <ChangeValue value={row.return1yPercent} digits={1} />
+                  </td>
+                  <td data-testid={`ngx-score-${row.ticker}`}>
+                    {row.score == null ? (
+                      <span className="ob-nd">N/D</span>
+                    ) : (
+                      <span className={local.scoreCell}>
+                        <span className={`${local.pill} ${BAND_CLASS[scoreBand(row.score) ?? "MIXED"]}`}>{Math.round(row.score)}</span>
+                        {row.scoreMode === "CHART_ONLY" ? (
+                          <span className={local.tag} title={labels.tagChartOnlyTitle}>
+                            {labels.tagChartOnly}
+                          </span>
+                        ) : row.scoreMode === "PARTIAL" ? (
+                          <span className={local.tag} title={labels.tagPartialTitle}>
+                            {labels.tagPartial}
+                          </span>
+                        ) : null}
+                      </span>
+                    )}
                   </td>
                   <td className={styles.price}>{row.fcfaLabel}</td>
                 </tr>
