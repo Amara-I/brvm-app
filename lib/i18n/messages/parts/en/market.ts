@@ -262,6 +262,16 @@ export const market = {
     networkError: "Network error while refreshing.",
     cooldown:
       "Refreshed recently — calendar reloaded from the database (next BRVM pull in a few minutes).",
+    allYears: "All fiscal years",
+    listAllOne: "{count} row — all fiscal years",
+    listAllMany: "{count} rows — all fiscal years",
+    kpiPayers: "Paying companies",
+    kpiRows: "Dividends listed",
+    kpiTopYield: "Top yield",
+    kpiTopYieldNone: "N/A",
+    kpiLatestYear: "Latest fiscal year",
+    note: "Per-share amounts in FCFA, adjusted for splits. The source shown is the official BRVM (dividend payment notices) when available, otherwise Sikafinance or a manual entry. Yield = dividend ÷ last price ({date}): for an older fiscal year it describes today's yield on that dividend, not the yield at the time. Dates are shown only when known.",
+    disclaimer: "Educational information, not investment advice. A past dividend does not guarantee a future one.",
     weekdays: {
       mon: "Mon",
       tue: "Tue",
@@ -272,9 +282,12 @@ export const market = {
       sun: "Sun",
     },
     col: {
-      amount: "Amount / share",
-      exDate: "Ex-date",
-      payment: "Payment",
+      year: "Fiscal year",
+      amount: "Dividend / share",
+      price: "Last price",
+      yield: "Yield",
+      exDate: "Ex-div. date",
+      payment: "Payment date",
     },
   },
 } as const;

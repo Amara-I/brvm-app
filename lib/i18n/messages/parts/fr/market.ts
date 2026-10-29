@@ -263,6 +263,16 @@ export const market = {
     networkError: "Erreur réseau lors de l'actualisation.",
     cooldown:
       "Actualisation récente — calendrier rechargé depuis la base (prochain tirage BRVM dans quelques minutes).",
+    allYears: "Tous les exercices",
+    listAllOne: "{count} ligne — tous les exercices",
+    listAllMany: "{count} lignes — tous les exercices",
+    kpiPayers: "Sociétés qui versent",
+    kpiRows: "Dividendes listés",
+    kpiTopYield: "Meilleur rendement",
+    kpiTopYieldNone: "N/D",
+    kpiLatestYear: "Dernier exercice",
+    note: "Montants par action en FCFA, ajustés des fractionnements. La source affichée est la BRVM officielle (avis de paiement de dividendes) quand elle est disponible, sinon Sikafinance ou une saisie manuelle. Rendement = dividende ÷ dernier cours ({date}) : pour un exercice ancien, il décrit le rendement d'aujourd'hui sur ce dividende, pas celui de l'époque. Les dates ne sont affichées que lorsqu'elles sont connues.",
+    disclaimer: "Information à caractère pédagogique, pas un conseil en investissement. Un dividende passé ne garantit pas un dividende futur.",
     weekdays: {
       mon: "Lun",
       tue: "Mar",
@@ -273,9 +283,12 @@ export const market = {
       sun: "Dim",
     },
     col: {
-      amount: "Montant / action",
-      exDate: "Détachement",
-      payment: "Paiement",
+      year: "Exercice",
+      amount: "Dividende / action",
+      price: "Dernier cours",
+      yield: "Rendement",
+      exDate: "Date ex-div.",
+      payment: "Mise en paiement",
     },
   },
 } as const;
