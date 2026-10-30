@@ -66,7 +66,7 @@ export const chartAnalysisBodySchema = z.object({
     .string()
     .trim()
     .min(1)
-    .max(12)
+    .max(40) // codes d'indices NGX inclus (sociétés : 12 caractères max)
     .transform((t) => t.toUpperCase()),
   name: z.string().trim().min(1).max(80),
   drawings: z.array(drawingSchema).max(80),
@@ -74,7 +74,7 @@ export const chartAnalysisBodySchema = z.object({
   range: z.string().trim().min(1).max(8),
   interval: z.enum(["1H", "1D", "1W", "1M"]),
   compareTickers: z
-    .array(z.string().trim().min(1).max(12))
+    .array(z.string().trim().min(1).max(40))
     .max(5)
     .transform((arr) => arr.map((t) => t.toUpperCase())),
 });

@@ -87,8 +87,8 @@ export async function POST(request: NextRequest) {
 
     const ticker = data.ticker.toUpperCase();
     const company = await prisma.company.findFirst({
-      where: { ticker, exchange: "BRVM" },
-      select: { id: true, ticker: true },
+      where: { ticker, exchange: { in: ["BRVM", "NGX"] } },
+      select: { id: true, ticker: true, exchange: true },
     });
     if (!company) return apiError(`Ticker inconnu : ${ticker}`, 404);
 

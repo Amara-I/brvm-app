@@ -1,7 +1,7 @@
 import type { NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { sendNotificationEmail } from "./email";
-import { deepLinkFor, isInQuietHours } from "./logic";
+import { deepLinkFor, isInQuietHours, type AlertExchange } from "./logic";
 import { getOrCreatePrefs } from "./prefs";
 import { typeEnabled, type NotificationTypeCode, type PrefsSnapshot } from "./types";
 
@@ -14,6 +14,8 @@ export type EmitNotificationInput = {
   ticker?: string | null;
   indexCode?: string | null;
   preferChart?: boolean;
+  /** Place du titre (lien profond vers la fiche NGX). Défaut BRVM. */
+  exchange?: AlertExchange | null;
   alertRuleId?: string | null;
   priceAlertId?: string | null;
   payload?: Prisma.InputJsonValue;
@@ -47,6 +49,7 @@ export async function emitNotification(input: EmitNotificationInput): Promise<Em
       ticker: input.ticker,
       indexCode: input.indexCode,
       preferChart: input.preferChart,
+      exchange: input.exchange,
     });
 
   if (!prefs.channelInApp && prefs.channelEmail) {

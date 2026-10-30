@@ -8,6 +8,8 @@ import { allCompaniesWithMetrics } from "../calc/market-summary-stats";
 import { loadCompaniesFullDataset } from "../api/companies-full-dataset";
 import { getLatestCanonicalPrices } from "../api/latest-data";
 import { getMarketSparkSeriesByTicker } from "../api/market-spark-series";
+import { loadNgxScreener } from "../markets/ngx-screener";
+import { ngxSignal } from "../ngx/signal";
 import { HEADLINE_INDEX_CODES } from "../markets/index-catalog";
 import { emitNotification, flushPendingNotificationEmails } from "./emit";
 import {
@@ -16,12 +18,15 @@ import {
   clampDailyMovePct,
   dailyMoveHits,
   fireKey,
+  fmtMoneyFor,
   fmtFcfa,
   fmtSignedPct,
   horizonLookbackDays,
   horizonReturnPct,
   isSessionCloseWindow,
   isSessionOpenWindow,
+  type AlertExchange,
+  alertExchangeOf,
   utcDateDaysAgo,
 } from "./logic";
 import { getPrefsMap } from "./prefs";
@@ -133,6 +138,7 @@ export async function notifyFiredPriceAlerts(
     direction: "ABOVE" | "BELOW";
     targetPrice: number;
     triggerPrice: number;
+    exchange?: AlertExchange;
   }>,
   now = new Date()
 ): Promise<void> {
@@ -144,9 +150,10 @@ export async function notifyFiredPriceAlerts(
     await emitNotification({
       userId: item.userId,
       type: "PRIX",
-      title: `${item.ticker} a franchi ${dir} ${fmtFcfa(item.targetPrice)}`,
-      body: `Dernier cours canonique : ${fmtFcfa(item.triggerPrice)}. Ce n'est pas un ordre de bourse.`,
+      title: `${item.ticker} a franchi ${dir} ${fmtMoneyFor(item.exchange, item.targetPrice)}`,
+      body: `Dernier cours canonique : ${fmtMoneyFor(item.exchange, item.triggerPrice)}. Ce n'est pas un ordre de bourse.`,
       ticker: item.ticker,
+      exchange: item.exchange,
       preferChart: true,
       priceAlertId: item.id,
       dedupePriceAlert: true,
@@ -164,19 +171,27 @@ export async function notifyFiredPriceAlerts(
 type LatestQuote = {
   companyId: string;
   ticker: string;
+  exchange: AlertExchange;
   close: number;
   date: Date;
   changePercent: number | null;
 };
 
-async function loadLatestQuotes(tickers?: string[]): Promise<LatestQuote[]> {
+/**
+ * Derniers cours canoniques. `exchanges` : places couvertes (défaut BRVM seule, comportement historique ;
+ * les règles utilisateur passent aussi NGX). Le ticker est unique toutes places confondues.
+ */
+async function loadLatestQuotes(
+  tickers?: string[],
+  exchanges: AlertExchange[] = ["BRVM"]
+): Promise<LatestQuote[]> {
   const companies = await prisma.company.findMany({
     where: {
       isActive: true,
-      exchange: "BRVM",
+      exchange: { in: exchanges },
       ...(tickers?.length ? { ticker: { in: tickers.map((t) => t.toUpperCase()) } } : {}),
     },
-    select: { id: true, ticker: true },
+    select: { id: true, ticker: true, exchange: true },
   });
   if (companies.length === 0) return [];
   const prices = await getLatestCanonicalPrices(companies.map((c) => c.id));
@@ -189,6 +204,7 @@ async function loadLatestQuotes(tickers?: string[]): Promise<LatestQuote[]> {
     out.push({
       companyId: c.id,
       ticker: c.ticker,
+      exchange: alertExchangeOf(c.exchange),
       close,
       date: row.date,
       changePercent: row.changePercent != null ? Number(row.changePercent) : null,
@@ -233,7 +249,7 @@ async function evaluateUserRules(opts: {
 
   const userIds = [...new Set(rules.map((r) => r.userId))];
   const prefsByUser = await getPrefsMap(userIds);
-  const quotes = await loadLatestQuotes();
+  const quotes = await loadLatestQuotes(undefined, ["BRVM", "NGX"]);
   const quoteByTicker = new Map(quotes.map((q) => [q.ticker, q]));
 
   for (const rule of rules) {
@@ -253,8 +269,12 @@ async function evaluateUserRules(opts: {
         userId: rule.userId,
         type: "PRIX",
         title: `${rule.ticker} : variation du jour ${fmtSignedPct(change)}`,
-        body: `Seuil ${fmtSignedPct(threshold)} (collier BRVM typique ±${7.5} %). Cours ${fmtFcfa(move.close)}.`,
+        body:
+          quote.exchange === "NGX"
+            ? `Seuil ${fmtSignedPct(threshold)}. Cours ${fmtMoneyFor("NGX", move.close)}.`
+            : `Seuil ${fmtSignedPct(threshold)} (collier BRVM typique ±${7.5} %). Cours ${fmtFcfa(move.close)}.`,
         ticker: rule.ticker,
+        exchange: quote.exchange,
         preferChart: true,
         alertRuleId: rule.id,
         prefs,
@@ -304,8 +324,9 @@ async function evaluateUserRules(opts: {
         userId: rule.userId,
         type: "PRIX",
         title: `${rule.ticker} : variation ${horizon} ${fmtSignedPct(change)}`,
-        body: `Depuis le ${pastDate} (${fmtFcfa(pastClose)}) → ${fmtFcfa(quoteClose)}. Seuil ${fmtSignedPct(threshold)}.`,
+        body: `Depuis le ${pastDate} (${fmtMoneyFor(quote.exchange, pastClose)}) → ${fmtMoneyFor(quote.exchange, quoteClose)}. Seuil ${fmtSignedPct(threshold)}.`,
         ticker: rule.ticker,
+        exchange: quote.exchange,
         preferChart: true,
         alertRuleId: rule.id,
         prefs,
@@ -492,19 +513,39 @@ async function evaluateSignalAlerts(opts: {
   const result = { checked: watchers.size, triggered: 0 };
   if (watchers.size === 0) return result;
 
-  const [dataset, spark] = await Promise.all([
-    loadCompaniesFullDataset(),
-    getMarketSparkSeriesByTicker().catch(() => ({})),
-  ]);
-  const metrics = allCompaniesWithMetrics(dataset, spark);
-  const byTicker = new Map(metrics.map(({ co, metrics: m }) => [co.ticker, m]));
+  // Place de chaque titre suivi : BRVM → score BRVM ; NGX → note NGX (même matrice de décision, lib/ngx/signal.ts).
+  const placed = await prisma.company.findMany({
+    where: { ticker: { in: [...watchers.keys()] } },
+    select: { ticker: true, exchange: true },
+  });
+  const exchangeByTicker = new Map(placed.map((c) => [c.ticker, alertExchangeOf(c.exchange)] as const));
+  const watchedExchanges = new Set([...watchers.keys()].map((t) => exchangeByTicker.get(t) ?? "BRVM"));
+
+  const byTicker = new Map<string, { label: string; score: number }>();
+  if (watchedExchanges.has("BRVM")) {
+    const [dataset, spark] = await Promise.all([
+      loadCompaniesFullDataset(),
+      getMarketSparkSeriesByTicker().catch(() => ({})),
+    ]);
+    for (const { co, metrics: m } of allCompaniesWithMetrics(dataset, spark)) {
+      byTicker.set(co.ticker, { label: m.signal.label, score: m.score });
+    }
+  }
+  if (watchedExchanges.has("NGX")) {
+    const screener = await loadNgxScreener().catch(() => null);
+    for (const row of screener?.rows ?? []) {
+      const signal = ngxSignal(row.overall, row.pillars.risk, row.confidence);
+      if (signal && row.overall != null) byTicker.set(row.ticker, { label: signal.label, score: row.overall });
+    }
+  }
   const prefsByUser = await getPrefsMap([...new Set([...watchers.values()].flatMap((s) => [...s]))]);
 
   for (const [ticker, userIds] of watchers) {
     const m = byTicker.get(ticker);
     if (!m) continue;
-    const label = m.signal.label;
+    const label = m.label;
     const score = m.score;
+    const exchange = exchangeByTicker.get(ticker) ?? "BRVM";
     const isStrong = label === "ACHAT FORT" || label === "ACHAT";
     if (!isStrong) continue;
 
@@ -537,6 +578,7 @@ async function evaluateSignalAlerts(opts: {
         title: `${ticker} entre en ${label}`,
         body: `Score ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`,
         ticker,
+        exchange,
         alertRuleId: rule?.id ?? null,
         prefs,
         now: opts.now,

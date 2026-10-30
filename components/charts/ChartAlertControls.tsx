@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { localizeApiMessage } from "./chart-locale";
+import { chartMarketConfig, type ChartMarket } from "@/lib/charts/chart-market";
 import styles from "./ChartWorkbench.module.css";
 
 type AlertDirection = "ABOVE" | "BELOW";
@@ -24,15 +25,21 @@ export interface PriceAlertDto {
 export default function ChartAlertControls({
   isAuthenticated,
   ticker,
+  market = "BRVM",
   lastClose,
   loginCallbackPath,
 }: {
   isAuthenticated: boolean;
   ticker: string;
+  /** BRVM (FCFA entiers) ou NGX (naira, 2 décimales). */
+  market?: ChartMarket;
   lastClose: number | null;
   loginCallbackPath?: string;
 }) {
   const { t, format, labels } = useI18n();
+  const marketCfg = chartMarketConfig(market);
+  const isNgx = market === "NGX";
+  const money = (value: number) => format.money(value, marketCfg.currency);
   const [open, setOpen] = useState(false);
   const [alerts, setAlerts] = useState<PriceAlertDto[]>([]);
   const [loading, setLoading] = useState(false);
@@ -76,11 +83,11 @@ export default function ChartAlertControls({
     setMessage(null);
     setError(null);
     if (lastClose != null && Number.isFinite(lastClose)) {
-      setTarget(String(Math.round(lastClose)));
+      setTarget(isNgx ? lastClose.toFixed(marketCfg.priceDecimals) : String(Math.round(lastClose)));
     } else {
       setTarget("");
     }
-  }, [ticker, lastClose]);
+  }, [ticker, lastClose, isNgx, marketCfg.priceDecimals]);
 
   async function createAlert() {
     if (!isAuthenticated) return;
@@ -131,7 +138,7 @@ export default function ChartAlertControls({
       const alert = json.data?.alert as PriceAlertDto | undefined;
       if (alert?.status === "TRIGGERED") {
         setMessage(
-          t("charts.alerts.alreadyReached", { price: format.fcfa(alert.triggerPrice ?? value) })
+          t("charts.alerts.alreadyReached", { price: money(alert.triggerPrice ?? value) })
         );
       } else {
         setMessage(t("charts.alerts.created"));
@@ -182,7 +189,9 @@ export default function ChartAlertControls({
   }
 
   if (!isAuthenticated) {
-    const callback = loginCallbackPath ?? `/graphes?ticker=${encodeURIComponent(ticker)}`;
+    const callback =
+      loginCallbackPath ??
+      (isNgx ? `/marches/ngx/actions/${encodeURIComponent(ticker)}` : `/graphes?ticker=${encodeURIComponent(ticker)}`);
     return (
       <Link
         href={`/connexion?callbackUrl=${encodeURIComponent(callback)}`}
@@ -210,7 +219,7 @@ export default function ChartAlertControls({
         <div className={styles.analysisPanel} role="dialog" aria-label={t("charts.alerts.dialog")}>
           <p className={styles.analysisHint}>
             {lastClose != null
-              ? t("charts.alerts.hintWithPrice", { ticker, price: format.fcfa(lastClose) })
+              ? t("charts.alerts.hintWithPrice", { ticker, price: money(lastClose) })
               : t("charts.alerts.hint", { ticker })}
           </p>
           <label className={styles.analysisLabel}>
@@ -220,7 +229,7 @@ export default function ChartAlertControls({
               value={kind}
               onChange={(e) => setKind(e.target.value as typeof kind)}
             >
-              <option value="PRICE">{t("charts.alerts.kindPrice")}</option>
+              <option value="PRICE">{isNgx ? t("charts.alerts.kindPriceNgn") : t("charts.alerts.kindPrice")}</option>
               <option value="DAILY">{t("charts.alerts.kindDaily")}</option>
               <option value="HORIZON">{t("charts.alerts.kindHorizon")}</option>
               <option value="SIGNAL">{t("charts.alerts.kindSignal")}</option>
@@ -240,11 +249,11 @@ export default function ChartAlertControls({
                 </select>
               </label>
               <label className={styles.analysisLabel}>
-                {t("charts.alerts.thresholdFcfa")}
+                {isNgx ? t("charts.alerts.thresholdNgn") : t("charts.alerts.thresholdFcfa")}
                 <input
                   className={styles.analysisInput}
                   type="number"
-                  min={1}
+                  min={isNgx ? 0.01 : 1}
                   step="any"
                   value={target}
                   onChange={(e) => setTarget(e.target.value)}
@@ -328,12 +337,12 @@ export default function ChartAlertControls({
                 <li key={a.id} className={styles.analysisItem}>
                   <div>
                     <strong>
-                      {a.direction === "ABOVE" ? "≥" : "≤"} {format.fcfa(a.targetPrice)}
+                      {a.direction === "ABOVE" ? "≥" : "≤"} {money(a.targetPrice)}
                     </strong>
                     <span>
                       {a.status === "TRIGGERED"
                         ? a.triggerPrice != null
-                          ? t("charts.alerts.triggeredAt", { price: format.fcfa(a.triggerPrice) })
+                          ? t("charts.alerts.triggeredAt", { price: money(a.triggerPrice) })
                           : t("charts.alerts.triggered")
                         : t("charts.alerts.active")}
                       {a.note ? ` · ${a.note}` : ""}

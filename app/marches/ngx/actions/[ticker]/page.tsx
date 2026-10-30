@@ -7,6 +7,8 @@ import { ngxBoardLabel, ngxSectorLabel } from "@/components/ngx/ngx-labels";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
+import TickerAlertButton from "@/components/notifications/TickerAlertButton";
+import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxCompany } from "@/lib/markets/ngx-browse";
 import { loadNgxChartUniverse } from "@/lib/markets/ngx-chart";
@@ -28,9 +30,10 @@ export async function generateMetadata({ params }: { params: { ticker: string } 
 
 export default async function NgxCompanyPage({ params }: { params: { ticker: string } }) {
   const { t, format } = getI18n();
-  const [data, chartUniverse] = await Promise.all([
+  const [data, chartUniverse, userId] = await Promise.all([
     loadNgxSheet(params.ticker).catch(() => null),
     loadNgxChartUniverse().catch(() => []),
+    getCurrentUserId().catch(() => null),
   ]);
   if (!data) notFound();
   const { page: company, model } = data;
@@ -62,6 +65,15 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
             <span className={styles.sub}>{t("ngx.company.price")}</span>
             <div className={styles.heroPrice}>{company.close == null ? "N/D" : format.money(company.close, "NGN")}</div>
             <ChangeValue value={company.changePercent} />
+            <div style={{ marginTop: "0.6rem" }}>
+              <TickerAlertButton
+                isAuthenticated={Boolean(userId)}
+                ticker={company.ticker}
+                market="NGX"
+                lastClose={company.close}
+                loginCallbackPath={`/marches/ngx/actions/${company.ticker}`}
+              />
+            </div>
           </div>
           <div>
             <span className={styles.sub}>{t("ngx.company.indicative")}</span>
@@ -95,7 +107,7 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
         </div>
         <h2 className={styles.sectionTitle} id="ngx-chart">{t("ngx.company.chartTitle")}</h2>
         {company.series.length > 1 ? (
-          <NgxChart symbol={company.ticker} universe={chartUniverse} />
+          <NgxChart symbol={company.ticker} universe={chartUniverse} isAuthenticated={Boolean(userId)} />
         ) : (
           <p className={styles.note}>{t("ngx.company.chartEmpty")}</p>
         )}

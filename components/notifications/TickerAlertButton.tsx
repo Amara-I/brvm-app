@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { TFunc } from "@/lib/i18n/create-i18n";
 import { localizeSharedApiMessage } from "@/lib/i18n/localize-api";
+import { chartMarketConfig, type ChartMarket } from "@/lib/charts/chart-market";
 import { BRVM_DAILY_COLLAR_PCT } from "@/lib/notifications/types";
 import styles from "./TickerAlertButton.module.css";
 
@@ -19,6 +20,7 @@ type Kind = "PRICE" | "DAILY" | "HORIZON" | "SIGNAL";
 export default function TickerAlertButton({
   isAuthenticated,
   ticker,
+  market = "BRVM",
   lastClose,
   loginCallbackPath,
   className,
@@ -28,6 +30,8 @@ export default function TickerAlertButton({
 }: {
   isAuthenticated: boolean;
   ticker: string;
+  /** BRVM (FCFA) ou NGX (naira) : devise des seuils, lien de retour, texte d'aide. */
+  market?: ChartMarket;
   lastClose: number | null;
   loginCallbackPath?: string;
   className?: string;
@@ -37,6 +41,10 @@ export default function TickerAlertButton({
   label?: string;
 }) {
   const { t, format, labels } = useI18n();
+  const isNgx = market === "NGX";
+  const marketCfg = chartMarketConfig(market);
+  const toTarget = (value: number) =>
+    isNgx ? value.toFixed(marketCfg.priceDecimals) : String(Math.round(value));
   const buttonLabel = alertButtonLabel(label, t);
   const buy = labels.signal("ACHAT");
   const strong = labels.signal("ACHAT FORT");
@@ -53,11 +61,12 @@ export default function TickerAlertButton({
 
   useEffect(() => {
     if (defaultTarget != null && Number.isFinite(defaultTarget) && defaultTarget > 0) {
-      setTarget(String(Math.round(defaultTarget)));
+      setTarget(toTarget(defaultTarget));
       return;
     }
-    if (lastClose != null && Number.isFinite(lastClose)) setTarget(String(Math.round(lastClose)));
-  }, [ticker, lastClose, defaultTarget]);
+    if (lastClose != null && Number.isFinite(lastClose)) setTarget(toTarget(lastClose));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker, lastClose, defaultTarget, isNgx]);
 
   useEffect(() => {
     if (defaultDirection) setDirection(defaultDirection);
@@ -73,7 +82,8 @@ export default function TickerAlertButton({
   }, [open]);
 
   if (!isAuthenticated) {
-    const callback = loginCallbackPath ?? `/actions/${ticker}`;
+    const callback =
+      loginCallbackPath ?? (isNgx ? `/marches/ngx/actions/${encodeURIComponent(ticker)}` : `/actions/${ticker}`);
     return (
       <Link
         href={`/connexion?callbackUrl=${encodeURIComponent(callback)}`}
@@ -161,13 +171,13 @@ export default function TickerAlertButton({
           >
             <h2 className={styles.title}>{t("notifications.alert.title", { ticker })}</h2>
             <p className={styles.hint}>
-              {lastClose != null ? `${t("notifications.alert.currentPrice", { price: format.fcfa(lastClose) })} ` : ""}
-              {t("notifications.alert.collar", { collar: BRVM_DAILY_COLLAR_PCT })}
+              {lastClose != null ? `${t("notifications.alert.currentPrice", { price: format.money(lastClose, marketCfg.currency) })} ` : ""}
+              {isNgx ? t("notifications.alert.ngxNote") : t("notifications.alert.collar", { collar: BRVM_DAILY_COLLAR_PCT })}
             </p>
             <label className={styles.label}>
               {t("notifications.alert.type")}
               <select className={styles.input} value={kind} onChange={(e) => setKind(e.target.value as Kind)}>
-                <option value="PRICE">{t("notifications.alert.kindPrice")}</option>
+                <option value="PRICE">{isNgx ? t("notifications.alert.kindPriceNgn") : t("notifications.alert.kindPrice")}</option>
                 <option value="DAILY">{t("notifications.alert.kindDaily")}</option>
                 <option value="HORIZON">{t("notifications.alert.kindHorizon")}</option>
                 <option value="SIGNAL">{t("notifications.alert.kindSignal", { buy, strong })}</option>
@@ -183,8 +193,8 @@ export default function TickerAlertButton({
                   </select>
                 </label>
                 <label className={styles.label}>
-                  {t("notifications.alert.thresholdFcfa")}
-                  <input className={styles.input} type="number" min={1} value={target} onChange={(e) => setTarget(e.target.value)} />
+                  {isNgx ? t("notifications.alert.thresholdNgn") : t("notifications.alert.thresholdFcfa")}
+                  <input className={styles.input} type="number" min={isNgx ? 0.01 : 1} step="any" value={target} onChange={(e) => setTarget(e.target.value)} />
                 </label>
               </>
             ) : null}

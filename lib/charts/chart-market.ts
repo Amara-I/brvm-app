@@ -13,7 +13,7 @@ export interface ChartMarketConfig {
   priceDecimals: number;
   /** Séance continue UTC en minutes depuis minuit (lundi → vendredi). */
   sessionUtcMinutes: { open: number; close: number };
-  /** Cloud : analyses sauvegardées, alertes, portefeuille (API liées aux tickers BRVM). */
+  /** Compte : analyses sauvegardées et alertes de cours (les deux places ; le portefeuille reste BRVM). */
   accountTools: boolean;
 }
 
@@ -31,7 +31,7 @@ export const CHART_MARKETS: Record<ChartMarket, ChartMarketConfig> = {
     // NGX : 10h00–14h30 heure de Lagos (UTC+1) = 09h00–13h30 UTC.
     priceDecimals: 2,
     sessionUtcMinutes: { open: 9 * 60, close: 13 * 60 + 30 },
-    accountTools: false,
+    accountTools: true,
   },
 };
 

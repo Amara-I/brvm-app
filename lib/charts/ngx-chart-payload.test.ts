@@ -96,7 +96,7 @@ describe("chart-market", () => {
   it("BRVM reste en FCFA entiers ; NGX en naira à 2 décimales", () => {
     expect(chartMarketConfig("BRVM").priceDecimals).toBe(0);
     expect(chartMarketConfig("NGX").priceDecimals).toBe(2);
-    expect(chartMarketConfig("NGX").accountTools).toBe(false);
+    expect(chartMarketConfig("NGX").accountTools).toBe(true);
   });
   it("clé de tracés : NGX préfixé, BRVM inchangé", () => {
     expect(chartStorageKey("BRVM", "SGBC")).toBe("SGBC");
