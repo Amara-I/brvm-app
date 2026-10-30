@@ -890,8 +890,11 @@ export default function ChartWorkbench({
             // hors survol on retombe sur la dernière cotation.
             const hp = hoverPoint;
             const hoverBase = hp ? (hp.prevClose != null && hp.prevClose > 0 ? hp.prevClose : hp.open) : null;
-            const hoverAbs = hp && hoverBase != null ? hp.close - hoverBase : null;
-            const hoverPct = hp && hoverBase != null && hoverBase > 0 ? ((hp.close - hoverBase) / hoverBase) * 100 : null;
+            const hoverAbs = hp && hoverBase != null ? Math.round((hp.close - hoverBase) * 1e6) / 1e6 : null;
+            const hoverPct =
+              hp && hoverBase != null && hoverBase > 0
+                ? Math.round(((hp.close - hoverBase) / hoverBase) * 10000) / 100
+                : null;
             const shownPrice = hp ? hp.close : stats?.lastClose ?? null;
             const shownAbs = hp ? hoverAbs : stats?.dayChangeAbs ?? null;
             const shownPct = hp ? hoverPct : stats?.dayChangePercent ?? null;
@@ -912,7 +915,7 @@ export default function ChartWorkbench({
                     : "N/D"}
                   <span className={styles.marketStatus}>
                     {hp ? (
-                      hoverDateLabel
+                      <> · {hoverDateLabel}</>
                     ) : (
                       <>
                         {t("charts.market.today")}
