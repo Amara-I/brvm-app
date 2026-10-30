@@ -56,10 +56,15 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
     () => applyChartSeriesWindow(detail.series, { range, defaultTo1A: false }),
     [detail.series, range]
   );
-  const chartData = windowed.series.map((point) => ({
-    ...point,
-    label: point.time.slice(0, 7),
-  }));
+  const chartData = useMemo(
+    () => windowed.series.map((point) => ({ ...point, label: point.time.slice(0, 7) })),
+    [windowed.series]
+  );
+  const chartIndexByTime = useMemo(() => {
+    const m = new Map<string, number>();
+    chartData.forEach((p, i) => m.set(p.time, i));
+    return m;
+  }, [chartData]);
   const { stats, composition } = detail;
   const history =
     stats.historyPoints > 0
@@ -143,20 +148,39 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
-                <XAxis dataKey="label" stroke={C.textDim} fontSize={11} minTickGap={40} />
+                <XAxis
+                  dataKey="time"
+                  stroke={C.textDim}
+                  fontSize={11}
+                  minTickGap={40}
+                  tickFormatter={(time: string) => time.slice(0, 7)}
+                />
                 <YAxis stroke={C.textDim} fontSize={11} domain={["auto", "auto"]} width={64} />
                 <Tooltip
                   contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8 }}
                   labelStyle={{ color: C.text }}
-                  formatter={(value) => [
-                    formatLevel(typeof value === "number" ? value : null, format),
-                    t("market.indices.level"),
-                  ]}
+                  labelFormatter={(_label, items) => {
+                    const time = (items?.[0]?.payload as { time?: string } | undefined)?.time;
+                    return time ? formatSessionDate(time.slice(0, 10), format) : String(_label);
+                  }}
+                  formatter={(value, _name, item) => {
+                    const level = formatLevel(typeof value === "number" ? value : null, format);
+                    const time = (item?.payload as { time?: string } | undefined)?.time;
+                    const i = time ? (chartIndexByTime.get(time) ?? -1) : -1;
+                    const prev = i > 0 ? chartData[i - 1]!.value : null;
+                    const cur = typeof value === "number" ? value : null;
+                    const day =
+                      prev != null && prev > 0 && cur != null
+                        ? ` (${format.percent(((cur - prev) / prev) * 100, 2, true)})`
+                        : "";
+                    return [`${level}${day}`, t("market.indices.level")];
+                  }}
                 />
                 <Area
                   type="monotone"
                   dataKey="value"
                   name={t("market.indices.level")}
+                  isAnimationActive={false}
                   stroke={C.gold}
                   fill="url(#indexGold)"
                   strokeWidth={2}

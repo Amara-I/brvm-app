@@ -31,6 +31,7 @@ import { computeWindowChangeFromCandles } from "@/lib/charts/window-change";
 import TradingChart, {
   type ChartIndicatorsState,
   type ChartViewUndoEntry,
+  type CrosshairPoint,
   type DrawToolId,
 } from "./TradingChart";
 import ChartAnalysisControls, {
@@ -336,6 +337,8 @@ export default function ChartWorkbench({
   const [loading, setLoading] = useState(!(initialSeries && initialSeries.length > 0));
   const [error, setError] = useState<string | null>(null);
   const [ohlcLegend, setOhlcLegend] = useState<string | null>(null);
+  /** Bougie sous le curseur : pilote le prix / la variation / la date de l'en-tête. */
+  const [hoverPoint, setHoverPoint] = useState<CrosshairPoint | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const [activeTool, setActiveTool] = useState<DrawToolId>("cross");
   const [clearDrawToken, setClearDrawToken] = useState(0);
@@ -735,6 +738,16 @@ export default function ChartWorkbench({
   const stats = payload?.stats;
   const fund = payload?.fundamentals;
   const priceUp = (stats?.dayChangePercent ?? 0) >= 0;
+  const hoverDateLabel = useMemo(() => {
+    if (!hoverPoint || !/^\d{4}-\d{2}-\d{2}/.test(hoverPoint.time)) return "";
+    return format.date(new Date(`${hoverPoint.time.slice(0, 10)}T12:00:00.000Z`), {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+      timeZone: "UTC",
+    });
+  }, [hoverPoint, format]);
   const defaultLegend = useMemo(() => {
     if (!mainSeries.length) return null;
     const last = mainSeries[mainSeries.length - 1]!;
@@ -871,23 +884,49 @@ export default function ChartWorkbench({
           </div>
         </div>
 
-        <div className={styles.priceBlock}>
-          <div className={styles.lastPrice} style={{ color: priceUp ? "#26a69a" : "#ef5350" }}>
-            {stats?.lastClose != null
-              ? isNgx
-                ? format.money(stats.lastClose, marketCfg.currency)
-                : `${format.number(stats.lastClose)} FCFA`
-              : "N/D"}
-          </div>
-          <div className={styles.dayChange} style={{ color: priceUp ? "#26a69a" : "#ef5350" }}>
-            {stats?.dayChangeAbs != null && stats.dayChangePercent != null
-              ? `${isNgx ? format.signed(stats.dayChangeAbs, priceDecimals) : signedGrouped(stats.dayChangeAbs, format)} (${loosePercent(stats.dayChangePercent, locale, format)})`
-              : "N/D"}
-            <span className={styles.marketStatus}>
-              {t("charts.market.today")}
-              {marketStatusLabel()}
-            </span>
-          </div>
+        <div className={styles.priceBlock} aria-live="off">
+          {(() => {
+            // Survol : le prix, la variation et la date suivent la bougie sous le curseur ;
+            // hors survol on retombe sur la dernière cotation.
+            const hp = hoverPoint;
+            const hoverBase = hp ? (hp.prevClose != null && hp.prevClose > 0 ? hp.prevClose : hp.open) : null;
+            const hoverAbs = hp && hoverBase != null ? Math.round((hp.close - hoverBase) * 1e6) / 1e6 : null;
+            const hoverPct =
+              hp && hoverBase != null && hoverBase > 0
+                ? Math.round(((hp.close - hoverBase) / hoverBase) * 10000) / 100
+                : null;
+            const shownPrice = hp ? hp.close : stats?.lastClose ?? null;
+            const shownAbs = hp ? hoverAbs : stats?.dayChangeAbs ?? null;
+            const shownPct = hp ? hoverPct : stats?.dayChangePercent ?? null;
+            const shownUp = hp ? (hoverAbs ?? 0) >= 0 : priceUp;
+            const color = shownUp ? "#26a69a" : "#ef5350";
+            return (
+              <>
+                <div className={styles.lastPrice} style={{ color }}>
+                  {shownPrice != null
+                    ? isNgx
+                      ? format.money(shownPrice, marketCfg.currency)
+                      : `${format.number(shownPrice)} FCFA`
+                    : "N/D"}
+                </div>
+                <div className={styles.dayChange} style={{ color }}>
+                  {shownAbs != null && shownPct != null
+                    ? `${isNgx ? format.signed(shownAbs, priceDecimals) : signedGrouped(shownAbs, format)} (${loosePercent(shownPct, locale, format)})`
+                    : "N/D"}
+                  <span className={styles.marketStatus}>
+                    {hp ? (
+                      <> · {hoverDateLabel}</>
+                    ) : (
+                      <>
+                        {t("charts.market.today")}
+                        {marketStatusLabel()}
+                      </>
+                    )}
+                  </span>
+                </div>
+              </>
+            );
+          })()}
         </div>
 
         <div className={styles.metrics}>
@@ -1246,7 +1285,10 @@ export default function ChartWorkbench({
         </aside>
 
         <div className={styles.chartCol}>
-          <div className={styles.legendBar}>{ohlcLegend ?? defaultLegend ?? "—"}</div>
+          <div className={styles.legendBar}>
+            {hoverPoint && ohlcLegend && <span className={styles.legendDate}>{hoverDateLabel}</span>}
+            {ohlcLegend ?? defaultLegend ?? "—"}
+          </div>
           {intervalNote && <div className={styles.intervalNote}>{localizeIntervalNote(intervalNote, t)}</div>}
           {payload?.corporateActions?.map((action) => (
             <div key={action.effectiveDate} className={styles.splitNote}>
@@ -1282,6 +1324,7 @@ export default function ChartWorkbench({
                   chartUndoApiRef.current = api;
                 }}
                 onCrosshair={setOhlcLegend}
+                onCrosshairPoint={setHoverPoint}
                 onIntervalNote={setIntervalNote}
                 onRemoveIndicator={(key) =>
                   setIndicatorsWithUndo((prev) => ({ ...prev, [key]: false }))

@@ -185,6 +185,7 @@
 
 .priceBlock {
   min-width: 160px;
+  font-variant-numeric: tabular-nums;
 }
 
 .lastPrice {
@@ -196,6 +197,12 @@
 .dayChange {
   font-size: 0.78rem;
   font-weight: 600;
+}
+
+.legendDate {
+  color: var(--tv-text);
+  font-weight: 700;
+  margin-right: 10px;
 }
 
 .marketStatus {
