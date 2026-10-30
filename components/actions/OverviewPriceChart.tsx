@@ -75,13 +75,10 @@ function OverviewPriceChart({
   const { t, format } = useI18n();
   const [hoverTime, setHoverTime] = useState<string | null>(null);
 
-  const data = useMemo(
-    () =>
-      chartSeries.map((p) => ({
-        ...p,
-        label: shortChart ? dateLabel(p.time, format) : p.time.slice(0, 7),
-      })),
-    [chartSeries, shortChart, format]
+  const data = chartSeries;
+  const tickLabel = useCallback(
+    (time: string) => (shortChart ? dateLabel(time, format) : time.slice(0, 7)),
+    [shortChart, format]
   );
   const indexByTime = useMemo(() => {
     const m = new Map<string, number>();
@@ -168,13 +165,21 @@ function OverviewPriceChart({
                 </linearGradient>
               </defs>
               <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
-              <XAxis dataKey="label" stroke={C.textDim} fontSize={11} minTickGap={shortChart ? 16 : 40} />
+              {/* Axe sur la date complète (unique) : un axe « mois » aurait des catégories en double
+                  et le curseur se fixerait sur le premier point de chaque mois. */}
+              <XAxis
+                dataKey="time"
+                stroke={C.textDim}
+                fontSize={11}
+                minTickGap={shortChart ? 16 : 40}
+                tickFormatter={tickLabel}
+              />
               <YAxis stroke={C.textDim} fontSize={11} domain={yDomain} width={64} />
               <Tooltip
                 isAnimationActive={false}
                 cursor={{ stroke: C.textDim, strokeDasharray: "3 3", strokeOpacity: 0.7 }}
                 content={({ active, payload }) => {
-                  const point = payload?.[0]?.payload as (ChartClosePoint & { label: string }) | undefined;
+                  const point = payload?.[0]?.payload as ChartClosePoint | undefined;
                   if (!active || !point) return null;
                   const info = infoFor(point.time, point.value, point.volume);
                   return (

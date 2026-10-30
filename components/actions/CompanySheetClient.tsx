@@ -344,11 +344,11 @@ export default function CompanySheetClient({
         return [
           {
             key: marker.effectiveDate,
-            x: shortChart ? formatListingDate(point.time, format, nd) : point.time.slice(0, 7),
+            x: point.time,
           },
         ];
       }),
-    [splitMarkers, chartSeries, shortChart, format, nd]
+    [splitMarkers, chartSeries]
   );
   const last = rangedSeries[rangedSeries.length - 1] ?? series[series.length - 1];
   const prev = rangedSeries.length >= 2 ? rangedSeries[rangedSeries.length - 2] : null;

@@ -148,7 +148,13 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
-                <XAxis dataKey="label" stroke={C.textDim} fontSize={11} minTickGap={40} />
+                <XAxis
+                  dataKey="time"
+                  stroke={C.textDim}
+                  fontSize={11}
+                  minTickGap={40}
+                  tickFormatter={(time: string) => time.slice(0, 7)}
+                />
                 <YAxis stroke={C.textDim} fontSize={11} domain={["auto", "auto"]} width={64} />
                 <Tooltip
                   contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8 }}
