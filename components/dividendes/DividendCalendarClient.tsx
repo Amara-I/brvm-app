@@ -217,9 +217,11 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
   // Décembre : ancrage des dividendes sans date précise (exercice)
   const initialMonth = data.datedCount > 0 ? now.getMonth() : 11;
 
-  // 0 = « tous les exercices » (liste uniquement) ; les vues calendrier retombent sur l'année par défaut.
-  const [viewYear, setViewYear] = useState(defaultYear);
-  const calYear = viewYear || defaultYear;
+  // Deux années distinctes : l'exercice (liste, 0 = « tous les exercices ») et l'année civile (vue mensuelle).
+  // Défaut de la liste = dernier exercice connu : l'année civile en cours peut n'avoir aucun exercice
+  // (ex. dates de détachement en 2026 pour l'exercice 2025) et la liste s'ouvrait alors vide.
+  const [viewYear, setViewYear] = useState(data.years[0] ?? 0);
+  const [calYear, setCalYear] = useState(defaultYear);
   const [viewMonth, setViewMonth] = useState(initialMonth);
   const [sector, setSector] = useState("Tous");
   const [query, setQuery] = useState("");
@@ -275,7 +277,7 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
 
   function shiftMonth(delta: number) {
     const d = new Date(Date.UTC(calYear, viewMonth + delta, 1));
-    setViewYear(d.getUTCFullYear());
+    setCalYear(d.getUTCFullYear());
     setViewMonth(d.getUTCMonth());
     setSelectedDay(null);
   }
@@ -359,7 +361,8 @@ export default function DividendCalendarClient({ data: initialData }: { data: Di
                 className={styles.control}
                 value={mode === "mois" ? calYear : viewYear}
                 onChange={(e) => {
-                  setViewYear(Number(e.target.value));
+                  if (mode === "mois") setCalYear(Number(e.target.value));
+                  else setViewYear(Number(e.target.value));
                   setSelectedDay(null);
                 }}
               >
