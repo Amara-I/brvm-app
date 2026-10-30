@@ -103,37 +103,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.sortBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.sortBtn:hover,
-.sortBtn:focus-visible {
-  color: var(--c-gold);
-}
-
-.sortArrow {
-  font-size: 0.65rem;
-  opacity: 0.6;
-}
-
-th[aria-sort="ascending"] .sortArrow,
-th[aria-sort="descending"] .sortArrow {
-  color: var(--c-gold);
-  opacity: 1;
-}
-
 .sub {
   display: block;
   color: var(--c-text-dim);

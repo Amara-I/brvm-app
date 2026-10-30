@@ -1,8 +1,8 @@
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
-import NgxShareTable from "@/components/ngx/NgxShareTable";
-import { ngxBoardLabel, ngxSectorLabel } from "@/components/ngx/ngx-labels";
+import NgxMarketBoard from "@/components/ngx/NgxMarketBoard";
+import { ngxSectorLabel } from "@/components/ngx/ngx-labels";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import ChangeValue from "@/components/ui/ChangeValue";
 import EmptyState from "@/components/ui/EmptyState";
@@ -11,6 +11,7 @@ import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxOverview } from "@/lib/markets/ngx-browse";
 import { loadNgxScreener } from "@/lib/markets/ngx-screener";
+import { ngxConfidenceLabel, ngxSignal } from "@/lib/ngx/signal";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,7 @@ export default async function NgxMarketPage() {
   const { t, format } = getI18n();
   // Score et variation 1 an : mêmes chiffres que le screener et la fiche (lib/markets/ngx-screener.ts).
   // Si ce calcul échoue, la liste reste affichée avec N/D plutôt que de casser la page.
-  const [overview, screener] = await Promise.all([loadNgxOverview().catch(() => null), loadNgxScreener().catch(() => null)]);
+  const [overview, screener] = await Promise.all([loadNgxOverview().catch(() => null), loadNgxScreener({ withSparks: true }).catch(() => null)]);
   const stats = new Map((screener?.rows ?? []).map((row) => [row.ticker, row] as const));
   const shares = overview?.shares ?? [];
   const session = overview?.sessionDate
@@ -125,48 +126,27 @@ export default async function NgxMarketPage() {
                 )}
               </section>
             </div>
-            <NgxShareTable
-              rows={shares.map((row) => ({
-                ticker: row.ticker,
-                name: row.name,
-                sectorSlug: row.sectorSlug,
-                sectorLabel: ngxSectorLabel(row.sectorSlug, row.sectorName, t),
-                boardLabel: ngxBoardLabel(row.board, t),
-                closeLabel: row.close == null ? "N/D" : format.money(row.close, "NGN"),
-                fcfaLabel: row.indicativeFcfa == null ? "N/D" : format.money(row.indicativeFcfa, "XOF"),
-                changePercent: row.changePercent,
-                return1yPercent: stats.get(row.ticker)?.return1yPercent ?? null,
-                score: stats.get(row.ticker)?.overall ?? null,
-                scoreMode: stats.get(row.ticker)?.mode ?? null,
-              }))}
-              sectors={(overview?.sectors ?? []).map((sector) => ({
-                slug: sector.slug,
-                label: ngxSectorLabel(sector.slug, sector.name, t),
-                count: sector.count,
-              }))}
-              labels={{
-                all: t("ngx.market.allSectors"),
-                searchPlaceholder: t("ngx.market.searchPlaceholder"),
-                searchAria: t("ngx.market.searchAria"),
-                sectorsTitle: t("ngx.market.sectorsTitle"),
-                colTicker: t("ngx.market.colTicker"),
-                colName: t("ngx.market.colName"),
-                colSector: t("ngx.market.colSector"),
-                colBoard: t("ngx.market.colBoard"),
-                colPrice: t("ngx.market.colPrice"),
-                colChange: t("ngx.market.colChange"),
-                colChange1y: t("ngx.market.colChange1y"),
-                colScore: t("ngx.market.colScore"),
-                colChangeTitle: t("ngx.market.colChangeTitle"),
-                colChange1yTitle: t("ngx.market.colChange1yTitle"),
-                colScoreTitle: t("ngx.market.colScoreTitle"),
-                tagChartOnly: t("ngx.screener.tags.chartOnly"),
-                tagChartOnlyTitle: t("ngx.screener.tags.chartOnlyTitle"),
-                tagPartial: t("ngx.screener.tags.partial"),
-                tagPartialTitle: t("ngx.screener.tags.partialTitle"),
-                colFcfa: t("ngx.market.colFcfa"),
-                empty: t("market.board.empty"),
-              }}
+            <NgxMarketBoard
+              rows={shares.map((row) => {
+                const stat = stats.get(row.ticker);
+                const score = stat?.overall ?? null;
+                return {
+                  ticker: row.ticker,
+                  name: row.name,
+                  sectorSlug: row.sectorSlug,
+                  sectorLabel: ngxSectorLabel(row.sectorSlug, row.sectorName, t),
+                  close: row.close,
+                  changePercent: row.changePercent,
+                  marketCapBn: stat?.marketCapBn ?? null,
+                  fcfa: row.indicativeFcfa,
+                  return1yPercent: stat?.return1yPercent ?? null,
+                  spark: screener?.sparks[row.ticker] ?? null,
+                  score,
+                  scoreMode: stat?.mode ?? null,
+                  signal: stat ? ngxSignal(score, stat.pillars.risk, stat.confidence) : null,
+                  confidence: stat && score != null ? ngxConfidenceLabel(stat.confidence) : null,
+                };
+              })}
             />
             <p className={styles.attribution}>
               {t("ngx.market.attribution")}{" "}
