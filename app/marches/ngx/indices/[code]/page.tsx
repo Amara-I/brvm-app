@@ -6,6 +6,7 @@ import NgxChart from "@/components/ngx/NgxChart";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
+import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxIndex } from "@/lib/markets/ngx-browse";
 import { loadNgxChartUniverse } from "@/lib/markets/ngx-chart";
@@ -24,9 +25,10 @@ export async function generateMetadata({ params }: { params: { code: string } })
 
 export default async function NgxIndexDetailPage({ params }: { params: { code: string } }) {
   const { t, format } = getI18n();
-  const [index, chartUniverse] = await Promise.all([
+  const [index, chartUniverse, userId] = await Promise.all([
     loadNgxIndex(params.code).catch(() => null),
     loadNgxChartUniverse().catch(() => []),
+    getCurrentUserId().catch(() => null),
   ]);
   if (!index) notFound();
 
@@ -64,7 +66,7 @@ export default async function NgxIndexDetailPage({ params }: { params: { code: s
           </div>
         </div>
         {index.series.length > 1 ? (
-          <NgxChart symbol={index.code} universe={chartUniverse} />
+          <NgxChart symbol={index.code} universe={chartUniverse} isAuthenticated={Boolean(userId)} />
         ) : (
           <p className={styles.note}>{t("ngx.indices.chartEmpty")}</p>
         )}

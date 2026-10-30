@@ -9,6 +9,7 @@ import { apiSuccess, apiError, apiValidationError } from "@/lib/api/response";
 import { privateCacheHeaders } from "@/lib/api/response";
 import { evaluateActivePriceAlerts } from "@/lib/alerts/evaluate-price-alerts";
 import { notifyFiredPriceAlerts } from "@/lib/notifications/evaluate-all";
+import { alertExchangeOf } from "@/lib/notifications/logic";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +31,12 @@ function serializeAlert(a: {
   triggerPrice: { toString(): string } | number | null;
   createdAt: Date;
   updatedAt: Date;
+  company?: { exchange: string } | null;
 }) {
   return {
     id: a.id,
     ticker: a.ticker,
+    exchange: alertExchangeOf(a.company?.exchange),
     direction: a.direction,
     targetPrice: Number(a.targetPrice),
     note: a.note,
@@ -61,6 +64,7 @@ export async function GET(request: NextRequest) {
       status: { in: [PriceAlertStatus.ACTIVE, PriceAlertStatus.TRIGGERED] },
     },
     orderBy: [{ status: "asc" }, { updatedAt: "desc" }],
+    include: { company: { select: { exchange: true } } },
     take: 50,
   });
 
@@ -78,9 +82,10 @@ export async function POST(request: NextRequest) {
   if (!parsed.success) return apiValidationError(parsed.error);
 
   const ticker = parsed.data.ticker.toUpperCase();
+  // Le ticker est unique toutes places confondues : BRVM (FCFA) ou NGX (naira). Les indices ne sont pas des sociétés.
   const company = await prisma.company.findFirst({
-    where: { ticker, exchange: "BRVM" },
-    select: { id: true, ticker: true },
+    where: { ticker, exchange: { in: ["BRVM", "NGX"] } },
+    select: { id: true, ticker: true, exchange: true },
   });
   if (!company) return apiError(`Ticker inconnu : ${ticker}`, 404);
 
@@ -99,7 +104,10 @@ export async function POST(request: NextRequest) {
   // Si le seuil est déjà atteint au moment de la création, déclencher tout de suite.
   const evalResult = await evaluateActivePriceAlerts({ tickers: [company.ticker] });
   await notifyFiredPriceAlerts(evalResult.fired).catch(() => undefined);
-  const fresh = await prisma.priceAlert.findUnique({ where: { id: created.id } });
+  const fresh = await prisma.priceAlert.findUnique({
+    where: { id: created.id },
+    include: { company: { select: { exchange: true } } },
+  });
 
-  return apiSuccess({ alert: serializeAlert(fresh ?? created) }, { status: 201 });
+  return apiSuccess({ alert: serializeAlert(fresh ?? { ...created, company: { exchange: company.exchange } }) }, { status: 201 });
 }

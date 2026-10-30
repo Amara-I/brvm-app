@@ -14,9 +14,20 @@ import type { ChartUniverseItem } from "@/components/charts/ChartWorkbench";
 export default function NgxChart({
   symbol,
   universe,
+  isAuthenticated = false,
 }: {
   symbol: string;
   universe: ChartUniverseItem[];
+  /** Connecté : analyses sauvegardées et alertes de cours (comme sur la BRVM). */
+  isAuthenticated?: boolean;
 }) {
-  return <LazyChartWorkbench market="NGX" universe={universe} initialTicker={symbol} embedded />;
+  return (
+    <LazyChartWorkbench
+      market="NGX"
+      universe={universe}
+      initialTicker={symbol}
+      embedded
+      isAuthenticated={isAuthenticated}
+    />
+  );
 }

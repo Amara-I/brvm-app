@@ -3,8 +3,12 @@ import {
   alreadyFiredToday,
   clampDailyMovePct,
   dailyMoveHits,
+  alertExchangeOf,
   deepLinkFor,
   fireKey,
+  fmtFcfa,
+  fmtMoneyFor,
+  fmtNgn,
   fmtSignedPct,
   horizonReturnPct,
   hourInTimeZone,
@@ -89,5 +93,35 @@ describe("anti-spam + deep links", () => {
 
   it("formate un pourcentage signé", () => {
     expect(fmtSignedPct(-2.5)).toBe("−2,5 %");
+  });
+});
+
+describe("alertes NGX : liens et montants", () => {
+  it("BRVM par défaut : liens inchangés", () => {
+    expect(deepLinkFor({ type: "PRIX", ticker: "SNTS", preferChart: true })).toBe("/graphes?ticker=SNTS");
+    expect(deepLinkFor({ type: "SIGNAUX", ticker: "SNTS", exchange: "BRVM" })).toBe("/actions/SNTS");
+  });
+
+  it("NGX : lien vers la fiche NGX (graphe intégré)", () => {
+    expect(deepLinkFor({ type: "PRIX", ticker: "ZENITHBANK", preferChart: true, exchange: "NGX" })).toBe(
+      "/marches/ngx/actions/ZENITHBANK#ngx-chart"
+    );
+    expect(deepLinkFor({ type: "SIGNAUX", ticker: "MTNN", exchange: "NGX" })).toBe("/marches/ngx/actions/MTNN");
+    expect(deepLinkFor({ type: "SIGNAUX", exchange: "NGX" })).toBe("/marches/ngx/screener");
+    expect(deepLinkFor({ type: "PORTEFEUILLE", ticker: "MTNN", exchange: "NGX" })).toBe("/portefeuille");
+  });
+
+  it("montants : FCFA entiers pour la BRVM, naira à 2 décimales pour la NGX", () => {
+    expect(fmtMoneyFor("BRVM", 1234.4)).toBe(fmtFcfa(1234.4));
+    expect(fmtMoneyFor(undefined, 1234.4)).toBe(fmtFcfa(1234.4));
+    expect(fmtNgn(29.5)).toBe("₦29,50");
+    expect(fmtMoneyFor("NGX", 29.5)).toBe("₦29,50");
+    expect(fmtNgn(Number.NaN)).toBe("N/D");
+  });
+
+  it("alertExchangeOf : NGX seulement si explicite", () => {
+    expect(alertExchangeOf("NGX")).toBe("NGX");
+    expect(alertExchangeOf("BRVM")).toBe("BRVM");
+    expect(alertExchangeOf(null)).toBe("BRVM");
   });
 });

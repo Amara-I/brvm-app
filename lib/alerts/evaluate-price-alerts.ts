@@ -2,7 +2,7 @@
 
 import { PriceAlertDirection, PriceAlertStatus } from "@prisma/client";
 import { prisma } from "../prisma";
-import { priceCrossHits } from "../notifications/logic";
+import { alertExchangeOf, priceCrossHits, type AlertExchange } from "../notifications/logic";
 
 export interface FiredPriceAlert {
   id: string;
@@ -11,6 +11,8 @@ export interface FiredPriceAlert {
   direction: PriceAlertDirection;
   targetPrice: number;
   triggerPrice: number;
+  /** Place du titre (NGX → montants en naira, lien vers la fiche NGX). */
+  exchange: AlertExchange;
 }
 
 export interface PriceAlertEvalSummary {
@@ -44,6 +46,7 @@ export async function evaluateActivePriceAlerts(options?: {
       ticker: true,
       direction: true,
       targetPrice: true,
+      company: { select: { exchange: true } },
     },
   });
 
@@ -87,6 +90,7 @@ export async function evaluateActivePriceAlerts(options?: {
       direction: alert.direction,
       targetPrice: target,
       triggerPrice: price,
+      exchange: alertExchangeOf(alert.company?.exchange),
     });
   }
 

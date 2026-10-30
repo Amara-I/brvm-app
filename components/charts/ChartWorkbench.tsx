@@ -289,6 +289,13 @@ export default function ChartWorkbench({
   const [ticker, setTicker] = useState(initialTicker);
   /** Clé des tracés locaux : `NGX:SYMBOL` côté NGX (aucune collision avec un ticker BRVM). */
   const chartKey = chartStorageKey(market, ticker);
+  // Un indice NGX n'est pas une société : analyses sauvegardées oui, alertes de cours non.
+  const isNgxIndex = isNgx && universe.find((u) => u.ticker === ticker)?.kind === "index";
+  const accountCallbackPath = isNgx
+    ? ngxSymbolHref(ticker, isNgxIndex ? "index" : "company")
+    : embedded
+      ? `/actions/${ticker}`
+      : `/graphes?ticker=${encodeURIComponent(ticker)}`;
 
   useEffect(() => {
     setTicker(initialTicker);
@@ -567,6 +574,7 @@ export default function ChartWorkbench({
       const nextTicker = analysis.ticker.toUpperCase();
       if (
         embedded &&
+        !isNgx &&
         nextTicker !== ticker &&
         universe.some((u) => u.ticker === nextTicker)
       ) {
@@ -574,7 +582,7 @@ export default function ChartWorkbench({
         return;
       }
       if (universe.some((u) => u.ticker === nextTicker)) {
-        if (!embedded && nextTicker !== ticker) {
+        if (!embedded && !isNgx && nextTicker !== ticker) {
           router.replace(`/graphes?ticker=${encodeURIComponent(nextTicker)}`, { scroll: false });
         }
         setTicker(nextTicker);
@@ -600,7 +608,7 @@ export default function ChartWorkbench({
       setDrawingsSeedKey((n) => n + 1);
       setActiveSavedAnalysis(analysis);
     },
-    [universe, embedded, ticker, router]
+    [universe, embedded, isNgx, ticker, router]
   );
 
   useEffect(() => {
@@ -969,18 +977,18 @@ export default function ChartWorkbench({
               open={analysisPanelOpen}
               onOpenChange={setAnalysisPanelOpen}
               savedCount={savedAnalysesCount}
-              loginCallbackPath={
-                embedded ? `/actions/${ticker}` : `/graphes?ticker=${encodeURIComponent(ticker)}`
-              }
+              loginCallbackPath={accountCallbackPath}
             />
-            <ChartAlertControls
-              isAuthenticated={isAuthenticated}
-              ticker={ticker}
-              lastClose={stats?.lastClose ?? null}
-              loginCallbackPath={
-                embedded ? `/actions/${ticker}` : `/graphes?ticker=${encodeURIComponent(ticker)}`
-              }
-            />
+            {!isNgxIndex && (
+              <ChartAlertControls
+                isAuthenticated={isAuthenticated}
+                ticker={ticker}
+                market={market}
+                lastClose={stats?.lastClose ?? null}
+                loginCallbackPath={accountCallbackPath}
+              />
+            )}
+            {!isNgx && (
             <PortfolioTickerAction
               ticker={ticker}
               isAuthenticated={isAuthenticated}
@@ -991,6 +999,7 @@ export default function ChartWorkbench({
               }}
               addClassName={styles.primaryBtn}
             />
+            )}
           </div>
         )}
       </header>

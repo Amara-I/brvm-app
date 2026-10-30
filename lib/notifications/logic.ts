@@ -104,12 +104,27 @@ export function alreadyFiredToday(lastFireKey: string | null | undefined, key: s
   return Boolean(lastFireKey && lastFireKey === key);
 }
 
+/** Place d'un titre pour les alertes. Défaut BRVM : le comportement historique ne change pas. */
+export type AlertExchange = "BRVM" | "NGX";
+
+export function alertExchangeOf(raw: string | null | undefined): AlertExchange {
+  return raw === "NGX" ? "NGX" : "BRVM";
+}
+
 export function deepLinkFor(input: {
   type: "PRIX" | "SIGNAUX" | "PORTEFEUILLE" | "INDICES" | "SYSTEME";
   ticker?: string | null;
   indexCode?: string | null;
   preferChart?: boolean;
+  exchange?: AlertExchange | null;
 }): string {
+  if (input.exchange === "NGX" && input.ticker && input.type !== "PORTEFEUILLE" && input.type !== "INDICES") {
+    // Fiche NGX : le graphe est intégré à la fiche (ancre #ngx-chart).
+    const base = `/marches/ngx/actions/${encodeURIComponent(input.ticker)}`;
+    return input.preferChart ? `${base}#ngx-chart` : base;
+  }
+  if (input.exchange === "NGX" && input.type === "SIGNAUX") return "/marches/ngx/screener";
+  if (input.exchange === "NGX" && input.type === "PRIX") return "/marches/ngx";
   if (input.type === "PORTEFEUILLE") return "/portefeuille";
   if (input.type === "INDICES") {
     if (input.indexCode) return `/indices/${encodeURIComponent(input.indexCode)}`;
@@ -127,6 +142,17 @@ export function deepLinkFor(input: {
 export function fmtFcfa(n: number): string {
   if (!Number.isFinite(n)) return "N/D";
   return `${Math.round(n).toLocaleString("fr-FR")} FCFA`;
+}
+
+/** Montant en naira pour les e-mails / notifications : « ₦29,50 » (2 décimales, comme la fiche NGX). */
+export function fmtNgn(n: number): string {
+  if (!Number.isFinite(n)) return "N/D";
+  return `₦${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/** Montant dans la devise de la place : BRVM → « 1 234 FCFA », NGX → « ₦29,50 ». */
+export function fmtMoneyFor(exchange: AlertExchange | null | undefined, n: number): string {
+  return exchange === "NGX" ? fmtNgn(n) : fmtFcfa(n);
 }
 
 export function fmtSignedPct(n: number, digits = 1): string {
