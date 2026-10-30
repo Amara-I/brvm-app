@@ -108,10 +108,15 @@ function OverviewPriceChart({
     return p ? infoFor(p.time, p.value, p.volume) : null;
   }, [hoverTime, chartSeries, infoFor]);
 
-  const onMove = useCallback((state: { activePayload?: Array<{ payload?: { time?: string } }> } | null) => {
-    const time = state?.activePayload?.[0]?.payload?.time ?? null;
-    setHoverTime((cur) => (cur === time ? cur : time));
-  }, []);
+  const onMove = useCallback(
+    (state: { activeTooltipIndex?: number | string | null; activeIndex?: number | string | null } | null) => {
+      const raw = state?.activeTooltipIndex ?? state?.activeIndex;
+      const idx = raw == null ? NaN : Number(raw);
+      const time = Number.isInteger(idx) ? (chartSeries[idx]?.time ?? null) : null;
+      setHoverTime((cur) => (cur === time ? cur : time));
+    },
+    [chartSeries]
+  );
   const onLeave = useCallback(() => setHoverTime(null), []);
 
   const signed = (v: number) => `${v >= 0 ? "+" : "-"}${format.decimal(Math.abs(v), 2)}%`;
