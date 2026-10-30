@@ -140,6 +140,19 @@ type MeasureBadge = {
 
 export type IndicatorOverlayKey = keyof ChartIndicatorsState;
 
+/** Point OHLC sous le curseur, en prix réels (même en échelle %), avec la clôture précédente. */
+export interface CrosshairPoint {
+  /** Date de la bougie (YYYY-MM-DD). */
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  /** Clôture de la bougie précédente (null pour la première). */
+  prevClose: number | null;
+  volume: number | null;
+}
+
 export interface IndicatorOverlayChip {
   key: IndicatorOverlayKey;
   label: string;
@@ -190,6 +203,11 @@ export interface TradingChartProps {
   /** Incrémente pour réafficher tout le graphique (sortie de zoom). */
   resetZoomToken?: number;
   onCrosshair?: (legend: string | null) => void;
+  /**
+   * Point sous le curseur (prix réels, jamais rebasés en % ), `null` quand le curseur quitte
+   * le graphe. Sert à faire suivre le prix / la date / la variation affichés dans l'en-tête.
+   */
+  onCrosshairPoint?: (point: CrosshairPoint | null) => void;
   onIntervalNote?: (note: string | null) => void;
   /** Retire un indicateur superposé (clic / clic droit sur sa pastille). */
   onRemoveIndicator?: (key: IndicatorOverlayKey) => void;
@@ -245,6 +263,7 @@ export default function TradingChart({
   onBindUndoApi,
   resetZoomToken = 0,
   onCrosshair,
+  onCrosshairPoint,
   onIntervalNote,
   onRemoveIndicator,
   seedDrawings = null,
@@ -1277,22 +1296,52 @@ export default function TradingChart({
     };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onVisibleRange);
 
+    // Prix réels sous le curseur : en échelle %, les bougies du graphe sont rebasées à 100 ;
+    // la légende et l'en-tête doivent pourtant afficher le vrai cours (et la vraie variation).
+    const hoverCandles =
+      percentScale
+        ? buildSyncedChartView({
+            fullPoints: history,
+            visibleFrom,
+            visibleTo,
+            interval,
+            lookbackBars: requiredLookback(indicators),
+            percentScale: false,
+          }).candles
+        : candles;
+    const hoverIndexByTime = new Map<string, number>();
+    hoverCandles.forEach((c, idx) => hoverIndexByTime.set(c.time, idx));
+    let lastHoverTime: string | null = null;
+
     const handler = (param: MouseEventParams) => {
-      if (!onCrosshair) return;
-      if (!param.time || !param.seriesData) {
-        onCrosshair(null);
+      if (!onCrosshair && !onCrosshairPoint) return;
+      const i = param.time != null ? (hoverIndexByTime.get(String(param.time)) ?? -1) : -1;
+      if (!param.time || !param.seriesData || i < 0) {
+        if (lastHoverTime !== null) {
+          lastHoverTime = null;
+          onCrosshair?.(null);
+          onCrosshairPoint?.(null);
+        }
         return;
       }
-      const raw = param.seriesData.get(candleSeries) as CandlestickData | undefined;
-      if (!raw || raw.open === undefined) {
-        onCrosshair(null);
-        return;
-      }
-      const i = candles.findIndex((c) => c.time === String(param.time));
-      const prev = i > 0 ? candles[i - 1]!.close : raw.open;
-      const chg = prev > 0 ? ((raw.close - prev) / prev) * 100 : 0;
-      const vol = i >= 0 ? candles[i]!.volume : null;
-      onCrosshair(ohlcLegend(raw.open, raw.high, raw.low, raw.close, chg, vol, locale, format, priceDecimals));
+      const time = String(param.time);
+      // Même bougie que le dernier événement : rien à recalculer ni à re-rendre.
+      if (time === lastHoverTime) return;
+      lastHoverTime = time;
+      const c = hoverCandles[i]!;
+      const prevClose = i > 0 ? hoverCandles[i - 1]!.close : null;
+      const base = prevClose != null && prevClose > 0 ? prevClose : c.open;
+      const chg = base > 0 ? ((c.close - base) / base) * 100 : 0;
+      onCrosshair?.(ohlcLegend(c.open, c.high, c.low, c.close, chg, c.volume, locale, format, priceDecimals));
+      onCrosshairPoint?.({
+        time: c.time,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        prevClose,
+        volume: c.volume ?? null,
+      });
     };
     chart.subscribeCrosshairMove(handler);
 
@@ -1370,6 +1419,7 @@ export default function TradingChart({
     priceDecimals,
     height,
     onCrosshair,
+    onCrosshairPoint,
     onIntervalNote,
     locale,
     format,

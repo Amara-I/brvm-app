@@ -39,6 +39,7 @@ import {
   computeWindowChange,
   formatWindowChangePercent,
 } from "@/lib/charts/window-change";
+import OverviewPriceChart from "@/components/actions/OverviewPriceChart";
 import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel";
 import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel";
 import OutlookSynthesisCard from "./OutlookSynthesisCard";
@@ -752,74 +753,17 @@ export default function CompanySheetClient({
                   {localizeSplitLabel(marker.label, t, format)}
                 </p>
               ))}
-              <div className={styles.ohlc}>
-                <span>
-                  <em>{t("company.chart.o")}</em> {ohlc.o}
-                </span>
-                <span>
-                  <em>{t("company.chart.h")}</em> {ohlc.h}
-                </span>
-                <span>
-                  <em>{t("company.chart.l")}</em> {ohlc.l}
-                </span>
-                <span>
-                  <em>{t("company.chart.c")}</em> {ohlc.c}
-                </span>
-                <span className={up ? styles.pos : styles.neg}>{ohlc.var}</span>
-                <span>
-                  <em>{t("company.chart.vol")}</em> {ohlc.vol}
-                </span>
-              </div>
-              <div className={styles.chartBox}>
-                {chartSeries.length >= 1 ? (
-                  <ResponsiveContainer width="100%" height={280}>
-                    <AreaChart
-                      data={chartSeries.map((p) => ({
-                        ...p,
-                        label: shortChart ? formatListingDate(p.time, format, nd) : p.time.slice(0, 7),
-                      }))}
-                    >
-                      <defs>
-                        <linearGradient id="sheetGreen" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={C.green} stopOpacity={0.35} />
-                          <stop offset="100%" stopColor={C.green} stopOpacity={0} />
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
-                      <XAxis dataKey="label" stroke={C.textDim} fontSize={11} minTickGap={shortChart ? 16 : 40} />
-                      <YAxis stroke={C.textDim} fontSize={11} domain={chartYDomain} width={64} />
-                      <Tooltip
-                        contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8 }}
-                        labelStyle={{ color: C.text }}
-                      />
-                      {splitGuides.map((guide) => (
-                        <ReferenceLine
-                          key={guide.key}
-                          x={guide.x}
-                          stroke={C.gold}
-                          strokeDasharray="3 3"
-                          strokeOpacity={0.7}
-                        />
-                      ))}
-                      <Area
-                        type="monotone"
-                        dataKey="value"
-                        name={t("company.chart.price")}
-                        stroke={C.green}
-                        fill="url(#sheetGreen)"
-                        strokeWidth={2}
-                        dot={
-                          shortChart
-                            ? { r: 4, strokeWidth: 0, fill: C.green }
-                            : false
-                        }
-                      />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <p className={styles.empty}>{t("company.chart.insufficient")}</p>
-                )}
-              </div>
+              <OverviewPriceChart
+                chartSeries={chartSeries}
+                rangedSeries={rangedSeries}
+                shortChart={shortChart}
+                yDomain={chartYDomain}
+                splitGuides={splitGuides}
+                defaultOhlc={ohlc}
+                defaultUp={up}
+                nd={nd}
+                emptyLabel={t("company.chart.insufficient")}
+              />
             </section>
 
                 {/* Scorecard de décision — AD-2026-08-22-002 (approuvée) */}
