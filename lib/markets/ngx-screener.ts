@@ -14,7 +14,7 @@ import { buildNgxSheet, computeCompanyMetrics } from "@/lib/ngx/sheet-model";
 import { policyScore, type NgxPillarKey, type NgxScoreBand, type NgxScoreConfidence, type NgxScoreMode } from "@/lib/ngx/score";
 import { NGX_PILLAR_KEYS } from "@/lib/ngx/score";
 import { ngxSectorGroup, cleanNgxName, type NgxSectorGroup } from "@/lib/ngx/sectors";
-import { ngxSparkValues } from "./ngx-spark";
+import { packNgxSpark, type NgxSparkPacked } from "./ngx-spark";
 import { loadNgxUniverse } from "./ngx-sheet";
 
 export interface NgxScreenerRow {
@@ -45,8 +45,8 @@ export interface NgxScreenerRow {
 
 export interface NgxScreenerData {
   rows: NgxScreenerRow[];
-  /** Aperçu 1 an par ticker (≈48 clôtures ajustées), absent = N/D. Utilisé par la vue d'ensemble NGX. */
-  sparks: Record<string, number[]>;
+  /** Séries d'aperçu par ticker (cache `chart_series` SPARK, ajustées), compactées ; absent = N/D. Vue d'ensemble NGX. */
+  sparks: Record<string, NgxSparkPacked>;
   /** Sociétés actives, notées avec fondamentaux (FULL + PARTIAL), notées sur le graphique seul, non notées. */
   coverage: { total: number; fundamentals: number; full: number; partial: number; chartOnly: number; unscored: number };
   asOf: string;
@@ -57,23 +57,41 @@ const ONE_YEAR_MS = 400 * 24 * 3600 * 1000;
 async function loadSeries(
   rows: Array<{ id: string; ticker: string }>,
   closes: Map<string, number | null>,
-): Promise<Map<string, ChartClosePoint[]>> {
+  withSparks: boolean,
+): Promise<{ series: Map<string, ChartClosePoint[]>; spark: Map<string, ChartClosePoint[]> }> {
   const out = new Map<string, ChartClosePoint[]>();
-  const [cached, actions] = await Promise.all([
+  const spark = new Map<string, ChartClosePoint[]>();
+  // 1A (score) et SPARK (aperçus, toutes périodes) en une seule passe, sans requête supplémentaire en séquence.
+  const [cached, cachedSpark, actions] = await Promise.all([
     prisma.chartSeries
       .findMany({
         where: { kind: "COMPANY", exchange: "NGX", rangeKey: "1A" },
         select: { symbol: true, points: true, pointCount: true, meta: true },
       })
       .catch(() => []),
+    withSparks
+      ? prisma.chartSeries
+          .findMany({
+            where: { kind: "COMPANY", exchange: "NGX", rangeKey: "SPARK" },
+            select: { symbol: true, points: true, pointCount: true, meta: true },
+          })
+          .catch(() => [])
+      : Promise.resolve([]),
     actionsByTicker().catch(() => new Map()),
   ]);
-  for (const row of cached) {
-    if (row.pointCount === 0) continue;
+  const adjusted = (row: { symbol: string; points: unknown; meta: unknown }) => {
     const acts = actions.get(row.symbol) ?? [];
     const meta = (row.meta ?? null) as ChartSeriesMetaPayload | null;
     const points = fromCompactPoints(row.points);
-    out.set(row.symbol, meta?.adjustmentFingerprint === adjustmentFingerprint(acts) ? points : adjustSeries(points, acts));
+    return meta?.adjustmentFingerprint === adjustmentFingerprint(acts) ? points : adjustSeries(points, acts);
+  };
+  for (const row of cached) {
+    if (row.pointCount === 0) continue;
+    out.set(row.symbol, adjusted(row));
+  }
+  for (const row of cachedSpark) {
+    if (row.pointCount === 0) continue;
+    spark.set(row.symbol, adjusted(row));
   }
   // Sociétés cotées sans ligne de cache : série canonique récente, ajustée comme sur la fiche.
   const missing = rows.filter((r) => !out.has(r.ticker) && closes.get(r.ticker) != null);
@@ -94,14 +112,15 @@ async function loadSeries(
     const presented = await presentCompanyCloses(prisma, r.id, r.ticker, raw);
     out.set(r.ticker, presented.points);
   }
-  return out;
+  return { series: out, spark };
 }
 
-export async function loadNgxScreener(): Promise<NgxScreenerData> {
+/** `withSparks` : charge aussi les séries d'aperçu (vue d'ensemble NGX uniquement ; le screener n'en a pas besoin). */
+export async function loadNgxScreener(opts: { withSparks?: boolean } = {}): Promise<NgxScreenerData> {
   const today = new Date().toISOString().slice(0, 10);
   const { rows, universe } = await loadNgxUniverse();
   const closes = new Map(universe.map((c) => [c.ticker, c.close] as const));
-  const seriesByTicker = await loadSeries(rows, closes);
+  const { series: seriesByTicker, spark: sparkByTicker } = await loadSeries(rows, closes, opts.withSparks === true);
   const universeMetrics = universe.map((c) => ({ c, m: computeCompanyMetrics(c, today) }));
 
   const out: NgxScreenerRow[] = universe.map((company, i) => {
@@ -156,10 +175,11 @@ export async function loadNgxScreener(): Promise<NgxScreenerData> {
   const full = count("FULL");
   const partial = count("PARTIAL");
   const chartOnly = out.filter((r) => r.mode === "CHART_ONLY" && r.overall != null).length;
-  const sparks: Record<string, number[]> = {};
-  for (const [ticker, series] of seriesByTicker) {
-    const values = ngxSparkValues(series);
-    if (values.length >= 2) sparks[ticker] = values;
+  // Aperçus : série SPARK ; à défaut (ligne de cache absente), la série 1A utilisée pour la note.
+  const sparks: Record<string, NgxSparkPacked> = {};
+  for (const ticker of opts.withSparks ? new Set([...sparkByTicker.keys(), ...seriesByTicker.keys()]) : []) {
+    const packed = packNgxSpark(sparkByTicker.get(ticker) ?? seriesByTicker.get(ticker) ?? []);
+    if (packed) sparks[ticker] = packed;
   }
   return {
     rows: out,

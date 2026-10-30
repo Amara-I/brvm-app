@@ -128,7 +128,7 @@ const SIGNAL_COLORS: Record<TradeSignal["label"], string> = {
   VENDRE: "#EF4444",
 };
 
-function signalOf(label: TradeSignal["label"]): TradeSignal {
+export function signalOf(label: TradeSignal["label"]): TradeSignal {
   return { label, color: SIGNAL_COLORS[label] };
 }
 

@@ -1,28 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { ngxSparkValues } from "./ngx-spark";
+import { filterSeriesByHorizon, horizonChangePercent, MARKET_HORIZON_OPTIONS } from "./market-horizon";
+import { packNgxSpark, unpackNgxSpark } from "./ngx-spark";
 
 const pt = (time: string, value: number) => ({ time, value, volume: null });
 
-describe("ngxSparkValues", () => {
-  it("retourne [] sous 2 points", () => {
-    expect(ngxSparkValues([])).toEqual([]);
-    expect(ngxSparkValues([pt("2026-10-01", 10)])).toEqual([]);
+describe("packNgxSpark / unpackNgxSpark", () => {
+  it("N/D sous 2 points valides", () => {
+    expect(packNgxSpark([])).toBeNull();
+    expect(packNgxSpark([pt("2026-10-01", 10)])).toBeNull();
+    expect(packNgxSpark([pt("2026-10-01", 10), pt("2026-10-02", 0)])).toBeNull();
+    expect(unpackNgxSpark(null)).toEqual([]);
   });
-  it("démarre à la séance la plus proche avant J-365", () => {
-    const pts = [pt("2025-09-20", 5), pt("2025-10-27", 10), pt("2026-03-01", 12), pt("2026-10-28", 20)];
-    // J-365 de 2026-10-28 = 2025-10-28 → référence 2025-10-27 (10), pas 2025-09-20.
-    expect(ngxSparkValues(pts)).toEqual([10, 12, 20]);
+  it("aller-retour : trie, dédoublonne par jour, arrondit", () => {
+    const packed = packNgxSpark([pt("2026-10-03", 12.3456), pt("2026-10-01", 10), pt("2026-10-03", 12.5), pt("2026-10-02", 11)]);
+    expect(unpackNgxSpark(packed)).toEqual([pt("2026-10-01", 10), pt("2026-10-02", 11), pt("2026-10-03", 12.5)]);
   });
-  it("ignore une référence trop ancienne (> 10 jours) et démarre dans la fenêtre", () => {
-    const pts = [pt("2025-06-01", 5), pt("2025-12-01", 8), pt("2026-10-28", 20)];
-    expect(ngxSparkValues(pts)).toEqual([8, 20]);
+  it("reste compact et alimente le filtre de période de la BRVM", () => {
+    const asOf = new Date("2026-10-30T12:00:00Z");
+    const days = Array.from({ length: 396 }, (_, i) => {
+      const t = new Date(Date.UTC(2025, 8, 30) + i * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      return pt(t, 100 + i);
+    });
+    const series = unpackNgxSpark(packNgxSpark(days));
+    expect(series).toHaveLength(396);
+    for (const h of MARKET_HORIZON_OPTIONS) {
+      const sliced = filterSeriesByHorizon(series, h.value, asOf);
+      expect(sliced.length).toBeGreaterThanOrEqual(2);
+      expect(horizonChangePercent(sliced)).not.toBeNull();
+    }
   });
-  it("réduit les longues séries en gardant premier et dernier points", () => {
-    const pts = Array.from({ length: 300 }, (_, i) => pt(new Date(Date.UTC(2025, 11, 1) + i * DAY).toISOString().slice(0, 10), 100 + i));
-    const out = ngxSparkValues(pts, 48);
-    expect(out).toHaveLength(48);
-    expect(out[0]).toBe(100);
-    expect(out[47]).toBe(399);
+  it("période courte sans données récentes → N/D plutôt qu'un repli trompeur", () => {
+    const asOf = new Date("2026-10-30T12:00:00Z");
+    const series = unpackNgxSpark(packNgxSpark([pt("2026-01-05", 10), pt("2026-03-05", 11), pt("2026-06-05", 12)]));
+    expect(filterSeriesByHorizon(series, "1S", asOf)).toEqual([]);
+    expect(filterSeriesByHorizon(series, "1A", asOf)).toHaveLength(3);
   });
 });
-const DAY = 24 * 3600 * 1000;

@@ -103,37 +103,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.sortBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  letter-spacing: inherit;
-  text-transform: inherit;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.sortBtn:hover,
-.sortBtn:focus-visible {
-  color: var(--c-gold);
-}
-
-.sortArrow {
-  font-size: 0.65rem;
-  opacity: 0.6;
-}
-
-th[aria-sort="ascending"] .sortArrow,
-th[aria-sort="descending"] .sortArrow {
-  color: var(--c-gold);
-  opacity: 1;
-}
-
 .sub {
   display: block;
   color: var(--c-text-dim);
@@ -226,23 +195,4 @@ th[aria-sort="descending"] .sortArrow {
 .screenerLink:hover,
 .screenerLink:focus-visible {
   background: var(--c-gold-soft);
-}
-
-/* Aperçu 1 an : même cadre que la colonne « Aperçu » de la BRVM (MarketBoard.module.css). */
-.sparkCell {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 9.5rem;
-  min-height: 2.6rem;
-  padding: 0.3rem 0.5rem;
-  border-radius: 10px;
-  background: var(--c-bg);
-  border: 1px solid var(--c-border);
-}
-
-@media (max-width: 640px) {
-  .sparkCell {
-    min-width: 8rem;
-  }
 }
