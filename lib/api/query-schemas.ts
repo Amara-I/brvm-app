@@ -23,6 +23,7 @@ export const projectionsQuerySchema = z.object({
 
 /// GET /api/market/news — pagination simple.
 export const newsListQuerySchema = z.object({
+  exchange: z.enum(["BRVM", "NGX"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
   /// Filtre optionnel sur une société précise (ticker).
