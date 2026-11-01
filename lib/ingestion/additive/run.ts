@@ -69,8 +69,10 @@ export async function runAdditiveEnrichment(input: EnrichmentOptions, db: Prisma
             quotes = aliased.quotes.filter((q) => q.tradeDate === item.from).map((q) => ({ ticker: q.symbol, date: q.tradeDate,
               closePrice: q.close, volume: q.volume, source: "NGX_OFFICIEL", fetchedAt: new Date().toISOString() }));
           }
-          results.push({ ...item, sourceUrl, granularity: "daily", collected: quotes.length, status: quotes.length ? "SOURCE_REPONDUE" : "SOURCE_SANS_DONNEES",
-            ...await appendPrices(db, quotes, ids, apply) });
+          const persisted = await appendPrices(db, quotes, ids, apply);
+          results.push({ ...item, sourceUrl, granularity: "daily", collected: quotes.length,
+            status: persisted.quarantined ? "CONFLIT_AUDIT_REQUIS" : quotes.length ? "SOURCE_REPONDUE" : "SOURCE_SANS_DONNEES", ...persisted });
+          if (persisted.quarantined) { failed = true; break; }
         }
       } catch (err) {
         results.push({ ...item, status: "ECHEC", error: err instanceof Error ? err.message : String(err) });

@@ -21,3 +21,12 @@ it("lit les communiqués NGX avec la date du dépôt et sans exercice inventé",
 it("ne suit que la pagination officielle même domaine", () => {
   expect(nextBrvmPage(`<li class='pager-next'><a href='?page=1'>suivant</a></li>`, "https://www.brvm.org/fr/rapports")).toBe("https://www.brvm.org/fr/rapports?page=1");
 });
+
+it("suit la pagination Bootstrap réellement publiée par la BRVM", () => {
+  expect(nextBrvmPage(`<ul class='pagination'><li class='next'><a href='?page=1'>suivant</a></li></ul>`, "https://www.brvm.org/fr/rapports-societes-cotees")).toBe("https://www.brvm.org/fr/rapports-societes-cotees?page=1");
+});
+
+it("lit un titre BRVM non cliquable avec un simple lien Télécharger", () => {
+  const rows = parseBrvmPublications(`<table><tbody><tr><td>SONATEL SN : Etats financiers Exercice 2025</td><td><a href='/sites/default/files/rapport.pdf'>Télécharger</a></td></tr></tbody></table>`, "https://www.brvm.org", "SNTS", s => s === "SONATEL SN" ? "SNTS" : null);
+  expect(rows).toHaveLength(1); expect(rows[0].url).toContain("rapport.pdf");
+});

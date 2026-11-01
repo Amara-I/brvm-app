@@ -4,7 +4,13 @@
 
 Compléter les informations existantes, sans supprimer ni réécrire de cours, rapport ou article. Ce lot prolonge la PR #93, sans merge ni promotion en production.
 
-**Code ≠ données chargées.** Aucun rattrapage réel n'a été appliqué pendant cette intervention. Une simulation locale avec les variables protégées du preview a échoué dès la lecture de la base : serveur PostgreSQL externe inaccessible depuis le sandbox. Aucun secret n'a été affiché ni écrit dans le dépôt. Ce résultat ne prouve pas que la base est indisponible depuis les fonctions Vercel. Les sources ont été examinées via recherche/lecture web, pas via une collecte réseau complète exécutée dans le sandbox.
+**Code ≠ données chargées.** Aucun rattrapage en écriture n'a été appliqué. Une simulation locale a échoué sur l'accès PostgreSQL ; une seconde simulation a réussi depuis un Sandbox Vercel temporaire avec la connexion du preview transmise par fichier protégé puis supprimé.
+
+**Preuves réelles :** GetHistos SNTS janvier 2020 a renvoyé 23 points. La comparaison en lecture seule avec PostgreSQL a trouvé 0 nouvelle ligne et 23 conflits de 90 % (valeur source = un dixième de l'ancien prix). Hypothèse : rebasage par fractionnement ; pas une erreur confirmée ni une raison de modifier le passé. La nouvelle protection bloque toute insertion de la fenêtre conflictuelle et la reprise reste bloquée pour revue. Aucun prix existant remplacé, aucun nouvel ajustement manuel appliqué.
+
+La liste officielle NGX MTNN a renvoyé **389 publications** avec liens PDF et dates de dépôt, dont les résultats T3 2026 déposés le 30 octobre. Ce ne sont pas 389 rapports annuels, ni 389 documents importés en base. Le test a permis de corriger la négociation HTTP SharePoint (`Accept: application/json;odata=verbose`, sans `$format=json`).
+
+Le répertoire BRVM a bien exposé le lien officiel Sonatel sur sa page 2. Sa pagination Bootstrap (`li.next`) a été ajoutée au parseur après essai réel. Le test BRVM corrigé a atteint le catalogue mais renvoyé 0 document : le parseur a ensuite été étendu aux titres non cliquables et testé par fixture. Cette dernière correction BRVM reste à confirmer sur la source réelle ; aucune exhaustivité annoncée. Aucun secret n'a été affiché, publié ou conservé dans le dépôt.
 
 ## Chemin concret pour reconstituer les historiques
 
@@ -21,7 +27,7 @@ Nouveau chemin d'insertion isolé : `lib/ingestion/additive/`. Il n'appelle pas 
 - Prix : `createMany(skipDuplicates)` seulement ; les valeurs existantes par (société, date, source) restent identiques.
 - Si une date porte déjà des données, toute nouvelle source reste candidate non canonique. Jamais d'`UPDATE`/`DELETE` sur `price_history` dans ce chemin ; canonique nouveau uniquement sur une date entièrement vide.
 - Verrou SQL court sur `price_history` pendant lecture/insertion ; aucun réseau sous verrou. Ce verrou peut retarder brièvement d'autres ingestions, mais ne réécrit rien. Les autres jobs existants conservent leur fonctionnement ; il ne s'agit pas d'une immutabilité rétroactive de tous les autres chemins du projet.
-- Conflit >2 % : ligne d'audit non résolue dans `data_discrepancies`, détails des sources et des deux valeurs dans le journal du job. L'écart n'est jamais « corrigé » automatiquement. Le schéma historique d'audit comporte trois colonnes BRVM/Sika/Richbourse : pour NGX, le couple de sources est dans `field`, les valeurs complètes dans le journal JSON.
+- Conflit >2 % : **toute la fenêtre est mise en quarantaine, aucune nouvelle ligne de prix de cette fenêtre n’est insérée**, curseur conservé pour revue ; ligne d'audit non résolue dans `data_discrepancies`, détails des sources et des deux valeurs dans le journal du job. L'écart n'est jamais « corrigé » automatiquement. Le schéma historique d'audit comporte trois colonnes BRVM/Sika/Richbourse : pour NGX, le couple de sources est dans `field`, les valeurs complètes dans le journal JSON.
 - Documents/articles : insertions dédupliquées seulement. Aucun titre, URL, résumé, lien société, source ou date existant remplacé.
 - Article sans date de publication/dépôt connue : pas d'article à date inventée ; le document peut être catalogué avec date N/D.
 - Pas de nouveau calcul financier ou de modification des huit sections d'analyse.
@@ -90,6 +96,6 @@ Aucun montant financier tiré de ces pages n'a été inventé ou saisi à la mai
 
 Tests ajoutés : planification mensuelle/jours ouvrés, validation des paramètres, conservation de toutes les lignes existantes, idempotence, canonique unique pour une date vide, conflit sans écrasement, simulation sans écritures, verrou en écriture, pas de date inventée, déduplication des rapports/nouvelles, garde de secret/flag, reprise sans sauter les erreurs, filtrage par marché et API de documents.
 
-Résultat local : 137 suites, 952 tests réussis et 2 ignorés ; TypeScript et build réussis.
+Référence après premier lot : 137 suites, 952 tests réussis, 2 ignorés. Suite après essai réel : 954 tests réussis, 2 ignorés ; test supplémentaire sur titre BRVM non cliquable, résultats finaux dans la PR.
 
 Tests source/DB simulés : ils ne remplacent pas un essai source réel depuis Vercel et un contrôle avant/après en PostgreSQL. Résultats finaux, commit de preview et vérification navigateur seront reportés dans la PR. À valider avant toute activation : volume ajouté, dates extrêmes, trous, unicité canonique, absence de modification des anciens enregistrements, qualité/monnaie/périmètre des comptes extraits, droits des sources, coût et temps des jobs.

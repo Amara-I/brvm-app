@@ -180,6 +180,8 @@ export async function fetchHtml(url: string, options: FetchHtmlOptions = {}): Pr
 }
 
 export interface FetchJsonOptions {
+  /** Négociation SharePoint ; incluse dans la clé de cache. */
+  accept?: "application/json" | "application/json;odata=verbose";
   checkRobots?: boolean;
   cacheTtlMs?: number;
   timeoutMs?: number;
@@ -191,6 +193,7 @@ export interface FetchJsonOptions {
 /// Cache clé = URL + méthode + body sérialisé (utile pour GetHistos Sika).
 export async function fetchJson<T = unknown>(url: string, options: FetchJsonOptions = {}): Promise<T> {
   const {
+    accept = "application/json",
     checkRobots = true,
     cacheTtlMs = DEFAULT_CACHE_TTL_MS,
     timeoutMs = DEFAULT_TIMEOUT_MS,
@@ -198,7 +201,8 @@ export async function fetchJson<T = unknown>(url: string, options: FetchJsonOpti
     body,
   } = options;
   const { hostname } = new URL(url);
-  const cacheUrl = method === "GET" ? url : `${url}::${method}::${JSON.stringify(body ?? null)}`;
+  const requestKey = method === "GET" ? url : `${url}::${method}::${JSON.stringify(body ?? null)}`;
+  const cacheUrl = accept === "application/json" ? requestKey : `${requestKey}::${accept}`;
 
   const cached = readCache(cacheUrl, cacheTtlMs);
   if (cached !== null) return JSON.parse(cached) as T;
@@ -219,7 +223,7 @@ export async function fetchJson<T = unknown>(url: string, options: FetchJsonOpti
         method,
         headers: {
           "User-Agent": DEFAULT_USER_AGENT,
-          Accept: "application/json",
+          Accept: accept,
           ...(body !== undefined ? { "Content-Type": "application/json;charset=UTF-8" } : {}),
         },
         body: body !== undefined ? JSON.stringify(body) : undefined,

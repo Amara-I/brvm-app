@@ -31,7 +31,7 @@ export function priceInsertPlan(incoming: RawPriceQuote[], existing: { companyId
 }
 
 export async function appendPrices(db: PrismaClient, quotes: RawPriceQuote[], ids: Map<string, string>, apply: boolean) {
-  if (!quotes.length) return { inserted: 0, candidates: 0, conflicts: [] as PriceConflict[] };
+  if (!quotes.length) return { inserted: 0, candidates: 0, quarantined: false, conflicts: [] as PriceConflict[] };
   return db.$transaction(async (tx) => {
     // Verrou court partagé avec les écritures SQL normales : la lecture des canoniques et l'insertion sont atomiques.
     // Pas de fetch réseau sous verrou, ni de suppression/démotion de canonique existant.
@@ -40,7 +40,8 @@ export async function appendPrices(db: PrismaClient, quotes: RawPriceQuote[], id
       date: { in: [...new Set(quotes.map((q) => q.date))].map((d) => new Date(`${d}T00:00:00Z`)) } },
       select: { companyId: true, date: true, source: true, closePrice: true, isCanonical: true } });
     const plan = priceInsertPlan(quotes, existing, ids);
-    const inserted = apply && plan.data.length ? (await tx.priceHistory.createMany({ data: plan.data, skipDuplicates: true })).count : 0;
+    const quarantined = plan.conflicts.length > 0;
+    const inserted = apply && !quarantined && plan.data.length ? (await tx.priceHistory.createMany({ data: plan.data, skipDuplicates: true })).count : 0;
     if (apply) for (const c of plan.conflicts) {
       const date = new Date(`${c.date}T00:00:00Z`);
       const field = `close_price:${c.source}:${c.existingSource}`;
@@ -51,7 +52,7 @@ export async function appendPrices(db: PrismaClient, quotes: RawPriceQuote[], id
         sikaValue: c.source === "SIKAFINANCE" ? c.incoming : c.existingSource === "SIKAFINANCE" ? c.existing : null,
         richValue: c.source === "RICHBOURSE" ? c.incoming : c.existingSource === "RICHBOURSE" ? c.existing : null } });
     }
-    return { inserted, candidates: plan.data.length, conflicts: plan.conflicts };
+    return { inserted, candidates: plan.data.length, conflicts: plan.conflicts, quarantined };
   }, { timeout: 20000 });
 }
 

@@ -22,7 +22,7 @@ export function publishedDate(text: string): string | null {
 }
 export function nextBrvmPage(html: string, base: string): string | null {
   const $ = cheerio.load(html);
-  const href = $("li.pager-next a, a[rel='next']").first().attr("href");
+  const href = $("li.pager-next a, li.next a, a[rel='next']").first().attr("href");
   return href ? officialUrl(href, base, "www.brvm.org") : null;
 }
 
@@ -36,9 +36,11 @@ export function parseBrvmPublications(html: string, pageUrl: string, ticker: str
       const title = clean($(a).text());
       return /rapport|financier|résultat|resultat|communiqu|assembl|dividende|profit.warning|annual/i.test(title);
     }).first();
-    const title = clean(titleLink.text());
+    // Le tableau officiel peut avoir le titre en texte et seulement « Télécharger » comme lien.
+    const title = clean(titleLink.text()) || cells.toArray().map((td) => clean($(td).text()))
+      .find((text) => /rapport|financier|résultat|resultat|communiqu|assembl|dividende|profit.warning|annual/i.test(text)) || "";
     if (!title) return;
-    const href = $(tr).find("a[href]").filter((_, a) => /\.pdf(?:\?|$)/i.test($(a).attr("href") ?? "")).first().attr("href") ?? titleLink.attr("href");
+    const href = $(tr).find("a[href]").filter((_, a) => /\.pdf(?:\?|$)/i.test($(a).attr("href") ?? "")).first().attr("href") ?? titleLink.attr("href") ?? $(tr).find("a[href]").first().attr("href");
     const url = href ? officialUrl(href, pageUrl, "www.brvm.org") : null;
     if (!url) return;
     const issuer = clean(cells.eq(1).text());
@@ -111,7 +113,7 @@ export async function collectNgxPublications(ticker: string): Promise<Publicatio
     while (url) {
       if (visited.has(url) || visited.size >= 30) throw new Error("Pagination NGX incomplète");
       visited.add(url);
-      const json: { value?: NgxListItem[]; "odata.nextLink"?: string; d?: { results?: NgxListItem[]; __next?: string } } = await fetchJson(`${url}${url.includes("?") ? "&" : "?"}$format=json`, { cacheTtlMs: 3600000, checkRobots: true });
+      const json: { value?: NgxListItem[]; "odata.nextLink"?: string; d?: { results?: NgxListItem[]; __next?: string } } = await fetchJson(url, { accept: "application/json;odata=verbose", cacheTtlMs: 3600000, checkRobots: true });
       const items = json.d?.results ?? json.value;
       if (!Array.isArray(items)) throw new Error("Format NGX XFinancial_News inattendu");
       out.push(...parseNgxPublications(items.filter((item) => !item.CompanySymbol || item.CompanySymbol.trim().toUpperCase() === symbol), ticker));

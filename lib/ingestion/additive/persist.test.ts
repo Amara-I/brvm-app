@@ -59,3 +59,13 @@ it("ne réécrit aucun document ou article déjà présent", async () => {
   await appendPublications(db as unknown as PrismaClient, [{ ...publication, publishedAt: "2026-02-01" }], ids, true);
   expect(db.companyDocument.createMany).not.toHaveBeenCalled(); expect(db.newsArticle.createMany).not.toHaveBeenCalled();
 });
+
+it("met toute la fenêtre en quarantaine quand un recouvrement révèle un rebasage de source", async () => {
+  const tx = { $executeRawUnsafe: vi.fn(), priceHistory: {
+    findMany: vi.fn(async () => [{ companyId: "c1", date: new Date("2020-01-02"), source: "SIKAFINANCE", closePrice: 1000, isCanonical: true }]),
+    createMany: vi.fn() }, dataDiscrepancy: { findFirst: vi.fn(async () => null), create: vi.fn() } };
+  const db = { $transaction: async (fn: (arg: typeof tx) => unknown) => fn(tx) } as unknown as PrismaClient;
+  const result = await appendPrices(db, [q(), q("SNTS", 100, "2020-01-03")], ids, true);
+  expect(result.quarantined).toBe(true); expect(result.inserted).toBe(0);
+  expect(tx.priceHistory.createMany).not.toHaveBeenCalled(); expect(tx.dataDiscrepancy.create).toHaveBeenCalled();
+});
