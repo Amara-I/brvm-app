@@ -15,8 +15,10 @@
 // ou la variation officielle publiée. Les cours sont ajustés des fractionnements.
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { NextRequest } from "next/server";
+import { marketScopeQuerySchema } from "@/lib/api/query-schemas";
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, cacheHeaders } from "@/lib/api/response";
+import { apiSuccess, apiValidationError, cacheHeaders } from "@/lib/api/response";
 import { closeForSession, sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
 import { loadRecentIndexLevels } from "@/lib/api/market-summary-snapshot";
 import { isHeadlineIndex } from "@/lib/markets/index-catalog";
@@ -26,14 +28,17 @@ import type { DataSourceCode } from "@/lib/ingestion/types";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
-  const levels = await loadRecentIndexLevels();
-  const headline = levels.filter((row) => isHeadlineIndex(row.code));
-  const otherIndices = levels.filter((row) => !isHeadlineIndex(row.code));
+export async function GET(request: NextRequest) {
+  const parsed = marketScopeQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+  if (!parsed.success) return apiValidationError(parsed.error);
+  const { exchange } = parsed.data;
+  const levels = await loadRecentIndexLevels(exchange);
+  const headline = levels.filter((row) => (exchange === "NGX" ? row.code === "NGX_ASI" : isHeadlineIndex(row.code)));
+  const otherIndices = levels.filter((row) => !(exchange === "NGX" ? row.code === "NGX_ASI" : isHeadlineIndex(row.code)));
 
   // Top hausses / baisses : séance précédente réelle (canonique ou non).
   const companies = await prisma.company.findMany({
-    where: { isActive: true, exchange: "BRVM" },
+    where: { isActive: true, exchange },
     select: { id: true, ticker: true, name: true, color: true },
   });
   const now = new Date();
@@ -93,6 +98,8 @@ export async function GET() {
 
   return apiSuccess(
     {
+      exchange,
+      currency: exchange === "NGX" ? "NGN" : "XOF",
       headlineIndices: headline,
       otherIndices,
       topGainers,

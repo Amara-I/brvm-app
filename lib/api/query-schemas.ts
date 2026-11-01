@@ -38,3 +38,6 @@ export const chartSeriesQuerySchema = z.object({
   interval: z.enum(["1H", "1D", "1W", "1M"]).optional(),
 });
 export type ChartSeriesQuery = z.infer<typeof chartSeriesQuerySchema>;
+
+/** Périmètre explicite, sans modifier le contrat historique BRVM. */
+export const marketScopeQuerySchema = z.object({ exchange: z.enum(["BRVM", "NGX"]).default("BRVM") });

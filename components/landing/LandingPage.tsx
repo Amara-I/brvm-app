@@ -1,6 +1,8 @@
 // Landing page — contenu aligné sur les modules réels de la plateforme OuestBourse.
 // Chiffres exclusivement issus des données BRVM (jamais inventés).
 
+import MarketOverviewCards from "./MarketOverviewCards";
+import type { LandingMarket } from "@/lib/api/landing-markets";
 import Link from "next/link";
 import type { MarketSummaryStats } from "@/lib/calc/market-summary-stats";
 import type { CalcMetricsResult } from "@/lib/calc/calc-metrics";
@@ -33,6 +35,7 @@ import {
 import styles from "./Landing.module.css";
 
 export interface LandingPageProps {
+  markets: LandingMarket[];
   stats: MarketSummaryStats;
   topCompanies: Array<{ co: CompanyFullDataset; metrics: CalcMetricsResult }>;
   /** Nombre de secteurs présents en base (données réelles). */
@@ -59,6 +62,7 @@ function perfClass(perf: string): string {
 }
 
 export default function LandingPage({
+  markets,
   stats,
   topCompanies,
   sectorsCount,
@@ -288,6 +292,7 @@ export default function LandingPage({
       </section>
 
       <div className={styles.belowHero}>
+        <MarketOverviewCards markets={markets} />
         <section className={styles.section}>
           <div className={styles.rail}>
             <div className={styles.statsInner}>

@@ -215,3 +215,8 @@
     top: calc(100% + 8px);
   }
 }
+
+.marketFilter { display: flex; align-items: center; gap: 8px; padding: 4px 0 10px; font-size: 0.8rem; color: var(--c-text); }
+.marketFilter select { background: var(--c-panel); color: var(--c-text); border: 1px solid var(--c-border); padding: 4px; border-radius: 4px; }
+.groupTitle { display: block; padding: 6px 8px; font-size: 0.75rem; color: var(--c-textdim); }
+.groupList { list-style: none; padding: 0; margin: 0; }

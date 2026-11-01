@@ -113,6 +113,9 @@
 }
 
 .topSearch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   justify-self: center;
   width: min(24rem, 100%);
   min-width: 0;
@@ -1521,3 +1524,5 @@ a.exchangeChip:hover {
     height: 26px;
   }
 }
+
+.topSearch > :global([class*="rootLanding"]) { flex: 1; min-width: 0; width: auto; }

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import MarketSelector from "@/components/nav/MarketSelector";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
@@ -43,6 +44,7 @@ export default function LandingTopBar({
           </Link>
 
           <div className={styles.topSearch}>
+            <MarketSelector />
             <HeaderSearch companies={searchCompanies} variant="landing" />
           </div>
 

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
+import MarketSelector from "@/components/nav/MarketSelector";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
@@ -114,6 +115,7 @@ export default function SidebarLayout({
         </Link>
 
         <div className={styles.topActions}>
+          <MarketSelector />
           <HeaderSearch companies={searchCompanies} />
           <NotificationBell isAuthenticated={Boolean(user)} />
           <LanguageSwitcher />

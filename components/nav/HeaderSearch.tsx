@@ -7,11 +7,9 @@ import { trackFeature } from "@/components/analytics/track-client";
 import styles from "./HeaderSearch.module.css";
 import { useI18n } from "@/components/i18n/I18nProvider";
 
-export interface HeaderSearchItem {
-  ticker: string;
-  name: string;
-  sector: string;
-}
+import { searchListings, companyHref, type ListingSearchItem } from "@/lib/markets/search";
+import type { ListingExchange } from "@/lib/markets/listing-scope";
+export type HeaderSearchItem = ListingSearchItem;
 
 export default function HeaderSearch({
   companies,
@@ -24,6 +22,7 @@ export default function HeaderSearch({
   const { t, labels } = useI18n();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [market, setMarket] = useState<ListingExchange | "">("");
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -66,24 +65,14 @@ export default function HeaderSearch({
 
   const landing = variant === "landing";
 
-  const results = useMemo(() => {
-    const needle = q.trim().toLowerCase();
-    if (!needle) return companies.slice(0, 8);
-    return companies
-      .filter(
-        (c) =>
-          c.ticker.toLowerCase().includes(needle) ||
-          c.name.toLowerCase().includes(needle) ||
-          c.sector.toLowerCase().includes(needle)
-      )
-      .slice(0, 10);
-  }, [companies, q]);
+  const groups = useMemo(() => searchListings(companies, q, market || undefined), [companies, q, market]);
+  const results = groups.flatMap((group) => group.items);
 
-  function go(ticker: string) {
+  function go(item: HeaderSearchItem) {
     setOpen(false);
     setQ("");
     trackFeature("search", "select_company");
-    router.push(`/actions/${ticker}`);
+    router.push(companyHref(item));
   }
 
   return (
@@ -114,26 +103,33 @@ export default function HeaderSearch({
             aria-label={t("chrome.search.company")}
             className={styles.input}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && results[0]) go(results[0].ticker);
+              if (e.key === "Enter" && results[0]) go(results[0]);
             }}
           />
+          <label className={styles.marketFilter}>
+            Marché : <select aria-label="Filtrer par marché" value={market} onChange={(e) => setMarket(e.target.value as ListingExchange | "")}>
+              <option value="">BRVM + NGX</option><option value="BRVM">BRVM</option><option value="NGX">NGX</option>
+            </select>
+          </label>
           <ul className={styles.list}>
             {results.length === 0 ? (
               <li className={styles.empty}>{t("chrome.search.empty")}</li>
             ) : (
-              results.map((c) => (
-                <li key={c.ticker}>
-                  <button
-                    type="button"
-                    onClick={() => go(c.ticker)}
-                    onMouseEnter={() => router.prefetch(`/actions/${c.ticker}`)}
-                    onFocus={() => router.prefetch(`/actions/${c.ticker}`)}
-                    className={styles.item}
-                  >
-                    <span className={styles.ticker}>{c.ticker}</span>
-                    <span> · {c.name}</span>
-                    <div className={styles.sector}>{labels.sector(c.sector)}</div>
-                  </button>
+              groups.filter((group) => group.items.length > 0).map((group) => (
+                <li key={group.exchange}>
+                  <strong className={styles.groupTitle}>{group.exchange}</strong>
+                  <ul className={styles.groupList}>
+                    {group.items.map((c) => (
+                      <li key={`${group.exchange}:${c.ticker}`}>
+                        <button type="button" onClick={() => go(c)}
+                          onMouseEnter={() => router.prefetch(companyHref(c))}
+                          onFocus={() => router.prefetch(companyHref(c))} className={styles.item}>
+                          <span className={styles.ticker}>{c.ticker}</span><span> · {c.name}</span>
+                          <div className={styles.sector}>{labels.sector(c.sector)}</div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
                 </li>
               ))
             )}

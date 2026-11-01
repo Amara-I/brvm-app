@@ -8,6 +8,7 @@ import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { computeMarketSummaryStats, topScoredCompanies } from "@/lib/calc/market-summary-stats";
 import { EDUCATION_TERMS } from "@/lib/education/catalog";
 import { loadHeroIndexSeries } from "@/lib/landing/hero-index-series";
+import { getLandingMarkets } from "@/lib/api/landing-markets";
 import LandingPage from "@/components/landing/LandingPage";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { getI18n } from "@/lib/i18n/get-i18n";
@@ -29,7 +30,8 @@ export function generateMetadata() {
 }
 
 export default async function LandingRoute() {
-  const [dataset, heroIndex] = await Promise.all([getCompaniesFullDataset(), loadHeroIndexSeries()]);
+  const [dataset, heroIndex, markets] = await Promise.all([getCompaniesFullDataset(), loadHeroIndexSeries(),
+    getLandingMarkets().catch(() => ([{ exchange: "BRVM" as const, count: null, index: null }, { exchange: "NGX" as const, count: null, index: null }]))]);
   const stats = computeMarketSummaryStats(dataset);
   const topCompanies = topScoredCompanies(dataset, 4);
   const sectorsCount = new Set(dataset.companies.map((c) => c.sector).filter(Boolean)).size;
@@ -44,6 +46,7 @@ export default async function LandingRoute() {
   return (
     <LandingChrome>
       <LandingPage
+        markets={markets}
         stats={stats}
         topCompanies={topCompanies}
         sectorsCount={sectorsCount}

@@ -12,17 +12,20 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiNotFound, cacheHeaders } from "@/lib/api/response";
+import { apiSuccess, apiNotFound, apiValidationError, cacheHeaders } from "@/lib/api/response";
+import { marketScopeQuerySchema } from "@/lib/api/query-schemas";
 import { actionsForTicker } from "@/lib/corporate-actions/load";
 import { presentClose, presentDividend } from "@/lib/corporate-actions/present-quotes";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(_request: NextRequest, { params }: { params: { ticker: string } }) {
+export async function GET(request: NextRequest, { params }: { params: { ticker: string } }) {
+  const parsed = marketScopeQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
+  if (!parsed.success) return apiValidationError(parsed.error);
   const ticker = params.ticker.toUpperCase();
 
   const company = await prisma.company.findFirst({
-    where: { ticker, exchange: "BRVM" },
+    where: { ticker, exchange: parsed.data.exchange },
     include: { country: true, sector: true },
   });
   if (!company) return apiNotFound(`Société "${ticker}"`);
@@ -36,7 +39,7 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
     prisma.dividend.findMany({
       where: { companyId: company.id, isCanonical: true },
       orderBy: { year: "asc" },
-      select: { year: true, amount: true, exDate: true, paymentDate: true, source: true },
+      select: { year: true, amount: true, exDate: true, paymentDate: true, source: true, createdAt: true },
     }),
     prisma.financialRatio.findMany({
       where: { companyId: company.id, isCanonical: true },
@@ -51,6 +54,10 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
         pbRatio: true,
         revenueGrowth: true,
         fcf: true,
+        revenue: true,
+        operatingIncome: true,
+        netIncome: true,
+        createdAt: true,
         source: true,
       },
     }),
@@ -61,13 +68,15 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
     return !latest || iso > latest ? iso : latest;
   }, null);
 
-  const actions = await actionsForTicker(ticker).catch(() => []);
+  const actions = await actionsForTicker(ticker, company.id).catch(() => []);
 
   return apiSuccess(
     {
       company: {
         ticker: company.ticker,
         name: company.name,
+        exchange: company.exchange,
+        currency: company.currency,
         isin: company.isin,
         color: company.color,
         logoUrl: company.logoUrl,
@@ -87,6 +96,7 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
           closePrice: shown.closePrice,
           volume: shown.volume,
           source: p.source,
+          ingestedAt: p.ingestedAt.toISOString(),
         };
       }),
       dividends: dividends.map((d) => ({
@@ -95,6 +105,7 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
         exDate: d.exDate?.toISOString().slice(0, 10) ?? null,
         paymentDate: d.paymentDate?.toISOString().slice(0, 10) ?? null,
         source: d.source,
+        collectedAt: d.createdAt.toISOString(),
       })),
       financialRatios: financialRatios.map((r) => ({
         year: r.year,
@@ -106,6 +117,11 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
         pbRatio: r.pbRatio !== null ? Number(r.pbRatio) : "N/D",
         revenueGrowth: r.revenueGrowth !== null ? Number(r.revenueGrowth) : "N/D",
         fcf: r.fcf !== null ? Number(r.fcf) : "N/D",
+        revenue: r.revenue != null ? Number(r.revenue) : "N/D",
+        operatingIncome: r.operatingIncome != null ? Number(r.operatingIncome) : "N/D",
+        netIncome: r.netIncome != null ? Number(r.netIncome) : "N/D",
+        monetaryUnit: company.currency === "NGN" ? "Md NGN" : "Md XOF",
+        collectedAt: r.createdAt.toISOString(),
         source: r.source,
       })),
       lastSyncedAt,
