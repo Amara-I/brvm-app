@@ -118,7 +118,7 @@ export default function SidebarLayout({
           <MarketSelector />
           <HeaderSearch companies={searchCompanies} />
           <NotificationBell isAuthenticated={Boolean(user)} />
-          <LanguageSwitcher />
+          <span className={styles.desktopLanguage}><LanguageSwitcher /></span>
           <ThemeToggle />
           {user ? (
             <AccountMenu user={user} />
@@ -137,6 +137,7 @@ export default function SidebarLayout({
 
       <aside className={`${styles.sidebar} ${mobileOpen ? styles.sidebarOpen : ""}`} data-app-sidebar>
         <div className={styles.mobileLang}>
+          <MarketSelector variant="mobile" />
           <LanguageSwitcher />
         </div>
         <div className={styles.navArea}>

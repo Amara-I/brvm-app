@@ -3,8 +3,10 @@ import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { isListingExchange, type ListingExchange } from "@/lib/markets/listing-scope";
 
+import styles from "./MarketSelector.module.css";
+
 const STORAGE_KEY = "ouestbourse-market";
-export default function MarketSelector() {
+export default function MarketSelector({ variant = "desktop" }: { variant?: "desktop" | "mobile" | "always" }) {
   const pathname = usePathname();
   const router = useRouter();
   const [market, setMarket] = useState<ListingExchange>("BRVM");
@@ -23,7 +25,7 @@ export default function MarketSelector() {
     setMarket(value);
     try { localStorage.setItem(STORAGE_KEY, value); } catch { /* stockage optionnel */ }
     router.push(value === "NGX" ? "/marches/ngx" : "/marche");
-  }} style={{ color: "var(--c-text)", background: "var(--c-panel)", border: "1px solid var(--c-border)", borderRadius: 6, padding: 6 }}>
+  }} className={`${styles.selector} ${variant === "always" ? "" : styles[variant]}`}>
     <option value="BRVM">BRVM</option><option value="NGX">NGX</option>
   </select>;
 }

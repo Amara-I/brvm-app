@@ -44,7 +44,7 @@ export default function LandingTopBar({
           </Link>
 
           <div className={styles.topSearch}>
-            <MarketSelector />
+            <MarketSelector variant="always" />
             <HeaderSearch companies={searchCompanies} variant="landing" />
           </div>
 
