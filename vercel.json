@@ -8,6 +8,10 @@
       "schedule": "0 17 * * *"
     },
     {
+      "path": "/api/cron/finance-agent",
+      "schedule": "15 5 * * *"
+    },
+    {
       "path": "/api/cron/research",
       "schedule": "0 6 * * 1"
     },
