@@ -9,6 +9,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest } from "next/server";
+import { marketNewsWhere } from "@/lib/api/market-news-scope";
 import { prisma } from "@/lib/prisma";
 import { apiSuccess, apiValidationError, cacheHeaders } from "@/lib/api/response";
 import { newsListQuerySchema } from "@/lib/api/query-schemas";
@@ -19,15 +20,15 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   const parsed = newsListQuerySchema.safeParse(Object.fromEntries(request.nextUrl.searchParams));
   if (!parsed.success) return apiValidationError(parsed.error);
-  const { page, pageSize, ticker } = parsed.data;
+  const { page, pageSize, ticker, exchange } = parsed.data;
 
-  const where: Prisma.NewsArticleWhereInput = ticker ? { company: { ticker } } : {};
+  const where: Prisma.NewsArticleWhereInput = marketNewsWhere(exchange, ticker);
 
   const [totalItems, articles] = await Promise.all([
     prisma.newsArticle.count({ where }),
     prisma.newsArticle.findMany({
       where,
-      include: { company: { select: { ticker: true, name: true } } },
+      include: { company: { select: { ticker: true, name: true, exchange: true } } },
       orderBy: { publishedAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -44,7 +45,8 @@ export async function GET(request: NextRequest) {
         sourceName: a.sourceName,
         imageUrl: a.imageUrl,
         publishedAt: a.publishedAt.toISOString(),
-        company: a.company ? { ticker: a.company.ticker, name: a.company.name } : null,
+        collectedAt: a.createdAt.toISOString(),
+        company: a.company ? { ticker: a.company.ticker, name: a.company.name, exchange: a.company.exchange } : null,
       })),
       pagination: { page, pageSize, totalItems, totalPages: Math.ceil(totalItems / pageSize) },
     },

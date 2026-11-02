@@ -1,6 +1,7 @@
 // Snapshot indices pour le bandeau marché de /marche.
 // La séance retenue est la plus récente, même si aucune ligne n'est canonique.
 
+import type { ListingExchange } from "@/lib/markets/listing-scope";
 import { prisma } from "@/lib/prisma";
 import { closeForSession, sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
 import type { DataSourceCode } from "@/lib/ingestion/types";
@@ -21,12 +22,12 @@ export interface MarketSummarySnapshot {
   asOf: string;
 }
 
-export async function loadRecentIndexLevels(): Promise<MarketIndexSnapshot[]> {
+export async function loadRecentIndexLevels(exchange: ListingExchange = "BRVM"): Promise<MarketIndexSnapshot[]> {
   const now = new Date();
   const from = new Date(now);
   from.setUTCDate(from.getUTCDate() - 40);
   const indices = await prisma.marketIndex.findMany({
-    where: { exchange: "BRVM" },
+    where: { exchange },
     select: { id: true, code: true, name: true },
   });
   if (indices.length === 0) return [];

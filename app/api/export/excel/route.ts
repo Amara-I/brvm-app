@@ -19,6 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { appendNgxExport } from "@/lib/calc/append-market-export";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api/response";
 import { buildBrvmWorkbook, buildExportFileName, type ExportCompanyRow } from "@/lib/calc/export-workbook";
@@ -34,7 +35,7 @@ export async function GET(request: NextRequest) {
 
   const where: Prisma.CompanyWhereInput = {
     isActive: true,
-    exchange: "BRVM",
+    exchange: { in: ["BRVM", "NGX"] },
     ...(sector ? { sector: { slug: sector } } : {}),
     ...(country ? { country: { code: country } } : {}),
   };
@@ -50,8 +51,8 @@ export async function GET(request: NextRequest) {
 
   const [priceRows, dividendRows, ratioRows] = await Promise.all([
     prisma.priceHistory.findMany({
-      where: { companyId: { in: companyIds }, isCanonical: true },
-      select: { companyId: true, date: true, closePrice: true },
+      where: { companyId: { in: companyIds }, isCanonical: true, date: { lte: new Date() } },
+      select: { companyId: true, date: true, closePrice: true, source: true, ingestedAt: true },
     }),
     prisma.dividend.findMany({
       where: { companyId: { in: companyIds }, isCanonical: true },
@@ -124,7 +125,19 @@ export async function GET(request: NextRequest) {
     };
   });
 
-  const buffer = buildBrvmWorkbook(rows, years);
+  const exchangeByTicker = new Map(companies.map((co) => [co.ticker, co.exchange]));
+  const latestPrice = new Map<string, typeof priceRows[number]>();
+  for (const price of priceRows) {
+    const old = latestPrice.get(price.companyId);
+    if (!old || price.date > old.date) latestPrice.set(price.companyId, price);
+  }
+  const idByTicker = new Map(companies.map((co) => [co.ticker, co.id]));
+  const buffer = appendNgxExport(buildBrvmWorkbook(rows.filter((r) => exchangeByTicker.get(r.ticker) === "BRVM"), years),
+    rows.filter((r) => exchangeByTicker.get(r.ticker) === "NGX").map((r) => {
+      const price = latestPrice.get(idByTicker.get(r.ticker)!);
+      return { ...r, source: price?.source ?? null, priceAsOf: price?.date.toISOString().slice(0, 10) ?? null,
+        ingestedAt: price?.ingestedAt.toISOString() ?? null };
+    }), years);
   const lastUpdate = new Date().toLocaleDateString("fr-FR"); // format JJ/MM/AAAA, comme `lastUpdate` dans le JSX
   const fileName = buildExportFileName(lastUpdate);
 

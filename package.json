@@ -53,7 +53,8 @@
     "email:test": "node --env-file=.env ./node_modules/.bin/ts-node --transpile-only scripts/send-test-email.ts",
     "design:proposals": "ts-node scripts/generate-design-proposals.ts",
     "test": "vitest run",
-    "i18n:check": "ts-node --transpile-only scripts/check-i18n-keys.ts"
+    "i18n:check": "ts-node --transpile-only scripts/check-i18n-keys.ts",
+    "history:additive": "ts-node -r ./scripts/register-paths.cjs --transpile-only scripts/run-additive-enrichment.ts"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

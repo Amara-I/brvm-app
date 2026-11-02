@@ -288,3 +288,7 @@
     display: none;
   }
 }
+
+/* La langue et la connexion restent disponibles dans le tiroir mobile. */
+@media (max-width: 860px) { .desktopLanguage { display: none; } }
+@media (max-width: 420px) { .topActions .authLink { display: none; } }

@@ -8,8 +8,28 @@
       "schedule": "0 17 * * *"
     },
     {
+      "path": "/api/cron/finance-agent",
+      "schedule": "15 5 * * *"
+    },
+    {
       "path": "/api/cron/research",
       "schedule": "0 6 * * 1"
+    },
+    {
+      "path": "/api/cron/enrich-history?exchange=BRVM&kind=history&apply=1&limit=5",
+      "schedule": "5,25,45 * * * *"
+    },
+    {
+      "path": "/api/cron/enrich-history?exchange=NGX&kind=history&apply=1&limit=3",
+      "schedule": "15,35,55 * * * *"
+    },
+    {
+      "path": "/api/cron/enrich-history?exchange=BRVM&kind=publications&apply=1&limit=2",
+      "schedule": "10 * * * *"
+    },
+    {
+      "path": "/api/cron/enrich-history?exchange=NGX&kind=publications&apply=1&limit=5",
+      "schedule": "40 * * * *"
     }
   ]
 }

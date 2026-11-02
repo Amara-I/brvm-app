@@ -24,7 +24,6 @@ const SECTION_IDS = [
   "valuation",
   "sector",
   "dividends",
-  "chartAnalysis",
   "conclusion",
 ] as const;
 type SectionId = (typeof SECTION_IDS)[number];
@@ -70,7 +69,6 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
 export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
   const { t, format, locale, labels } = getI18n();
   const na = t("ngx.sheet.na");
-  const full = model.tier === "FULL";
 
   const bn = (v: number | null) =>
     v == null ? na : `${format.decimal(v, Math.abs(v) >= 100 ? 0 : 1)} ${t("ngx.sheet.unitBn")}`;
@@ -87,7 +85,7 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
         })
       : na;
 
-  const visible: SectionId[] = full ? [...SECTION_IDS] : ["presentation", "chartAnalysis", "conclusion"];
+  const visible = SECTION_IDS;
 
   return (
     <div>
@@ -103,40 +101,30 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
         <Presentation model={model} t={t} format={format} na={na} ngn={ngn} bn={bn} day={day} />
       </Section>
 
-      {full ? (
-        <>
-          <Section id="performance" title={t("ngx.sheet.sections.performance")} lead={t("ngx.sheet.performance.lead")}>
-            <Performance model={model} t={t} format={format} na={na} bn={bn} pct={pct} />
-          </Section>
-          <Section id="outlook" title={t("ngx.sheet.sections.outlook")} lead={t("ngx.sheet.outlook.lead")}>
-            <Outlook model={model} t={t} locale={locale} pct={pct} day={day} />
-          </Section>
-          <Section id="price" title={t("ngx.sheet.sections.price")} lead={t("ngx.sheet.price.lead")}>
-            <PriceMultiples model={model} t={t} ngn={ngn} bn={bn} pct={pct} mult={mult} />
-          </Section>
-          <Section id="valuation" title={t("ngx.sheet.sections.valuation")} lead={t("ngx.sheet.valuation.lead")}>
-            <Valuation model={model} t={t} format={format} ngn={ngn} pct={pct} />
-          </Section>
-          <Section id="sector" title={t("ngx.sheet.sections.sector")}>
-            <SectorAverage model={model} t={t} format={format} na={na} pct={pct} mult={mult} />
-          </Section>
-          <Section id="dividends" title={t("ngx.sheet.sections.dividends")} lead={t("ngx.sheet.dividends.lead")}>
-            <Dividends model={model} t={t} format={format} na={na} ngn={ngn} pct={pct} day={day} />
-          </Section>
-        </>
-      ) : (
-        <div className={styles.comingSoon} role="status">
-          <h2>{t("ngx.sheet.comingSoon.title")}</h2>
-          <p>{t("ngx.sheet.comingSoon.body", { name: model.name })}</p>
-          <p>{t("ngx.sheet.comingSoon.tradingOnly")}</p>
-        </div>
-      )}
-
-      <Section id="chartAnalysis" title={t("ngx.sheet.sections.chartAnalysis")} lead={t("ngx.sheet.chartAnalysis.lead")}>
-        <ChartAnalysis model={model} t={t} format={format} labels={labels} na={na} pct={pct} />
+      <Section id="performance" title={t("ngx.sheet.sections.performance")} lead={t("ngx.sheet.performance.lead")}>
+        <Performance model={model} t={t} format={format} na={na} bn={bn} pct={pct} />
+      </Section>
+      <Section id="outlook" title={t("ngx.sheet.sections.outlook")} lead={t("ngx.sheet.outlook.lead")}>
+        <Outlook model={model} t={t} locale={locale} pct={pct} day={day} />
+      </Section>
+      <Section id="price" title={t("ngx.sheet.sections.price")} lead={t("ngx.sheet.price.lead")}>
+        <PriceMultiples model={model} t={t} ngn={ngn} bn={bn} pct={pct} mult={mult} />
+      </Section>
+      <Section id="valuation" title={t("ngx.sheet.sections.valuation")} lead={t("ngx.sheet.valuation.lead")}>
+        <Valuation model={model} t={t} format={format} ngn={ngn} pct={pct} />
+      </Section>
+      <Section id="sector" title={t("ngx.sheet.sections.sector")}>
+        <SectorAverage model={model} t={t} format={format} na={na} pct={pct} mult={mult} />
+      </Section>
+      <Section id="dividends" title={t("ngx.sheet.sections.dividends")} lead={t("ngx.sheet.dividends.lead")}>
+        <Dividends model={model} t={t} format={format} na={na} ngn={ngn} pct={pct} day={day} />
       </Section>
 
       <Section id="conclusion" title={t("ngx.sheet.sections.conclusion")} lead={t("ngx.sheet.conclusion.lead")}>
+        <div className={styles.card}>
+          <h3>{t("ngx.sheet.sections.chartAnalysis")}</h3>
+          <ChartAnalysis model={model} t={t} format={format} labels={labels} na={na} pct={pct} />
+        </div>
         <Conclusion model={model} t={t} format={format} locale={locale} />
       </Section>
     </div>
@@ -383,7 +371,13 @@ function Performance({
   pct: (v: number | null, d?: number, s?: boolean) => string;
 }) {
   const perf = model.performance;
-  const years = perf.years;
+  // Compléter uniquement la présentation : les années absentes ne deviennent pas des observations calculables.
+  const lastCompletedYear = new Date().getUTCFullYear() - 1;
+  const visibleYears = new Set([...Array.from({ length: 10 }, (_, i) => lastCompletedYear - 9 + i), ...perf.years.map((y) => y.year)]);
+  const years = [...visibleYears].sort((a, b) => a - b).map((year) => perf.years.find((y) => y.year === year) ?? {
+    year, revenueBn: null, operatingIncomeBn: null, netIncomeBn: null, equityBn: null,
+    equityConfidence: null, epsNgn: null, eraShares: null, sourceUrl: null,
+  });
   const first = years[0]?.year;
   const last = years[years.length - 1]?.year;
   // Dernier exercice publié sans CA : on montre le dernier exercice avec données, étiqueté de son année.

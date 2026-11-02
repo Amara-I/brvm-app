@@ -42,6 +42,8 @@ function serializeCompany(
       : "N/D";
   return {
     ticker: company.ticker,
+    exchange: company.exchange,
+    currency: company.currency,
     name: company.name,
     color: company.color,
     logoUrl: company.logoUrl,

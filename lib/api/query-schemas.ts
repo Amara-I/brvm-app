@@ -23,6 +23,7 @@ export const projectionsQuerySchema = z.object({
 
 /// GET /api/market/news — pagination simple.
 export const newsListQuerySchema = z.object({
+  exchange: z.enum(["BRVM", "NGX"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(10),
   /// Filtre optionnel sur une société précise (ticker).
@@ -38,3 +39,6 @@ export const chartSeriesQuerySchema = z.object({
   interval: z.enum(["1H", "1D", "1W", "1M"]).optional(),
 });
 export type ChartSeriesQuery = z.infer<typeof chartSeriesQuerySchema>;
+
+/** Périmètre explicite, sans modifier le contrat historique BRVM. */
+export const marketScopeQuerySchema = z.object({ exchange: z.enum(["BRVM", "NGX"]).default("BRVM") });
