@@ -34,11 +34,16 @@ import {
   summarizeValuation,
   type FairValueEstimate,
   accountsAreStale,
+  currentDividend,
+  type CurrentDividend,
   type MultipleResult,
   type MultipleStatus,
   type SectorStat,
   type ValuationSummary,
 } from "./valuation";
+
+export { currentDividend };
+export type { CurrentDividend };
 
 export interface DividendRowLike {
   year: number;
@@ -306,30 +311,6 @@ function latestMargin(
     if (m != null) return { year: years[i].year, percent: m };
   }
   return null;
-}
-
-export interface CurrentDividend {
-  /** null = non confirmé (aucune ligne pour l'exercice courant ou le précédent). 0 = « pas de dividende » enregistré. */
-  dps: number | null;
-  /** Exercice de la dernière ligne DPS connue. */
-  year: number | null;
-  status: "NONE" | "CONFIRMED" | "UNCONFIRMED";
-}
-
-/**
- * Dividende retenu pour le rendement : dernière ligne DPS si elle porte sur l'un des deux derniers exercices
- * publiés. Plus ancienne, elle n'est plus confirmée pour l'exercice courant : on renvoie null (N/D) et jamais 0,
- * car l'absence de ligne ne signifie pas « pas de dividende ». Seul un DPS enregistré à 0 vaut 0.
- */
-export function currentDividend(
-  lines: ReadonlyArray<{ year: number; dps: number }>,
-  lastFiscalYear: number | null,
-): CurrentDividend {
-  if (lines.length === 0) return { dps: null, year: null, status: "NONE" };
-  const latest = lines[lines.length - 1];
-  if (lastFiscalYear != null && latest.year < lastFiscalYear - 1)
-    return { dps: null, year: latest.year, status: "UNCONFIRMED" };
-  return { dps: latest.dps, year: latest.year, status: "CONFIRMED" };
 }
 
 export function computeCompanyMetrics(company: CompanyInput, today?: string): CompanyMetrics {

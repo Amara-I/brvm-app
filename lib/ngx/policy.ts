@@ -67,6 +67,11 @@ export interface PolicyFacts {
   /** DPS le plus récent ≥ DPS le plus ancien sur ≥ 3 exercices : ratio en % de variation. */
   dividendGrowthPercent: number | null;
   price: PriceStats;
+  /**
+   * Liquidité déjà jugée pour un autre marché (seuils en devise locale, séances sans échange).
+   * Absente : la règle NGX en nairas s'applique, inchangée.
+   */
+  liquidityOverride?: Pick<PolicyCriterion, "status" | "value" | "threshold">;
 }
 
 /** Seuils indicatifs. Ils sont affichés tels quels sur la fiche. */
@@ -150,7 +155,8 @@ function consistency(facts: PolicyFacts): PolicyCriterion {
   };
 }
 
-function liquidity(price: PriceStats): PolicyCriterion {
+function liquidity(price: PriceStats, override?: PolicyFacts["liquidityOverride"]): PolicyCriterion {
+  if (override) return { key: "liquidity", ...override };
   const t = POLICY_THRESHOLDS.trading;
   const v = price.avgDailyValueNgn;
   if (v == null || price.tradedSessionsRatio == null) return nd("liquidity", t.liquidityOk);
@@ -235,7 +241,7 @@ export function concludeForPolicy(type: PortfolioTypeId, f: PolicyFacts): Policy
       return evaluate(type, [
         trend(f.price),
         graded("momentum3m", f.price.return3mPercent, T.trading.momentum3m, T.trading.momentumFloor),
-        liquidity(f.price),
+        liquidity(f.price, f.liquidityOverride),
         volatility,
       ]);
     }
@@ -247,7 +253,7 @@ export function concludeForPolicy(type: PortfolioTypeId, f: PolicyFacts): Policy
           : cagrCriterion("earningsGrowth", f.netIncomeCagrPercent, earningsPositive, T.max.earningsCagr),
         graded("momentum1y", f.price.return1yPercent, T.max.momentum1y, 0),
         graded("drawdown", f.price.drawdownFromHighPercent, T.max.drawdownOk, T.max.drawdownMax, false),
-        liquidity(f.price),
+        liquidity(f.price, f.liquidityOverride),
         valuationCriterion(f.valuationVerdict),
       ]);
   }

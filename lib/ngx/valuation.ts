@@ -151,9 +151,9 @@ export function growthPercent(previous: number | null, current: number | null): 
 }
 
 /** CAGR d'une série annuelle sur la première et la dernière année exploitables (≥ 3 ans d'écart conseillé). */
-export function seriesCagrPercent(
-  years: readonly NgxFinancialYear[],
-  pick: (y: NgxFinancialYear) => number | null,
+export function seriesCagrPercent<T extends { year: number }>(
+  years: readonly T[],
+  pick: (y: T) => number | null,
 ): {
   cagr: number | null;
   fromYear: number | null;
@@ -318,4 +318,29 @@ export function dividendYearsPaid(
     if (recorded.has(y)) known += 1;
   }
   return { paid, window, known };
+}
+
+export interface CurrentDividend {
+  /** null = non confirmé (aucune ligne pour l'exercice courant ou le précédent). 0 = « pas de dividende » enregistré. */
+  dps: number | null;
+  /** Exercice de la dernière ligne DPS connue. */
+  year: number | null;
+  status: "NONE" | "CONFIRMED" | "UNCONFIRMED";
+}
+
+/**
+ * Dividende retenu pour le rendement : dernière ligne DPS si elle porte sur l'un des deux derniers exercices
+ * publiés. Plus ancienne, elle n'est plus confirmée pour l'exercice courant : on renvoie null (N/D) et jamais 0,
+ * car l'absence de ligne ne signifie pas « pas de dividende ». Seul un DPS enregistré à 0 vaut 0.
+ * Partagé par la fiche NGX et l'analyse fondamentale BRVM.
+ */
+export function currentDividend(
+  lines: ReadonlyArray<{ year: number; dps: number }>,
+  lastFiscalYear: number | null,
+): CurrentDividend {
+  if (lines.length === 0) return { dps: null, year: null, status: "NONE" };
+  const latest = lines[lines.length - 1];
+  if (lastFiscalYear != null && latest.year < lastFiscalYear - 1)
+    return { dps: null, year: latest.year, status: "UNCONFIRMED" };
+  return { dps: latest.dps, year: latest.year, status: "CONFIRMED" };
 }

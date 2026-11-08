@@ -8,10 +8,11 @@
  * hash, localStorage) restent dans `LEGACY_SHEET_TABS` et ouvrent
  * Vue d'ensemble.
  */
-export type CompanySheetTabKey = "overview" | "charts" | "projection" | "comparison";
+export type CompanySheetTabKey = "overview" | "fundamental" | "charts" | "projection" | "comparison";
 
 export const COMPANY_SHEET_TABS: Array<{ key: CompanySheetTabKey; label: string }> = [
   { key: "overview", label: "Vue d'ensemble" },
+  { key: "fundamental", label: "Analyse fondamentale" },
   { key: "charts", label: "Analyse Graphique" },
   { key: "projection", label: "🔮 Projection future" },
   { key: "comparison", label: "⚖️ Comparaison" },
@@ -35,6 +36,9 @@ const LEGACY_SHEET_TABS: Record<string, CompanySheetTabKey> = {
 
 const LIVE_TAB_KEYS = new Set<string>(COMPANY_SHEET_TABS.map((tab) => tab.key));
 
+/** Ancres prévues avant l'onglet, désormais ouvertes sur Analyse fondamentale. */
+const FUNDAMENTAL_ALIASES = new Set(["analyse-fondamentale", "fundamental-analysis"]);
+
 export function canonicalizeSheetTabToken(raw: string | undefined | null): string {
   if (!raw) return "";
   const stripped = raw.trim().replace(/^#/, "");
@@ -57,6 +61,7 @@ export function normalizeSheetTab(raw: string | undefined | null): CompanySheetT
   const key = canonicalizeSheetTabToken(raw);
   if (!key) return "overview";
   if (LIVE_TAB_KEYS.has(key)) return key as CompanySheetTabKey;
+  if (FUNDAMENTAL_ALIASES.has(key)) return "fundamental";
   return LEGACY_SHEET_TABS[key] ?? "overview";
 }
 
@@ -69,6 +74,7 @@ export function sheetTabFromHash(hash: string | undefined | null): CompanySheetT
   const key = canonicalizeSheetTabToken(hash);
   if (!key) return null;
   if (LIVE_TAB_KEYS.has(key)) return key as CompanySheetTabKey;
+  if (FUNDAMENTAL_ALIASES.has(key)) return "fundamental";
   if (Object.prototype.hasOwnProperty.call(LEGACY_SHEET_TABS, key)) return LEGACY_SHEET_TABS[key] ?? "overview";
   return null;
 }
