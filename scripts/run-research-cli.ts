@@ -1,9 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // CLI d'exécution manuelle de l'agent de recherche IA — étape 10
 // ═══════════════════════════════════════════════════════════════════════════
-// Appelle exactement la même fonction que la route cron
-// (`app/api/cron/research/route.ts`). Utile pour tester en local avant
-// d'activer `RESEARCH_AGENT_ENABLED` en production.
+// Appelle `runResearchAgent`, le cœur de `app/api/cron/research/route.ts`.
+// La route HTTP enchaîne ensuite le hook du lundi (e-mail de propositions
+// de portefeuille, pas encore branché). Utile en local avant d'activer
+// `RESEARCH_AGENT_ENABLED`.
 //
 // Usage : npx ts-node scripts/run-research-cli.ts
 // ═══════════════════════════════════════════════════════════════════════════

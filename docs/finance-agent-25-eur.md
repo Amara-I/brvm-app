@@ -60,7 +60,7 @@ Le flag de vérification est une attestation opérateur, pas une interrogation a
 
 ## Planification et suivi
 
-- Nouveau cron préparé `15 5 * * *` UTC → `/api/cron/finance-agent`. Aucun ancien cron retiré. Les crons production ne sont pas activés par la seule création d'un preview.
+- Pas de cron dédié (Hobby : 2 crons maximum, chacun au plus une fois par jour). Le passage quotidien est enchaîné dans `GET /api/cron/ingest` à 17:00 UTC, après la persistance des cours, avec un délai pour rester dans les 300 s. `GET /api/cron/finance-agent` reste le déclenchement manuel (Bearer uniquement, sans ce délai). L'ancien `15 5 * * *` n'est plus dans `vercel.json` : l'agent ne consomme pas les cours du jour (lacunes de comptes, catalogue, au plus un PDF). 17:00 le garde une fois par jour, après la clôture des deux marchés. Le créneau du lundi le réduirait à une société par semaine.
 - POST/GET public de déclenchement libre : **non disponible**. GET protégé par Bearer pour le scheduler uniquement.
 - `/api/admin/finance-agent?page=1` : session administrateur requise, cache privé no-store. Renvoie enveloppe valide/invalide, réservations EUR, plafond 25 EUR, pistes et propositions paginées.
 - Il s'agit d'une file de revue API, pas d'un nouveau tableau de bord graphique ni d'une application automatique des observations. Aucun bouton « approuver = publier des comptes » ajouté. L'opérateur vérifie le PDF, périmètre, exercice, unité, retraitements et cohérence avant tout import additif autorisé séparément.

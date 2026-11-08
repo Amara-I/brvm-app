@@ -14,11 +14,15 @@ export const AGENT_PROVIDER = "finance-agent-review-v1";
 export const AGENT_LOG = "FINANCE_AGENT_RUN_V1";
 const MAX_OUTPUT_TOKENS = 1800;
 
-export async function runFinanceAgent(db: PrismaClient = prisma) {
+export async function runFinanceAgent(db: PrismaClient = prisma, options?: { deadlineMs?: number }) {
   const result = { enabled: process.env.FINANCE_AGENT_ENABLED === "true", monthlyLimitEur: MONTHLY_LIMIT_CENTS / 100,
     ticker: null as string | null, exchange: null as string | null, missingYears: [] as number[], discovered: 0, proposals: 0, documentsAdded: 0, newsAdded: 0,
     reservedCents: 0, aiStatus: "NOT_REQUESTED", errors: [] as string[] };
+  const left = () => (options?.deadlineMs ?? Number.POSITIVE_INFINITY) - Date.now();
+  // Sans délai (route manuelle) : illimité ici, le maxDuration de la route borne l'appel.
+  // Avec délai (cron de 17:00) : on s'arrête avant l'IA plutôt que de dépasser le budget du jour.
   if (!result.enabled) return result;
+  if (left() < 5_000) { result.aiStatus = "SKIPPED_TIME_BUDGET"; return result; }
   const companies = await db.company.findMany({ where: { isActive: true, exchange: { in: ["BRVM", "NGX"] } },
     select: { id: true, ticker: true, name: true, exchange: true, financialRatios: {
       where: { isCanonical: true, year: { gte: new Date().getUTCFullYear() - 10, lt: new Date().getUTCFullYear() } },
@@ -34,9 +38,10 @@ export async function runFinanceAgent(db: PrismaClient = prisma) {
   const prevIndex = gaps.findIndex((c) => c.id === previous?.lastCompanyId);
   const company = gaps[(prevIndex + 1) % gaps.length]; const exchange = company.exchange as "BRVM" | "NGX";
   result.ticker = company.ticker; result.exchange = exchange; result.missingYears = company.missing;
-  if (process.env.FINANCE_AGENT_CATALOG_ENABLED === "true") {
+  if (process.env.FINANCE_AGENT_CATALOG_ENABLED === "true" && left() >= 8_000) {
     try {
-      const rows = await runWithFetchDeadline(Date.now() + 45000, () => exchange === "NGX" ? collectNgxPublications(company.ticker) :
+      const catalogDeadline = Math.min(Date.now() + 45_000, options?.deadlineMs ?? Date.now() + 45_000);
+      const rows = await runWithFetchDeadline(catalogDeadline, () => exchange === "NGX" ? collectNgxPublications(company.ticker) :
         collectBrvmPublications(companies.filter((c) => c.exchange === "BRVM"), company.ticker));
       const known = await db.companyDocument.findMany({ where: { companyId: company.id }, select: { url: true } });
       const urls = new Set(known.map((r) => r.url));
@@ -45,6 +50,7 @@ export async function runFinanceAgent(db: PrismaClient = prisma) {
       result.documentsAdded = added.documents; result.newsAdded = added.news;
     } catch { result.errors.push("Catalogue officiel incomplet ou inaccessible ; aucun écrasement"); }
   }
+  if (left() < 3_000) { result.aiStatus = "SKIPPED_TIME_BUDGET"; return result; }
   try {
     const sources = await discoverFinancialSources(company.ticker, company.name, exchange, company.missing);
     for (const s of sources) {
@@ -52,6 +58,7 @@ export async function runFinanceAgent(db: PrismaClient = prisma) {
       result.discovered += inserted.count;
     }
   } catch { result.errors.push("Recherche gratuite indisponible ; pas de bascule payante"); }
+  if (left() < 20_000) { result.aiStatus = "SKIPPED_TIME_BUDGET"; return result; }
   const price = costEnvelope();
   if (!price || process.env.FINANCE_AGENT_AI_ENABLED !== "true") result.aiStatus = "BLOCKED_UNVERIFIED_COST_OR_PROVIDER_CAP";
   else {
