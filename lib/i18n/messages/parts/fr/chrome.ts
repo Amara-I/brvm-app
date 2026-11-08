@@ -66,13 +66,20 @@ export const chrome = {
     delayed: "Cotations en différé · Sources BRVM / Sikafinance / Richbourse",
   },
   search: {
-    company: "Rechercher une société",
+    company: "Rechercher sur OuestBourse",
     shortcut: "Rechercher (raccourcis / et ⌘K)",
     trigger: "Rechercher un ticker…",
     triggerLanding: "Rechercher un ticker, une société…",
-    dialog: "Recherche sociétés",
-    placeholder: "Ticker, nom ou secteur…",
+    dialog: "Recherche sur le site",
+    placeholder: "Ticker, société, indice, leçon ou page…",
     empty: "Aucun résultat — N/D",
+    loading: "Chargement de la recherche…",
+    groups: {
+      stocks: "Actions · {exchange}",
+      indices: "Indices · {exchange}",
+      education: "Éducation",
+      pages: "Pages",
+    },
   },
   rateLimit: "Trop de requêtes. Veuillez réessayer dans quelques instants.",
 } as const;

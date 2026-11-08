@@ -17,4 +17,13 @@ describe("recherche multi-marchés", () => {
   it("ne laisse pas un grand univers masquer l'autre", () => {
     expect(searchListings([...Array(20).fill(items[0]), items[1]], "").map((g) => g.items.length)).toEqual([5, 1]);
   });
+  it("ignore accents et casse, et accepte une place hors liste figée", () => {
+    const bernabe = { ticker: "BNBC", name: "Bernabé", sector: "Distribution", exchange: "BRVM" };
+    const generale = { ticker: "SGBC", name: "Société Générale", sector: "Banques", exchange: "BRVM" };
+    const jse = { ticker: "NPN", name: "Naspers", sector: "Tech", exchange: "JSE" };
+    expect(searchListings([bernabe], "bernabe")[0]?.items[0]?.ticker).toBe("BNBC");
+    expect(searchListings([generale], "societe generale")[0]?.items[0]?.ticker).toBe("SGBC");
+    expect(searchListings([jse], "naspers").map((group) => group.exchange)).toEqual(["JSE"]);
+    expect(companyHref(jse)).toBe("/marches/jse/actions/NPN");
+  });
 });
