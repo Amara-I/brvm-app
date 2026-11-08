@@ -17,6 +17,7 @@ import {
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { C } from "@/lib/theme/colors";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
+import { applyTechnicalSignal, type TechnicalSignalPatch } from "@/lib/technical-analysis/apply-signal";
 import type { CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import SheetTermLabel from "@/components/actions/SheetTermLabel";
@@ -71,10 +72,12 @@ export default function CompanyComparisonPanel({
   company,
   companies,
   years,
+  signalPatches,
 }: {
   company: CompanyFullDataset;
   companies: CompanyFullDataset[];
   years: number[];
+  signalPatches?: Record<string, TechnicalSignalPatch>;
 }) {
   const { t, format, labels, locale } = useI18n();
   const nd = t("common.nd");
@@ -97,20 +100,30 @@ export default function CompanyComparisonPanel({
   const metricsByTicker = useMemo(() => {
     const map = new Map<string, CalcMetricsResult>();
     for (const co of companies) {
+      const raw = calcMetrics({
+        years,
+        prices: co.prices,
+        dividends: co.dividends,
+        per: co.per,
+        mktcap: co.mktcap,
+        sector: co.sector,
+      });
+      const patch = signalPatches?.[co.ticker];
       map.set(
         co.ticker,
-        calcMetrics({
-          years,
-          prices: co.prices,
-          dividends: co.dividends,
-          per: co.per,
-          mktcap: co.mktcap,
-          sector: co.sector,
-        })
+        patch
+          ? {
+              ...raw,
+              signal: patch.signal,
+              confidence: patch.confidence,
+              signalSummary: patch.signalSummary,
+              signalReasons: patch.signalReasons,
+            }
+          : applyTechnicalSignal(raw, undefined)
       );
     }
     return map;
-  }, [companies, years]);
+  }, [companies, years, signalPatches]);
 
   function fmtPerf(raw: string, digits: number, spaced: boolean): string {
     if (raw === "N/D") return nd;

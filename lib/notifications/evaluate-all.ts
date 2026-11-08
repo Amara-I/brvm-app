@@ -576,7 +576,10 @@ async function evaluateSignalAlerts(opts: {
         userId,
         type: "SIGNAUX",
         title: `${ticker} entre en ${label}`,
-        body: `Score ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`,
+        body:
+          exchange === "NGX"
+            ? `Score ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`
+            : `Signal technique ${label}. Score qualité ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`,
         ticker,
         exchange,
         alertRuleId: rule?.id ?? null,

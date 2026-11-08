@@ -34,6 +34,14 @@ export const SIGNAL_REASON_EN: Record<SignalReasonCode, string> = {
     "{confidence} confidence ({years} {yearsWord} of prices): extreme signal moderated.",
   "confidence.cappedBuy": "{confidence} confidence: signal capped at BUY (history still partial).",
   "confidence.ok": "{confidence} confidence in the analysis ({years} {yearsWord} of prices).",
+  "ta.structureBull": "Rising structure: higher highs and higher lows.",
+  "ta.structureBear": "Falling structure: lower highs and lower lows.",
+  "ta.structureRange": "Mixed structure: no clear sequence of highs and lows.",
+  "ta.momentum": "Momentum: RSI(14) {rsi}, MACD histogram {hist}.",
+  "ta.supportReaction": "Support near {price}: {touches} tests, {bounces} bounces, {breaks} breaks.",
+  "ta.resistanceReaction": "Resistance near {price}: {touches} tests, {bounces} rejections, {breaks} breaks.",
+  "ta.liquidity": "{warning}",
+  "ta.history": "Only {bars} daily closes: confidence stays low.",
 };
 
 void SIGNAL_REASON_CODES;

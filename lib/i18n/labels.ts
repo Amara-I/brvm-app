@@ -189,7 +189,22 @@ export function displayTechnicalNote(note: string, locale: Locale): string {
 
 const SIGNED_1 = new Set(["value", "span"]);
 const NUM_2 = new Set(["yield", "per"]);
-const INT_KEYS = new Set(["years", "count", "window", "court", "moyen", "long", "tech", "fund", "score"]);
+const INT_KEYS = new Set([
+  "years",
+  "count",
+  "window",
+  "court",
+  "moyen",
+  "long",
+  "tech",
+  "fund",
+  "score",
+  "touches",
+  "bounces",
+  "breaks",
+  "bars",
+  "price",
+]);
 
 export function displayReason(reason: SignalReason, locale: Locale): string {
   if (locale !== "en" || !reason.code) return reason.text;
@@ -224,7 +239,12 @@ export function displaySignalSummary(
   if (locale !== "en") return input.signalSummary;
   const label = displaySignal(input.label, locale);
   const confidence = displayConfidence(input.confidence, locale).toLowerCase();
-  const parts = [`Final signal: ${label} (score ${input.score}/100, ${confidence} confidence).`];
+  const technical = input.signalReasons.some((reason) => reason.code?.startsWith("ta."));
+  const parts = [
+    technical
+      ? `Technical signal: ${label} (company-quality score ${input.score}/100, ${confidence} confidence). The score rates the company; this signal is short-term price timing.`
+      : `Final signal: ${label} (score ${input.score}/100, ${confidence} confidence).`,
+  ];
   const topPositive = input.signalReasons.find((r) => r.kind === "positif");
   const topNegative = input.signalReasons.find((r) => r.kind === "negatif");
   if (topPositive) parts.push(displayReason(topPositive, locale));

@@ -3,6 +3,14 @@
 import { prisma } from "@/lib/prisma";
 import { getCompaniesFullDataset, type CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
+import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
+import { analyzePriceHistoryCached } from "@/lib/technical-analysis/cache";
+import {
+  patchFromAnalysis,
+  technicalSignalPatch,
+  type TechnicalSignalPatch,
+} from "@/lib/technical-analysis/apply-signal";
+import type { TechnicalAnalysis } from "@/lib/technical-analysis/types";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import {
   adjustPerShareAmount,
@@ -130,6 +138,12 @@ export interface CompanySheetPayload {
   peers: CompanyFullDataset[];
   years: number[];
   metrics: CalcMetricsResult;
+  /** Confiance du score qualité, avant remplacement par la confiance du signal technique. */
+  qualityConfidence: CalcMetricsResult["confidence"];
+  /** Analyse technique de la série affichée (signal, zones, scénarios). */
+  technicalAnalysis: TechnicalAnalysis;
+  /** Signaux techniques des pairs (comparaison). Le score reste celui de calcMetrics. */
+  signalPatches: Record<string, TechnicalSignalPatch>;
   health: FinancialHealth;
   series: ChartClosePoint[];
   /** Série lue dans `chart_series` (même base que le graphe détaillé). */
@@ -439,6 +453,9 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
   const dataset = await getCompaniesFullDataset();
   const company = dataset.companies.find((c) => c.ticker === t);
   if (!company) return null;
+  const sparkPromise = getMarketSparkSeriesByTicker().catch(
+    () => ({}) as Record<string, ChartClosePoint[]>
+  );
 
   let dbCompany: {
     id: string;
@@ -520,7 +537,7 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     seriesCacheStale = false;
   }
 
-  const metrics = calcMetrics({
+  const qualityMetrics = calcMetrics({
     years: dataset.years,
     prices: pricesSyncedToLatestClose(company.prices, series, company.priceAsOf),
     dividends: company.dividends,
@@ -529,7 +546,16 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     sector: company.sector,
     closes: series,
   });
-  const health = computeFinancialHealth(metrics, company.per);
+  const technicalAnalysis = analyzePriceHistoryCached(series);
+  const ownPatch = patchFromAnalysis(technicalAnalysis, qualityMetrics.score);
+  const metrics: CalcMetricsResult = {
+    ...qualityMetrics,
+    signal: ownPatch.signal,
+    confidence: ownPatch.confidence,
+    signalSummary: ownPatch.signalSummary,
+    signalReasons: ownPatch.signalReasons,
+  };
+  const health = computeFinancialHealth(qualityMetrics, company.per);
   const avgDailyVolume = computeAverageDailyVolume(series, 20);
 
   const last = series[series.length - 1] ?? null;
@@ -574,12 +600,31 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     ? { ...rawProfile, sharesOutstanding: sharesOutstanding ?? rawProfile.sharesOutstanding ?? null }
     : null;
   const splitMarkers = markersFor(corporateActions);
+  const spark = await sparkPromise;
+  const signalPatches: Record<string, TechnicalSignalPatch> = { [t]: ownPatch };
+  for (const peer of dataset.companies) {
+    if (peer.ticker === t) continue;
+    const peerCloses = spark[peer.ticker];
+    const peerScore = calcMetrics({
+      years: dataset.years,
+      prices: peer.prices,
+      dividends: peer.dividends,
+      per: peer.per,
+      mktcap: peer.mktcap,
+      sector: peer.sector,
+      closes: peerCloses,
+    }).score;
+    signalPatches[peer.ticker] = technicalSignalPatch(peerScore, peerCloses);
+  }
 
   return {
     company,
     peers: dataset.companies,
     years: dataset.years,
     metrics,
+    qualityConfidence: qualityMetrics.confidence,
+    technicalAnalysis,
+    signalPatches,
     health,
     series,
     seriesFromChartCache,

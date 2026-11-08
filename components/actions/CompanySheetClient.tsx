@@ -2,7 +2,7 @@
 
 // Fiche société premium — alignée captures OuestBourse (étape 20).
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ResponsiveContainer,
@@ -47,6 +47,10 @@ import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
 import LazyChartWorkbench, { prefetchChartWorkbench } from "@/components/charts/LazyChartWorkbench";
+import TechnicalAnalysisPanel from "@/components/actions/TechnicalAnalysisPanel";
+import { chartLevelLines } from "@/lib/technical-analysis/chart-lines";
+import { analyzePriceHistory } from "@/lib/technical-analysis/analyze";
+import type { TechnicalAnalysis } from "@/lib/technical-analysis/types";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
@@ -204,6 +208,9 @@ export default function CompanySheetClient({
     peers,
     metrics,
     health,
+    technicalAnalysis: initialAnalysis,
+    signalPatches,
+    qualityConfidence,
     series: initialSeries,
     seriesFromChartCache,
     seriesCacheStale,
@@ -224,6 +231,25 @@ export default function CompanySheetClient({
   } = payload;
   const [tab, setTab] = usePersistedState<string>(`ouestbourse:sheet:${company.ticker}:tab`, "overview");
   const resolvedTab = normalizeSheetTab(tab);
+  const [chartAnalysis, setChartAnalysis] = useState<TechnicalAnalysis>(initialAnalysis);
+  const levelLines = useMemo(() => chartLevelLines(chartAnalysis), [chartAnalysis]);
+  const onActiveSeries = useCallback(
+    (symbol: string, points: ChartClosePoint[]) => {
+      const last = points[points.length - 1];
+      const samePageSeries =
+        symbol === company.ticker &&
+        last != null &&
+        initialAnalysis.structure.asOf === last.time.slice(0, 10) &&
+        initialAnalysis.structure.lastClose === last.value;
+      if (samePageSeries) {
+        setChartAnalysis(initialAnalysis);
+        return;
+      }
+      if (points.length === 0) return;
+      setChartAnalysis(analyzePriceHistory(points));
+    },
+    [company.ticker, initialAnalysis]
+  );
   const portfolioType = portfolioTypeForCompanySheet(preferredPortfolioType);
 
   useEffect(() => {
@@ -615,7 +641,10 @@ export default function CompanySheetClient({
             isAuthenticated={isAuthenticated}
             initialSeries={series}
             initialSeriesComplete={seriesFromChartCache && !seriesCacheStale}
+            levelLines={levelLines}
+            onActiveSeries={onActiveSeries}
           />
+          <TechnicalAnalysisPanel analysis={chartAnalysis} qualityScore={metrics.score} />
         </div>
       )}
 
@@ -1203,7 +1232,7 @@ export default function CompanySheetClient({
                 ))}
               </ul>
               <p className={styles.sideNote}>
-                {labels.healthNote(health, { score: metrics.score, confidence: metrics.confidence })}
+                {labels.healthNote(health, { score: metrics.score, confidence: qualityConfidence })}
               </p>
             </section>
 
@@ -1347,6 +1376,12 @@ export default function CompanySheetClient({
                     signalReasons: metrics.signalReasons,
                   })}
                 </p>
+                <p className={styles.sideNote}>{t("company.signal.scoreVsTiming", { score: metrics.score })}</p>
+                {initialAnalysis.liquidity.warningFr ? (
+                  <p className={styles.warningNote} role="status">
+                    {locale === "en" ? initialAnalysis.liquidity.warningEn : initialAnalysis.liquidity.warningFr}
+                  </p>
+                ) : null}
               </div>
               <ul className={styles.pillarList} style={{ marginTop: 12 }}>
                 <li>
@@ -1478,7 +1513,12 @@ export default function CompanySheetClient({
       {resolvedTab === "comparison" && (
         <>
           <PortfolioTypePerspective perspective={analysisPerspective} compact />
-          <CompanyComparisonPanel company={company} companies={peers} years={payload.years} />
+          <CompanyComparisonPanel
+            company={company}
+            companies={peers}
+            years={payload.years}
+            signalPatches={signalPatches}
+          />
         </>
       )}
 

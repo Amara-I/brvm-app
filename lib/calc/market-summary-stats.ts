@@ -15,6 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { calcMetrics } from "@/lib/calc/calc-metrics";
+import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import type { CompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
@@ -98,17 +99,18 @@ export function allCompaniesWithMetrics(
   const { years, companies } = dataset;
   return companies.map((co) => {
     const closes = closesByTicker?.[co.ticker];
+    const metrics = calcMetrics({
+      years,
+      prices: pricesSyncedToLatestClose(co.prices, closes, co.priceAsOf),
+      dividends: co.dividends,
+      per: co.per,
+      mktcap: co.mktcap,
+      sector: co.sector,
+      closes: closes && closes.length > 0 ? closes : undefined,
+    });
     return {
       co,
-      metrics: calcMetrics({
-        years,
-        prices: pricesSyncedToLatestClose(co.prices, closes, co.priceAsOf),
-        dividends: co.dividends,
-        per: co.per,
-        mktcap: co.mktcap,
-        sector: co.sector,
-        closes: closes && closes.length > 0 ? closes : undefined,
-      }),
+      metrics: applyTechnicalSignal(metrics, closes),
     };
   });
 }

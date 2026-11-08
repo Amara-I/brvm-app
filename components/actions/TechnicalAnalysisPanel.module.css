@@ -1,0 +1,232 @@
+.panel {
+  margin: 8px 0 28px;
+  padding: 16px 16px 18px;
+  border: 1px solid var(--c-border);
+  border-radius: 14px;
+  background: var(--c-panel);
+  color: var(--c-text);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.lead,
+.note,
+.explanation,
+.disclaimer,
+.empty {
+  margin: 8px 0 0;
+  color: var(--c-textDim);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.signalPill {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  padding: 8px 12px;
+  border: 1px solid var(--c-gold);
+  border-radius: 10px;
+  background: var(--c-selected-bg, transparent);
+}
+
+.signalPill strong {
+  color: var(--c-gold);
+  font-size: 1rem;
+}
+
+.signalPill span {
+  color: var(--c-textDim);
+  font-size: 0.82rem;
+}
+
+.warning {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--c-red-soft, rgba(239, 68, 68, 0.12));
+  color: var(--c-text);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.stats,
+.split,
+.scenarios {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.stats {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.stat {
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+}
+
+.stat span {
+  display: block;
+  color: var(--c-textDim);
+  font-size: 0.75rem;
+}
+
+.stat strong {
+  font-size: 0.95rem;
+}
+
+.split {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.sub {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.84rem;
+}
+
+.table th,
+.table td {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--c-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--c-textDim);
+  font-weight: 600;
+}
+
+.scenarios {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.scenario {
+  border: 1px solid var(--c-border);
+  border-radius: 12px;
+  padding: 10px;
+  min-width: 0;
+}
+
+.scenarioHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.scenarioHead h4 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.scenarioHead span {
+  color: var(--c-gold);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.figure {
+  width: 100%;
+  height: auto;
+  margin-top: 8px;
+  display: block;
+}
+
+.figureBg {
+  fill: var(--c-bg);
+}
+
+.priceLine {
+  fill: none;
+  stroke: var(--c-text);
+  stroke-width: 2;
+}
+
+.zoneSupport {
+  fill: var(--c-green);
+  opacity: 0.18;
+}
+
+.zoneResistance {
+  fill: var(--c-red);
+  opacity: 0.16;
+}
+
+.zoneEntry {
+  fill: var(--c-gold);
+  opacity: 0.22;
+}
+
+.stopLine {
+  stroke: var(--c-red);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.25;
+}
+
+.targetLine {
+  stroke: var(--c-blue);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.25;
+}
+
+.lastLine {
+  stroke: var(--c-textDim);
+  stroke-width: 1;
+}
+
+.markLabel {
+  fill: var(--c-textDim);
+  font-size: 11px;
+}
+
+.arrow {
+  stroke: var(--c-gold);
+  stroke-width: 2;
+}
+
+.arrowHead {
+  fill: var(--c-gold);
+}
+
+.levels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+
+.levels dt {
+  color: var(--c-textDim);
+  font-size: 0.75rem;
+}
+
+.levels dd {
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+}
+
+.disclaimer {
+  margin-top: 14px;
+}

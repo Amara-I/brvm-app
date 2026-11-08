@@ -10,6 +10,7 @@ import {
   type ChartClosePoint,
   type ChartRange,
 } from "@/lib/charts/indicators";
+import type { ChartLevelLine } from "@/lib/technical-analysis/chart-lines";
 import {
   apiRangeForChartRange,
   chartWindowFingerprint,
@@ -267,6 +268,8 @@ export default function ChartWorkbench({
   initialSeries,
   initialSeriesComplete = false,
   market = "BRVM",
+  levelLines,
+  onActiveSeries,
 }: {
   /** Marché : BRVM (défaut, comportement historique) ou NGX (naira, indices NGX, sans outils compte). */
   market?: ChartMarket;
@@ -280,6 +283,10 @@ export default function ChartWorkbench({
   initialSeries?: ChartClosePoint[];
   /** Vrai quand `initialSeries` est le MAX `chart_series` à jour (couvre toutes les plages). */
   initialSeriesComplete?: boolean;
+  /** Traits S/R et FVG. Omis : le graphe reste strictement celui d'avant. */
+  levelLines?: ChartLevelLine[];
+  /** Série active (changement de ticker dans le workbench). */
+  onActiveSeries?: (ticker: string, points: ChartClosePoint[]) => void;
 }) {
   const { t, format, labels, locale } = useI18n();
   const router = useRouter();
@@ -514,6 +521,10 @@ export default function ChartWorkbench({
   }, [historySeries, range]);
 
   const mainSeries = windowSeries;
+
+  useEffect(() => {
+    onActiveSeries?.(ticker, historySeries);
+  }, [onActiveSeries, ticker, historySeries]);
 
   const windowChange = useMemo(() => {
     const from = windowSeries[0]?.time;
@@ -1329,6 +1340,7 @@ export default function ChartWorkbench({
                 onRemoveIndicator={(key) =>
                   setIndicatorsWithUndo((prev) => ({ ...prev, [key]: false }))
                 }
+                levelLines={percentScale ? undefined : levelLines}
               />
             ) : loading ? (
               <div className={styles.empty}>{t("charts.loadingChart")}</div>

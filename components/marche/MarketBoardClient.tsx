@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
+import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import type { MarketSummarySnapshot } from "@/lib/api/market-summary-snapshot";
@@ -125,18 +126,16 @@ export default function MarketBoardClient({
     const map = new Map<string, ReturnType<typeof calcMetrics>>();
     for (const co of companies) {
       const closes = sparkSeriesByTicker[co.ticker];
-      map.set(
-        co.ticker,
-        calcMetrics({
-          years,
-          prices: pricesSyncedToLatestClose(co.prices, closes, co.priceAsOf),
-          dividends: co.dividends,
-          per: co.per,
-          mktcap: co.mktcap,
-          sector: co.sector,
-          closes: closes && closes.length > 0 ? closes : undefined,
-        })
-      );
+      const metrics = calcMetrics({
+        years,
+        prices: pricesSyncedToLatestClose(co.prices, closes, co.priceAsOf),
+        dividends: co.dividends,
+        per: co.per,
+        mktcap: co.mktcap,
+        sector: co.sector,
+        closes: closes && closes.length > 0 ? closes : undefined,
+      });
+      map.set(co.ticker, applyTechnicalSignal(metrics, closes));
     }
     return map;
   }, [companies, years, sparkSeriesByTicker]);

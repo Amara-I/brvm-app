@@ -6,6 +6,9 @@ import AnalysisRecap from "@/components/analysis/AnalysisRecap";
 import { C } from "@/lib/theme/colors";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
+import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
+import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
+import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { fundamentalRecapLines, truncateSummary } from "@/lib/calc/analysis-recap";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import type { LabelsApi } from "@/lib/i18n/labels";
@@ -93,7 +96,10 @@ function recapLines(
 
 export default async function SocietesCoteesPage() {
   const { t, format, labels, locale } = getI18n();
-  const dataset = await getCompaniesFullDataset();
+  const [dataset, sparkSeries] = await Promise.all([
+    getCompaniesFullDataset(),
+    getMarketSparkSeriesByTicker().catch(() => ({}) as Record<string, ChartClosePoint[]>),
+  ]);
   const { companies, years } = dataset;
   const yearSpan =
     years.length >= 2 ? `${years[0]} → ${years[years.length - 1]}` : years[0] != null ? String(years[0]) : t("common.nd");
@@ -180,14 +186,16 @@ export default async function SocietesCoteesPage() {
               <div className={styles.grid}>
                 {list.map((co) => {
                   const price = lastPrice(co.prices, years);
-                  const m = calcMetrics({
+                  const rawMetrics = calcMetrics({
                     years,
                     prices: co.prices,
                     dividends: co.dividends,
                     per: co.per,
                     mktcap: co.mktcap,
                     sector: co.sector,
+                    closes: sparkSeries[co.ticker],
                   });
+                  const m = applyTechnicalSignal(rawMetrics, sparkSeries[co.ticker]);
                   const summary =
                     locale === "en"
                       ? truncateSummary(

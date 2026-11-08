@@ -32,6 +32,8 @@
 // données financières").
 
 import * as XLSX from "xlsx";
+import type { ChartClosePoint } from "@/lib/charts/indicators";
+import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
 import { calcMetrics } from "./calc-metrics";
 import { projectPrices } from "./project-prices";
 
@@ -54,21 +56,27 @@ export interface ExportCompanyRow {
 ///
 /// `years` doit être la même liste d'années chronologiques utilisée pour
 /// `calcMetrics`/`projectPrices` (2015-2026 dans le jeu de données actuel).
-export function buildBrvmWorkbook(companies: ExportCompanyRow[], years: number[]): Buffer {
+export function buildBrvmWorkbook(
+  companies: ExportCompanyRow[],
+  years: number[],
+  closesByTicker?: Record<string, ChartClosePoint[]>
+): Buffer {
   const wb = XLSX.utils.book_new();
 
   const metricsByTicker = new Map(
-    companies.map((co) => [
-      co.ticker,
-      calcMetrics({
+    companies.map((co) => {
+      const closes = closesByTicker?.[co.ticker];
+      const metrics = calcMetrics({
         years,
         prices: co.prices,
         dividends: co.dividends,
         per: co.per,
         mktcap: co.mktcap,
         sector: co.sector,
-      }),
-    ])
+        closes,
+      });
+      return [co.ticker, applyTechnicalSignal(metrics, closes)] as const;
+    })
   );
 
   // ── Feuille 1 : Données complètes ─────────────────────────────────────

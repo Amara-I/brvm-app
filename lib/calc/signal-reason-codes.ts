@@ -30,6 +30,14 @@ export const SIGNAL_REASON_CODES = [
   "confidence.cappedExtreme",
   "confidence.cappedBuy",
   "confidence.ok",
+  "ta.structureBull",
+  "ta.structureBear",
+  "ta.structureRange",
+  "ta.momentum",
+  "ta.supportReaction",
+  "ta.resistanceReaction",
+  "ta.liquidity",
+  "ta.history",
 ] as const;
 
 export type SignalReasonCode = (typeof SIGNAL_REASON_CODES)[number];
