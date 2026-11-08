@@ -262,7 +262,7 @@ export default async function SocietesCoteesPage() {
                         confidence={labels.confidence(m.confidence)}
                         summary={summary}
                         lines={recapLines(m, co.per, locale, t, labels, format)}
-                        href={`/actions/${co.ticker}`}
+                        href={`/actions/${co.ticker}?tab=fundamental`}
                         hrefLabel={t("directory.companies.fullSheet")}
                       />
                     </article>

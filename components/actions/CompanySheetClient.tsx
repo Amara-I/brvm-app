@@ -43,6 +43,7 @@ import OverviewPriceChart from "@/components/actions/OverviewPriceChart";
 import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel";
 import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel";
 import OutlookSynthesisCard from "./OutlookSynthesisCard";
+import FundamentalAnalysisPanel from "./FundamentalAnalysisPanel";
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
@@ -222,7 +223,10 @@ export default function CompanySheetClient({
     incomeStatement,
     keyRows,
   } = payload;
-  const [tab, setTab] = usePersistedState<string>(`ouestbourse:sheet:${company.ticker}:tab`, "overview");
+  const [tab, setTab] = usePersistedState<string>(
+    `ouestbourse:sheet:${company.ticker}:tab`,
+    initialTab ?? "overview",
+  );
   const resolvedTab = normalizeSheetTab(tab);
   const portfolioType = portfolioTypeForCompanySheet(preferredPortfolioType);
 
@@ -1465,6 +1469,26 @@ export default function CompanySheetClient({
             </section>
           </aside>
         </div>
+      )}
+
+      {resolvedTab === "fundamental" && (
+        <FundamentalAnalysisPanel
+          slice={{
+            company,
+            peers,
+            incomeStatement,
+            dividendSchedule: payload.dividendSchedule,
+            outlook,
+            series,
+            description,
+            isin,
+            listedSince,
+            profileMeta,
+            sessionDate,
+          }}
+          close={price > 0 ? price : null}
+          preferredPortfolioType={isAuthenticated ? preferredPortfolioType ?? null : null}
+        />
       )}
 
       {resolvedTab === "projection" && (

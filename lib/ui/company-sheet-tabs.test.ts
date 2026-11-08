@@ -9,6 +9,8 @@ import {
 describe("normalizeSheetTab", () => {
   it("conserve les onglets vivants", () => {
     expect(normalizeSheetTab("overview")).toBe("overview");
+    expect(normalizeSheetTab("fundamental")).toBe("fundamental");
+    expect(normalizeSheetTab("analyse-fondamentale")).toBe("fundamental");
     expect(normalizeSheetTab("charts")).toBe("charts");
     expect(normalizeSheetTab("projection")).toBe("projection");
     expect(normalizeSheetTab("comparison")).toBe("comparison");
@@ -31,7 +33,8 @@ describe("normalizeSheetTab", () => {
   it("n'expose plus Société, Actualités, Documents ni Dividendes", () => {
     const keys = COMPANY_SHEET_TABS.map((t) => t.key);
     const labels = COMPANY_SHEET_TABS.map((t) => t.label);
-    expect(keys).toEqual(["overview", "charts", "projection", "comparison"]);
+    expect(keys).toEqual(["overview", "fundamental", "charts", "projection", "comparison"]);
+    expect(labels).toContain("Analyse fondamentale");
     expect(keys).not.toContain("societe");
     expect(keys).not.toContain("actualites");
     expect(keys).not.toContain("documents");
@@ -56,9 +59,12 @@ describe("sheetTabFromHash", () => {
     expect(isLegacySheetTab("#charts")).toBe(false);
   });
 
-  it("ignore un hash inconnu pour laisser la place à une ancre future", () => {
+  it("ouvre l'analyse fondamentale et ignore un hash vraiment inconnu", () => {
     expect(sheetTabFromHash("")).toBeNull();
-    expect(sheetTabFromHash("#analyse-fondamentale")).toBeNull();
+    expect(sheetTabFromHash("#fundamental")).toBe("fundamental");
+    expect(sheetTabFromHash("#analyse-fondamentale")).toBe("fundamental");
+    expect(sheetTabFromHash("#ancre-inconnue")).toBeNull();
     expect(isLegacySheetTab("#analyse-fondamentale")).toBe(false);
+    expect(isLegacySheetTab("#fundamental")).toBe(false);
   });
 });
