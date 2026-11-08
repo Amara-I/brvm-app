@@ -66,16 +66,16 @@ npm run history:additive -- --exchange=NGX --kind=publications --ticker=MTNN --l
 
 Après contrôle, mêmes commandes avec `--apply=1` et flag activé dans l'environnement autorisé. Ne jamais copier les secrets dans le code ou les arguments littéraux.
 
-## Automatisation proposée dans vercel.json (pas activée en production)
+## Automatisation (plan Hobby — 2 crons)
 
-Aucun cron existant retiré ou modifié. Quatre créneaux supplémentaires préparés :
+`vercel.json` ne déclare que deux crons, chacun au plus une fois par jour. Un créneau sous-journalier est refusé avant le build des previews.
 
-- BRVM historique : minutes 05/25/45, maximum 5 fenêtres par invocation.
-- NGX historique : minutes 15/35/55, maximum 3 séances par invocation.
-- Rapports/communiqués BRVM : minute 10, maximum 2 sociétés par invocation.
-- Rapports/communiqués NGX : minute 40, maximum 5 sociétés par invocation.
+- `0 17 * * *` UTC → `GET /api/cron/ingest` : ingestion, puis agent financier, puis un lot des quatre files (BRVM/NGX × historique/publications). Le lot tient dans le temps restant avant `maxDuration` (300 s). Le curseur `ADDITIVE_ENRICHMENT` reprend le lendemain. `apply=1` n'écrit que si `INGESTION_ADDITIVE_ENABLED=true`.
+- `0 6 * * 1` UTC → `GET /api/cron/research`.
 
-**Tant que la PR n'est pas mergée et le flag n'est pas activé, aucun de ces rattrapages n'est appliqué à la production.** La prévisualisation ne doit pas être utilisée pour remplir une base de production partagée. Le déploiement/activation nécessite validation explicite ; aucun merge effectué ici. Le premier rattrapage de vingt ans peut nécessiter des milliers d'appels, des jours/semaines de reprise et des archives sous licence : pas de date de fin garantie. Surveiller durée, stockage, quotas et limites des sources.
+`GET`/`POST /api/cron/enrich-history` reste appelable à la main (Bearer `CRON_SECRET`, `limit` 1–10, `budgetMs` jusqu'à 240 s) pour un rattrapage. Il n'est plus dans `vercel.json`.
+
+Les anciens créneaux (minutes 05/25/45, 15/35/55, 10 et 40) ne sont plus planifiés : le plan Hobby ne les accepte pas. Le débit quotidien est celui qui tient dans la réserve de temps du cron de 17:00, pas celui des passages horaires. Le premier rattrapage de vingt ans peut durer longtemps ; `incomplete=false` reste la fin de la file, pas une preuve de couverture. Surveiller durée, stockage, quotas et limites des sources. L'activation d'écriture reste le flag, après simulation.
 
 Les pages de lecture affichent déjà les données cataloguées existantes, sans attendre l'activation du nouveau traitement.
 

@@ -1,3 +1,6 @@
+// Déclenchement manuel (Bearer CRON_SECRET). Le passage quotidien est
+// enchaîné après l'ingestion de 17:00 UTC ; cette route garde le plein
+// maxDuration pour un rattrapage, sans le délai du cron partagé.
 import { NextRequest, NextResponse } from "next/server";
 import { runFinanceAgent } from "@/lib/finance-agent/run";
 export const dynamic = "force-dynamic";
