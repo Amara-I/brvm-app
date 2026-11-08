@@ -1,3 +1,4 @@
+import { foldSearchText } from "@/lib/search/fold";
 import {
   EDUCATION_THEMES,
   getAllEducationTerms,
@@ -65,14 +66,7 @@ export type EducationSearchHit = EducationTerm & {
 
 /** Normalise pour comparaison : casse, accents, ponctuation légère. */
 export function foldEducationQuery(input: string): string {
-  return input
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/['’]/g, " ")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return foldSearchText(input);
 }
 
 function tokenize(folded: string): string[] {

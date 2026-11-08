@@ -65,13 +65,20 @@ export const chrome = {
     delayed: "Delayed quotes · Sources BRVM / Sikafinance / Richbourse",
   },
   search: {
-    company: "Search for a company",
+    company: "Search OuestBourse",
     shortcut: "Search (shortcuts / and ⌘K)",
     trigger: "Search a ticker…",
     triggerLanding: "Search a ticker or company…",
-    dialog: "Company search",
-    placeholder: "Ticker, name or sector…",
+    dialog: "Site search",
+    placeholder: "Ticker, company, index, lesson or page…",
     empty: "No results — N/D",
+    loading: "Loading search…",
+    groups: {
+      stocks: "Stocks · {exchange}",
+      indices: "Indices · {exchange}",
+      education: "Education",
+      pages: "Pages",
+    },
   },
   rateLimit: "Too many requests. Please try again in a moment.",
 } as const;

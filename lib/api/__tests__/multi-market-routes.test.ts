@@ -2,18 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), prices: vi.fn(), dividends: vi.fn(), ratios: vi.fn(),
-  levels: vi.fn(), search: vi.fn(), actions: vi.fn(),
+  levels: vi.fn(), search: vi.fn(), catalog: vi.fn(), actions: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: { company: { findMany: mocks.findMany, findFirst: mocks.findFirst, count: mocks.count },
   priceHistory: { findMany: mocks.prices }, dividend: { findMany: mocks.dividends }, financialRatio: { findMany: mocks.ratios } } }));
 vi.mock("@/lib/api/market-summary-snapshot", () => ({ loadRecentIndexLevels: mocks.levels }));
 vi.mock("@/lib/api/listing-search-index", () => ({ getListingSearchIndex: mocks.search }));
+vi.mock("@/lib/search/catalog", () => ({ getSiteSearchCatalog: mocks.catalog }));
 vi.mock("@/lib/corporate-actions/load", () => ({ actionsForTicker: async () => [], actionsByTicker: async () => new Map() }));
 vi.mock("@/lib/api/latest-data", () => ({ getLatestCanonicalPrices: async () => new Map(), getLatestFinancialRatios: async () => new Map() }));
 import { GET as summary } from "@/app/api/market/summary/route";
 import { GET as company } from "@/app/api/companies/[ticker]/route";
 import { GET as companies } from "@/app/api/companies/route";
 import { GET as search } from "@/app/api/search/route";
+import { stockDocument } from "@/lib/search/documents";
 import { GET as excel } from "@/app/api/export/excel/route";
 import * as XLSX from "xlsx";
 const req = (path: string) => new NextRequest(`https://example.org${path}`);
@@ -21,7 +23,7 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.findMany.mockResolvedValue([]); mocks.count.mockResolvedValue(0);
   mocks.prices.mockResolvedValue([]); mocks.dividends.mockResolvedValue([]); mocks.ratios.mockResolvedValue([]);
-  mocks.levels.mockResolvedValue([]); mocks.search.mockResolvedValue([]);
+  mocks.levels.mockResolvedValue([]); mocks.search.mockResolvedValue([]); mocks.catalog.mockResolvedValue([]);
 });
 describe("contrats API multi-marchés (Prisma simulé, pas une certification de la base)", () => {
   it.each(["BRVM", "NGX"])("isole résumé, liste/screener et fiche %s", async (exchange) => {
@@ -44,12 +46,17 @@ describe("contrats API multi-marchés (Prisma simulé, pas une certification de 
     expect(mocks.levels).not.toHaveBeenCalled();
   });
   it("recherche NGX et renvoie le bon lien, sans faux résultat BRVM", async () => {
-    mocks.search.mockResolvedValue([{ ticker: "MTNN", name: "MTN Nigeria", sector: "Telecom", exchange: "NGX" }]);
+    mocks.catalog.mockResolvedValue([
+      stockDocument({ ticker: "MTNN", name: "MTN Nigeria", sector: "Telecom", exchange: "NGX" }),
+      stockDocument({ ticker: "SNTS", name: "Sonatel", sector: "Télécoms", exchange: "BRVM" }),
+    ]);
     const result = await search(req("/api/search?q=mtn&exchange=NGX"));
     const body = await result.json();
-    expect(body.data.groups).toHaveLength(1);
-    expect(body.data.groups[0].items[0].href).toBe("/marches/ngx/actions/MTNN");
-    expect((await search(req("/api/search?exchange=TOUT"))).status).toBe(422);
+    const stocks = body.data.groups.filter((group: { kind: string }) => group.kind === "stock");
+    expect(stocks).toHaveLength(1);
+    expect(stocks[0].exchange).toBe("NGX");
+    expect(stocks[0].items[0].href).toBe("/marches/ngx/actions/MTNN");
+    expect((await search(req("/api/search?exchange=***"))).status).toBe(422);
   });
   it("renvoie les unités et l’horodatage du cours NGX", async () => {
     mocks.findFirst.mockResolvedValue({ id: "ngx", ticker: "MTNN", name: "MTN", exchange: "NGX", currency: "NGN",

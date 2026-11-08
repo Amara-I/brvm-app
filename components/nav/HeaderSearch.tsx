@@ -6,10 +6,18 @@ import { IconSearch } from "@/components/icons/HeaderIcons";
 import { trackFeature } from "@/components/analytics/track-client";
 import styles from "./HeaderSearch.module.css";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { loadSiteSearchCatalogClient } from "@/lib/search/client-catalog";
+import { stockDocument, type StockSearchSource } from "@/lib/search/documents";
+import { applySearchKey, isSearchShortcut, searchSite } from "@/lib/search/match";
+import type { SiteSearchDocument, SiteSearchGroup, SiteSearchHit } from "@/lib/search/types";
+import SearchKindIcon from "./SearchKindIcon";
 
-import { searchListings, companyHref, type ListingSearchItem } from "@/lib/markets/search";
-import type { ListingExchange } from "@/lib/markets/listing-scope";
-export type HeaderSearchItem = ListingSearchItem;
+export type HeaderSearchItem = StockSearchSource;
+
+function localized(locale: string, primary?: string, english?: string): string {
+  if (locale === "en" && english) return english;
+  return primary ?? "";
+}
 
 export default function HeaderSearch({
   companies,
@@ -19,15 +27,42 @@ export default function HeaderSearch({
   variant?: "default" | "landing";
 }) {
   const router = useRouter();
-  const { t, labels } = useI18n();
+  const { t, labels, locale } = useI18n();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [market, setMarket] = useState<ListingExchange | "">("");
+  const [active, setActive] = useState(0);
+  const [catalog, setCatalog] = useState<SiteSearchDocument[] | null>(null);
+  const [catalogState, setCatalogState] = useState<"idle" | "ready" | "error">("idle");
   const inputRef = useRef<HTMLInputElement>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  const optionRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  function warmCatalog() {
+    void loadSiteSearchCatalogClient().then((documents) => {
+      if (documents && documents.length > 0) {
+        setCatalog(documents);
+        setCatalogState("ready");
+        return;
+      }
+      setCatalogState((state) => (state === "ready" ? state : "error"));
+    });
+  }
 
   useEffect(() => {
-    if (open) inputRef.current?.focus();
+    const run = () => warmCatalog();
+    if (typeof window.requestIdleCallback === "function") {
+      const id = window.requestIdleCallback(run, { timeout: 2500 });
+      return () => window.cancelIdleCallback(id);
+    }
+    const id = window.setTimeout(run, 600);
+    return () => window.clearTimeout(id);
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      warmCatalog();
+      inputRef.current?.focus();
+    }
   }, [open]);
 
   useEffect(() => {
@@ -50,12 +85,19 @@ export default function HeaderSearch({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
-      if (!t) return;
-      if (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable) return;
-      const slash = e.key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey;
-      const commandK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
-      if (!slash && !commandK) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        !isSearchShortcut({
+          key: e.key,
+          metaKey: e.metaKey,
+          ctrlKey: e.ctrlKey,
+          altKey: e.altKey,
+          targetTag: target?.tagName,
+          editable: target?.isContentEditable,
+        })
+      ) {
+        return;
+      }
       e.preventDefault();
       setOpen(true);
     }
@@ -64,24 +106,56 @@ export default function HeaderSearch({
   }, []);
 
   const landing = variant === "landing";
+  const documents = useMemo(() => {
+    if (catalog && catalog.length > 0) return catalog;
+    return companies.map((company) => stockDocument(company));
+  }, [catalog, companies]);
 
-  const groups = useMemo(() => searchListings(companies, q, market || undefined), [companies, q, market]);
-  const results = groups.flatMap((group) => group.items);
+  const groups = useMemo(() => searchSite(documents, q), [documents, q]);
+  const flat = useMemo(() => groups.flatMap((group) => group.items), [groups]);
+  const resultKey = `${q}\n${flat.map((hit) => hit.id).join("\n")}`;
 
-  function go(item: HeaderSearchItem) {
+  useEffect(() => {
+    setActive(0);
+  }, [resultKey]);
+
+  useEffect(() => {
+    const current = flat[active];
+    if (!current) return;
+    optionRefs.current.get(current.id)?.scrollIntoView({ block: "nearest" });
+  }, [active, flat]);
+
+  function go(hit: SiteSearchHit) {
     setOpen(false);
     setQ("");
-    trackFeature("search", "select_company");
-    router.push(companyHref(item));
+    trackFeature("search", `select_${hit.kind}`);
+    router.push(hit.href);
   }
+
+  function groupLabel(group: SiteSearchGroup): string {
+    if (group.kind === "stock") return t("chrome.search.groups.stocks", { exchange: group.exchange ?? "" });
+    if (group.kind === "index") return t("chrome.search.groups.indices", { exchange: group.exchange ?? "" });
+    if (group.kind === "education") return t("chrome.search.groups.education");
+    return t("chrome.search.groups.pages");
+  }
+
+  function subtitleOf(hit: SiteSearchHit): string {
+    if (hit.kind === "stock") return hit.subtitle ? labels.sector(hit.subtitle) : "";
+    return localized(locale, hit.subtitle, hit.subtitleEn);
+  }
+
+  let cursor = 0;
 
   return (
     <div ref={rootRef} className={`${styles.root} ${landing ? styles.rootLanding : ""}`}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((value) => !value)}
+        onMouseEnter={warmCatalog}
+        onFocus={warmCatalog}
         aria-label={t("chrome.search.company")}
         aria-expanded={open}
+        aria-controls={open ? "site-search-results" : undefined}
         title={t("chrome.search.shortcut")}
         className={`${styles.trigger} ${landing ? styles.triggerLanding : ""} ${open ? styles.triggerOpen : ""}`}
       >
@@ -97,43 +171,91 @@ export default function HeaderSearch({
           <input
             ref={inputRef}
             type="search"
+            enterKeyHint="search"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            role="combobox"
+            aria-expanded
+            aria-controls="site-search-results"
+            aria-autocomplete="list"
+            aria-activedescendant={flat[active] ? `site-search-opt-${active}` : undefined}
             value={q}
-            onChange={(e) => setQ(e.target.value)}
+            onChange={(event) => setQ(event.target.value)}
             placeholder={t("chrome.search.placeholder")}
             aria-label={t("chrome.search.company")}
             className={styles.input}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && results[0]) go(results[0]);
+            onKeyDown={(event) => {
+              const action = applySearchKey({ key: event.key, index: active, count: flat.length });
+              if (action.type === "move") {
+                event.preventDefault();
+                setActive(action.index);
+              } else if (action.type === "select") {
+                event.preventDefault();
+                const hit = flat[action.index];
+                if (hit) go(hit);
+              } else if (action.type === "close") {
+                event.preventDefault();
+                setOpen(false);
+              }
             }}
           />
-          <label className={styles.marketFilter}>
-            Marché : <select aria-label="Filtrer par marché" value={market} onChange={(e) => setMarket(e.target.value as ListingExchange | "")}>
-              <option value="">BRVM + NGX</option><option value="BRVM">BRVM</option><option value="NGX">NGX</option>
-            </select>
-          </label>
-          <ul className={styles.list}>
-            {results.length === 0 ? (
-              <li className={styles.empty}>{t("chrome.search.empty")}</li>
+          <div id="site-search-results" role="listbox" aria-label={t("chrome.search.dialog")} className={styles.list}>
+            {flat.length === 0 ? (
+              <p className={styles.empty}>
+                {catalogState === "idle" && companies.length === 0 && !q.trim()
+                  ? t("chrome.search.loading")
+                  : t("chrome.search.empty")}
+              </p>
             ) : (
-              groups.filter((group) => group.items.length > 0).map((group) => (
-                <li key={group.exchange}>
-                  <strong className={styles.groupTitle}>{group.exchange}</strong>
+              groups.map((group) => (
+                <section key={group.id} className={styles.group} aria-label={groupLabel(group)}>
+                  <div className={styles.groupTitle}>
+                    <span className={styles.kindIcon}>
+                      <SearchKindIcon kind={group.kind} />
+                    </span>
+                    {groupLabel(group)}
+                  </div>
                   <ul className={styles.groupList}>
-                    {group.items.map((c) => (
-                      <li key={`${group.exchange}:${c.ticker}`}>
-                        <button type="button" onClick={() => go(c)}
-                          onMouseEnter={() => router.prefetch(companyHref(c))}
-                          onFocus={() => router.prefetch(companyHref(c))} className={styles.item}>
-                          <span className={styles.ticker}>{c.ticker}</span><span> · {c.name}</span>
-                          <div className={styles.sector}>{labels.sector(c.sector)}</div>
-                        </button>
-                      </li>
-                    ))}
+                    {group.items.map((hit) => {
+                      const index = cursor;
+                      cursor += 1;
+                      const selected = index === active;
+                      const title = localized(locale, hit.title, hit.titleEn);
+                      const subtitle = subtitleOf(hit);
+                      return (
+                        <li key={hit.id}>
+                          <button
+                            type="button"
+                            id={`site-search-opt-${index}`}
+                            role="option"
+                            aria-selected={selected}
+                            ref={(node) => {
+                              if (node) optionRefs.current.set(hit.id, node);
+                              else optionRefs.current.delete(hit.id);
+                            }}
+                            onClick={() => go(hit)}
+                            onMouseEnter={() => {
+                              setActive(index);
+                              router.prefetch(hit.href);
+                            }}
+                            onFocus={() => router.prefetch(hit.href)}
+                            className={`${styles.item} ${selected ? styles.itemActive : ""}`}
+                          >
+                            <span className={styles.itemMain}>
+                              {hit.code ? <span className={styles.ticker}>{hit.code}</span> : null}
+                              <span>{hit.code ? ` · ${title}` : title}</span>
+                            </span>
+                            {subtitle ? <span className={styles.sector}>{subtitle}</span> : null}
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
-                </li>
+                </section>
               ))
             )}
-          </ul>
+          </div>
         </div>
       )}
     </div>

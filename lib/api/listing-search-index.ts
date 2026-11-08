@@ -4,10 +4,16 @@ import { prisma } from "@/lib/prisma";
 import type { ListingSearchItem } from "@/lib/markets/search";
 
 export const getListingSearchIndex = unstable_cache(async (): Promise<ListingSearchItem[]> => {
+  // Toutes les places actives : le filtre ne liste pas BRVM/NGX en dur.
   const rows = await prisma.company.findMany({
-    where: { isActive: true, exchange: { in: ["BRVM", "NGX"] } },
+    where: { isActive: true },
     select: { ticker: true, name: true, exchange: true, sector: { select: { name: true } } },
-    orderBy: { name: "asc" },
+    orderBy: [{ exchange: "asc" }, { name: "asc" }],
   });
-  return rows.map((c) => ({ ticker: c.ticker, name: c.name, exchange: c.exchange as "BRVM" | "NGX", sector: c.sector.name }));
-}, ["listing-search-index-v1"], { revalidate: 60, tags: ["companies-nav"] });
+  return rows.map((c) => ({
+    ticker: c.ticker,
+    name: c.name,
+    exchange: String(c.exchange),
+    sector: c.sector.name,
+  }));
+}, ["listing-search-index-v2"], { revalidate: 60, tags: ["companies-nav"] });
