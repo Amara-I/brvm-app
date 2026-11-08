@@ -3,66 +3,117 @@
 // Panneau d'analyse technique sous le graphe de la fiche (zones, FVG, scénarios).
 // Les chiffres viennent de `analyzePriceHistory` — rien n'est inventé.
 
-import { useMemo } from "react";
+import { useMemo, type ReactNode } from "react";
 import { signalOf } from "@/lib/calc/calc-metrics";
+import EducationTermLink from "@/components/education/EducationTermLink";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import type { TFunc } from "@/lib/i18n/create-i18n";
+import { formatDistancePct, formatFcfa, formatFcfaRange, rewardRiskSentence } from "@/lib/technical-analysis/level-label";
 import { scenarioChartModel } from "@/lib/technical-analysis/scenario-chart";
-import type { ScenarioChartModel } from "@/lib/technical-analysis/scenario-chart";
-import type { ScenarioBias, TechnicalAnalysis } from "@/lib/technical-analysis/types";
+import type { ScenarioChartMark, ScenarioChartModel } from "@/lib/technical-analysis/scenario-chart";
+import type { ScenarioBias, ScenarioPlan, TechnicalAnalysis } from "@/lib/technical-analysis/types";
 import styles from "./TechnicalAnalysisPanel.module.css";
 
-function ScenarioFigure({ model, caption, markerId }: { model: ScenarioChartModel; caption: string; markerId: string }) {
+function markClass(kind: ScenarioChartMark["kind"]): string {
+  if (kind === "target" || kind === "support") return styles.markTarget;
+  if (kind === "stop" || kind === "resistance") return styles.markStop;
+  if (kind === "entry" || kind === "fvg") return styles.markEntry;
+  return styles.markLast;
+}
+
+function lineClass(kind: ScenarioChartMark["kind"]): string {
+  if (kind === "target" || kind === "support") return styles.targetLine;
+  if (kind === "stop" || kind === "resistance") return styles.stopLine;
+  if (kind === "entry" || kind === "fvg") return styles.entryLine;
+  return styles.lastLine;
+}
+
+function ScenarioFigure({
+  model,
+  caption,
+  markerId,
+  markName,
+}: {
+  model: ScenarioChartModel;
+  caption: string;
+  markerId: string;
+  markName: (mark: ScenarioChartMark) => string;
+}) {
   return (
-    <svg
-      className={styles.figure}
-      viewBox={`0 0 ${model.width} ${model.height}`}
-      role="img"
-      aria-label={caption}
-    >
-      <defs>
-        <marker id={markerId} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
-          <path d="M0,0 L6,3 L0,6 Z" className={styles.arrowHead} />
-        </marker>
-      </defs>
-      <rect width={model.width} height={model.height} className={styles.figureBg} rx="10" />
-      {model.zones.map((zone, index) => (
-        <rect
-          key={`${zone.kind}-${index}`}
-          x={zone.x}
-          y={zone.y}
-          width={zone.w}
-          height={zone.h}
-          className={
-            zone.kind === "support" ? styles.zoneSupport : zone.kind === "resistance" ? styles.zoneResistance : styles.zoneEntry
-          }
-        />
-      ))}
-      <polyline points={model.polyline} className={styles.priceLine} />
-      {model.marks.map((mark) => (
-        <g key={`${mark.kind}-${mark.label}-${mark.y}`}>
+    <div className={styles.figureWrap}>
+      <svg
+        className={styles.figure}
+        viewBox={`0 0 ${model.width} ${model.height}`}
+        role="img"
+        aria-label={caption}
+      >
+        <defs>
+          <marker id={markerId} markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L6,3 L0,6 Z" className={styles.arrowHead} />
+          </marker>
+        </defs>
+        <rect width={model.width} height={model.height} className={styles.figureBg} rx="10" />
+        {model.zones.map((zone, index) => (
+          <rect
+            key={`${zone.kind}-${index}`}
+            x={zone.x}
+            y={zone.y}
+            width={zone.w}
+            height={zone.h}
+            className={
+              zone.kind === "support"
+                ? styles.zoneSupport
+                : zone.kind === "resistance"
+                  ? styles.zoneResistance
+                  : zone.kind === "gap"
+                    ? styles.zoneGap
+                    : styles.zoneEntry
+            }
+          />
+        ))}
+        <polyline points={model.polyline} className={styles.priceLine} />
+        {model.marks.map((mark, index) => (
           <line
-            x1={16}
-            x2={model.width - 108}
+            key={`${mark.kind}-${mark.price}-${index}`}
+            x1={12}
+            x2={model.width * 0.62}
             y1={mark.y}
             y2={mark.y}
-            className={mark.kind === "stop" ? styles.stopLine : mark.kind === "target" ? styles.targetLine : styles.lastLine}
+            className={lineClass(mark.kind)}
           />
-          <text x={model.width - 12} y={mark.y + 4} className={styles.markLabel} textAnchor="end">
-            {mark.label}
-          </text>
-        </g>
-      ))}
-      {model.arrow ? (
-        <line
-          x1={model.arrow.x1}
-          y1={model.arrow.y1}
-          x2={model.arrow.x2}
-          y2={model.arrow.y2}
-          className={styles.arrow}
-          markerEnd={`url(#${markerId})`}
-        />
-      ) : null}
-    </svg>
+        ))}
+        {model.arrow ? (
+          <line
+            x1={model.arrow.x1}
+            y1={model.arrow.y1}
+            x2={model.arrow.x2}
+            y2={model.arrow.y2}
+            className={styles.arrow}
+            markerEnd={`url(#${markerId})`}
+          />
+        ) : null}
+      </svg>
+      <ul className={styles.figureLabels}>
+        {model.marks.map((mark, index) => {
+          const distance =
+            mark.showDistance && model.lastClose != null ? formatDistancePct(model.lastClose, mark.price) : null;
+          const value = mark.priceHigh != null ? formatFcfaRange(mark.price, mark.priceHigh) : formatFcfa(mark.price);
+          return (
+            <li
+              key={`${mark.kind}-${mark.price}-${index}`}
+              className={`${styles.figureLabel} ${markClass(mark.kind)}`}
+              style={{ top: `${(mark.displayY / model.height) * 100}%` }}
+            >
+              <span className={styles.markName}>{markName(mark)}</span>
+              <span className={styles.markValue}>
+                {value}
+                {distance ? <span className={styles.markPct}> {distance}</span> : null}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 
@@ -85,7 +136,8 @@ export default function TechnicalAnalysisPanel({
         analysis.chartBars,
         scenario,
         analysis.zones,
-        t(`company.ta.scenario.${scenario.bias}`)
+        t(`company.ta.scenario.${scenario.bias}`),
+        analysis.gaps
       ),
     }));
   }, [analysis, t]);
@@ -120,9 +172,12 @@ export default function TechnicalAnalysisPanel({
         <Stat label={t("company.ta.sma20")} value={price(structure.sma20)} />
         <Stat label={t("company.ta.sma50")} value={price(structure.sma50)} />
         <Stat label={t("company.ta.sma200")} value={price(structure.sma200)} />
-        <Stat label={t("company.ta.rsi")} value={structure.rsi14 == null ? nd : format.decimal(structure.rsi14, 1)} />
         <Stat
-          label={t("company.ta.macd")}
+          label={<EducationTermLink slug="rsi">{t("company.ta.rsi")}</EducationTermLink>}
+          value={structure.rsi14 == null ? nd : format.decimal(structure.rsi14, 1)}
+        />
+        <Stat
+          label={<EducationTermLink slug="macd">{t("company.ta.macd")}</EducationTermLink>}
           value={structure.macdHistogram == null ? nd : format.decimal(structure.macdHistogram, 2)}
         />
         <Stat label={t("company.ta.atr")} value={price(structure.atr14)} />
@@ -163,7 +218,11 @@ export default function TechnicalAnalysisPanel({
           )}
         </div>
         <div>
-          <h3 className={styles.sub}>{t("company.ta.gapsTitle")}</h3>
+          <h3 className={styles.sub}>
+            <abbr className={styles.tip} title={t("company.ta.fvgTip")}>
+              {t("company.ta.gapsTitle")}
+            </abbr>
+          </h3>
           {analysis.gaps.length === 0 ? (
             <p className={styles.empty}>{t("company.ta.gapsEmpty")}</p>
           ) : (
@@ -199,38 +258,15 @@ export default function TechnicalAnalysisPanel({
           <article key={scenario.id} className={styles.scenario}>
             <header className={styles.scenarioHead}>
               <h4>{t(`company.ta.scenario.${scenario.bias as ScenarioBias}`)}</h4>
-              <span>{t("company.ta.probability", { value: scenario.probability })}</span>
+              <span className={styles.probBadge}>{t("company.ta.probability", { value: scenario.probability })}</span>
             </header>
             <ScenarioFigure
               model={model}
               markerId={`ta-arrow-${scenario.bias}`}
               caption={t(`company.ta.scenario.${scenario.bias}`)}
+              markName={(mark) => markLabel(mark, t)}
             />
-            <p className={styles.explanation}>
-              {locale === "en" ? scenario.explanationEn : scenario.explanationFr}
-            </p>
-            <dl className={styles.levels}>
-              <div>
-                <dt>{t("company.ta.entry")}</dt>
-                <dd>
-                  {scenario.entryLow == null || scenario.entryHigh == null
-                    ? nd
-                    : `${price(scenario.entryLow)} – ${price(scenario.entryHigh)}`}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("company.ta.invalidation")}</dt>
-                <dd>{price(scenario.invalidation)}</dd>
-              </div>
-              <div>
-                <dt>{t("company.ta.targets")}</dt>
-                <dd>{scenario.targets.length ? scenario.targets.map((target) => price(target)).join(" · ") : nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.ta.rr")}</dt>
-                <dd>{scenario.riskReward == null ? nd : format.decimal(scenario.riskReward, 1)}</dd>
-              </div>
-            </dl>
+            <ScenarioCopy scenario={scenario} last={structure.lastClose} locale={locale === "en" ? "en" : "fr"} nd={nd} t={t} />
           </article>
         ))}
       </div>
@@ -239,7 +275,65 @@ export default function TechnicalAnalysisPanel({
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function markLabel(mark: ScenarioChartMark, t: TFunc): string {
+  if (mark.kind === "target") return t("company.ta.chart.target", { n: mark.targetIndex ?? 1 });
+  if (mark.kind === "stop") return t("company.ta.chart.invalidation");
+  if (mark.kind === "entry") return t("company.ta.chart.entry");
+  if (mark.kind === "last") return t("company.ta.chart.last");
+  if (mark.kind === "support") return t("company.ta.zone.support");
+  if (mark.kind === "resistance") return t("company.ta.zone.resistance");
+  return t("company.ta.chart.fvg");
+}
+
+function ScenarioCopy({
+  scenario,
+  last,
+  locale,
+  nd,
+  t,
+}: {
+  scenario: ScenarioPlan;
+  last: number | null;
+  locale: "fr" | "en";
+  nd: string;
+  t: TFunc;
+}) {
+  const distance = (level: number | null) => (level == null || last == null ? null : formatDistancePct(last, level));
+  const entry =
+    scenario.entryLow == null || scenario.entryHigh == null ? nd : formatFcfaRange(scenario.entryLow, scenario.entryHigh);
+  return (
+    <div className={styles.copy}>
+      <h5>{t("company.ta.sections.scenario")}</h5>
+      <p>{locale === "en" ? scenario.headlineEn : scenario.headlineFr}</p>
+      <h5>{t("company.ta.sections.why")}</h5>
+      <p>{locale === "en" ? scenario.explanationEn : scenario.explanationFr}</p>
+      <h5>{t("company.ta.sections.plan")}</h5>
+      <div className={styles.chips}>
+        <span className={`${styles.chip} ${styles.chipLast}`}>
+          {t("company.ta.chart.last")} {last == null ? nd : formatFcfa(last)}
+        </span>
+        <span className={`${styles.chip} ${styles.chipEntry}`}>
+          {t("company.ta.chart.entry")} {entry}
+        </span>
+        {scenario.targets.map((target, index) => (
+          <span key={`${target}-${index}`} className={`${styles.chip} ${styles.chipTarget}`}>
+            {t("company.ta.chart.target", { n: index + 1 })} {formatFcfa(target)}
+            {distance(target) ? ` ${distance(target)}` : ""}
+          </span>
+        ))}
+        <span className={`${styles.chip} ${styles.chipStop}`}>
+          {t("company.ta.chart.invalidation")}{" "}
+          {scenario.invalidation == null ? nd : formatFcfa(scenario.invalidation)}
+          {distance(scenario.invalidation) ? ` ${distance(scenario.invalidation)}` : ""}
+        </span>
+      </div>
+      <h5>{t("company.ta.sections.reward")}</h5>
+      <p>{rewardRiskSentence(scenario.riskReward, locale)}</p>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: ReactNode; value: string }) {
   return (
     <div className={styles.stat}>
       <span>{label}</span>

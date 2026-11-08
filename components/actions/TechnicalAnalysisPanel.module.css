@@ -141,17 +141,155 @@
   font-size: 0.98rem;
 }
 
-.scenarioHead span {
-  color: var(--c-gold);
-  font-size: 0.82rem;
+.probBadge {
+  color: color-mix(in srgb, var(--c-gold) 72%, var(--c-text));
+  background: color-mix(in srgb, var(--c-gold) 18%, transparent);
+  border: 1px solid var(--c-gold);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
   white-space: nowrap;
+}
+
+.figureWrap {
+  position: relative;
+  margin-top: 8px;
 }
 
 .figure {
   width: 100%;
   height: auto;
-  margin-top: 8px;
   display: block;
+}
+
+.figureLabels {
+  position: absolute;
+  inset: 0 0 0 46%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.figureLabel {
+  position: absolute;
+  right: 2px;
+  left: 0;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0;
+  max-width: 100%;
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  background: color-mix(in srgb, var(--c-panel) 92%, transparent);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  font-weight: 700;
+}
+
+.markName {
+  font-size: 0.65rem;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.markValue {
+  font-variant-numeric: tabular-nums;
+}
+
+.markPct {
+  font-weight: 800;
+}
+
+.markTarget {
+  color: color-mix(in srgb, var(--c-green) 78%, var(--c-text));
+}
+
+.markStop {
+  color: color-mix(in srgb, var(--c-red) 78%, var(--c-text));
+}
+
+.markEntry {
+  color: color-mix(in srgb, var(--c-gold) 70%, var(--c-text));
+}
+
+.markLast {
+  color: var(--c-text);
+}
+
+.copy h5 {
+  margin: 10px 0 2px;
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--c-textDim);
+}
+
+.copy p {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.chipTarget {
+  color: color-mix(in srgb, var(--c-green) 78%, var(--c-text));
+  background: var(--c-green-soft);
+}
+
+.chipStop {
+  color: color-mix(in srgb, var(--c-red) 78%, var(--c-text));
+  background: var(--c-red-soft);
+}
+
+.chipEntry {
+  color: color-mix(in srgb, var(--c-gold) 70%, var(--c-text));
+  background: color-mix(in srgb, var(--c-gold) 16%, transparent);
+}
+
+.chipLast {
+  color: var(--c-text);
+  background: var(--c-bg);
+  border-color: var(--c-border);
+}
+
+.tip {
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+  cursor: help;
+}
+
+@media (max-width: 640px) {
+  .figureLabel {
+    font-size: 0.68rem;
+    padding: 1px 4px;
+  }
+
+  .chip {
+    font-size: 0.74rem;
+  }
 }
 
 .figureBg {
@@ -174,7 +312,8 @@
   opacity: 0.16;
 }
 
-.zoneEntry {
+.zoneEntry,
+.zoneGap {
   fill: var(--c-gold);
   opacity: 0.22;
 }
@@ -182,13 +321,19 @@
 .stopLine {
   stroke: var(--c-red);
   stroke-dasharray: 4 3;
-  stroke-width: 1.25;
+  stroke-width: 1.4;
 }
 
 .targetLine {
-  stroke: var(--c-blue);
+  stroke: var(--c-green);
   stroke-dasharray: 4 3;
-  stroke-width: 1.25;
+  stroke-width: 1.4;
+}
+
+.entryLine {
+  stroke: var(--c-gold);
+  stroke-dasharray: 4 3;
+  stroke-width: 1.4;
 }
 
 .lastLine {

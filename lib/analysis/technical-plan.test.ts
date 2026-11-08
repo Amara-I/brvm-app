@@ -105,7 +105,7 @@ describe("resolveTechnicalPlan", () => {
     expect(plan.target).toBeNull();
   });
 
-  it("n'expose encore aucun plan technique tant que le module n'est pas branché", async () => {
-    await expect(loadTechnicalSetups(["SNTS", "DANGCEM"])).resolves.toEqual([]);
+  it("ne contacte pas la base pour une liste de titres vide", async () => {
+    await expect(loadTechnicalSetups([])).resolves.toEqual([]);
   });
 });

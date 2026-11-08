@@ -244,6 +244,8 @@ export const company = {
     zonesTitle: "Supports et résistances",
     zonesEmpty: "Pas assez de swings pour tracer une zone (N/D).",
     gapsTitle: "Fair Value Gaps",
+    fvgTip:
+      "Écart de juste valeur : zone que le cours a traversée sans s'y échanger. Le prix y revient souvent ensuite.",
     gapsEmpty: "Aucun déséquilibre (fair value gap) détecté sur la fenêtre (N/D).",
     col: {
       kind: "Type",
@@ -274,6 +276,19 @@ export const company = {
       bearish: "Baissier",
     },
     probability: "{value} % indicatif",
+    sections: {
+      scenario: "Scénario",
+      why: "Pourquoi",
+      plan: "Plan",
+      reward: "Gain/risque",
+    },
+    chart: {
+      last: "Cours",
+      entry: "Entrée",
+      invalidation: "Invalidation",
+      target: "Objectif {n}",
+      fvg: "FVG",
+    },
     entry: "Zone d'entrée",
     invalidation: "Invalidation",
     targets: "Objectifs",
