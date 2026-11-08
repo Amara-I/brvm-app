@@ -14,12 +14,9 @@ export const company = {
   tabsAria: "Sections de la fiche",
   tabs: {
     overview: "Vue d'ensemble",
-    charts: "Graphes",
+    charts: "Analyse Graphique",
     projection: "🔮 Projection future",
     comparison: "⚖️ Comparaison",
-    societe: "Société",
-    actualites: "Actualités",
-    documents: "Documents",
   },
   ranges: {
     "1M": "1M",
@@ -169,7 +166,7 @@ export const company = {
     title: "Interims",
     meta: "trimestriel / semestriel · PNB, résultat net",
     empty:
-      "Aucun interim structuré en base pour {ticker} (N/D). Les publications intermédiaires ne sont pas encore collectées de façon homogène — les rapports officiels restent dans l'onglet Documents (filtre Résultats).",
+      "Aucun interim structuré en base pour {ticker} (N/D). Les publications intermédiaires ne sont pas encore collectées de façon homogène.",
   },
   health: {
     title: "Santé financière",

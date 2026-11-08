@@ -60,14 +60,15 @@ import {
   frameCompanyForPortfolioType,
   keyTermSlugsForType,
   overviewScorecardForType,
+  portfolioTypeForCompanySheet,
   type PortfolioTypeId,
 } from "@/lib/portfolio-types";
-import { usePortfolioType } from "@/lib/portfolio-types/use-portfolio-type";
-import PortfolioTypeSelector from "@/components/portfolio-types/PortfolioTypeSelector";
 import PortfolioTypePerspective from "@/components/portfolio-types/PortfolioTypePerspective";
 import {
   COMPANY_SHEET_TABS,
+  isLegacySheetTab,
   normalizeSheetTab,
+  sheetTabFromHash,
   type CompanySheetTabKey,
 } from "@/lib/ui/company-sheet-tabs";
 import styles from "./CompanySheet.module.css";
@@ -79,14 +80,6 @@ const DATA_SOURCE_KEYS = {
   RICHBOURSE: "company.sources.RICHBOURSE",
   MANUEL: "company.sources.MANUEL",
 } as const;
-
-const SKIP_REASON_KEYS: Record<string, "company.docs.recentData" | "company.docs.recentDocs" | "company.docs.disabled" | "company.docs.noKey"> = {
-  "Actualisation récente — données rechargées depuis la base.": "company.docs.recentData",
-  "Actualisation récente — documents rechargés depuis la base (prochain tirage dans quelques minutes).":
-    "company.docs.recentDocs",
-  "Catalogue documents désactivé (INGESTION_ENABLE_OB_DOCUMENTS=false).": "company.docs.disabled",
-  "OUESTBOURSE_SUPABASE_ANON_KEY absent — catalogue BRVM/OB indisponible.": "company.docs.noKey",
-};
 
 const SCORECARD_KEYS: Record<string, "company.scorecard.perf5" | "company.scorecard.divYield" | "company.scorecard.risk" | "company.scorecard.confidence" | "company.scorecard.volatility" | "company.scorecard.fundamental" | "company.scorecard.technical"> = {
   "Perf. 5 ans": "company.scorecard.perf5",
@@ -196,7 +189,11 @@ export default function CompanySheetClient({
   isAuthenticated?: boolean;
   /** Onglet initial (ex. ?tab=charts depuis le sélecteur de ticker du graphe). */
   initialTab?: TabKey;
-  /** Préférence Profil — surmontable ici sans retourner au profil. */
+  /**
+   * Préférence enregistrée sur le profil. La fiche ne lit plus le choix
+   * navigateur : sans préférence (visiteur déconnecté), le défaut produit
+   * Croissance s'applique. Le stockage n'est ni lu ni effacé.
+   */
   preferredPortfolioType?: PortfolioTypeId | null;
 }) {
   const { t, format, labels, locale } = useI18n();
@@ -220,40 +217,42 @@ export default function CompanySheetClient({
     listedSince,
     profileMeta,
     outlook,
-    documents: initialDocuments,
     events,
     news,
-    incomeStatement: initialIncomeStatement,
-    keyRows: initialKeyRows,
+    incomeStatement,
+    keyRows,
   } = payload;
   const [tab, setTab] = usePersistedState<string>(`ouestbourse:sheet:${company.ticker}:tab`, "overview");
   const resolvedTab = normalizeSheetTab(tab);
-  const {
-    type: portfolioType,
-    setType: setPortfolioType,
-    profileDefault,
-    isOverride,
-    resetToProfile,
-  } = usePortfolioType(preferredPortfolioType);
+  const portfolioType = portfolioTypeForCompanySheet(preferredPortfolioType);
 
   useEffect(() => {
     if (tab !== resolvedTab) setTab(resolvedTab);
   }, [tab, resolvedTab, setTab]);
 
   useEffect(() => {
-    if (initialTab) setTab(normalizeSheetTab(initialTab));
+    const params = new URLSearchParams(window.location.search);
+    const rawTab = params.get("tab");
+    const fromHash = sheetTabFromHash(window.location.hash);
+    const legacyHash = isLegacySheetTab(window.location.hash);
+    const legacyQuery = rawTab != null && isLegacySheetTab(rawTab);
+
+    if (fromHash) setTab(fromHash);
+    else if (rawTab) setTab(normalizeSheetTab(rawTab));
+    else if (initialTab) setTab(normalizeSheetTab(initialTab));
+
+    if (legacyHash || legacyQuery) {
+      const url = new URL(window.location.href);
+      if (legacyHash) url.hash = "";
+      if (legacyQuery) url.searchParams.delete("tab");
+      const next = `${url.pathname}${url.search}${url.hash}`;
+      window.history.replaceState(null, "", next);
+    }
   }, [initialTab, setTab]);
   const [range, setRange] = usePersistedState<ChartRange>(`ouestbourse:sheet:${company.ticker}:range`, "1A");
   const [series, setSeries] = useState<ChartClosePoint[]>(initialSeries);
   const [liveChange, setLiveChange] = useState<{ pct: number | null; abs: number | null } | null>(null);
   const [denseLoading, setDenseLoading] = useState(false);
-  const [documents, setDocuments] = useState(initialDocuments);
-  const [incomeStatement, setIncomeStatement] = useState(initialIncomeStatement);
-  const [keyRows, setKeyRows] = useState(initialKeyRows);
-  const [docsRefreshing, setDocsRefreshing] = useState(false);
-  const [docsRefreshNote, setDocsRefreshNote] = useState<string | null>(null);
-  const [docFilter, setDocFilter] = useState<"all" | "results">("all");
-
   // Cache `chart_series` chaud : la série SSR est déjà la base d'affichage.
   // Manquant ou périmé : compléter en arrière-plan (densify / tip), sans bloquer le premier paint.
   useEffect(() => {
@@ -409,59 +408,6 @@ export default function CompanySheetClient({
 
   const paidYears = dividendChart.length;
   const lastDiv = dividendChart[dividendChart.length - 1];
-  const visibleDocuments = useMemo(
-    () => (docFilter === "results" ? documents.filter((d) => d.kind === "results") : documents),
-    [documents, docFilter]
-  );
-  const resultsDocCount = useMemo(
-    () => documents.filter((d) => d.kind === "results").length,
-    [documents]
-  );
-
-  async function refreshDocuments() {
-    if (docsRefreshing) return;
-    setDocsRefreshing(true);
-    setDocsRefreshNote(null);
-    try {
-      const res = await fetch(`/api/companies/${encodeURIComponent(company.ticker)}/refresh-documents`, {
-        method: "POST",
-        cache: "no-store",
-      });
-      const json = await res.json();
-      if (!res.ok || !json.ok) {
-        setDocsRefreshNote(json.error ?? t("company.docs.refreshFailed"));
-        return;
-      }
-      if (Array.isArray(json.data?.documents)) setDocuments(json.data.documents);
-      if (Array.isArray(json.data?.incomeStatement)) setIncomeStatement(json.data.incomeStatement);
-      if (Array.isArray(json.data?.keyRows)) setKeyRows(json.data.keyRows);
-      const ing = json.data?.ingestion;
-      if (ing?.skipped) {
-        const skipKey = typeof ing.skipReason === "string" ? SKIP_REASON_KEYS[ing.skipReason] : undefined;
-        setDocsRefreshNote(skipKey ? t(skipKey) : (ing.skipReason ?? t("company.docs.recentData")));
-      } else {
-        const src = ing?.source === "OUESTBOURSE" ? t("company.docs.sourceOb") : t("company.docs.sourceNd");
-        setDocsRefreshNote(
-          t("company.docs.updatedVia", { source: src }) +
-            (typeof ing?.documentsUpserted === "number"
-              ? ` · ${t("company.docs.docCount", { count: ing.documentsUpserted })}`
-              : "") +
-            (typeof ing?.resultsDocuments === "number"
-              ? ` · ${t("company.docs.resultsCount", { count: ing.resultsDocuments })}`
-              : "") +
-            (typeof ing?.fundamentalsUpserted === "number" && ing.fundamentalsUpserted > 0
-              ? ` · ${t("company.docs.accountsCount", { count: ing.fundamentalsUpserted })}`
-              : "") +
-            "."
-        );
-      }
-      trackFeature("company_sheet", "refresh-documents");
-    } catch {
-      setDocsRefreshNote(t("company.docs.refreshFailed"));
-    } finally {
-      setDocsRefreshing(false);
-    }
-  }
 
   const sessionLabel = sessionDate
     ? format.date(new Date(`${sessionDate}T12:00:00Z`), {
@@ -615,12 +561,6 @@ export default function CompanySheetClient({
           </div>
         </div>
         <div className={styles.heroActions}>
-          <Link
-            href={`/outils/taille-position?ticker=${encodeURIComponent(company.ticker)}`}
-            className={styles.btnOutline}
-          >
-            {t("company.positionSize")}
-          </Link>
           <TickerAlertButton
             isAuthenticated={isAuthenticated}
             ticker={company.ticker}
@@ -640,15 +580,6 @@ export default function CompanySheetClient({
           />
         </div>
       </header>
-
-      <PortfolioTypeSelector
-        value={portfolioType}
-        onChange={setPortfolioType}
-        profileDefault={profileDefault}
-        isOverride={isOverride}
-        onResetToProfile={resetToProfile}
-        idPrefix={`sheet-${company.ticker}`}
-      />
 
       <div className={styles.tabs} role="tablist" aria-label={t("company.tabsAria")}>
         {TABS.map((tabDef) => (
@@ -691,8 +622,8 @@ export default function CompanySheetClient({
       {resolvedTab === "overview" && (
         <div className={styles.layout}>
           <div className={styles.mainCol}>
-            <PortfolioTypePerspective perspective={analysisPerspective} />
-            {/* Cours + aperçu (vue d'ensemble) — graphes détaillés = onglet Graphes */}
+            {/* Cours, puis fiche société, puis le reste de la vue d'ensemble.
+                Graphes détaillés = onglet Analyse Graphique. */}
             <section className={styles.card}>
               <div className={styles.cardHead}>
                 <h2 className={styles.cardTitle}>{t("company.chart.price")}</h2>
@@ -765,6 +696,142 @@ export default function CompanySheetClient({
                 emptyLabel={t("company.chart.insufficient")}
               />
             </section>
+
+            <section className={styles.card}>
+              <h2 className={styles.cardTitle}>{t("company.profile.title")}</h2>
+              <dl className={styles.profileMeta}>
+                <div>
+                  <dt>{t("company.profile.legalName")}</dt>
+                  <dd>{company.name}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.ticker")}</dt>
+                  <dd>{company.ticker}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.isin")}</dt>
+                  <dd>{isin ?? nd}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.shares")}</dt>
+                  <dd>
+                    {profileMeta?.sharesOutstanding != null ? format.number(profileMeta.sharesOutstanding) : nd}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.float")}</dt>
+                  <dd>
+                    {profileMeta?.floatPercent != null
+                      ? `${format.number(profileMeta.floatPercent, { maximumFractionDigits: 8 })}%`
+                      : nd}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.valuation")}</dt>
+                  <dd>{profileMeta?.valuationLabel ?? nd}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.phone")}</dt>
+                  <dd>{profileMeta?.phone ?? nd}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.fax")}</dt>
+                  <dd>{profileMeta?.fax ?? nd}</dd>
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <dt>{t("company.profile.address")}</dt>
+                  <dd>{profileMeta?.address ?? nd}</dd>
+                </div>
+              </dl>
+
+              <h3 className={styles.profileDescTitle}>{t("company.profile.description")}</h3>
+              {description ? (
+                <p className={styles.profileDesc}>{description}</p>
+              ) : (
+                <p className={styles.empty}>{t("company.profile.descriptionEmpty")}</p>
+              )}
+            </section>
+
+            <section className={styles.card}>
+              <h2 className={styles.cardTitle}>{t("company.profile.details")}</h2>
+              <dl className={styles.profileMeta}>
+                <div>
+                  <dt>{t("company.profile.sector")}</dt>
+                  <dd>{company.sector ? labels.sector(company.sector) : nd}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.country")}</dt>
+                  <dd>
+                    {company.country ? `${company.countryFlag} ${labels.country(company.country)}` : nd}
+                  </dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.industry")}</dt>
+                  <dd>{profileMeta?.industry ?? nd}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.ceo")}</dt>
+                  <dd>{profileMeta?.ceo ?? profileMeta?.directors ?? nd}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.chairman")}</dt>
+                  <dd>{profileMeta?.chairman ?? nd}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.listing")}</dt>
+                  <dd>{formatListingDate(listedSince ?? profileMeta?.listingDate, format, nd)}</dd>
+                </div>
+                <div>
+                  <dt>{t("company.profile.website")}</dt>
+                  <dd>
+                    {profileMeta?.website ? (
+                      <a
+                        href={websiteHref(profileMeta.website) ?? "#"}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={styles.extLink}
+                      >
+                        {websiteLabel(profileMeta.website)}
+                      </a>
+                    ) : (
+                      nd
+                    )}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <div className={styles.societeSplit}>
+              <ShareholdingPanel profileMeta={profileMeta} />
+
+              <section className={styles.card}>
+                <h2 className={styles.cardTitle}>{t("company.profile.peers")}</h2>
+                <p className={styles.sideNote} style={{ marginTop: 0, marginBottom: 8 }}>
+                  {t("company.profile.sectorLine", { sector: labels.sector(company.sector) })}
+                </p>
+                {sectorPeers.length === 0 ? (
+                  <p className={styles.empty}>{t("company.profile.noPeers")}</p>
+                ) : (
+                  <ul className={styles.peerList}>
+                    {sectorPeers.map((p) => (
+                      <li key={p.ticker}>
+                        <Link href={`/actions/${p.ticker}`} className={styles.peerLink}>
+                          <span className={styles.peerTicker}>{p.ticker}</span>
+                          <span className={styles.peerName}>
+                            {p.countryFlag} {p.name}
+                          </span>
+                          <strong className={styles.peerPrice}>
+                            {p.lastPrice > 0 ? format.fcfa(p.lastPrice) : nd}
+                          </strong>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+
+            <PortfolioTypePerspective perspective={analysisPerspective} />
 
                 {/* Scorecard de décision — AD-2026-08-22-002 (approuvée) */}
                 <section className={styles.card} aria-labelledby="scorecard-title">
@@ -1080,9 +1147,6 @@ export default function CompanySheetClient({
                     ) : (
                       <p className={styles.empty}>{t("company.income.empty")}</p>
                     )}
-                    <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("documents")}>
-                      {t("company.income.resultsLink")}
-                    </button>
                   </section>
                 </div>
 
@@ -1095,13 +1159,6 @@ export default function CompanySheetClient({
                       <span className={styles.cardMeta}>{t("company.events.meta")}</span>
                     </div>
                     <EventsFeed events={events} />
-                    <button
-                      type="button"
-                      className={styles.inlineLinkBtn}
-                      onClick={() => setTab("actualites")}
-                    >
-                      {t("company.events.all")}
-                    </button>
                   </section>
                   <section className={styles.card}>
                     <div className={styles.cardHead}>
@@ -1109,13 +1166,6 @@ export default function CompanySheetClient({
                       <span className={styles.cardMeta}>{t("company.news.meta")}</span>
                     </div>
                     <NewsFeed news={news} />
-                    <button
-                      type="button"
-                      className={styles.inlineLinkBtn}
-                      onClick={() => setTab("actualites")}
-                    >
-                      {t("company.news.all")}
-                    </button>
                   </section>
                 </div>
 
@@ -1375,12 +1425,6 @@ export default function CompanySheetClient({
               <Link href={`/marche`} className={styles.inlineLink}>
                 {t("company.signal.seeMarket")}
               </Link>
-              <Link
-                href={`/outils/taille-position?ticker=${encodeURIComponent(company.ticker)}`}
-                className={styles.inlineLink}
-              >
-                {t("company.positionSizeShort")}
-              </Link>
               <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("charts")}>
                 {t("company.signal.chartAnalysis")}
               </button>
@@ -1438,236 +1482,6 @@ export default function CompanySheetClient({
         </>
       )}
 
-      {resolvedTab === "societe" && (
-        <>
-          <section className={styles.card}>
-            <h2 className={styles.cardTitle}>{t("company.profile.title")}</h2>
-            <dl className={styles.profileMeta}>
-              <div>
-                <dt>{t("company.profile.legalName")}</dt>
-                <dd>{company.name}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.ticker")}</dt>
-                <dd>{company.ticker}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.isin")}</dt>
-                <dd>{isin ?? nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.shares")}</dt>
-                <dd>
-                  {profileMeta?.sharesOutstanding != null ? format.number(profileMeta.sharesOutstanding) : nd}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.float")}</dt>
-                <dd>
-                  {profileMeta?.floatPercent != null
-                    ? `${format.number(profileMeta.floatPercent, { maximumFractionDigits: 8 })}%`
-                    : nd}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.valuation")}</dt>
-                <dd>{profileMeta?.valuationLabel ?? nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.phone")}</dt>
-                <dd>{profileMeta?.phone ?? nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.fax")}</dt>
-                <dd>{profileMeta?.fax ?? nd}</dd>
-              </div>
-              <div style={{ gridColumn: "1 / -1" }}>
-                <dt>{t("company.profile.address")}</dt>
-                <dd>{profileMeta?.address ?? nd}</dd>
-              </div>
-            </dl>
-
-            <h3 className={styles.profileDescTitle}>{t("company.profile.description")}</h3>
-            {description ? (
-              <p className={styles.profileDesc}>{description}</p>
-            ) : (
-              <p className={styles.empty}>{t("company.profile.descriptionEmpty")}</p>
-            )}
-          </section>
-
-          <section className={styles.card}>
-            <h2 className={styles.cardTitle}>{t("company.profile.details")}</h2>
-            <dl className={styles.profileMeta}>
-              <div>
-                <dt>{t("company.profile.sector")}</dt>
-                <dd>{company.sector ? labels.sector(company.sector) : nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.country")}</dt>
-                <dd>
-                  {company.country ? `${company.countryFlag} ${labels.country(company.country)}` : nd}
-                </dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.industry")}</dt>
-                <dd>{profileMeta?.industry ?? nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.ceo")}</dt>
-                <dd>{profileMeta?.ceo ?? profileMeta?.directors ?? nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.chairman")}</dt>
-                <dd>{profileMeta?.chairman ?? nd}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.listing")}</dt>
-                <dd>{formatListingDate(listedSince ?? profileMeta?.listingDate, format, nd)}</dd>
-              </div>
-              <div>
-                <dt>{t("company.profile.website")}</dt>
-                <dd>
-                  {profileMeta?.website ? (
-                    <a
-                      href={websiteHref(profileMeta.website) ?? "#"}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={styles.extLink}
-                    >
-                      {websiteLabel(profileMeta.website)}
-                    </a>
-                  ) : (
-                    nd
-                  )}
-                </dd>
-              </div>
-            </dl>
-          </section>
-
-          <div className={styles.societeSplit}>
-            <ShareholdingPanel profileMeta={profileMeta} />
-
-            <section className={styles.card}>
-              <h2 className={styles.cardTitle}>{t("company.profile.peers")}</h2>
-              <p className={styles.sideNote} style={{ marginTop: 0, marginBottom: 8 }}>
-                {t("company.profile.sectorLine", { sector: labels.sector(company.sector) })}
-              </p>
-              {sectorPeers.length === 0 ? (
-                <p className={styles.empty}>{t("company.profile.noPeers")}</p>
-              ) : (
-                <ul className={styles.peerList}>
-                  {sectorPeers.map((p) => (
-                    <li key={p.ticker}>
-                      <Link href={`/actions/${p.ticker}`} className={styles.peerLink}>
-                        <span className={styles.peerTicker}>{p.ticker}</span>
-                        <span className={styles.peerName}>
-                          {p.countryFlag} {p.name}
-                        </span>
-                        <strong className={styles.peerPrice}>
-                          {p.lastPrice > 0 ? format.fcfa(p.lastPrice) : nd}
-                        </strong>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          </div>
-        </>
-      )}
-
-      {resolvedTab === "actualites" && (
-        <div className={styles.eventsNewsSplit}>
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>{t("company.events.title")}</h2>
-              <span className={styles.cardMeta}>{t("company.events.meta")}</span>
-            </div>
-            <EventsFeed events={events} />
-          </section>
-          <section className={styles.card}>
-            <div className={styles.cardHead}>
-              <h2 className={styles.cardTitle}>{t("company.news.title")}</h2>
-              <span className={styles.cardMeta}>{t("company.news.meta")}</span>
-            </div>
-            <NewsFeed news={news} />
-          </section>
-        </div>
-      )}
-
-      {resolvedTab === "documents" && (
-        <section className={styles.card}>
-          <div className={styles.cardHead}>
-            <h2 className={styles.cardTitle}>{t("company.docs.title")}</h2>
-            <span className={styles.cardMeta}>{t("company.docs.meta")}</span>
-          </div>
-          <div className={styles.docToolbar}>
-            <div className={styles.docFilters} role="group" aria-label={t("company.docs.filterAria")}>
-              <button
-                type="button"
-                className={docFilter === "all" ? styles.docChipActive : styles.docChip}
-                onClick={() => setDocFilter("all")}
-              >
-                {t("company.docs.all", { count: documents.length })}
-              </button>
-              <button
-                type="button"
-                className={docFilter === "results" ? styles.docChipActive : styles.docChip}
-                onClick={() => setDocFilter("results")}
-              >
-                {t("company.docs.results", { count: resultsDocCount })}
-              </button>
-            </div>
-            <button
-              type="button"
-              className={styles.btnOutline}
-              onClick={() => void refreshDocuments()}
-              disabled={docsRefreshing}
-            >
-              {docsRefreshing ? t("company.docs.refreshing") : t("company.docs.refresh")}
-            </button>
-          </div>
-          {docsRefreshNote ? <p className={styles.docNote}>{docsRefreshNote}</p> : null}
-          {visibleDocuments.length === 0 ? (
-            <p className={styles.empty}>
-              {documents.length === 0 ? t("company.docs.empty") : t("company.docs.noResults")}
-            </p>
-          ) : (
-            <div className={styles.tableWrap}>
-              <table className={styles.docsTable}>
-                <thead>
-                  <tr>
-                    <th scope="col">{t("company.docs.published")}</th>
-                    <th scope="col">{t("company.docs.type")}</th>
-                    <th scope="col">{t("company.docs.period")}</th>
-                    <th scope="col">{t("company.docs.heading")}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {visibleDocuments.map((d) => {
-                    const label = d.filename || d.title || d.url;
-                    return (
-                      <tr key={d.id} className={d.kind === "results" ? styles.docResultRow : undefined}>
-                        <td>{d.publishedAt ?? nd}</td>
-                        <td>{d.docType ?? nd}</td>
-                        <td>{d.periodLabel ?? nd}</td>
-                        <td>
-                          <a href={d.url} target="_blank" rel="noopener noreferrer">
-                            {label}
-                          </a>
-                          {d.kind === "results" ? (
-                            <span className={styles.docBadge}>{t("company.docs.resultsBadge")}</span>
-                          ) : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </section>
-      )}
     </div>
   );
 }

@@ -14,12 +14,9 @@ export const company = {
   tabsAria: "Company profile sections",
   tabs: {
     overview: "Overview",
-    charts: "Charts",
+    charts: "Chart analysis",
     projection: "🔮 Future projection",
     comparison: "⚖️ Comparison",
-    societe: "Company",
-    actualites: "News",
-    documents: "Documents",
   },
   ranges: {
     "1M": "1M",
@@ -168,7 +165,7 @@ export const company = {
     title: "Interims",
     meta: "quarterly / half-year · NBI, net income",
     empty:
-      "No structured interim figures in the database for {ticker} (N/D). Interim reports are not yet collected consistently — official filings stay in the Documents tab (Results filter).",
+      "No structured interim figures in the database for {ticker} (N/D). Interim reports are not yet collected consistently.",
   },
   health: {
     title: "Financial health",
