@@ -349,7 +349,78 @@
   border: 0;
 }
 
+.chart {
+  width: 100%;
+  height: 220px;
+  margin: 4px 0 12px;
+  min-width: 0;
+}
+
+.rangeBlock {
+  margin: 4px 0 12px;
+}
+
+.range {
+  position: relative;
+  height: 28px;
+}
+
+.rangeTrack,
+.rangeBand {
+  position: absolute;
+  top: 10px;
+  height: 8px;
+  border-radius: 999px;
+}
+
+.rangeTrack {
+  left: 0;
+  right: 0;
+  background: color-mix(in srgb, var(--c-border) 75%, transparent);
+}
+
+.rangeBand {
+  background: var(--c-gold-soft);
+  border: 1px solid var(--c-gold);
+  box-sizing: border-box;
+}
+
+.rangeTick,
+.rangeMark {
+  position: absolute;
+  top: 4px;
+  width: 2px;
+  height: 20px;
+  transform: translateX(-1px);
+}
+
+.rangeTick {
+  background: var(--c-gold);
+}
+
+.rangeMark {
+  background: var(--c-text);
+}
+
+.rangeCaption {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--c-textdim);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.peerLink {
+  color: var(--c-gold);
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
+  .chart {
+    height: 200px;
+  }
+
   .stepButton {
     padding: 12px;
   }

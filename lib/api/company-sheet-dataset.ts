@@ -35,6 +35,7 @@ import {
 } from "@/lib/ingestion/connectors/ouestbourse_supabase";
 import { companyDocumentKind, type CompanyDocumentKind } from "@/lib/ingestion/document-kinds";
 import { parseOutlook, type OutlookSynthesis } from "@/lib/outlook/synthesis";
+import { collapseCanonicalRatios, type AnnualRatioPoint, type RatioHistoryRow } from "@/lib/fundamental/ratio-history";
 
 function mdFromFcfa(v: number | null | undefined): number | null {
   if (v == null || !Number.isFinite(v) || v === 0) return null;
@@ -106,6 +107,47 @@ async function loadIncomeStatementSeries(
   return [...byYear.values()].filter(hasAnyIncome).sort((a, b) => a.year - b.year);
 }
 
+function ratioNumber(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Historique canonique de la société affichée. Échec de lecture → liste vide (N/D), jamais une valeur inventée. */
+async function loadCanonicalRatioHistory(companyId: string | undefined): Promise<AnnualRatioPoint[]> {
+  if (!companyId) return [];
+  try {
+    const rows = await prisma.financialRatio.findMany({
+      where: { companyId, isCanonical: true },
+      select: {
+        year: true,
+        source: true,
+        per: true,
+        pbRatio: true,
+        roe: true,
+        netMargin: true,
+        debtRatio: true,
+        revenueGrowth: true,
+        fcf: true,
+      },
+    });
+    const mapped: RatioHistoryRow[] = rows.map((row) => ({
+      year: row.year,
+      source: row.source,
+      per: ratioNumber(row.per),
+      pbRatio: ratioNumber(row.pbRatio),
+      roe: ratioNumber(row.roe),
+      netMargin: ratioNumber(row.netMargin),
+      debtRatio: ratioNumber(row.debtRatio),
+      revenueGrowth: ratioNumber(row.revenueGrowth),
+      fcf: ratioNumber(row.fcf),
+    }));
+    return collapseCanonicalRatios(mapped);
+  } catch {
+    return [];
+  }
+}
+
 export interface SheetPerformance {
   oneMonth: number | null;
   threeMonths: number | null;
@@ -174,6 +216,8 @@ export interface CompanySheetPayload {
   dividendSchedule: EnrichedDividendRow[];
   /** Série annuelle CA / résultat net / résultat d'exploitation (Md FCFA). */
   incomeStatement: AnnualIncomePoint[];
+  /** Ratios canoniques par exercice (PER, PBR, ROE…), une ligne par année. */
+  ratioHistory: AnnualRatioPoint[];
 }
 
 function stripOutlook(meta: CompanyProfileMeta | null): CompanyProfileMeta | null {
@@ -580,9 +624,10 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     impliedAbs ??
     (last && prev ? Math.round((last.value - prev.value) * 100) / 100 : null);
 
-  const [rawDividends, incomeStatement] = await Promise.all([
+  const [rawDividends, incomeStatement, ratioHistory] = await Promise.all([
     dbCompany ? loadEnrichedDividendsForCompany(dbCompany.id) : Promise.resolve([]),
     loadIncomeStatementSeries(dbCompany?.id, t),
+    loadCanonicalRatioHistory(dbCompany?.id),
   ]);
   const dividendSchedule = rawDividends.map((row) => ({
     ...row,
@@ -684,5 +729,6 @@ export async function getCompanySheetPayload(ticker: string): Promise<CompanyShe
     })),
     dividendSchedule,
     incomeStatement,
+    ratioHistory,
   };
 }
