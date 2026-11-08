@@ -23,6 +23,8 @@ export {
   type PortfolioTypeDef,
 } from "./catalog";
 
+export { portfolioTypeForCompanySheet } from "./sheet-preference";
+
 export {
   frameCompanyForPortfolioType,
   keyTermSlugsForType,

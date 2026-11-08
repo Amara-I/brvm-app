@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { calcMetrics, type CalcMetricsInput } from "@/lib/calc/calc-metrics";
 import {
   COMMON_PORTFOLIO_RULES,
+  DEFAULT_PORTFOLIO_TYPE,
   PORTFOLIO_TYPE_COMPARISON_ROWS,
   PORTFOLIO_TYPE_IDS,
   coercePortfolioType,
@@ -10,6 +11,7 @@ import {
   keyTermSlugsForType,
   overviewScorecardForType,
   parsePortfolioType,
+  portfolioTypeForCompanySheet,
 } from "./index";
 import { getTermBySlug, getThemeBySlug, termsByTheme } from "@/lib/education/catalog";
 import { PORTFOLIO_TYPE_ARTICLE_BLOCKS } from "@/lib/education/portfolio-type-articles";
@@ -24,6 +26,14 @@ const baseInput: CalcMetricsInput = {
 };
 
 describe("portfolio types", () => {
+  it("fiche société : préférence profil, sinon Croissance, sans lire le stockage navigateur", () => {
+    expect(portfolioTypeForCompanySheet("RENTE")).toBe("RENTE");
+    expect(portfolioTypeForCompanySheet("CROISSANCE_MAX")).toBe("CROISSANCE_MAX");
+    expect(portfolioTypeForCompanySheet(null)).toBe(DEFAULT_PORTFOLIO_TYPE);
+    expect(portfolioTypeForCompanySheet(undefined)).toBe("CROISSANCE");
+    expect(portfolioTypeForCompanySheet("inconnu")).toBe("CROISSANCE");
+  });
+
   it("parse les quatre identifiants et refuse le reste", () => {
     expect(PORTFOLIO_TYPE_IDS).toEqual(["CROISSANCE", "RENTE", "TRADING", "CROISSANCE_MAX"]);
     expect(parsePortfolioType("RENTE")).toBe("RENTE");
