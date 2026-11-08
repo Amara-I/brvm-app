@@ -44,7 +44,7 @@ const WIDTH = 640;
 const HEIGHT = 300;
 const PAD_X = 12;
 const PAD_Y = 22;
-const LABEL_GAP = 28;
+const LABEL_GAP = 46;
 
 function yOf(price: number, min: number, max: number): number {
   const span = max - min || 1;
@@ -89,7 +89,7 @@ export function scenarioChartModel(
     draft.push(mark);
   };
 
-  for (const zone of zones.filter((z) => z.kind === "support" || z.kind === "resistance").slice(0, 3)) {
+  for (const zone of zones.filter((z) => z.kind === "support" || z.kind === "resistance").slice(0, 2)) {
     if (!near(zone.mid) && !near(zone.low) && !near(zone.high)) continue;
     const y1 = yOf(zone.high, min, max);
     const y2 = yOf(zone.low, min, max);
@@ -110,7 +110,7 @@ export function scenarioChartModel(
     });
   }
 
-  for (const gap of gaps.filter((gap) => gap.status !== "filled").slice(-2)) {
+  for (const gap of gaps.filter((gap) => gap.status !== "filled").slice(-1)) {
     if (!near(gap.low) && !near(gap.high)) continue;
     const y1 = yOf(gap.high, min, max);
     const y2 = yOf(gap.low, min, max);

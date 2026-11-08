@@ -1464,7 +1464,7 @@ export default function TradingChart({
       });
       const tops = stackLabelYs(
         visible.map((row) => row.y),
-        18,
+        22,
         10,
         height - 10
       );
