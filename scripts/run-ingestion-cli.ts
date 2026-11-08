@@ -1,10 +1,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 // CLI d'exécution manuelle de l'ingestion complète — étape 6
 // ═══════════════════════════════════════════════════════════════════════════
-// Appelle exactement la même fonction que la route cron
-// (`app/api/cron/ingest/route.ts`) : utile pour un rattrapage manuel après
-// incident (site source down le jour J, cron Vercel en échec...), ou pour
-// tester l'ingestion en local sans passer par `next dev` + un appel HTTP.
+// Appelle `runFullIngestion`, le cœur de la route cron
+// (`app/api/cron/ingest/route.ts`). La route HTTP enchaîne ensuite l'agent
+// financier et le lot additif ; ce CLI ne lance que l'ingestion, pour un
+// rattrapage de cours. Utile après un incident ou en local sans `next dev`.
 //
 // Usage : npx ts-node scripts/run-ingestion-cli.ts
 // Nécessite une DATABASE_URL réelle (PostgreSQL) dans l'environnement.

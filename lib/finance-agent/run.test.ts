@@ -46,3 +46,18 @@ it("l’extraction est enregistrée uniquement comme proposition non canonique",
     providerOptions: { gateway: { only: ["provider"], tags: ["ouestbourse-finance-agent"] } } }));
   // Le contrat du job n’a aucune primitive de création/update de prix ou comptes dans la base simulée.
 });
+it("un délai trop court saute l'IA, sans appel modèle ni rotation du curseur", async () => {
+  const db = fakeDb();
+  const result = await runFinanceAgent(db as unknown as PrismaClient, { deadlineMs: Date.now() + 8_000 });
+  expect(result.aiStatus).toBe("SKIPPED_TIME_BUDGET");
+  expect(m.generate).not.toHaveBeenCalled();
+  expect(m.reserve).not.toHaveBeenCalled();
+  expect(db.ingestionLog.create).not.toHaveBeenCalled();
+});
+it("un délai déjà épuisé ne touche pas la base", async () => {
+  const db = fakeDb();
+  const result = await runFinanceAgent(db as unknown as PrismaClient, { deadlineMs: Date.now() - 1 });
+  expect(result.aiStatus).toBe("SKIPPED_TIME_BUDGET");
+  expect(result.enabled).toBe(true);
+  expect(db.company.findMany).not.toHaveBeenCalled();
+});
