@@ -13,7 +13,7 @@ Cadre issu de `requirements_agent_app_designer.md`. L'agent **propose** ; il n'a
 ## Activation
 
 1. `.env` : `RESEARCH_AGENT_ENABLED=true` (optionnel : `RESEARCH_SEARCH_API_KEY` SerpAPI)
-2. Cron Vercel : `GET /api/cron/research` chaque jour à **06:00 UTC** (`vercel.json`)
+2. Cron Vercel : `GET /api/cron/research` le lundi à **06:00 UTC** (`vercel.json`). Le même appel est le point d'extension de l'e-mail hebdomadaire de propositions de portefeuille.
 3. En local : `npm run research:run` (veille + brouillons propositions)
 
 ## Commandes
