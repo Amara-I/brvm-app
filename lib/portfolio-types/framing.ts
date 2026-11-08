@@ -214,11 +214,11 @@ export function frameCompanyForPortfolioType(input: {
   const ctas: PortfolioTypeCta[] = [
     ...def.ctas,
     {
-      href: `/outils/taille-position?ticker=${encodeURIComponent(ticker)}`,
-      label: "Taille de position",
+      href: "/education/taille-position",
+      label: "Leçon : taille de position",
     },
   ];
-  // Éviter un doublon si le type Trading a déjà la calculette sans ticker.
+  // La taille suggérée vit dans l'analyse de portefeuille. La fiche garde la leçon.
   const seen = new Set<string>();
   const deduped = ctas.filter((c) => {
     const key = c.label;

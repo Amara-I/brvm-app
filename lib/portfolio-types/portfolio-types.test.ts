@@ -63,7 +63,8 @@ describe("portfolio types", () => {
     expect(framed.metrics.some((m) => m.label === "Risque (volatilité)")).toBe(true);
     expect(framed.metrics.every((m) => m.value !== "" && m.value != null)).toBe(true);
     expect(framed.warnings.some((w) => /liquidité/i.test(w))).toBe(true);
-    expect(framed.ctas.some((c) => c.href.includes("taille-position"))).toBe(true);
+    expect(framed.ctas.some((c) => c.href === "/education/taille-position")).toBe(true);
+    expect(framed.ctas.some((c) => c.href.includes("/outils/taille-position"))).toBe(false);
     expect(framed.disclaimer).toMatch(/pas un conseil/i);
   });
 

@@ -160,6 +160,47 @@ export const auth = {
     adminTitle: "Administration",
     adminLead: "Your account has the administrator role.",
     openAnalytics: "Open analytics",
+    investorTitle: "Investor profile",
+    investorLead:
+      "Age, horizon, capacity, loss tolerance and objective set the risk per position (1% to 2% of capital) and the indicative caps. Stock scores do not change.",
+    investorSave: "Save criteria",
+    investorSaved: "Criteria saved.",
+    investorFailed: "The criteria could not be saved.",
+    investorMigration:
+      "These criteria will be saved after the investor_profiles migration (included, not applied in production yet).",
+    age: "Age",
+    horizon: "Investment horizon",
+    capacity: "Capacity to invest",
+    loss: "Loss tolerance",
+    objective: "Objective",
+    capital: "Declared investable capital (FCFA)",
+    capitalHint: "Leave empty: the analysis uses the portfolio market value.",
+    risk: "Maximum risk per position (%)",
+    riskHint: "Between 0.5 and 2. Leave empty: derived from the criteria (1% to 2%).",
+    derivedRisk: "Derived guide: {percent}%",
+    unset: "Not set",
+    horizons: {
+      MOINS_1_AN: "Under 1 year",
+      UN_A_3_ANS: "1 to 3 years",
+      TROIS_A_7_ANS: "3 to 7 years",
+      PLUS_7_ANS: "Beyond 7 years",
+    },
+    capacities: {
+      MODESTE: "Modest — avoid concentration",
+      INTERMEDIAIRE: "Intermediate — regular saving",
+      ELEVEE: "High — comfortable capacity versus the lines you want",
+    },
+    losses: {
+      FAIBLE: "Low",
+      MODEREE: "Moderate",
+      ELEVEE: "High",
+    },
+    objectives: {
+      PRESERVATION: "Preserve capital",
+      REVENU: "Receive income",
+      CROISSANCE: "Grow capital",
+      CROISSANCE_AGRESSIVE: "Aggressive growth",
+    },
     types: {
       croissance: {
         label: "Growth",

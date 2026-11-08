@@ -24,6 +24,7 @@ import {
   allocationTickersCol,
 } from "@/components/portfolio/PortfolioPageParts";
 import EmptyState from "@/components/ui/EmptyState";
+import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import type { UserPortfoliosWithMetrics } from "@/lib/api/portfolio-data";
 import type { PortfolioTradeRow } from "@/lib/api/portfolio-trades";
@@ -216,6 +217,9 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
         title={t("portfolio.page.title")}
         actions={
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <Link href="/portefeuille/analyse" className="ob-btn-secondary">
+              {t("portfolio.analysis.open")}
+            </Link>
             <CreatePortfolioButton onCreated={reloadFromApi} />
             <PortfolioDiscreteControls
               discrete={discrete}

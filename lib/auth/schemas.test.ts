@@ -4,6 +4,7 @@ import {
   forgotPasswordSchema,
   registerSchema,
   resetPasswordSchema,
+  investorProfileSchema,
   updateProfileSchema,
 } from "./schemas";
 
@@ -43,6 +44,23 @@ describe("profile schemas", () => {
     expect(updateProfileSchema.safeParse({ preferredPortfolioType: "RENTE" }).success).toBe(true);
     expect(updateProfileSchema.safeParse({ preferredPortfolioType: "NOPE" }).success).toBe(false);
     expect(updateProfileSchema.safeParse({ preferredPortfolioType: null }).success).toBe(true);
+  });
+
+  it("accepte les critères investisseur et refuse un âge ou un taux hors borne", () => {
+    expect(
+      investorProfileSchema.safeParse({
+        age: 42,
+        horizon: "TROIS_A_7_ANS",
+        capacity: "INTERMEDIAIRE",
+        lossTolerance: "MODEREE",
+        objective: "CROISSANCE",
+        riskPerPositionPct: 1.5,
+      }).success
+    ).toBe(true);
+    expect(investorProfileSchema.safeParse({}).success).toBe(false);
+    expect(investorProfileSchema.safeParse({ age: 12 }).success).toBe(false);
+    expect(investorProfileSchema.safeParse({ riskPerPositionPct: 5 }).success).toBe(false);
+    expect(investorProfileSchema.safeParse({ age: null }).success).toBe(true);
   });
 
   it("valide un nouveau mot de passe", () => {
