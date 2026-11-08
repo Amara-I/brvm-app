@@ -1515,6 +1515,7 @@ export default function CompanySheetClient({
             dividendSchedule: payload.dividendSchedule,
             outlook,
             series,
+            ratioHistory: payload.ratioHistory,
             description,
             isin,
             listedSince,

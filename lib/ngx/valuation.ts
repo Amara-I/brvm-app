@@ -264,7 +264,7 @@ export interface ValuationSummary {
   methods: number;
 }
 
-export function summarizeValuation(price: number | null, estimates: readonly FairValueEstimate[]): ValuationSummary {
+export function summarizeValuation(price: number | null, estimates: readonly { value: number }[]): ValuationSummary {
   if (!finite(price) || estimates.length === 0) {
     return {
       verdict: "UNKNOWN",
