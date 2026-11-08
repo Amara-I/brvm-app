@@ -1,0 +1,176 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.note {
+  margin: 0;
+  color: var(--c-textdim);
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+
+.kpi {
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--c-gold) 22%, var(--c-border));
+  border-radius: 12px;
+  background: var(--c-panel);
+}
+
+.kpi span {
+  display: block;
+  color: var(--c-textdim);
+  font-size: 0.75rem;
+}
+
+.kpi strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--c-text);
+  font-size: 1.05rem;
+}
+
+.grid2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 860px) {
+  .grid2 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.card h2,
+.sectionTitle {
+  margin: 0 0 8px;
+  color: var(--c-text);
+  font-size: 1.02rem;
+}
+
+.dl {
+  display: grid;
+  grid-template-columns: minmax(8rem, 40%) 1fr;
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.dl dt {
+  color: var(--c-textdim);
+  font-size: 0.78rem;
+}
+
+.dl dd {
+  margin: 0;
+  color: var(--c-text);
+  font-size: 0.86rem;
+}
+
+.tableWrap {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.table th,
+.table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--c-border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.table th {
+  color: var(--c-textdim);
+  font-weight: 650;
+}
+
+.wrap {
+  white-space: normal;
+  min-width: 14rem;
+}
+
+.illiquid td {
+  background: color-mix(in srgb, var(--c-red) 10%, transparent);
+}
+
+.badge,
+.badgeWarn,
+.badgeOk,
+.badgeStop {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.badge {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-gold) 18%, transparent);
+}
+
+.badgeWarn {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-red) 18%, transparent);
+}
+
+.badgeOk {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-green) 18%, transparent);
+}
+
+.badgeStop {
+  color: var(--c-text);
+  background: color-mix(in srgb, var(--c-gold) 28%, transparent);
+}
+
+.proposal {
+  padding: 12px 14px;
+  border-left: 3px solid var(--c-gold);
+  border-radius: 10px;
+  background: var(--c-panel);
+}
+
+.proposal h3 {
+  margin: 0 0 4px;
+  font-size: 0.95rem;
+}
+
+.proposal p,
+.list {
+  margin: 4px 0 0;
+  color: var(--c-textdim);
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.list {
+  padding-left: 1.1rem;
+}
+
+.formula {
+  margin: 6px 0 0;
+  color: var(--c-textdim);
+  font-size: 0.75rem;
+  white-space: normal;
+}

@@ -163,6 +163,47 @@ export const auth = {
     adminTitle: "Administration",
     adminLead: "Votre compte a le rôle administrateur.",
     openAnalytics: "Ouvrir l’analytique",
+    investorTitle: "Profil investisseur",
+    investorLead:
+      "Âge, horizon, capacité, tolérance aux pertes et objectif règlent le risque par position (1 % à 2 % du capital) et les plafonds indicatifs. Le score des titres ne change pas.",
+    investorSave: "Enregistrer les critères",
+    investorSaved: "Critères enregistrés.",
+    investorFailed: "Les critères n’ont pas pu être enregistrés.",
+    investorMigration:
+      "Ces critères seront enregistrés après la migration investor_profiles (livrée, pas encore appliquée en production).",
+    age: "Âge",
+    horizon: "Horizon d’investissement",
+    capacity: "Capacité à investir",
+    loss: "Tolérance aux pertes",
+    objective: "Objectif",
+    capital: "Capital investissable déclaré (FCFA)",
+    capitalHint: "Laissé vide : l’analyse utilise la valeur de marché du portefeuille.",
+    risk: "Risque max par position (%)",
+    riskHint: "Entre 0,5 et 2. Laissé vide : dérivé des critères (1 % à 2 %).",
+    derivedRisk: "Repère dérivé : {percent} %",
+    unset: "Non renseigné",
+    horizons: {
+      MOINS_1_AN: "Moins d’un an",
+      UN_A_3_ANS: "1 à 3 ans",
+      TROIS_A_7_ANS: "3 à 7 ans",
+      PLUS_7_ANS: "Plus de 7 ans",
+    },
+    capacities: {
+      MODESTE: "Modeste — éviter de concentrer",
+      INTERMEDIAIRE: "Intermédiaire — épargne régulière",
+      ELEVEE: "Élevée — capacité confortable face aux lignes visées",
+    },
+    losses: {
+      FAIBLE: "Faible",
+      MODEREE: "Modérée",
+      ELEVEE: "Élevée",
+    },
+    objectives: {
+      PRESERVATION: "Préserver le capital",
+      REVENU: "Percevoir des revenus",
+      CROISSANCE: "Faire croître le capital",
+      CROISSANCE_AGRESSIVE: "Croissance agressive",
+    },
     types: {
       croissance: {
         label: "Croissance",

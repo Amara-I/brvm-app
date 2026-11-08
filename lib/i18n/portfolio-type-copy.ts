@@ -153,7 +153,7 @@ const EN: Record<PortfolioTypeId, Overlay> = {
       "Size the position from risk (capital × maximum risk / invalidation distance), not from how many shares you like.",
       "Start small; increase size only after steady performance net of fees.",
     ],
-    ctaLabels: ["Trading guide", "Position size calculator", "Charts (trend, volume)"],
+    ctaLabels: ["Trading guide", "Portfolio analysis", "Charts (trend, volume)"],
     allocation: [
       { component: "Trading positions", allocation: "60% of the trading portfolio" },
       { component: "Available cash", allocation: "30%" },
@@ -225,6 +225,8 @@ const EXTRA_CTA_EN: Record<string, string> = {
   "Screener (dividendes)": "Screener (dividends)",
   "Guide Trading": "Trading guide",
   "Calculette taille de position": "Position size calculator",
+  "Analyse de portefeuille": "Portfolio analysis",
+  "Leçon : taille de position": "Position-size lesson",
   "Graphes (tendance, volumes)": "Charts (trend, volume)",
   "Guide Croissance Max": "Max Growth guide",
   "Règles communes": "Shared rules",

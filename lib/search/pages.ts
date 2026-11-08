@@ -119,6 +119,16 @@ const GLOBAL_PAGES: SiteSearchDocument[] = [
     keywords: ["portefeuille", "portfolio", "positions", "pru"],
   },
   {
+    id: "page:portfolio-analysis",
+    kind: "page",
+    title: "Analyse de portefeuille",
+    titleEn: "Portfolio analysis",
+    subtitle: "Taille de position",
+    subtitleEn: "Position size",
+    href: "/portefeuille/analyse",
+    keywords: ["analyse", "portefeuille", "taille", "position", "risque", "liquidite", "analysis", "sizing"],
+  },
+  {
     id: "page:simulation",
     kind: "page",
     title: "Simulation",

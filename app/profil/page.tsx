@@ -3,11 +3,14 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import PageHeader from "@/components/ui/PageHeader";
 import ProfileClient from "@/components/profile/ProfileClient";
+import InvestorProfileForm from "@/components/profile/InvestorProfileForm";
 import NotificationPrefsForm from "@/components/notifications/NotificationPrefsForm";
 import profileStyles from "@/components/profile/Profile.module.css";
 import { getCurrentUser } from "@/lib/auth/get-current-user";
 import { isAdminRoleOrEmail } from "@/lib/auth/admin-emails";
 import { parsePortfolioType } from "@/lib/portfolio-types";
+import { EMPTY_INVESTOR_CRITERIA, type InvestorCriteria } from "@/lib/portfolio-analysis/criteria";
+import { isMissingInvestorProfileTable } from "@/lib/portfolio-analysis/missing-table";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { C } from "@/lib/theme/colors";
@@ -60,6 +63,28 @@ export default async function ProfilPage({
   const { t } = getI18n();
   const email = dbUser?.email ?? sessionUser?.email ?? "N/D";
   const mailNotice = searchParams.verify === "sent" ? t("auth.profile.verifySent") : null;
+  const preferredPortfolioType = parsePortfolioType(dbUser?.preferredPortfolioType);
+
+  let investor: InvestorCriteria = { ...EMPTY_INVESTOR_CRITERIA, portfolioType: preferredPortfolioType };
+  let investorTableReady = true;
+  try {
+    const row = await prisma.investorProfile.findUnique({ where: { userId: sessionUser.id } });
+    if (row) {
+      investor = {
+        age: row.age,
+        horizon: row.horizon,
+        capacity: row.capacity,
+        lossTolerance: row.lossTolerance,
+        objective: row.objective,
+        portfolioType: preferredPortfolioType,
+        investableCapitalFcfa: row.investableCapitalFcfa != null ? Number(row.investableCapitalFcfa) : null,
+        riskPerPositionPct: row.riskPerPositionPct != null ? Number(row.riskPerPositionPct) : null,
+      };
+    }
+  } catch (error) {
+    if (isMissingInvestorProfileTable(error)) investorTableReady = false;
+    else if (!isDatabaseUnavailable(error)) throw error;
+  }
 
   return (
     <AppHeader>
@@ -75,10 +100,13 @@ export default async function ProfilPage({
               role: dbUser?.role ?? sessionUser?.role,
               email,
             }),
-            preferredPortfolioType: parsePortfolioType(dbUser?.preferredPortfolioType),
+            preferredPortfolioType,
           }}
           mailNotice={mailNotice}
         />
+        <div style={{ marginTop: 16 }}>
+          <InvestorProfileForm initial={investor} tableReady={investorTableReady} />
+        </div>
 
         <p style={{ margin: "18px 0 0" }}>
           <Link href="/notifications" style={{ color: C.gold, fontWeight: 700, fontSize: "0.84rem" }}>

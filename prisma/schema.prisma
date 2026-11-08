@@ -150,6 +150,42 @@ enum PortfolioType {
   @@map("portfolio_type")
 }
 
+/// Horizon déclaré au profil investisseur (distinct de l'horizon d'une ligne).
+enum InvestorHorizon {
+  MOINS_1_AN
+  UN_A_3_ANS
+  TROIS_A_7_ANS
+  PLUS_7_ANS
+
+  @@map("investor_horizon")
+}
+
+/// Capacité à investir, en tranche qualitative — pas un revenu inventé.
+enum InvestorCapacity {
+  MODESTE
+  INTERMEDIAIRE
+  ELEVEE
+
+  @@map("investor_capacity")
+}
+
+enum InvestorLossTolerance {
+  FAIBLE
+  MODEREE
+  ELEVEE
+
+  @@map("investor_loss_tolerance")
+}
+
+enum InvestorObjective {
+  PRESERVATION
+  REVENU
+  CROISSANCE
+  CROISSANCE_AGRESSIVE
+
+  @@map("investor_objective")
+}
+
 /// Jetons one-shot pour confirmation d'email et réinitialisation de mot de passe.
 /// Stockés hachés (SHA-256) — le secret brut n'existe que dans le lien email.
 enum AuthTokenType {
@@ -737,6 +773,7 @@ model User {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
+  investorProfile InvestorProfile?
   accounts   Account[]
   sessions   Session[]
   portfolios Portfolio[]
@@ -748,6 +785,29 @@ model User {
   authTokens    AuthToken[]
 
   @@map("users")
+}
+
+/// Critères du profil investisseur, en plus du type de portefeuille préféré.
+/// Données déclarées par la personne (âge inclus) — servent au dimensionnement
+/// et aux plafonds indicatifs. N'altèrent ni les cours ni le score des titres.
+/// Table absente tant que la migration n'est pas appliquée : l'analyse
+/// retombe alors sur un profil vide (risque 1 %).
+model InvestorProfile {
+  userId     String                  @id @map("user_id")
+  user       User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  age        Int?
+  horizon    InvestorHorizon?
+  capacity   InvestorCapacity?
+  lossTolerance InvestorLossTolerance? @map("loss_tolerance")
+  objective  InvestorObjective?
+  /// Capital que la personne déclare pouvoir engager, en FCFA.
+  /// Null : l'analyse utilise la valeur de marché du portefeuille.
+  investableCapitalFcfa Decimal?     @map("investable_capital_fcfa") @db.Decimal(18, 2)
+  /// Risque max par position, en % du capital (0,5 à 2). Null = dérivé du profil.
+  riskPerPositionPct    Decimal?     @map("risk_per_position_pct") @db.Decimal(4, 2)
+  updatedAt  DateTime                @updatedAt @map("updated_at")
+
+  @@map("investor_profiles")
 }
 
 /// Table standard NextAuth.js pour les comptes OAuth liés (ex: Google).

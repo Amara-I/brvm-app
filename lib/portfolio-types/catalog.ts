@@ -203,7 +203,7 @@ export const PORTFOLIO_TYPE_DEFS: Record<PortfolioTypeId, PortfolioTypeDef> = {
     ],
     ctas: [
       { href: EDU("portefeuille-trading"), label: "Guide Trading" },
-      { href: "/outils/taille-position", label: "Calculette taille de position" },
+      { href: "/portefeuille/analyse", label: "Analyse de portefeuille" },
       { href: "/graphes", label: "Graphes (tendance, volumes)" },
     ],
     allocation: [
