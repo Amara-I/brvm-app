@@ -2,6 +2,7 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import NgxMarketBoard from "@/components/ngx/NgxMarketBoard";
+import NgxRefreshControl from "@/components/ngx/NgxRefreshControl";
 import { ngxSectorLabel } from "@/components/ngx/ngx-labels";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import ChangeValue from "@/components/ui/ChangeValue";
@@ -43,6 +44,7 @@ export default async function NgxMarketPage() {
     <AppHeader>
       <div className="ob-page">
         <PageHeader kicker={t("ngx.market.kicker")} title={t("ngx.market.title")} lead={t("ngx.market.lead")} />
+        <NgxRefreshControl />
         <div className={styles.kpis}>
           <div className={styles.kpi}>
             <span>{t("ngx.market.kpiListed")}</span>

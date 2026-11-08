@@ -1,3 +1,37 @@
+.refreshBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -8px 0 18px;
+  padding: 10px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-panel);
+}
+
+.refreshStatus {
+  color: var(--c-text-dim);
+  font-size: 0.78rem;
+}
+
+.refreshButton {
+  border: 1px solid var(--c-gold);
+  border-radius: 8px;
+  background: var(--c-gold);
+  color: #151515;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.refreshButton:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
 .kpis {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
