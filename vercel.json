@@ -17,19 +17,19 @@
     },
     {
       "path": "/api/cron/enrich-history?exchange=BRVM&kind=history&apply=1&limit=5",
-      "schedule": "5,25,45 * * * *"
+      "schedule": "5 3 * * *"
     },
     {
       "path": "/api/cron/enrich-history?exchange=NGX&kind=history&apply=1&limit=3",
-      "schedule": "15,35,55 * * * *"
+      "schedule": "15 3 * * *"
     },
     {
       "path": "/api/cron/enrich-history?exchange=BRVM&kind=publications&apply=1&limit=2",
-      "schedule": "10 * * * *"
+      "schedule": "10 4 * * *"
     },
     {
       "path": "/api/cron/enrich-history?exchange=NGX&kind=publications&apply=1&limit=5",
-      "schedule": "40 * * * *"
+      "schedule": "40 4 * * *"
     }
   ]
 }
