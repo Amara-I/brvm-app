@@ -16,6 +16,7 @@ import {
 } from "@/lib/charts/contiguous-lookback";
 import type { CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
+import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
 import {
   fetchRichbourseCloseSeries,
   seriesNeedsDensification,
@@ -323,15 +324,18 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     );
   }
   const years = [...yearsSet].sort((a, b) => a - b);
-  const metrics = calcMetrics({
-    years,
-    prices: pricesByYear,
-    dividends: dividendsByYear,
-    per: ratio?.per != null ? Number(ratio.per) : 0,
-    mktcap: ratio?.mktCap != null ? Number(ratio.mktCap) : undefined,
-    sector: company.sector?.name,
-    closes: series,
-  });
+  const metrics = applyTechnicalSignal(
+    calcMetrics({
+      years,
+      prices: pricesByYear,
+      dividends: dividendsByYear,
+      per: ratio?.per != null ? Number(ratio.per) : 0,
+      mktcap: ratio?.mktCap != null ? Number(ratio.mktCap) : undefined,
+      sector: company.sector?.name,
+      closes: series,
+    }),
+    series
+  );
 
   const lastDb = dbSeries[dbSeries.length - 1] ?? null;
   const dbSources = [

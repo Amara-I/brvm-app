@@ -18,6 +18,7 @@ import {
   type MouseEventParams,
 } from "lightweight-charts";
 import { closesToCandles, computeSma, type ChartClosePoint } from "@/lib/charts/indicators";
+import type { ChartLevelLine } from "@/lib/technical-analysis/chart-lines";
 import { flatPriceBounds } from "@/lib/charts/sparse-series";
 import { type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import {
@@ -166,6 +167,7 @@ const EMPTY_SPLIT_MARKERS: Array<{ effectiveDate: string; label: string }> = [];
  * La boucle affamait les navigations du menu sur les fiches NGX (NgxChart ne passe pas compareSeries).
  */
 const EMPTY_COMPARE_SERIES: Array<{ id: string; color: string; points: ChartClosePoint[] }> = [];
+const EMPTY_LEVEL_LINES: ChartLevelLine[] = [];
 
 export interface TradingChartProps {
   /** Ticker pour persister les tracés (localStorage) entre les visites. */
@@ -222,6 +224,8 @@ export interface TradingChartProps {
   onDrawingsChange?: (drawings: ChartDrawing[]) => void;
   /** Appelé après application d'un `seedDrawings` (pour libérer le seed côté parent). */
   onSeedConsumed?: () => void;
+  /** Niveaux techniques (supports, résistances, FVG). Absents = graphe inchangé. */
+  levelLines?: ChartLevelLine[];
 }
 
 const DEFAULT_INDICATORS: ChartIndicatorsState = {
@@ -270,6 +274,7 @@ export default function TradingChart({
   drawingsSeedKey = 0,
   onDrawingsChange,
   onSeedConsumed,
+  levelLines = EMPTY_LEVEL_LINES,
 }: TradingChartProps) {
   const { t, format, locale } = useI18n();
   const fmt = (n: number) => priceText(n, format, priceDecimals);
@@ -1425,6 +1430,30 @@ export default function TradingChart({
     format,
     t,
   ]);
+
+  useEffect(() => {
+    const seriesApi = candleRef.current;
+    if (!seriesApi || percentScale || levelLines.length === 0) return;
+    const created = levelLines.map((line) =>
+      seriesApi.createPriceLine({
+        price: line.price,
+        color: line.color,
+        lineWidth: 1,
+        lineStyle: LineStyle.Dashed,
+        axisLabelVisible: line.title.length > 0,
+        title: line.title,
+      })
+    );
+    return () => {
+      for (const line of created) {
+        try {
+          seriesApi.removePriceLine(line);
+        } catch {
+          /* série déjà retirée avec le graphique */
+        }
+      }
+    };
+  }, [levelLines, series, percentScale]);
 
   if (series.length === 0) {
     return <div className={styles.empty}>{t("charts.overlay.insufficient")}</div>;

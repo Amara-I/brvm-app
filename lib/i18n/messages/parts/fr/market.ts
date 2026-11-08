@@ -94,7 +94,7 @@ export const market = {
   score: {
     title: "Comment le score est calculé",
     lead:
-      "Le score (0–100) combine un volet technique multi-horizons (court / moyen / long), un volet fondamental (dividendes, PER) et un garde-fou de risque (marché, liquidité, fondamental, opérationnel). Il se recalcule dès qu’un nouveau cours est en base (cron horaire, bouton « Actualiser », ou rechargement auto de la page). Il alimente le signal (ACHAT FORT / ACHAT / CONSERVER / ALLÉGER / VENDRE).",
+      "Le score (0–100) combine un volet technique multi-horizons (court / moyen / long), un volet fondamental (dividendes, PER) et un garde-fou de risque (marché, liquidité, fondamental, opérationnel). Il se recalcule dès qu’un nouveau cours est en base (cron horaire, bouton « Actualiser », ou rechargement auto de la page). Le score mesure la qualité de la société. Le signal (ACHAT FORT / ACHAT / CONSERVER / ALLÉGER / VENDRE) est un timing de court terme lu sur les cours : un bon score peut accompagner un signal VENDRE.",
     tech: "Technique multi-horizons",
     fundamental: "Fondamental",
     risk: "Risque inversé",
@@ -105,11 +105,11 @@ export const market = {
     fundamentalBody: "— rendement et régularité des dividendes, PER.",
     riskBody:
       "— plus le score de risque est bas, plus la contribution est favorable (VaR / drawdown / cap. / secteur quand disponibles).",
-    confidenceBody: "— historique court : les signaux extrêmes sont plafonnés.",
+    confidenceBody: "— historique court, indicateurs en désaccord ou titre peu liquide : les signaux forts sont plafonnés.",
     noteLead: "La",
     noteWord: "confiance",
     noteRest:
-      "({low} / {mid} / {high}) dépend de la profondeur d'historique de cours. Une confiance faible peut plafonner les signaux extrêmes. Analyse informative uniquement — ce n'est pas un conseil en investissement.",
+      "({low} / {mid} / {high}) reflète la fiabilité du signal technique : profondeur d'historique, accord des indicateurs et liquidité. Une confiance faible plafonne les signaux forts. Analyse informative uniquement — ce n'est pas un conseil en investissement.",
   },
   comingSoon: {
     marketTitle: "{market} — bientôt",

@@ -1009,6 +1009,16 @@
   overflow-wrap: break-word;
 }
 
+.warningNote {
+  margin: 8px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--c-red-soft);
+  color: var(--c-text);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
 .identity {
   margin: 0;
 }

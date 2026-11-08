@@ -19,6 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
 import { appendNgxExport } from "@/lib/calc/append-market-export";
 import { prisma } from "@/lib/prisma";
 import { apiError } from "@/lib/api/response";
@@ -132,7 +133,13 @@ export async function GET(request: NextRequest) {
     if (!old || price.date > old.date) latestPrice.set(price.companyId, price);
   }
   const idByTicker = new Map(companies.map((co) => [co.ticker, co.id]));
-  const buffer = appendNgxExport(buildBrvmWorkbook(rows.filter((r) => exchangeByTicker.get(r.ticker) === "BRVM"), years),
+  const sparkSeries = await getMarketSparkSeriesByTicker().catch(() => ({}));
+  const buffer = appendNgxExport(
+    buildBrvmWorkbook(
+      rows.filter((r) => exchangeByTicker.get(r.ticker) === "BRVM"),
+      years,
+      sparkSeries
+    ),
     rows.filter((r) => exchangeByTicker.get(r.ticker) === "NGX").map((r) => {
       const price = latestPrice.get(idByTicker.get(r.ticker)!);
       return { ...r, source: price?.source ?? null, priceAsOf: price?.date.toISOString().slice(0, 10) ?? null,

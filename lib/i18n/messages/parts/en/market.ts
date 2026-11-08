@@ -94,7 +94,7 @@ export const market = {
   score: {
     title: "How the score is calculated",
     lead:
-      "The score (0–100) combines a multi-horizon technical leg (short / medium / long), a fundamental leg (dividends, P/E) and a risk guardrail (market, liquidity, fundamentals, operations). It recalculates as soon as a new price is stored (hourly cron, the “Refresh” button, or an automatic page reload). It drives the signal (STRONG BUY / BUY / HOLD / REDUCE / SELL).",
+      "The score (0–100) combines a multi-horizon technical leg (short / medium / long), a fundamental leg (dividends, P/E) and a risk guardrail (market, liquidity, fundamentals, operations). It recalculates as soon as a new price is stored (hourly cron, the “Refresh” button, or an automatic page reload). The score rates company quality. The signal (STRONG BUY / BUY / HOLD / REDUCE / SELL) is short-term price timing: a high score can sit next to a SELL signal.",
     tech: "Multi-horizon technicals",
     fundamental: "Fundamentals",
     risk: "Inverted risk",
@@ -105,11 +105,11 @@ export const market = {
     fundamentalBody: "— dividend yield and dividend consistency, and P/E.",
     riskBody:
       "— the lower the risk score, the more it supports the result (VaR / drawdown / market cap / sector when available).",
-    confidenceBody: "— a short history caps extreme signals.",
+    confidenceBody: "— a short history, disagreeing indicators or a thinly traded name caps strong signals.",
     noteLead: "The",
     noteWord: "confidence level",
     noteRest:
-      "({low} / {mid} / {high}) depends on the depth of price history. Low confidence can cap extreme signals. For information only — this is not investment advice.",
+      "({low} / {mid} / {high}) reflects how reliable the technical signal is: history depth, indicator agreement and liquidity. Low confidence caps strong signals. For information only — this is not investment advice.",
   },
   comingSoon: {
     marketTitle: "{market} — coming soon",
