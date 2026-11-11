@@ -35,6 +35,7 @@ import {
 } from "@/lib/ingestion/connectors/ouestbourse_supabase";
 import { companyDocumentKind, type CompanyDocumentKind } from "@/lib/ingestion/document-kinds";
 import { parseOutlook, type OutlookSynthesis } from "@/lib/outlook/synthesis";
+import { mergeIncomeRowsBySource } from "@/lib/fundamental/income-merge";
 import { collapseCanonicalRatios, type AnnualRatioPoint, type RatioHistoryRow } from "@/lib/fundamental/ratio-history";
 
 function mdFromFcfa(v: number | null | undefined): number | null {
@@ -57,26 +58,31 @@ async function loadIncomeStatementSeries(
       const rows = await prisma.$queryRaw<
         Array<{
           year: number;
+          source: string | null;
           revenue: unknown;
           net_income: unknown;
           operating_income: unknown;
         }>
       >`
-        SELECT year, revenue, net_income, operating_income
+        SELECT year, source::text AS source, revenue, net_income, operating_income
         FROM financial_ratios
         WHERE company_id = ${companyId}
           AND is_canonical = true
           AND (revenue IS NOT NULL OR net_income IS NOT NULL OR operating_income IS NOT NULL)
         ORDER BY year ASC
       `;
-      for (const r of rows) {
-        byYear.set(Number(r.year), {
+      // Plusieurs lignes canoniques possibles par année (ex. SIKAFINANCE + MANUEL) :
+      // fusion champ par champ selon la priorité des sources, au lieu d'écraser.
+      const merged = mergeIncomeRowsBySource(
+        rows.map((r) => ({
           year: Number(r.year),
-          revenue: r.revenue != null ? Number(r.revenue) : null,
-          netIncome: r.net_income != null ? Number(r.net_income) : null,
-          operatingIncome: r.operating_income != null ? Number(r.operating_income) : null,
-        });
-      }
+          source: r.source,
+          revenue: r.revenue,
+          netIncome: r.net_income,
+          operatingIncome: r.operating_income,
+        }))
+      );
+      for (const p of merged) byYear.set(p.year, p);
     } catch {
       // Colonnes absentes ou client Prisma non régénéré : repli OB ci-dessous.
     }
