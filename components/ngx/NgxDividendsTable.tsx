@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import CompanyMark from "@/components/ui/CompanyMark";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import { applyColumnSort, type ColumnFilterDef, type ColumnSortState } from "@/lib/ui/column-filters";
@@ -143,7 +144,10 @@ export default function NgxDividendsTable({
                   <tr key={r.id}>
                     <td>
                       <Link href={`/marches/ngx/actions/${r.ticker}`} className={styles.tickerLink}>
-                        {r.ticker}
+                        <span className="ob-ticker-with-mark">
+                          <CompanyMark ticker={r.ticker} name={r.name} size={20} />
+                          {r.ticker}
+                        </span>
                       </Link>
                     </td>
                     <td>

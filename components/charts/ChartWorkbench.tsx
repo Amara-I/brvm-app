@@ -47,6 +47,7 @@ import { truncateSummary } from "@/lib/calc/analysis-recap";
 import type { TechnicalSnapshot } from "@/lib/charts/technical-indicators";
 import type { ChartDrawing } from "@/lib/charts/chart-drawings-storage";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import CompanyMark from "@/components/ui/CompanyMark";
 import { localizeSplitLabel } from "@/lib/i18n/split-label";
 import {
   chartSignalSummary,
@@ -856,7 +857,11 @@ export default function ChartWorkbench({
             title={t("charts.changeSymbol")}
             aria-expanded={showWatchlist}
           >
-            {payload?.ticker?.slice(0, 1) ?? "·"}
+            {isNgx && payload?.ticker ? (
+              <CompanyMark ticker={payload.ticker} name={payload.name} size={28} />
+            ) : (
+              payload?.ticker?.slice(0, 1) ?? "·"
+            )}
           </button>
           <div className={styles.symbolPick}>
             <button type="button" className={styles.symbolBtn} onClick={() => setShowWatchlist((v) => !v)}>
@@ -884,7 +889,8 @@ export default function ChartWorkbench({
                       onClick={() => selectTicker(u.ticker)}
                     >
                       <span className={styles.itemTicker}>
-                        {u.countryFlag} {u.ticker}
+                        {isNgx ? <CompanyMark ticker={u.ticker} name={u.name} size={18} /> : <span aria-hidden="true">{u.countryFlag}</span>}{" "}
+                        {u.ticker}
                       </span>
                       <span className={styles.itemName}>{u.name}</span>
                     </button>

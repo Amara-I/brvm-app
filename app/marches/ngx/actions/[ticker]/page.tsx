@@ -7,6 +7,7 @@ import { ngxBoardLabel, ngxSectorLabel } from "@/components/ngx/ngx-labels";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
+import CompanyMark from "@/components/ui/CompanyMark";
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { getI18n } from "@/lib/i18n/get-i18n";
@@ -72,6 +73,7 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
           kicker={`${company.ticker} · ${ngxSectorLabel(company.sectorSlug, company.sectorName, t)}`}
           title={company.name}
           lead={t("ngx.market.sourceLine", { source: translateDataSourceLabel(company.sourceLabel, t) })}
+          mark={<CompanyMark ticker={company.ticker} name={company.name} size={52} />}
         />
         <div className={styles.hero}>
           <div>
