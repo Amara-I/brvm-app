@@ -2,15 +2,8 @@
 // réellement détectées. Les prix absents restent null.
 
 import { roundPrice } from "./bars";
+import { formatPrice, formatPriceRange, type PriceCurrency } from "./level-label";
 import type { LiquiditySnapshot, ScenarioBias, ScenarioPlan, SrZone, StructureSnapshot } from "./types";
-
-function money(n: number): string {
-  return Math.round(n).toLocaleString("fr-FR");
-}
-
-function moneyEn(n: number): string {
-  return Math.round(n).toLocaleString("en-GB");
-}
 
 function nearest(zones: SrZone[], kind: SrZone["kind"], last: number, side: "below" | "above"): SrZone | null {
   const pool = zones.filter((z) => z.kind === kind && (side === "below" ? z.mid < last : z.mid > last));
@@ -25,22 +18,22 @@ function rr(entry: number, stop: number, target: number, side: "long" | "short")
   return Math.round((reward / risk) * 10) / 10;
 }
 
-function reactionFr(zone: SrZone | null, role: "support" | "resistance"): string {
+function reactionFr(zone: SrZone | null, role: "support" | "resistance", currency: PriceCurrency): string {
   if (!zone || zone.touches < 1) return "Aucun niveau historique proche n'est assez répété pour appuyer ce scénario.";
-  const price = money(zone.mid);
+  const price = formatPrice(zone.mid, currency, "fr");
   if (role === "support") {
-    return `Le support vers ${price} FCFA a été testé ${zone.touches} fois : le cours a rebondi ${zone.bounces} fois et l'a cassé ${zone.breaks} fois.`;
+    return `Le support vers ${price} a été testé ${zone.touches} fois : le cours a rebondi ${zone.bounces} fois et l'a cassé ${zone.breaks} fois.`;
   }
-  return `La résistance vers ${price} FCFA a été testée ${zone.touches} fois : le cours a été rejeté ${zone.bounces} fois et l'a dépassée ${zone.breaks} fois.`;
+  return `La résistance vers ${price} a été testée ${zone.touches} fois : le cours a été rejeté ${zone.bounces} fois et l'a dépassée ${zone.breaks} fois.`;
 }
 
-function reactionEn(zone: SrZone | null, role: "support" | "resistance"): string {
+function reactionEn(zone: SrZone | null, role: "support" | "resistance", currency: PriceCurrency): string {
   if (!zone || zone.touches < 1) return "No nearby historical level has been retested enough to support this scenario.";
-  const price = moneyEn(zone.mid);
+  const price = formatPrice(zone.mid, currency, "en");
   if (role === "support") {
-    return `Support near ${price} FCFA was tested ${zone.touches} times: price bounced ${zone.bounces} times and broke it ${zone.breaks} times.`;
+    return `Support near ${price} was tested ${zone.touches} times: price bounced ${zone.bounces} times and broke it ${zone.breaks} times.`;
   }
-  return `Resistance near ${price} FCFA was tested ${zone.touches} times: price was rejected ${zone.bounces} times and broke it ${zone.breaks} times.`;
+  return `Resistance near ${price} was tested ${zone.touches} times: price was rejected ${zone.bounces} times and broke it ${zone.breaks} times.`;
 }
 
 function normalizeProbs(raw: Record<ScenarioBias, number>): Record<ScenarioBias, number> {
@@ -80,7 +73,8 @@ export function buildScenarios(
   structure: StructureSnapshot,
   zones: SrZone[],
   timing: number,
-  liquidity: LiquiditySnapshot
+  liquidity: LiquiditySnapshot,
+  currency: PriceCurrency = "XOF"
 ): ScenarioPlan[] {
   const last = structure.lastClose;
   const atr = structure.atr14 != null && structure.atr14 > 0 ? structure.atr14 : last != null ? last * 0.015 : null;
@@ -155,14 +149,14 @@ export function buildScenarios(
         ? "Recent peaks and troughs are falling."
         : "Recent peaks and troughs do not form a clear trend.";
 
-  const bullFr = `${reactionFr(support, "support")} ${structureFr}`;
-  const bullEn = `${reactionEn(support, "support")} ${structureEn}`;
-  const bearFr = `${reactionFr(resistance, "resistance")} ${structureFr}`;
-  const bearEn = `${reactionEn(resistance, "resistance")} ${structureEn}`;
+  const bullFr = `${reactionFr(support, "support", currency)} ${structureFr}`;
+  const bullEn = `${reactionEn(support, "support", currency)} ${structureEn}`;
+  const bearFr = `${reactionFr(resistance, "resistance", currency)} ${structureFr}`;
+  const bearEn = `${reactionEn(resistance, "resistance", currency)} ${structureEn}`;
   const neuZone = closerToHigh ? resistance : support;
   const neuRole = closerToHigh ? "resistance" : "support";
-  const neuFr = `${reactionFr(neuZone, neuRole)} Le cours oscille entre ${money(rangeLow)} et ${money(rangeHigh)} FCFA.`;
-  const neuEn = `${reactionEn(neuZone, neuRole)} Price is oscillating between ${moneyEn(rangeLow)} and ${moneyEn(rangeHigh)} FCFA.`;
+  const neuFr = `${reactionFr(neuZone, neuRole, currency)} Le cours oscille entre ${formatPriceRange(rangeLow, rangeHigh, currency, "fr").replace(" – ", " et ")}.`;
+  const neuEn = `${reactionEn(neuZone, neuRole, currency)} Price is oscillating between ${formatPriceRange(rangeLow, rangeHigh, currency, "en").replace(" – ", " and ")}.`;
 
   const plans: ScenarioPlan[] = [
     {

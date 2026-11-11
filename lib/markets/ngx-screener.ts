@@ -14,6 +14,7 @@ import { buildNgxSheet, computeCompanyMetrics } from "@/lib/ngx/sheet-model";
 import { policyScore, type NgxPillarKey, type NgxScoreBand, type NgxScoreConfidence, type NgxScoreMode } from "@/lib/ngx/score";
 import { NGX_PILLAR_KEYS } from "@/lib/ngx/score";
 import { ngxSectorGroup, cleanNgxName, type NgxSectorGroup } from "@/lib/ngx/sectors";
+import { ngxTechnicalSignal, type NgxTechnicalSignal } from "@/lib/ngx/technical-signal";
 import { packNgxSpark, type NgxSparkPacked } from "./ngx-spark";
 import { loadNgxUniverse } from "./ngx-sheet";
 
@@ -41,6 +42,8 @@ export interface NgxScreenerRow {
   overall: number | null;
   policies: Record<PortfolioTypeId, number | null>;
   pillars: Record<NgxPillarKey, number | null>;
+  /** Signal Acheter / Conserver / Vendre issu uniquement de l'analyse technique (comme la BRVM). null = N/D. */
+  technical: NgxTechnicalSignal | null;
 }
 
 export interface NgxScreenerData {
@@ -168,6 +171,7 @@ export async function loadNgxScreener(opts: { withSparks?: boolean } = {}): Prom
       overall: score.overall,
       policies: Object.fromEntries(PORTFOLIO_TYPE_IDS.map((t) => [t, policyScore(score, t).score])) as Record<PortfolioTypeId, number | null>,
       pillars: Object.fromEntries(NGX_PILLAR_KEYS.map((k) => [k, score.pillars[k].score])) as Record<NgxPillarKey, number | null>,
+      technical: ngxTechnicalSignal(series),
     };
   });
 

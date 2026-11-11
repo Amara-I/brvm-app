@@ -1,19 +1,49 @@
-// Libellés de prix : FCFA groupés à la française, écart en % depuis le cours.
-// Les mots (Objectif, Cours…) sont choisis par l'appelant ; le format des nombres est fixe.
+// Libellés de prix selon la place : FCFA (BRVM) ou naira ₦ (NGX), groupés à la française,
+// écart en % depuis le cours. Les mots (Objectif, Cours…) sont choisis par l'appelant.
 
 const NBSP = /[\u202f\u00a0]/g;
 
+/** Devise de cotation : XOF = FCFA (BRVM), NGN = naira (NGX). */
+export type PriceCurrency = "XOF" | "NGN";
+
+export const DEFAULT_PRICE_CURRENCY: PriceCurrency = "XOF";
+
+/** Montant sans unité. FCFA : entier. Naira : 2 décimales (beaucoup de titres NGX cotent sous ₦10). */
+export function formatPriceNumber(value: number, currency: PriceCurrency = DEFAULT_PRICE_CURRENCY, locale: "fr" | "en" = "fr"): string {
+  const tag = locale === "en" ? "en-GB" : "fr-FR";
+  if (currency === "NGN") {
+    return value
+      .toLocaleString(tag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      .replace(NBSP, " ");
+  }
+  return Math.round(value).toLocaleString(tag).replace(NBSP, " ");
+}
+
+/** `4 125 FCFA` ou `₦1 250,50`. */
+export function formatPrice(value: number, currency: PriceCurrency = DEFAULT_PRICE_CURRENCY, locale: "fr" | "en" = "fr"): string {
+  const body = formatPriceNumber(value, currency, locale);
+  return currency === "NGN" ? `₦${body}` : `${body} FCFA`;
+}
+
+/** `4 100 – 4 300 FCFA` ou `₦12,50 – ₦13,10`. */
+export function formatPriceRange(
+  low: number,
+  high: number,
+  currency: PriceCurrency = DEFAULT_PRICE_CURRENCY,
+  locale: "fr" | "en" = "fr",
+): string {
+  const a = Math.min(low, high);
+  const b = Math.max(low, high);
+  if (currency === "NGN") return `${formatPrice(a, currency, locale)} – ${formatPrice(b, currency, locale)}`;
+  return `${formatPriceNumber(a, currency, locale)} – ${formatPriceNumber(b, currency, locale)} FCFA`;
+}
+
 export function formatFcfa(value: number): string {
-  const body = Math.round(value)
-    .toLocaleString("fr-FR")
-    .replace(NBSP, " ");
-  return `${body} FCFA`;
+  return formatPrice(value, "XOF");
 }
 
 export function formatFcfaRange(low: number, high: number): string {
-  const a = Math.round(Math.min(low, high)).toLocaleString("fr-FR").replace(NBSP, " ");
-  const b = Math.round(Math.max(low, high)).toLocaleString("fr-FR").replace(NBSP, " ");
-  return `${a} – ${b} FCFA`;
+  return formatPriceRange(low, high, "XOF");
 }
 
 /** Écart du niveau par rapport au cours. `+8,4 %` ou `−5,2 %` (signe moins typographique). */

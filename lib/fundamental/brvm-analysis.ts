@@ -89,6 +89,36 @@ export const BRVM_VALUE_BANDS = {
   noTradeIlliquidBelow: 0.5,
 } as const;
 
+/** Place de cotation : fixe la devise des montants et les seuils de liquidité. */
+export type FundamentalMarket = "BRVM" | "NGX";
+
+/**
+ * Seuils de liquidité par place. NGX : ceux de la politique Trading NGX
+ * (lib/ngx/policy.ts, en nairas). Aucun seuil de volume en titres n'est
+ * défini pour la NGX : seule la valeur échangée et la part de séances actives comptent.
+ */
+export const LIQUIDITY_BANDS: Record<
+  FundamentalMarket,
+  { ok: number; low: number; tradedRatioOk: number; noTradeIlliquidBelow: number; shareIlliquidBelow: number | null; shareThinBelow: number | null }
+> = {
+  BRVM: {
+    ok: BRVM_VALUE_BANDS.ok,
+    low: BRVM_VALUE_BANDS.low,
+    tradedRatioOk: BRVM_VALUE_BANDS.tradedRatioOk,
+    noTradeIlliquidBelow: BRVM_VALUE_BANDS.noTradeIlliquidBelow,
+    shareIlliquidBelow: BRVM_SHARE_VOLUME.illiquidBelow,
+    shareThinBelow: BRVM_SHARE_VOLUME.thinBelow,
+  },
+  NGX: {
+    ok: POLICY_THRESHOLDS.trading.liquidityOk,
+    low: POLICY_THRESHOLDS.trading.liquidityLow,
+    tradedRatioOk: POLICY_THRESHOLDS.trading.tradedRatio,
+    noTradeIlliquidBelow: 0.5,
+    shareIlliquidBelow: null,
+    shareThinBelow: null,
+  },
+};
+
 export type LiquidityLevel = "OK" | "THIN" | "ILLIQUID" | "ND";
 export type LiquidityReason = "noTrade" | "lowVolume" | "lowValue";
 
@@ -97,6 +127,7 @@ export interface LiquidityReading {
   /** Vrai seulement quand le titre est peu liquide — jamais quand la donnée manque. */
   illiquid: boolean;
   reasons: LiquidityReason[];
+  /** Valeur moyenne échangée par séance, dans la devise de la place (FCFA ou ₦). */
   avgDailyValueFcfa: number | null;
   avgShareVolume: number | null;
   tradedSessionsRatio: number | null;
@@ -168,6 +199,15 @@ export interface BrvmFundamentalInput {
   universe: readonly BrvmPeerSnapshot[];
   /** YYYY-MM-DD. Sert à écarter des comptes trop anciens. */
   today: string;
+  /** Libellé affiché du secteur quand `sector` est une clé de regroupement (NGX : groupe sectoriel). */
+  sectorLabel?: string | null;
+  /** Défaut BRVM. NGX : seuils de liquidité en nairas. */
+  market?: FundamentalMarket;
+  /**
+   * NGX : la croissance comparée au secteur est un TCAM (même mesure pour la société et les pairs).
+   * Absent : croissance annuelle publiée (BRVM).
+   */
+  growthMeasure?: "yoy" | "cagr";
 }
 
 export interface PerformanceYear {
@@ -397,7 +437,8 @@ function mean(values: number[]): number | null {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-export function readBrvmLiquidity(series: readonly PricePoint[]): LiquidityReading {
+export function readBrvmLiquidity(series: readonly PricePoint[], market: FundamentalMarket = "BRVM"): LiquidityReading {
+  const bands = LIQUIDITY_BANDS[market];
   const stats = priceStats(series);
   const last = series
     .filter((p) => p.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(p.time))
@@ -408,9 +449,10 @@ export function readBrvmLiquidity(series: readonly PricePoint[]): LiquidityReadi
   const ratio = stats.tradedSessionsRatio;
   const value = stats.avgDailyValueNgn;
   const reasons: LiquidityReason[] = [];
-  if (ratio != null && ratio < BRVM_VALUE_BANDS.noTradeIlliquidBelow) reasons.push("noTrade");
-  if (avgShareVolume != null && avgShareVolume < BRVM_SHARE_VOLUME.illiquidBelow) reasons.push("lowVolume");
-  if (value != null && value < BRVM_VALUE_BANDS.low) reasons.push("lowValue");
+  if (ratio != null && ratio < bands.noTradeIlliquidBelow) reasons.push("noTrade");
+  if (avgShareVolume != null && bands.shareIlliquidBelow != null && avgShareVolume < bands.shareIlliquidBelow)
+    reasons.push("lowVolume");
+  if (value != null && value < bands.low) reasons.push("lowValue");
 
   const noData = ratio == null && avgShareVolume == null && value == null;
   let level: LiquidityLevel = "ND";
@@ -419,9 +461,9 @@ export function readBrvmLiquidity(series: readonly PricePoint[]): LiquidityReadi
     else if (
       ratio == null ||
       value == null ||
-      ratio < BRVM_VALUE_BANDS.tradedRatioOk ||
-      (avgShareVolume != null && avgShareVolume < BRVM_SHARE_VOLUME.thinBelow) ||
-      value < BRVM_VALUE_BANDS.ok
+      ratio < bands.tradedRatioOk ||
+      (avgShareVolume != null && bands.shareThinBelow != null && avgShareVolume < bands.shareThinBelow) ||
+      value < bands.ok
     ) {
       level = "THIN";
     } else level = "OK";
@@ -438,8 +480,8 @@ export function readBrvmLiquidity(series: readonly PricePoint[]): LiquidityReadi
   };
 }
 
-function liquidityCriterion(reading: LiquidityReading): PolicyCriterion {
-  const threshold = BRVM_VALUE_BANDS.ok;
+function liquidityCriterion(reading: LiquidityReading, market: FundamentalMarket = "BRVM"): PolicyCriterion {
+  const threshold = LIQUIDITY_BANDS[market].ok;
   if (reading.level === "ND") return { key: "liquidity", status: "ND", value: null, threshold };
   return {
     key: "liquidity",
@@ -534,11 +576,16 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
   const peerYield = (c: BrvmPeerSnapshot) => dividendYieldPercent(c.dividend, positive(c.close));
 
   const sectorKeys: BrvmSectorKey[] = ["per", "pbr", "yield", "netMargin", "roe", "revenueGrowth"];
-  const companyRevenueGrowth = finite(input.revenueGrowth)
-    ? input.revenueGrowth
-    : !stale
-      ? (revenueGrowth?.percent ?? null)
-      : null;
+  const companyRevenueGrowth =
+    input.growthMeasure === "cagr"
+      ? !stale
+        ? revenueCagr.cagr
+        : null
+      : finite(input.revenueGrowth)
+        ? input.revenueGrowth
+        : !stale
+          ? (revenueGrowth?.percent ?? null)
+          : null;
   const ownValue = (key: BrvmSectorKey): number | null => {
     if (stale && (key === "per" || key === "pbr" || key === "roe" || key === "netMargin" || key === "revenueGrowth"))
       return null;
@@ -699,7 +746,8 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
     source: d.source,
   }));
 
-  const liquidity = readBrvmLiquidity(input.series);
+  const market: FundamentalMarket = input.market ?? "BRVM";
+  const liquidity = readBrvmLiquidity(input.series, market);
   const recent = performanceYears.filter((y) => y.netIncome != null).slice(-5);
   const policies = concludeAllPolicies({
     revenueCagrPercent: stale ? null : revenueCagr.cagr,
@@ -717,7 +765,7 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
     payoutPercent: payout,
     dividendGrowthPercent: dividendGrowth,
     price: liquidity.stats,
-    liquidityOverride: liquidityCriterion(liquidity),
+    liquidityOverride: liquidityCriterion(liquidity, market),
   });
 
   const presentationBits = [input.description, input.isin, input.listedSince, shares, marketCap].filter((v) =>
@@ -812,7 +860,7 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       marketCapBn: marketCap,
       marketCapRank: rankIdx >= 0 ? rankIdx + 1 : null,
       rankedCount: ranked.length,
-      sector: input.sector,
+      sector: input.sectorLabel?.trim() || input.sector,
       country: input.country?.trim() || null,
       floatPercent: finite(input.floatPercent) ? input.floatPercent : null,
       industry: input.industry?.trim() || null,
@@ -858,7 +906,7 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
     },
     valuation: { summary, estimates, skipped: valued.skipped, rangeMode, historicalPer },
     sector: {
-      name: input.sector,
+      name: input.sectorLabel?.trim() || input.sector,
       rows: sectorRows,
       lowConfidence: sectorLow,
       peersWithData,

@@ -68,3 +68,24 @@ describe("sheetTabFromHash", () => {
     expect(isLegacySheetTab("#fundamental")).toBe(false);
   });
 });
+
+describe("onglets de la fiche NGX", () => {
+  it("mêmes onglets que la BRVM, sans Projection ni Comparaison", async () => {
+    const { NGX_SHEET_TABS } = await import("./company-sheet-tabs");
+    expect(NGX_SHEET_TABS.map((t) => t.key)).toEqual(["overview", "fundamental", "charts"]);
+    expect(NGX_SHEET_TABS.map((t) => t.label)).toEqual(["Vue d'ensemble", "Analyse fondamentale", "Analyse Graphique"]);
+  });
+
+  it("anciennes ancres de la fiche NGX en une page", async () => {
+    const { normalizeNgxSheetTab, ngxSheetTabFromHash } = await import("./company-sheet-tabs");
+    expect(ngxSheetTabFromHash("#ngx-valuation")).toBe("fundamental");
+    expect(ngxSheetTabFromHash("#ngx-conclusion")).toBe("fundamental");
+    expect(ngxSheetTabFromHash("#ngx-presentation")).toBe("overview");
+    expect(ngxSheetTabFromHash("#ngx-chart")).toBe("charts");
+    expect(ngxSheetTabFromHash("#autre-ancre")).toBeNull();
+    expect(normalizeNgxSheetTab("charts")).toBe("charts");
+    expect(normalizeNgxSheetTab("projection")).toBe("overview");
+    expect(normalizeNgxSheetTab("documents")).toBe("overview");
+    expect(normalizeNgxSheetTab(undefined)).toBe("overview");
+  });
+});

@@ -11,7 +11,6 @@ import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxOverview } from "@/lib/markets/ngx-browse";
 import { loadNgxScreener } from "@/lib/markets/ngx-screener";
-import { ngxConfidenceLabel, ngxSignal } from "@/lib/ngx/signal";
 
 export const dynamic = "force-dynamic";
 
@@ -143,8 +142,10 @@ export default async function NgxMarketPage() {
                   spark: screener?.sparks[row.ticker] ?? null,
                   score,
                   scoreMode: stat?.mode ?? null,
-                  signal: stat ? ngxSignal(score, stat.pillars.risk, stat.confidence) : null,
-                  confidence: stat && score != null ? ngxConfidenceLabel(stat.confidence) : null,
+                  // Signal = analyse technique seule (comme la BRVM) ; la note reste la note NGX.
+                  signal: stat?.technical?.signal ?? null,
+                  confidence: stat?.technical?.confidence ?? null,
+                  illiquid: stat?.technical?.illiquid ?? false,
                 };
               })}
             />

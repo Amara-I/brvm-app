@@ -9,7 +9,6 @@ import { loadCompaniesFullDataset } from "../api/companies-full-dataset";
 import { getLatestCanonicalPrices } from "../api/latest-data";
 import { getMarketSparkSeriesByTicker } from "../api/market-spark-series";
 import { loadNgxScreener } from "../markets/ngx-screener";
-import { ngxSignal } from "../ngx/signal";
 import { HEADLINE_INDEX_CODES } from "../markets/index-catalog";
 import { emitNotification, flushPendingNotificationEmails } from "./emit";
 import {
@@ -513,7 +512,7 @@ async function evaluateSignalAlerts(opts: {
   const result = { checked: watchers.size, triggered: 0 };
   if (watchers.size === 0) return result;
 
-  // Place de chaque titre suivi : BRVM → score BRVM ; NGX → note NGX (même matrice de décision, lib/ngx/signal.ts).
+  // Place de chaque titre suivi : BRVM et NGX → signal technique (lib/technical-analysis) ; score = note de la place.
   const placed = await prisma.company.findMany({
     where: { ticker: { in: [...watchers.keys()] } },
     select: { ticker: true, exchange: true },
@@ -534,7 +533,8 @@ async function evaluateSignalAlerts(opts: {
   if (watchedExchanges.has("NGX")) {
     const screener = await loadNgxScreener().catch(() => null);
     for (const row of screener?.rows ?? []) {
-      const signal = ngxSignal(row.overall, row.pillars.risk, row.confidence);
+      // Signal technique (comme la BRVM) ; la note NGX reste affichée à côté, inchangée.
+      const signal = row.technical?.signal;
       if (signal && row.overall != null) byTicker.set(row.ticker, { label: signal.label, score: row.overall });
     }
   }
@@ -576,10 +576,7 @@ async function evaluateSignalAlerts(opts: {
         userId,
         type: "SIGNAUX",
         title: `${ticker} entre en ${label}`,
-        body:
-          exchange === "NGX"
-            ? `Score ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`
-            : `Signal technique ${label}. Score qualité ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`,
+        body: `Signal technique ${label}. Score qualité ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`,
         ticker,
         exchange,
         alertRuleId: rule?.id ?? null,
