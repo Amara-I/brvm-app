@@ -146,3 +146,30 @@ describe("PBT label variants", () => {
     expect(PBT.test("operating profit")).toBe(false);
   });
 });
+
+describe("extractStatements (insurance revenue)", () => {
+  const ins = getCompany("AIICO")!;
+  const page = (rev: string) =>
+    [
+      "AIICO Insurance Plc",
+      "Consolidated statement of profit or loss",
+      "For the year ended 31 December 2024",
+      "In thousands of Nigerian Naira   Note   2024   2023   2024   2023",
+      `${rev}   25   110,119,382   88,275,920   109,379,110   87,562,251`,
+      "Insurance service expense   26   (60,000,000)   (50,000,000)   (59,000,000)   (49,000,000)",
+      "Profit before tax   20,000,000   15,000,000   19,000,000   14,000,000",
+      "Income tax expense   (4,000,000)   (3,000,000)   (3,900,000)   (2,900,000)",
+      "Profit for the year   16,000,000   12,000,000   15,100,000   11,100,000",
+    ].join("\n");
+  it("reads IFRS 17 'Insurance revenue' as revenue for insurers", () => {
+    const r = extractStatements(page("Insurance revenue"), ins);
+    expect(r.revenueBasis).toBe("insurance revenue");
+    expect(r.fields.revenue?.values[0]).toBe(110_119_382);
+    expect(r.operatingBasis?.startsWith("PBT")).toBe(true);
+  });
+  it("does not take gross premiums (IFRS 4) as revenue: not comparable with IFRS 17 insurance revenue", () => {
+    const r = extractStatements(page("Gross premium income"), ins);
+    expect(r.fields.revenue).toBeUndefined();
+    expect(r.fields.netProfit?.values[0]).toBe(16_000_000);
+  });
+});
