@@ -141,15 +141,39 @@
   margin-bottom: 4px;
   font-weight: 600;
   overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .kpiValue {
-  font-size: 1.05rem;
+  font-size: clamp(0.78rem, 0.4rem + 1.8vw, 1.05rem);
   font-weight: 650;
-  line-height: 1.2;
+  line-height: 1.25;
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+  min-width: 0;
+  white-space: normal;
+}
+
+.kpiValueStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.12rem;
+}
+
+.kpiAmount {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.kpiUnit {
+  display: block;
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 
 .indicesStrip {
@@ -167,7 +191,9 @@
   border: 1px solid var(--c-border);
   border-radius: 8px;
   padding: 8px 12px;
-  min-width: 140px;
+  min-width: min(140px, 72vw);
+  max-width: 100%;
+  box-sizing: border-box;
   text-decoration: none;
   color: inherit;
   transition: border-color var(--duration-fast) var(--ease-out);
@@ -183,15 +209,19 @@ a.indexPill:hover {
   text-transform: none;
   letter-spacing: 0.01em;
   font-weight: 600;
+  overflow-wrap: break-word;
+  min-width: 0;
 }
 
 .indexValue {
-  font-size: 0.92rem;
+  font-size: clamp(0.8rem, 0.55rem + 1.2vw, 0.92rem);
   font-weight: 650;
   color: var(--c-text);
   margin-top: 2px;
   font-family: var(--font-num);
   font-variant-numeric: tabular-nums;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .indexChg {
@@ -229,4 +259,27 @@ a.indexPill:hover {
   display: inline-block;
   margin-top: 18px;
   text-decoration: none;
+}
+
+@media (max-width: 480px) {
+  .topBar {
+    padding: 12px 12px 10px;
+  }
+
+  .kpiStrip {
+    gap: 8px;
+    padding: 10px 12px;
+  }
+
+  .kpiCard {
+    padding: 8px 10px;
+  }
+
+  .indicesStrip {
+    padding: 0 12px 10px;
+  }
+
+  .indexPill {
+    padding: 8px 10px;
+  }
 }

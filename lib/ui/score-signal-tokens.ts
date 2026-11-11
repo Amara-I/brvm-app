@@ -1,8 +1,7 @@
-// Code couleur unique pour le SCORE (qualité, 0–100) et le SIGNAL (timing technique).
-// Les deux ne doivent jamais se confondre :
-// - score  → échelle or / bleu par paliers, jamais vert ni rouge ;
-// - signal → pastille avec icône : Acheter vert, Conserver ambre, Alléger orange, Vendre rouge ;
-// - confiance → point discret (opacité), jamais une couleur de signal.
+// Code couleur unique, du vert (bon) au rouge (moins bon), pour le score,
+// le signal et la confiance. Les trois indicateurs partagent les mêmes jetons ;
+// seuls la forme et le libellé restent distincts, pour rester lisibles
+// sans la couleur (daltonisme).
 // Les couleurs de texte « light » visent un contraste WCAG AA (≥ 4,5:1) sur fond clair,
 // les « dark » sur le fond sombre de l'application (vérifié par les tests).
 
@@ -10,6 +9,7 @@ export type SignalLabel = "ACHAT FORT" | "ACHAT" | "CONSERVER" | "ALLÉGER" | "V
 export type ScoreTier = "excellent" | "good" | "average" | "weak";
 export type SignalFamily = "buy" | "hold" | "sell";
 export type ConfidenceLevel = "Élevée" | "Moyenne" | "Faible";
+export type TrafficLight = "green" | "lime" | "amber" | "orange" | "red";
 
 export interface ColorToken {
   /** Texte sur fond clair. */
@@ -20,6 +20,20 @@ export interface ColorToken {
   bg: string;
 }
 
+/** Échelle partagée : vert → vert clair → ambre → orange → rouge. */
+export const TRAFFIC_LIGHT_TOKENS: Record<TrafficLight, ColorToken & { accent: string }> = {
+  green: { fg: "#166534", fgDark: "#86efac", bg: "rgba(34, 197, 94, 0.24)", accent: "#22C55E" },
+  lime: { fg: "#3f6212", fgDark: "#bef264", bg: "rgba(132, 204, 22, 0.16)", accent: "#84CC16" },
+  amber: { fg: "#92400e", fgDark: "#fcd34d", bg: "rgba(245, 158, 11, 0.16)", accent: "#F59E0B" },
+  orange: { fg: "#9a3412", fgDark: "#fdba74", bg: "rgba(249, 115, 22, 0.16)", accent: "#F97316" },
+  red: { fg: "#b91c1c", fgDark: "#fca5a5", bg: "rgba(239, 68, 68, 0.14)", accent: "#EF4444" },
+};
+
+function paint(light: TrafficLight): ColorToken {
+  const { fg, fgDark, bg } = TRAFFIC_LIGHT_TOKENS[light];
+  return { fg, fgDark, bg };
+}
+
 /** Paliers du score, du plus haut au plus bas (bornes incluses). */
 export const SCORE_TIERS: ReadonlyArray<{ tier: ScoreTier; min: number; labelFr: string; labelEn: string }> = [
   { tier: "excellent", min: 70, labelFr: "Excellent", labelEn: "Excellent" },
@@ -28,36 +42,55 @@ export const SCORE_TIERS: ReadonlyArray<{ tier: ScoreTier; min: number; labelFr:
   { tier: "weak", min: -Infinity, labelFr: "Faible", labelEn: "Weak" },
 ];
 
-/** Or (haut de l'échelle) → bleu (bas de l'échelle). Aucun vert, aucun rouge. */
+export const SCORE_TIER_LIGHT: Record<ScoreTier, TrafficLight> = {
+  excellent: "green",
+  good: "lime",
+  average: "amber",
+  weak: "red",
+};
+
 export const SCORE_TIER_TOKENS: Record<ScoreTier, ColorToken> = {
-  excellent: { fg: "#7a5200", fgDark: "#f2c85b", bg: "rgba(201, 150, 46, 0.26)" },
-  good: { fg: "#7c6224", fgDark: "#e6cf94", bg: "rgba(201, 150, 46, 0.12)" },
-  average: { fg: "#1d4ed8", fgDark: "#93b4fd", bg: "rgba(29, 78, 216, 0.12)" },
-  weak: { fg: "#3f4f6b", fgDark: "#b6c2d6", bg: "rgba(71, 85, 105, 0.14)" },
+  excellent: paint("green"),
+  good: paint("lime"),
+  average: paint("amber"),
+  weak: paint("red"),
+};
+
+export const SIGNAL_LIGHT: Record<SignalLabel, TrafficLight> = {
+  "ACHAT FORT": "green",
+  ACHAT: "lime",
+  CONSERVER: "amber",
+  ALLÉGER: "orange",
+  VENDRE: "red",
 };
 
 export const SIGNAL_TOKENS: Record<SignalLabel, ColorToken & { family: SignalFamily; icon: string }> = {
-  "ACHAT FORT": { family: "buy", icon: "▲", fg: "#166534", fgDark: "#86efac", bg: "rgba(34, 197, 94, 0.24)" },
-  ACHAT: { family: "buy", icon: "▲", fg: "#3f6212", fgDark: "#bef264", bg: "rgba(132, 204, 22, 0.16)" },
-  CONSERVER: { family: "hold", icon: "●", fg: "#92400e", fgDark: "#fcd34d", bg: "rgba(245, 158, 11, 0.16)" },
-  ALLÉGER: { family: "sell", icon: "▼", fg: "#9a3412", fgDark: "#fdba74", bg: "rgba(249, 115, 22, 0.16)" },
-  VENDRE: { family: "sell", icon: "▼", fg: "#b91c1c", fgDark: "#fca5a5", bg: "rgba(239, 68, 68, 0.14)" },
+  "ACHAT FORT": { ...paint("green"), family: "buy", icon: "▲" },
+  ACHAT: { ...paint("lime"), family: "buy", icon: "▲" },
+  CONSERVER: { ...paint("amber"), family: "hold", icon: "●" },
+  ALLÉGER: { ...paint("orange"), family: "sell", icon: "▼" },
+  VENDRE: { ...paint("red"), family: "sell", icon: "▼" },
 };
 
-/** Couleur « vive » d'un signal (graphiques, bordures) — même famille que la pastille. */
+/** Couleur « vive » d'un signal (graphiques, bordures) — même jeton que la pastille. */
 export const SIGNAL_ACCENT: Record<SignalLabel, string> = {
-  "ACHAT FORT": "#22C55E",
-  ACHAT: "#84CC16",
-  CONSERVER: "#F59E0B",
-  ALLÉGER: "#F97316",
-  VENDRE: "#EF4444",
+  "ACHAT FORT": TRAFFIC_LIGHT_TOKENS.green.accent,
+  ACHAT: TRAFFIC_LIGHT_TOKENS.lime.accent,
+  CONSERVER: TRAFFIC_LIGHT_TOKENS.amber.accent,
+  ALLÉGER: TRAFFIC_LIGHT_TOKENS.orange.accent,
+  VENDRE: TRAFFIC_LIGHT_TOKENS.red.accent,
 };
 
-/** Opacité du point de confiance : plus la confiance est basse, plus il s'efface. */
-export const CONFIDENCE_OPACITY: Record<ConfidenceLevel, number> = {
-  Élevée: 1,
-  Moyenne: 0.6,
-  Faible: 0.3,
+export const CONFIDENCE_LIGHT: Record<ConfidenceLevel, TrafficLight> = {
+  Élevée: "green",
+  Moyenne: "amber",
+  Faible: "red",
+};
+
+export const CONFIDENCE_TOKENS: Record<ConfidenceLevel, ColorToken> = {
+  Élevée: paint("green"),
+  Moyenne: paint("amber"),
+  Faible: paint("red"),
 };
 
 export function scoreTier(score: number | null | undefined): ScoreTier | null {
@@ -79,9 +112,12 @@ export function signalFamily(label: string | null | undefined): SignalFamily | n
   return isSignalLabel(label) ? SIGNAL_TOKENS[label].family : null;
 }
 
-export function confidenceOpacity(value: string | null | undefined): number | null {
-  if (value === "Élevée" || value === "Moyenne" || value === "Faible") return CONFIDENCE_OPACITY[value];
-  return null;
+export function isConfidenceLevel(value: unknown): value is ConfidenceLevel {
+  return value === "Élevée" || value === "Moyenne" || value === "Faible";
+}
+
+export function confidenceToken(value: string | null | undefined): ColorToken | null {
+  return isConfidenceLevel(value) ? CONFIDENCE_TOKENS[value] : null;
 }
 
 // --- Contraste WCAG (utilisé par les tests pour garder les couleurs accessibles) ---

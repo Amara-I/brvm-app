@@ -1534,5 +1534,5 @@ a.exchangeChip:hover {
 }
 
 .scoreWrap :global(.ob-conf-dot) {
-  background: currentColor;
+  background: var(--ob-fg-dark, currentColor);
 }

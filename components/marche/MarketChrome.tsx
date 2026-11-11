@@ -40,14 +40,22 @@ export default function MarketChrome(props: MarketChromeProps) {
   const capCurrency = props.capCurrency ?? props.currency;
   const indexHref = props.indexHref ?? ((code: string) => `/indices/${code}`);
   const indicesFallbackHref = props.indicesFallbackHref ?? "/indices";
-  const kpis = [
+  const kpis: Array<{
+    key: string;
+    l: string;
+    v: string | { amount: string; unit: string };
+    c: string;
+  }> = [
     { key: "listed", l: t("market.kpi.listed"), v: String(props.companiesCount), c: C.blue },
     {
       key: "cap",
       l: t("market.kpi.totalCap"),
       v:
         props.totalMktCap > 0
-          ? t("market.capCurrency", { amount: format.number(props.totalMktCap), currency: capCurrency })
+          ? {
+              amount: format.number(props.totalMktCap),
+              unit: t("market.capUnit", { currency: capCurrency }),
+            }
           : "N/D",
       c: C.gold,
     },
@@ -90,8 +98,24 @@ export default function MarketChrome(props: MarketChromeProps) {
         {kpis.map((k) => (
           <div key={k.key} className={marketStyles.kpiCard}>
             <div className={marketStyles.kpiLabel}>{k.l}</div>
-            <div className={`${marketStyles.kpiValue} ob-num`} style={{ color: k.c }}>
-              {k.v === "N/D" ? <span className="ob-nd">N/D</span> : k.v}
+            <div
+              className={
+                typeof k.v === "object"
+                  ? `${marketStyles.kpiValue} ${marketStyles.kpiValueStack}`
+                  : `${marketStyles.kpiValue} ob-num`
+              }
+              style={{ color: k.c }}
+            >
+              {k.v === "N/D" ? (
+                <span className="ob-nd">N/D</span>
+              ) : typeof k.v === "object" ? (
+                <>
+                  <span className={`${marketStyles.kpiAmount} ob-num`}>{k.v.amount}</span>
+                  <span className={marketStyles.kpiUnit}>{k.v.unit}</span>
+                </>
+              ) : (
+                k.v
+              )}
             </div>
           </div>
         ))}
