@@ -1380,6 +1380,7 @@ export default function ChartWorkbench({
                 kind="technical"
                 signalLabel={displaySignalLabel(payload.analysis.signalLabel, labels)}
                 signalColor={payload.analysis.signalColor}
+                signalCode={payload.analysis.signalLabel}
                 score={payload.analysis.technicalScore}
                 confidence={labels.confidence(payload.analysis.confidence)}
                 summary={truncateSummary(
