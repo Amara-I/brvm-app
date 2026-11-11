@@ -11,7 +11,7 @@ import styles from "./NgxSheet.module.css";
 type Fmt = ReturnType<typeof getI18n>["format"];
 type T = ReturnType<typeof getI18n>["t"];
 
-type OverviewSectionId = "company" | "trading" | "score" | "news";
+type OverviewSectionId = "company" | "usd-accounts" | "trading" | "score" | "news";
 
 function Section({ id, title, children }: { id: OverviewSectionId; title: string; children: React.ReactNode }) {
   return (
@@ -56,6 +56,11 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
       <Section id="company" title={t("ngx.company.overview.company")}>
         <Presentation model={model} t={t} format={format} na={na} ngn={ngn} bn={bn} day={day} />
       </Section>
+      {model.presentation.reportingCurrency ? (
+        <Section id="usd-accounts" title={t("ngx.sheet.usdAccounts.title")}>
+          <UsdAccounts model={model} t={t} format={format} na={na} day={day} />
+        </Section>
+      ) : null}
       <Section id="trading" title={t("ngx.company.overview.trading")}>
         <Trading model={model} t={t} format={format} na={na} ngn={ngn} bn={bn} pct={pct} day={day} />
       </Section>
@@ -66,6 +71,76 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
         <News model={model} t={t} day={day} />
       </Section>
     </div>
+  );
+}
+
+// ───────────── Comptes publiés en US$ (ETI, AIRTELAFRI) ─────────────
+
+function UsdAccounts({
+  model,
+  t,
+  format,
+  na,
+  day,
+}: {
+  model: NgxSheetModel;
+  t: T;
+  format: Fmt;
+  na: string;
+  day: (iso: string | null) => string;
+}) {
+  const rc = model.presentation.reportingCurrency;
+  if (!rc) return null;
+  const unit = t("ngx.sheet.usdAccounts.unit");
+  const usd = (v: number | null | undefined) =>
+    v == null ? na : `${format.decimal(v, Math.abs(v) >= 100 ? 0 : 2)} ${unit}`;
+  const years = [...model.performance.years].reverse();
+  return (
+    <>
+      <p className={styles.note} data-testid="ngx-usd-accounts">
+        {rc.ngnPerUsd != null
+          ? t("ngx.sheet.usdAccounts.lead", { rate: format.decimal(rc.ngnPerUsd, 2), date: day(rc.asOf) })
+          : t("ngx.sheet.usdAccounts.leadNoRate")}
+        {rc.sourceUrl ? (
+          <>
+            {" "}
+            <a className={styles.link} href={rc.sourceUrl} target="_blank" rel="noopener noreferrer">
+              {t("ngx.sheet.usdAccounts.fxSource")} ↗
+            </a>
+          </>
+        ) : null}
+      </p>
+      {years.length === 0 ? (
+        <div className={styles.empty}>{na}</div>
+      ) : (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">{t("ngx.sheet.usdAccounts.year")}</th>
+                <th scope="col">{t("ngx.sheet.usdAccounts.revenue")}</th>
+                <th scope="col">{t("ngx.sheet.usdAccounts.operating")}</th>
+                <th scope="col">{t("ngx.sheet.usdAccounts.net")}</th>
+                <th scope="col">{t("ngx.sheet.usdAccounts.fcf")}</th>
+                <th scope="col">{t("ngx.sheet.usdAccounts.eps")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {years.map((y) => (
+                <tr key={y.year}>
+                  <td>{y.year}</td>
+                  <td>{usd(y.revenueBn)}</td>
+                  <td>{usd(y.operatingIncomeBn)}</td>
+                  <td>{usd(y.netIncomeBn)}</td>
+                  <td>{usd(y.fcfBn)}</td>
+                  <td>{y.epsNgn == null ? na : `${format.decimal(y.epsNgn, 4)} US$`}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
   );
 }
 

@@ -5,6 +5,7 @@ import { parseNgxOutlook, type NgxOutlookSynthesis } from "./outlook";
 import { concludeAllPolicies, type PolicyConclusion, type PolicyFacts } from "./policy";
 import {
   buildFinancialYears,
+  ngnPerReportingUnit,
   parseNgxProfileMeta,
   type NgxFinancialYear,
   type NgxProfileFundamentals,
@@ -209,6 +210,11 @@ export interface NgxSheetModel {
     marketCapRank: number | null;
     rankedCount: number;
     profile: NgxProfileFundamentals["profile"];
+    /**
+     * Comptes publiés en dollars (ETI, AIRTELAFRI) : les années de `performance.years` sont en US$ ; les multiples
+     * (PER, PBR, BPA, capitaux propres de `price.metrics`) sont convertis en ₦ à ce taux CBN. null = comptes en ₦.
+     */
+    reportingCurrency: { currency: "USD"; ngnPerUsd: number | null; asOf: string | null; sourceUrl: string | null } | null;
   };
   performance: {
     years: NgxFinancialYear[];
@@ -320,13 +326,18 @@ export function computeCompanyMetrics(company: CompanyInput, today?: string): Co
   const shares = meta.sharesOutstanding?.value ?? null;
   const price = company.close;
   const cap = marketCapBn(price, shares);
+  // Comptes publiés en USD (ETI, AIRTELAFRI) : montants convertis en ₦ au taux CBN enregistré pour les
+  // multiples rapportés au cours ; sans taux, ces multiples restent N/D (jamais un dollar lu comme un naira).
+  const toNgn = ngnPerReportingUnit(meta);
+  const conv = (v: number | null | undefined): number | null => (v == null || toNgn == null ? null : v * toNgn);
   const epsLatest = latestWith(years, (y) => y.epsNgn);
-  const netLatest = latestWith(years, (y) => y.netIncomeBn);
-  const eps = epsLatest?.value ?? null;
+  const netLatestRaw = latestWith(years, (y) => y.netIncomeBn);
+  const netLatest = netLatestRaw && conv(netLatestRaw.value) != null ? { ...netLatestRaw, value: conv(netLatestRaw.value)! } : null;
+  const eps = conv(epsLatest?.value);
 
   // Capitaux propres : dernier exercice confirmé ; le plus récent non confirmé est seulement signalé.
   const { basis, unconfirmedLatest } = selectEquityBasis(years);
-  const equityBn = basis?.equityBn ?? null;
+  const equityBn = conv(basis?.equityBn);
   const equityOk = equityBn != null && equityBn > 0 && (cap == null || equityBn >= cap * EQUITY_MIN_SHARE_OF_CAP);
 
   // Comptes trop anciens (ex. dernier exercice FY2022 en 2026) : le cours actuel n'a plus de rapport avec eux.
@@ -338,7 +349,7 @@ export function computeCompanyMetrics(company: CompanyInput, today?: string): Co
 
   const bvps =
     basis && equityBn != null && equityBn > 0 && basis.eraShares != null ? (equityBn * 1e9) / basis.eraShares : null;
-  const roe = !stale && equityOk && basis ? returnOnEquityPercent(basis.netIncomeBn, equityBn) : null;
+  const roe = !stale && equityOk && basis ? returnOnEquityPercent(conv(basis.netIncomeBn), equityBn) : null;
 
   const withMargin = [...years].reverse().find((y) => y.netIncomeBn != null && y.revenueBn != null);
   const fiscalYear = Math.max(epsLatest?.year ?? -Infinity, netLatest?.year ?? -Infinity);
@@ -364,7 +375,7 @@ export function computeCompanyMetrics(company: CompanyInput, today?: string): Co
     equityBn,
     equityUnconfirmed:
       unconfirmedLatest && unconfirmedLatest.equityBn != null
-        ? { year: unconfirmedLatest.year, equityBn: unconfirmedLatest.equityBn }
+        ? { year: unconfirmedLatest.year, equityBn: conv(unconfirmedLatest.equityBn) ?? unconfirmedLatest.equityBn }
         : null,
     yieldPercent: dividendYieldPercent(dps, price),
     netMarginPercent: withMargin ? marginPercent(withMargin.netIncomeBn, withMargin.revenueBn) : null,
@@ -592,6 +603,10 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
       marketCapRank: rankIdx >= 0 ? rankIdx + 1 : null,
       rankedCount: ranked.length,
       profile: meta.profile,
+      reportingCurrency:
+        meta.reportingCurrency === "USD"
+          ? { currency: "USD", ngnPerUsd: meta.fx?.ngnPerUsd ?? null, asOf: meta.fx?.asOf ?? null, sourceUrl: meta.fx?.sourceUrl ?? null }
+          : null,
     },
     performance: {
       years,

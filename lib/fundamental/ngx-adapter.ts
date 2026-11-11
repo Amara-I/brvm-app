@@ -7,6 +7,7 @@ import type { PricePoint } from "@/lib/ngx/price-stats";
 import { computeCompanyMetrics, type CompanyInput, type CompanyMetrics, type NgxSheetModel } from "@/lib/ngx/sheet-model";
 import { cleanNgxName, ngxSectorGroup } from "@/lib/ngx/sectors";
 import { returnOnEquityPercent } from "@/lib/ngx/valuation";
+import { ngnPerReportingUnit, parseNgxProfileMeta, type NgxFinancialYear } from "@/lib/ngx/fundamentals";
 import type { AnnualRatioPoint } from "./ratio-history";
 import {
   buildBrvmFundamentalAnalysis,
@@ -62,6 +63,30 @@ export interface NgxFundamentalArgs {
   universeMetrics?: ReadonlyArray<{ c: CompanyInput; m: CompanyMetrics }>;
   series: readonly PricePoint[];
   today: string;
+  /**
+   * Dernière clôture BRUTE (non ajustée des opérations sur titres) de chaque année : base du PER historique,
+   * comparable au BPA publié de l'exercice. Absent = PER historique N/D (la série présentée est ajustée).
+   */
+  rawYearEndPrices?: Record<number, number>;
+}
+
+/** PER historique = clôture brute de fin d'exercice ÷ BPA publié (converti en ₦ au taux CBN de clôture si USD). */
+export function historicalPer(y: NgxFinancialYear, yearEndClose: number | null | undefined): number | null {
+  if (!finite(yearEndClose) || yearEndClose <= 0) return null;
+  if (y.epsConfidence === "low" || !finite(y.epsNgn) || y.epsNgn <= 0) return null;
+  const fx = (y.currency ?? "NGN") === "USD" ? y.ngnPerUsd ?? null : 1;
+  if (!finite(fx)) return null;
+  const per = yearEndClose / (y.epsNgn * fx);
+  // Au-delà de 200× : BPA quasi nul ou unité douteuse, non significatif.
+  return per > 0 && per <= 200 ? per : null;
+}
+
+function latestValue(years: readonly NgxFinancialYear[], pick: (y: NgxFinancialYear) => number | null | undefined) {
+  for (let i = years.length - 1; i >= 0; i -= 1) {
+    const v = pick(years[i]);
+    if (finite(v)) return { year: years[i].year, value: v };
+  }
+  return null;
 }
 
 export function ngxFundamentalInput(args: NgxFundamentalArgs): BrvmFundamentalInput {
@@ -75,18 +100,27 @@ export function ngxFundamentalInput(args: NgxFundamentalArgs): BrvmFundamentalIn
     return c.ticker === company.ticker && finite(model.header.close) ? { ...snap, close: model.header.close } : snap;
   });
   const years = model.performance.years;
+  // Comptes publiés en USD : montants ramenés en ₦ au taux CBN enregistré (même base que le cours) ; sans taux, N/D.
+  const toNgn = ngnPerReportingUnit(parseNgxProfileMeta(company.profileMeta));
+  const conv = (v: number | null | undefined): number | null => (finite(v) && toNgn != null ? v * toNgn : null);
+  const prices = args.rawYearEndPrices ?? {};
+  const lastAccountsYear = years.length ? years[years.length - 1].year : null;
   const ratioHistory: AnnualRatioPoint[] = years
     .map((y) => ({
       year: y.year,
-      per: null,
+      per: historicalPer(y, prices[y.year]),
       pbRatio: null,
       roe: y.equityConfidence === "low" ? null : returnOnEquityPercent(y.netIncomeBn, y.equityBn),
       netMargin: null,
-      debtRatio: null,
+      debtRatio: finite(y.debtRatioPercent) ? y.debtRatioPercent : null,
       revenueGrowth: null,
-      fcf: null,
+      fcf: conv(y.fcfBn),
     }))
-    .filter((r) => r.roe != null);
+    .filter((r) => r.roe != null || r.per != null || r.debtRatio != null || r.fcf != null);
+  // Dette et FCF de la fiche : dernier exercice publié seulement (pas un ancien exercice présenté comme actuel).
+  const debtLatest = latestValue(years, (y) => y.debtRatioPercent);
+  const fcfLatest = latestValue(years, (y) => y.fcfBn);
+  const current = <T extends { year: number }>(x: T | null) => (x && lastAccountsYear != null && x.year === lastAccountsYear ? x : null);
   const profile = model.presentation.profile;
   return {
     ticker: company.ticker,
@@ -102,19 +136,19 @@ export function ngxFundamentalInput(args: NgxFundamentalArgs): BrvmFundamentalIn
     mktcap: finite(own.marketCapBn) ? own.marketCapBn : 0,
     roe: own.roePercent,
     netMargin: own.netMarginPercent,
-    debtRatio: null,
+    debtRatio: current(debtLatest)?.value ?? null,
     pbRatio: own.pbr,
     revenueGrowth: null,
-    fcf: null,
+    fcf: conv(current(fcfLatest)?.value),
     ratioHistory,
     country: "Nigeria",
     floatPercent: profile?.freeFloatPercent ?? null,
     industry: null,
     income: years.map((y) => ({
       year: y.year,
-      revenue: y.revenueBn,
-      netIncome: y.netIncomeBn,
-      operatingIncome: y.operatingIncomeBn,
+      revenue: conv(y.revenueBn),
+      netIncome: conv(y.netIncomeBn),
+      operatingIncome: conv(y.operatingIncomeBn),
     })),
     dividends: model.dividends.lines.map((l) => ({
       year: l.year,

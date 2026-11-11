@@ -72,6 +72,12 @@ export interface StatementExtraction {
   pages: { income: number | null; balance: number | null };
   /** « Dividendes payés » (tableau des flux de trésorerie, valeurs absolues dans l'unité du document). */
   dividendsPaid?: RawField;
+  /** Dettes financières (emprunts courants + non courants, hors dettes locatives), bilan, unité du document. */
+  borrowings?: RawField;
+  /** Flux net de trésorerie d'exploitation (tableau des flux), unité du document, signé. */
+  operatingCashFlow?: RawField;
+  /** Acquisitions d'immobilisations corporelles (valeur absolue), unité du document. */
+  capex?: RawField;
   /** Colonne retenue ("group" par défaut), avec la raison si ambigu. */
   columnNote: string | null;
   /** Mois de clôture (1-12) lu dans l'en-tête, si présent. */

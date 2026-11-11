@@ -36,6 +36,8 @@ type RatioDb = {
   revenue: Prisma.Decimal | null;
   operatingIncome: Prisma.Decimal | null;
   netIncome: Prisma.Decimal | null;
+  fcf: Prisma.Decimal | null;
+  debtRatio: Prisma.Decimal | null;
   isCanonical: boolean;
   source: string;
 };
@@ -53,6 +55,8 @@ const toRatio = (r: RatioDb): RatioRowLike => ({
   revenue: numOrNull(r.revenue),
   operatingIncome: numOrNull(r.operatingIncome),
   netIncome: numOrNull(r.netIncome),
+  fcf: numOrNull(r.fcf),
+  debtRatio: numOrNull(r.debtRatio),
   isCanonical: r.isCanonical,
   source: r.source,
 });
@@ -105,6 +109,8 @@ export async function loadNgxUniverse(): Promise<{
           revenue: true,
           operatingIncome: true,
           netIncome: true,
+          fcf: true,
+          debtRatio: true,
           isCanonical: true,
           source: true,
         },
@@ -154,7 +160,7 @@ export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null>
   // Le cours de la fiche vient de la série présentée (ajustée des opérations sur titres).
   me.close = page.close;
 
-  const [events, documents] = await Promise.all([
+  const [events, documents, rawYearEnds] = await Promise.all([
     prisma.companyEvent.findMany({
       where: { companyId: meRow.id },
       orderBy: { eventDate: "desc" },
@@ -183,7 +189,18 @@ export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null>
         sourceName: true,
       },
     }),
+    // Dernière clôture brute de chaque année (PER historique = cours de fin d'exercice ÷ BPA publié).
+    prisma.$queryRaw<Array<{ y: number; close: Prisma.Decimal }>>`
+      SELECT DISTINCT ON (EXTRACT(YEAR FROM date)) EXTRACT(YEAR FROM date)::int AS y, close_price AS close
+      FROM price_history
+      WHERE company_id = ${meRow.id} AND is_canonical AND close_price > 0
+      ORDER BY EXTRACT(YEAR FROM date), date DESC`.catch(() => [] as Array<{ y: number; close: Prisma.Decimal }>),
   ]);
+  const rawYearEndPrices: Record<number, number> = {};
+  for (const r of rawYearEnds) {
+    const v = Number(r.close);
+    if (Number.isInteger(Number(r.y)) && Number.isFinite(v) && v > 0) rawYearEndPrices[Number(r.y)] = v;
+  }
 
   const today = new Date().toISOString().slice(0, 10);
   const universeMetrics = universe.map((c) => ({ c, m: computeCompanyMetrics(c, today) }));
@@ -222,7 +239,7 @@ export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null>
     universeMetrics,
     today,
   });
-  const fundamental = buildNgxFundamentalAnalysis({ company: me, model, universe, universeMetrics, series, today });
+  const fundamental = buildNgxFundamentalAnalysis({ company: me, model, universe, universeMetrics, series, today, rawYearEndPrices });
   const technical = ngxTechnicalAnalysis(series);
   return { page, model, fundamental, technical, yearPrices: yearEndPrices(series) };
 }
