@@ -3,6 +3,9 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import AnalysisRecap from "@/components/analysis/AnalysisRecap";
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import SignalBadge from "@/components/ui/SignalBadge";
+import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
 import { C } from "@/lib/theme/colors";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
@@ -146,6 +149,7 @@ export default async function SocietesCoteesPage() {
             <span className={styles.metaChip}>{t("directory.companies.countries", { count: countries.size })}</span>
             <span className={styles.metaChip}>{t("directory.companies.history", { span: yearSpan })}</span>
           </div>
+          <ScoreSignalLegend />
         </header>
 
         <nav className={styles.toc} aria-label={t("directory.companies.tocAria")}>
@@ -246,19 +250,13 @@ export default async function SocietesCoteesPage() {
                           </div>
                           <div className={styles.metric}>
                             <span className={styles.metricLabel}>{t("directory.companies.score")}</span>
-                            <span className={styles.metricValue}>{m.score}/100</span>
+                            <span className={styles.metricValue}>
+                              <ScoreBadge score={m.score} outOf showTier />
+                            </span>
                           </div>
                         </div>
                         <div className={styles.cardFooter}>
-                          <span
-                            className={styles.pill}
-                            style={{
-                              color: m.signal.color,
-                              background: `color-mix(in srgb, ${m.signal.color} 18%, transparent)`,
-                            }}
-                          >
-                            {labels.signal(m.signal.label)}
-                          </span>
+                          <SignalBadge label={m.signal.label} confidence={m.confidence} />
                           <span className={styles.more}>{t("directory.companies.sheet")}</span>
                         </div>
                       </Link>
@@ -266,6 +264,7 @@ export default async function SocietesCoteesPage() {
                         kind="fundamental"
                         signalLabel={labels.signal(m.signal.label)}
                         signalColor={m.signal.color}
+                        signalCode={m.signal.label}
                         score={m.fundamentalScore}
                         confidence={labels.confidence(m.confidence)}
                         summary={summary}

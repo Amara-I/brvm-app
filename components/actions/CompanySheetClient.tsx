@@ -2,6 +2,9 @@
 
 // Fiche société premium — alignée captures OuestBourse (étape 20).
 
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import SignalBadge from "@/components/ui/SignalBadge";
+import ConfidenceDot from "@/components/ui/ConfidenceDot";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
@@ -591,6 +594,10 @@ export default function CompanySheetClient({
                 {fmtNum(chgAbs, format)})
               </span>
             ) : null}
+          </div>
+          <div className={styles.heroRating} data-testid="sheet-header-rating">
+            <ScoreBadge score={metrics.score} outOf showTier />
+            <SignalBadge label={metrics.signal.label} confidence={metrics.confidence} />
           </div>
         </div>
         <div className={styles.heroActions}>
@@ -1368,11 +1375,14 @@ export default function CompanySheetClient({
                 <EducationTermLink slug="signal-ouestbourse">{t("company.signal.title")}</EducationTermLink>
               </h3>
               <div className={styles.signalBox} style={{ borderColor: metrics.signal.color }}>
-                <div style={{ color: metrics.signal.color, fontWeight: 800 }}>{labels.signal(metrics.signal.label)}</div>
+                <div>
+                  <SignalBadge label={metrics.signal.label} />
+                </div>
                 <div className={styles.sideNote}>
-                  <EducationTermLink slug="score-composite">{t("company.signal.score")}</EducationTermLink> {metrics.score}/100 ·{" "}
+                  <EducationTermLink slug="score-composite">{t("company.signal.score")}</EducationTermLink>{" "}
+                  <ScoreBadge score={metrics.score} outOf showTier /> ·{" "}
                   <EducationTermLink slug="confiance-du-signal">{t("company.signal.confidence")}</EducationTermLink>{" "}
-                  {labels.confidence(metrics.confidence)}
+                  <ConfidenceDot value={metrics.confidence} />
                 </div>
                 <p className={styles.signalText}>
                   {labels.signalSummary({
@@ -1527,6 +1537,7 @@ export default function CompanySheetClient({
           }}
           close={price > 0 ? price : null}
           preferredPortfolioType={isAuthenticated ? preferredPortfolioType ?? null : null}
+          rating={{ score: metrics.score, signal: metrics.signal.label, confidence: metrics.confidence }}
         />
       )}
 

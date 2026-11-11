@@ -21,7 +21,7 @@ export interface PortfolioAdvice {
 
 const ACTION_META: Record<PortfolioAdviceAction, { label: string; color: string }> = {
   RENFORCER: { label: "Renforcer", color: "#22C55E" },
-  CONSERVER: { label: "Conserver", color: "#D4A843" },
+  CONSERVER: { label: "Conserver", color: "#F59E0B" },
   SORTIR: { label: "Sortir / Alléger", color: "#EF4444" },
 };
 

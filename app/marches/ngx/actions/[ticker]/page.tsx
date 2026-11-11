@@ -19,6 +19,9 @@ import NgxTechnicalTab from "@/components/ngx/sheet/NgxTechnicalTab";
 import sheetStyles from "@/components/ngx/sheet/NgxSheet.module.css";
 import { FundamentalAnalysisBody } from "@/components/actions/FundamentalAnalysisPanel";
 import SignalBadge from "@/components/ui/SignalBadge";
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import ConfidenceDot from "@/components/ui/ConfidenceDot";
+import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
 import { getPreferredPortfolioType } from "@/lib/auth/preferred-portfolio-type";
 
 export const dynamic = "force-dynamic";
@@ -96,17 +99,19 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
         <div className={styles.metaGrid} aria-label={t("ngx.company.overview.keyInfo")}>
           <div className={styles.kpi} data-testid="ngx-sheet-score">
             <span>{t("ngx.company.overview.score")}</span>
-            <strong style={{ fontSize: "1rem" }}>{score == null ? t("ngx.company.overview.scoreNd") : `${Math.round(score)}/100`}</strong>
+            <strong style={{ fontSize: "1rem" }}>
+              {score == null ? t("ngx.company.overview.scoreNd") : <ScoreBadge score={score} outOf showTier />}
+            </strong>
           </div>
           <div className={styles.kpi} data-testid="ngx-sheet-signal">
             <span>{t("ngx.company.overview.signal")}</span>
             <strong style={{ fontSize: "1rem" }}>
-              {signal ? <SignalBadge label={signal.label} title={t("ngx.company.overview.signalNote")} /> : "N/D"}
+              {signal ? <SignalBadge label={signal.label} title={t("ngx.company.overview.signalNote")} confidence={signal.confidence} /> : "N/D"}
             </strong>
           </div>
           <div className={styles.kpi}>
             <span>{t("ngx.company.overview.confidence")}</span>
-            <strong style={{ fontSize: "1rem" }}>{signal ? labels.confidence(signal.confidence) : "N/D"}</strong>
+            <strong style={{ fontSize: "1rem" }}>{signal ? <ConfidenceDot value={signal.confidence} /> : "N/D"}</strong>
           </div>
           <div className={styles.kpi}>
             <span>{t("ngx.company.board")}</span>
@@ -114,6 +119,7 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
           </div>
         </div>
         <p className={styles.note}>{t("ngx.company.overview.signalNote")}</p>
+        <ScoreSignalLegend />
         {liquidityWarning ? (
           <p className={styles.note} role="status" data-testid="ngx-sheet-illiquid">
             ⚠ {liquidityWarning}

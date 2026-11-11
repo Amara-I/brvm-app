@@ -3,6 +3,9 @@
 // Onglet Analyse fondamentale, partagé par les fiches BRVM et NGX : mêmes 8 étapes,
 // montants dans la devise de la place (FCFA ou ₦). Le score de Vue d'ensemble n'est pas recalculé.
 
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import SignalBadge from "@/components/ui/SignalBadge";
+import type { SignalLabel } from "@/lib/ui/score-signal-tokens";
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -141,9 +144,12 @@ export default function FundamentalAnalysisPanel({
   slice,
   close,
   preferredPortfolioType,
+  rating,
 }: {
   slice: BrvmSheetSlice;
   close: number | null;
+  /** Score qualité et signal technique de la fiche, rappelés (sans recalcul) dans la conclusion. */
+  rating?: FundamentalRating;
   /** Préférence de profil. null = visiteur non connecté ou préférence non enregistrée. */
   preferredPortfolioType: PortfolioTypeId | null;
 }) {
@@ -158,6 +164,7 @@ export default function FundamentalAnalysisPanel({
       yearPrices={slice.company.prices}
       market="BRVM"
       preferredPortfolioType={preferredPortfolioType}
+      rating={rating}
     />
   );
 }
@@ -172,6 +179,7 @@ export function FundamentalAnalysisBody({
   yearPrices,
   market,
   preferredPortfolioType,
+  rating,
 }: {
   model: BrvmFundamentalAnalysis;
   series: readonly PricePoint[];
@@ -179,6 +187,7 @@ export function FundamentalAnalysisBody({
   yearPrices: Record<number, number>;
   market: FundamentalMarket;
   preferredPortfolioType: PortfolioTypeId | null;
+  rating?: FundamentalRating;
 }) {
   const { t, format, locale } = useI18n();
   const [open, setOpen] = useState<Partial<Record<FundamentalStepId, boolean>>>({});
@@ -371,6 +380,7 @@ export function FundamentalAnalysisBody({
                         share: (p.okCount / p.evaluated) * 100,
                       }))}
                   />
+                  {rating ? <RatingRecall rating={rating} t={t} /> : null}
                   <Conclusion
                     model={model}
                     t={t}
@@ -1064,6 +1074,28 @@ function criterionValue(c: PolicyCriterion, t: TFunc, format: FormatApi, fcfaCom
   if (c.key === "liquidity") return fcfaCompact(v);
   if (INTEGER.has(c.key)) return format.integer(v);
   return format.percent(v, c.key === "earningsConsistency" ? 0 : 1);
+}
+
+export interface FundamentalRating {
+  score: number | null;
+  signal: SignalLabel | null;
+  confidence: string | null;
+}
+
+/** Rappel score (or/bleu) et signal (vert/ambre/rouge) : deux lectures distinctes, non recalculées ici. */
+function RatingRecall({ rating, t }: { rating: FundamentalRating; t: TFunc }) {
+  return (
+    <div className={styles.ratingRecall} data-testid="fundamental-rating-recall">
+      <span>
+        {t("scoreSignal.qualityScore")} <ScoreBadge score={rating.score} outOf showTier />
+      </span>
+      <span>
+        {t("scoreSignal.technicalSignal")}{" "}
+        {rating.signal ? <SignalBadge label={rating.signal} confidence={rating.confidence} /> : <span className="ob-nd">{t("common.nd")}</span>}
+      </span>
+      <p className={styles.note}>{t("scoreSignal.conclusionNote")}</p>
+    </div>
+  );
 }
 
 function Conclusion({

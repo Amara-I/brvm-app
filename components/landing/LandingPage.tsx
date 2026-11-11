@@ -1,6 +1,9 @@
 // Landing page — contenu aligné sur les modules réels de la plateforme OuestBourse.
 // Chiffres exclusivement issus des données BRVM (jamais inventés).
 
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import SignalBadge from "@/components/ui/SignalBadge";
+import { isSignalLabel } from "@/lib/ui/score-signal-tokens";
 import MarketOverviewCards from "./MarketOverviewCards";
 import type { LandingMarket } from "@/lib/api/landing-markets";
 import Link from "next/link";
@@ -49,12 +52,6 @@ export interface LandingPageProps {
 }
 
 const LANDING_EXCHANGE_CODES = ["BRVM", "NGX", "GSE", "NSE"] as const;
-
-function signalTone(label: string): "up" | "down" | "flat" {
-  if (label.includes("ACHAT")) return "up";
-  if (label.includes("VENDRE") || label.includes("ALLÉGER")) return "down";
-  return "flat";
-}
 
 function perfClass(perf: string): string {
   if (perf === "N/D") return styles.stockFlat;
@@ -359,7 +356,6 @@ export default function LandingPage({
               ) : (
                 topCompanies.map(({ co, metrics }) => {
                   const rawSignal = metrics.signal?.label || "N/D";
-                  const tone = signalTone(rawSignal);
                   return (
                     <Link key={co.ticker} href={`/actions/${co.ticker}`} className={styles.stockRow}>
                       <span className={styles.stockIdentity}>
@@ -370,17 +366,12 @@ export default function LandingPage({
                         <LandingSparkline values={seriesFromYearlyPrices(co.prices)} width={72} height={24} />
                       </span>
                       <span className={styles.stockMeta}>
-                        <span
-                          className={`${styles.stockSignal} ${
-                            tone === "up"
-                              ? styles.stockChangeUp
-                              : tone === "down"
-                                ? styles.stockChangeDown
-                                : styles.stockFlat
-                          }`}
-                        >
-                          {labels.signal(rawSignal)}
-                        </span>
+                        <ScoreBadge score={metrics.score} />
+                        {isSignalLabel(rawSignal) ? (
+                          <SignalBadge label={rawSignal} confidence={metrics.confidence} />
+                        ) : (
+                          <span className={`${styles.stockSignal} ${styles.stockFlat}`}>{labels.signal(rawSignal)}</span>
+                        )}
                         <span className={`${styles.stockPerf} ${perfClass(metrics.perf5Percent)}`}>
                           {showPerf(metrics.perf5Percent)}
                         </span>

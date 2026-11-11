@@ -12,6 +12,9 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import ExpandChevron from "@/components/ui/ExpandChevron";
 import SignalBadge from "@/components/ui/SignalBadge";
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import ConfidenceDot from "@/components/ui/ConfidenceDot";
+import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
 import HorizonSelect from "@/components/marche/HorizonSelect";
 import MarketSparkline from "@/components/marche/MarketSparkline";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -275,23 +278,13 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                         {fcfa(r.fcfa)}
                       </td>
                       <td data-testid={`ngx-score-${r.ticker}`}>
-                        {r.score == null ? (
-                          <span className="ob-nd">N/D</span>
-                        ) : (
-                          <span
-                            className={styles.score}
-                            style={{ color: C.gold, background: `${C.gold}22` }}
-                            title={modeTitle(r.scoreMode)}
-                          >
-                            {Math.round(r.score)}
-                          </span>
-                        )}
+                        <ScoreBadge score={r.score} className={styles.score} title={r.score == null ? undefined : modeTitle(r.scoreMode)} />
                       </td>
                       <td data-testid={`ngx-signal-${r.ticker}`}>
                         {r.signal ? <SignalBadge label={r.signal.label} title={signalTitle(r)} /> : <span className="ob-nd">N/D</span>}
                       </td>
                       <td className={styles.meta}>
-                        {r.confidence ? labels.confidence(r.confidence) : <span className="ob-nd">N/D</span>}
+                        <ConfidenceDot value={r.confidence} />
                         {r.illiquid ? (
                           <span title={t("ngx.market.illiquidTitle")} aria-label={t("ngx.market.illiquidTitle")}>
                             {" "}⚠
@@ -318,15 +311,25 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                                   key: "score",
                                   label: t("market.cards.scoreSignal"),
                                   value: `${r.score == null ? "N/D" : `${Math.round(r.score)}/100`} · ${r.signal ? labels.signal(r.signal.label) : "N/D"}`,
-                                  color: r.signal?.color,
+                                  node: (
+                                    <>
+                                      <ScoreBadge score={r.score} outOf showTier />{" "}
+                                      {r.signal ? <SignalBadge label={r.signal.label} confidence={r.confidence} /> : <span className="ob-nd">N/D</span>}
+                                    </>
+                                  ),
                                 },
-                                { key: "conf", label: t("market.cards.confidence"), value: r.confidence ? labels.confidence(r.confidence) : "N/D" },
+                                {
+                                  key: "conf",
+                                  label: t("market.cards.confidence"),
+                                  value: r.confidence ? labels.confidence(r.confidence) : "N/D",
+                                  node: <ConfidenceDot value={r.confidence} />,
+                                },
                                 { key: "mode", label: t("ngx.market.scoreBasis"), value: modeText(r.scoreMode) },
                               ].map((c) => (
                                 <div key={c.key} className={styles.detailCard}>
                                   <div className={styles.detailLabel}>{c.label}</div>
                                   <div className={styles.detailValue} style={"color" in c && c.color ? { color: c.color } : undefined} title={c.value}>
-                                    {c.value}
+                                    {"node" in c && c.node ? c.node : c.value}
                                   </div>
                                 </div>
                               ))}
@@ -357,6 +360,7 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
           </button>
         </div>
       ) : null}
+      <ScoreSignalLegend />
     </section>
   );
 }

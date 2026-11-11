@@ -2,12 +2,17 @@
 
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import SignalBadge from "@/components/ui/SignalBadge";
+import { isSignalLabel } from "@/lib/ui/score-signal-tokens";
 import styles from "./AnalysisRecap.module.css";
 
 export interface AnalysisRecapProps {
   kind: "fundamental" | "technical";
   signalLabel: string;
   signalColor: string;
+  /** Code brut du signal (ACHAT…) : affiché en pastille avec icône. */
+  signalCode?: string;
   score: number;
   confidence?: string;
   summary: string;
@@ -23,6 +28,7 @@ export default function AnalysisRecap({
   kind,
   signalLabel,
   signalColor,
+  signalCode,
   score,
   confidence,
   summary,
@@ -50,11 +56,15 @@ export default function AnalysisRecap({
     <div className={styles.wrap}>
       <div className={styles.head}>
         <span className={styles.title}>{title}</span>
-        <span className={styles.signal} style={{ color: signalColor }}>
-          {shownSignal}
-        </span>
+        {isSignalLabel(signalCode) ? (
+          <SignalBadge label={signalCode} confidence={confidence} />
+        ) : (
+          <span className={styles.signal} style={{ color: signalColor }}>
+            {shownSignal}
+          </span>
+        )}
         <span className={styles.score}>
-          {score}/100
+          <ScoreBadge score={score} outOf />
           {shownConfidence ? ` · ${shownConfidence}` : ""}
         </span>
       </div>

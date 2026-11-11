@@ -3,6 +3,8 @@
 // Panneau d'analyse technique sous le graphe de la fiche (zones, FVG, scénarios).
 // Les chiffres viennent de `analyzePriceHistory` — rien n'est inventé.
 
+import SignalBadge from "@/components/ui/SignalBadge";
+import ConfidenceDot from "@/components/ui/ConfidenceDot";
 import { useMemo, type ReactNode } from "react";
 import { signalOf } from "@/lib/calc/calc-metrics";
 import EducationTermLink from "@/components/education/EducationTermLink";
@@ -135,7 +137,7 @@ export default function TechnicalAnalysisPanel({
   /** Score qualité /100. null = N/D (titre non noté). */
   qualityScore: number | null;
 }) {
-  const { t, format, labels, locale } = useI18n();
+  const { t, format, locale } = useI18n();
   const nd = t("common.nd");
   const tone = signalOf(analysis.signal.label).color;
   const currency: PriceCurrency = analysis.currency ?? "XOF";
@@ -168,9 +170,9 @@ export default function TechnicalAnalysisPanel({
           <p className={styles.lead}>{t("company.ta.lead")}</p>
         </div>
         <div className={styles.signalPill} style={{ borderColor: tone }}>
-          <strong style={{ color: tone }}>{labels.signal(analysis.signal.label)}</strong>
+          <SignalBadge label={analysis.signal.label} />
           <span>
-            {t("company.ta.confidence")} {labels.confidence(analysis.signal.confidence)}
+            {t("company.ta.confidence")} <ConfidenceDot value={analysis.signal.confidence} />
           </span>
         </div>
       </header>
