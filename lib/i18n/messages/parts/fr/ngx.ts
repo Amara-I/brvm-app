@@ -212,7 +212,7 @@ export const ngx = {
       fcf: "FCF",
       eps: "BPA (US$)",
       fxSource: "Taux CBN",
-      tabNote: "Comptes publiés en US$ : dans cet onglet, les montants sont convertis en nairas au taux officiel CBN de {rate} ₦ / US$ ({date}) pour rester comparables au cours.",
+      tabNote: "Comptes publiés en US$ : dans cet onglet, chaque exercice est converti en nairas au taux officiel CBN de sa clôture ; le PER et le PBR utilisent le taux CBN du jour, {rate} ₦ / US$ ({date}), pour rester comparables au cours.",
     },
     nav: "Sommaire de la fiche",
     na: "N/D",

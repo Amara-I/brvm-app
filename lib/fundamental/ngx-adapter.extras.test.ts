@@ -95,8 +95,29 @@ describe("NGX — comptes publiés en USD", () => {
       sourceUrl: "https://www.cbn.gov.ng/rates/ExchRateByCurrency.html",
     });
     const fi = ngxFundamentalInput({ company, model, universe: [company], series: input.series, today: input.today });
-    expect(fi.income.at(-1)?.revenue).toBeCloseTo(2.5 * 1500);
+    // Sans taux de clôture enregistré pour l'exercice : N/D (jamais le taux du jour plaqué sur un ancien exercice).
+    expect(fi.income.at(-1)?.revenue).toBeNull();
     expect(model.performance.years.at(-1)?.revenueBn).toBe(2.5);
+  });
+
+  it("chaque exercice USD est converti au taux CBN de SA clôture, pas au taux du jour", () => {
+    const input = fixtureSheetInput();
+    const company = usd(base, 1600);
+    const meta = company.profileMeta as Meta;
+    meta.ngxFundamentals.years["2024"] = { ...meta.ngxFundamentals.years["2024"], ngnPerUsd: 900 };
+    meta.ngxFundamentals.years["2025"] = { ...meta.ngxFundamentals.years["2025"], ngnPerUsd: 1500 };
+    company.ratios = company.ratios.map((r) => (r.year === 2024 ? { ...r, fcf: 0.1 } : r));
+    const model = buildNgxSheet({ ...input, company, universe: [...input.universe.filter((c) => c.ticker !== input.company.ticker), company] });
+    const fi = ngxFundamentalInput({ company, model, universe: [company], series: input.series, today: input.today });
+    const by = (y: number) => fi.income.find((r) => r.year === y);
+    expect(by(2024)?.revenue).toBeCloseTo(2 * 900);
+    expect(by(2025)?.revenue).toBeCloseTo(2.5 * 1500);
+    expect(by(2025)?.netIncome).toBeCloseTo(0.3 * 1500);
+    expect(fi.ratioHistory?.find((r) => r.year === 2024)?.fcf).toBeCloseTo(0.1 * 900);
+    expect(fi.fcf).toBeCloseTo(0.1 * 900);
+    expect(fi.fcfYear).toBe(2024);
+    // Les multiples rapportés au cours gardent le taux du jour.
+    expect(computeCompanyMetrics(company).per).toBeCloseTo(30 / (0.3 * 1600));
   });
 });
 
@@ -131,5 +152,20 @@ describe("dette et FCF : dernière valeur disponible avec son exercice", () => {
     expect(a.price.debtRatioYear).toBe(prev);
     expect(a.performance.debtRatioYear).toBe(prev);
     expect(a.performance.years.find((y) => y.year === prev)?.fcf).toBe(4.5);
+  });
+});
+
+describe("BPA par exercice", () => {
+  it("affiche un BPA négatif pour un exercice déficitaire, sans taux de distribution", async () => {
+    const { buildNgxFundamentalAnalysis } = await import("./ngx-adapter");
+    const input = fixtureSheetInput();
+    const years = [...new Set(input.company.ratios.map((r) => r.year))].sort();
+    const prev = years[years.length - 2];
+    input.company = { ...input.company, ratios: input.company.ratios.map((r) => (r.year === prev ? { ...r, netIncome: -5 } : r)) };
+    const model = buildNgxSheet(input);
+    const a = buildNgxFundamentalAnalysis({ company: input.company, model, universe: input.universe, series: input.series, today: input.today });
+    const y = a.performance.years.find((x) => x.year === prev)!;
+    expect(y.eps).toBeLessThan(0);
+    expect(y.payoutPercent ?? null).toBeNull();
   });
 });

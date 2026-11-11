@@ -212,7 +212,7 @@ export const ngx = {
       fcf: "FCF",
       eps: "EPS (US$)",
       fxSource: "CBN rate",
-      tabNote: "Accounts reported in US$: in this tab, amounts are converted to naira at the official CBN rate of ₦{rate} / US$ ({date}) so they compare with the share price.",
+      tabNote: "Accounts reported in US$: in this tab, each fiscal year is converted to naira at the official CBN rate at that year’s close; PER and PBR use the current CBN rate of ₦{rate} / US$ ({date}) so they compare with the share price.",
     },
     nav: "Sheet contents",
     na: "N/A",
