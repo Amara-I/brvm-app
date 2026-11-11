@@ -21,7 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { apiSuccess, apiValidationError, cacheHeaders } from "@/lib/api/response";
 import { closeForSession, sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
 import { loadRecentIndexLevels } from "@/lib/api/market-summary-snapshot";
-import { isHeadlineIndex } from "@/lib/markets/index-catalog";
+import { isHeadlineIndexForExchange } from "@/lib/markets/index-catalog";
 import { priceDivisor } from "@/lib/corporate-actions/adjust";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
 import type { DataSourceCode } from "@/lib/ingestion/types";
@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
   if (!parsed.success) return apiValidationError(parsed.error);
   const { exchange } = parsed.data;
   const levels = await loadRecentIndexLevels(exchange);
-  const headline = levels.filter((row) => (exchange === "NGX" ? row.code === "NGX_ASI" : isHeadlineIndex(row.code)));
-  const otherIndices = levels.filter((row) => !(exchange === "NGX" ? row.code === "NGX_ASI" : isHeadlineIndex(row.code)));
+  const headline = levels.filter((row) => isHeadlineIndexForExchange(row.code, exchange));
+  const otherIndices = levels.filter((row) => !isHeadlineIndexForExchange(row.code, exchange));
 
   // Top hausses / baisses : séance précédente réelle (canonique ou non).
   const companies = await prisma.company.findMany({

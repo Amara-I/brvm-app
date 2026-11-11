@@ -23,40 +23,15 @@ import styles from "@/components/marche/MarketBoard.module.css";
 import { applyColumnSort, type ColumnFilterDef, type ColumnSortState } from "@/lib/ui/column-filters";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import { filterSeriesByHorizon, horizonChangePercent, type MarketHorizon } from "@/lib/markets/market-horizon";
-import { unpackNgxSpark, type NgxSparkPacked } from "@/lib/markets/ngx-spark";
+import { unpackNgxSpark } from "@/lib/markets/ngx-spark";
+import type { NgxBoardRow } from "@/lib/markets/ngx-board-row";
 import type { NgxScoreMode } from "@/lib/ngx/score";
-import type { NgxOverviewConfidence, NgxSignal } from "@/lib/ngx/signal";
 import { C } from "@/lib/theme/colors";
 
 const COL_COUNT = 11;
 const PAGE_SIZE = 20;
 
-export interface NgxBoardRow {
-  ticker: string;
-  name: string;
-  sectorSlug: string;
-  sectorLabel: string;
-  /** Dernier cours en naira, null = N/D. */
-  close: number | null;
-  /** Variation du jour (%), null = N/D. */
-  changePercent: number | null;
-  /** Capitalisation en milliards de naira, null = N/D. */
-  marketCapBn: number | null;
-  /** Cours FCFA indicatif, null = N/D. */
-  fcfa: number | null;
-  /** Variation sur 1 an (%), null = N/D. */
-  return1yPercent: number | null;
-  /** Série d'aperçu compactée, null = N/D. */
-  spark: NgxSparkPacked | null;
-  /** Note globale /100, null = N/D. */
-  score: number | null;
-  scoreMode: NgxScoreMode | null;
-  /** Signal technique (lib/ngx/technical-signal.ts), indépendant de la note. */
-  signal: NgxSignal | null;
-  confidence: NgxOverviewConfidence | null;
-  /** Titre peu liquide (analyse technique) : confiance basse. */
-  illiquid?: boolean;
-}
+export type { NgxBoardRow };
 
 type SortBy = "score" | "mktcap" | "price" | "perf";
 

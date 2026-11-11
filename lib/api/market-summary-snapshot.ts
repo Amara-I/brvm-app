@@ -5,7 +5,7 @@ import type { ListingExchange } from "@/lib/markets/listing-scope";
 import { prisma } from "@/lib/prisma";
 import { closeForSession, sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
 import type { DataSourceCode } from "@/lib/ingestion/types";
-import { isHeadlineIndex } from "@/lib/markets/index-catalog";
+import { isHeadlineIndexForExchange } from "@/lib/markets/index-catalog";
 
 export interface MarketIndexSnapshot {
   code: string;
@@ -79,11 +79,13 @@ export async function loadRecentIndexLevels(exchange: ListingExchange = "BRVM"):
   return out;
 }
 
-export async function getMarketSummarySnapshot(): Promise<MarketSummarySnapshot> {
-  const serialized = await loadRecentIndexLevels();
+export async function getMarketSummarySnapshot(
+  exchange: ListingExchange = "BRVM"
+): Promise<MarketSummarySnapshot> {
+  const serialized = await loadRecentIndexLevels(exchange);
   return {
-    headlineIndices: serialized.filter((i) => isHeadlineIndex(i.code)),
-    otherIndices: serialized.filter((i) => !isHeadlineIndex(i.code)).slice(0, 8),
+    headlineIndices: serialized.filter((i) => isHeadlineIndexForExchange(i.code, exchange)),
+    otherIndices: serialized.filter((i) => !isHeadlineIndexForExchange(i.code, exchange)).slice(0, 8),
     asOf: new Date().toISOString(),
   };
 }

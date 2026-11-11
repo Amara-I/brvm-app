@@ -48,7 +48,7 @@ export function translateDataSourceLabel(label: string, t: TFunc): string {
 export function translateExchangeName(code: string, fallback: string, t: TFunc): string {
   if (code === "BRVM") return t("market.exchange.brvmName");
   if (code === "BVMAC") return t("market.exchange.bvmacName");
-  if (code === "NGX") return t("ngx.market.title");
+  if (code === "NGX") return t("market.exchange.ngxName");
   return fallback;
 }
 
@@ -56,5 +56,6 @@ export function translateExchangeRegion(code: string, fallback: string, t: TFunc
   if (code === "BRVM") return t("market.exchange.brvmRegion");
   if (code === "JSE") return t("market.exchange.jseRegion");
   if (code === "TSE") return t("market.exchange.tseRegion");
+  if (code === "NGX") return t("market.exchange.ngxRegion");
   return fallback;
 }
