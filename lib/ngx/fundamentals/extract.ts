@@ -482,7 +482,81 @@ export function extractStatements(text: string, company: NgxCompanyConfig, opts:
   }
   const dp = findDividendsPaid(pages);
   if (dp) out.dividendsPaid = dp;
+  if (balanceIdx >= 0) {
+    const b = findBorrowings(pages, [balanceIdx, balanceIdx + 1].filter((i) => i < pages.length));
+    if (b) out.borrowings = b;
+  }
+  const cf = findCashFlowItems(pages);
+  if (cf.operatingCashFlow) out.operatingCashFlow = cf.operatingCashFlow;
+  if (cf.capex) out.capex = cf.capex;
   return out;
+}
+
+/** Lignes d'emprunts du bilan (courants et non courants), hors dettes locatives et emprunts envers des parties liées non financiers. */
+export const BORROWING_ROW =
+  /^(?:(?:current|non[- ]?current|long[- ]term|short[- ]term)\s+(?:portion\s+of\s+)?)?(?:interest[- ]bearing\s+)?(?:loans?\s+and\s+borrowings?|borrowings?|bank\s+(?:loans?|overdrafts?)(?:\s+and\s+(?:loans?|overdrafts?))?|term\s+loans?|bonds?\s+(?:payable|issued)|commercial\s+papers?(?:\s+(?:liabilities|issued))?|debt\s+securities\s+(?:issued|in\s+issue)|(?:other\s+)?borrowed\s+funds)(?:\s*[-–:]\s*(?:current|non[- ]?current))?(?:\s*\(note[^)]*\))?$/;
+
+/**
+ * Dettes financières = somme des lignes d'emprunts du bilan (page du bilan et suivante). null si aucune ligne :
+ * l'absence de ligne n'est pas lue comme une dette nulle.
+ */
+export function findBorrowings(pages: PageInfo[], idxs: number[]): RawField | null {
+  let cur = 0;
+  let prev = 0;
+  let prevKnown = true;
+  let n = 0;
+  let page = 0;
+  const labels: string[] = [];
+  const seen = new Set<string>();
+  for (const i of idxs) {
+    const p = pages[i];
+    const layout = columnLayout(p.text, p.rows);
+    for (const r of p.rows) {
+      if (r.nums.length < 1) continue;
+      const label = norm(r.label);
+      if (!BORROWING_ROW.test(label) || /lease/.test(label)) continue;
+      const cols = pickColumns(r, layout);
+      if (!cols || cols[0] === null) continue;
+      const key = `${label}|${cols[0]}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      cur += Math.abs(cols[0]);
+      if (cols[1] === null) prevKnown = false;
+      else prev += Math.abs(cols[1]);
+      n++;
+      page = page || p.index + 1;
+      labels.push(r.label.slice(0, 40));
+    }
+  }
+  if (n === 0) return null;
+  return { values: [cur, prevKnown ? prev : null], label: `Σ ${labels.join(" + ")}`.slice(0, 90), page };
+}
+
+const CFO_ROW = /^net\s+cash\s+(?:flows?\s+)?(?:\(?(?:used\s+in|generated\s+from|from|provided\s+by|inflow|outflow)\)?\s*\/?\s*)+(?:\(?(?:used\s+in|generated\s+from|from|provided\s+by)\)?\s+)?operating\s+activities$/;
+const CAPEX_ROW = /^(?:purchases?|acquisitions?|additions?|payments?\s+for(?:\s+the\s+purchase\s+of)?)\s+(?:of|to)?\s*(?:items\s+of\s+)?property,?\s+plant\s+(?:and|&)\s+equipment$/;
+
+/** Tableau des flux : flux net d'exploitation (signé) et acquisitions d'immobilisations corporelles (valeur absolue). */
+export function findCashFlowItems(pages: PageInfo[]): { operatingCashFlow: RawField | null; capex: RawField | null } {
+  let operatingCashFlow: RawField | null = null;
+  let capex: RawField | null = null;
+  for (let k = 0; k < pages.length && !(operatingCashFlow && capex); k++) {
+    const p0 = pages[k];
+    if (!CASHFLOW_HEAD.test(headBlock(p0.text, 14)) || isNotesPage(p0.text)) continue;
+    for (const p of [p0, pages[k + 1]].filter(Boolean)) {
+      const layout = columnLayout(p.text, p.rows);
+      for (const r of p.rows) {
+        if (r.nums.length < 1) continue;
+        const label = norm(r.label);
+        const cols = pickColumns(r, layout);
+        if (!cols || cols[0] === null) continue;
+        if (!operatingCashFlow && CFO_ROW.test(label))
+          operatingCashFlow = { values: cols, label: r.label.slice(0, 90), page: p.index + 1 };
+        else if (!capex && CAPEX_ROW.test(label))
+          capex = { values: [Math.abs(cols[0]), cols[1] === null ? null : Math.abs(cols[1])], label: r.label.slice(0, 90), page: p.index + 1 };
+      }
+    }
+  }
+  return { operatingCashFlow, capex };
 }
 
 const CASHFLOW_HEAD = /statements?\s+of\s+cash\s*[- ]?flows?|cash\s*flows?\s+statements?/i;

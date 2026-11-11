@@ -25,6 +25,7 @@
     "ngx:discover": "ts-node --transpile-only scripts/ngx/discover.ts",
     "ngx:download": "ts-node --transpile-only scripts/ngx/download.ts",
     "ngx:extract": "ts-node --transpile-only scripts/ngx/extract.ts",
+    "ngx:extras": "ts-node --transpile-only scripts/ngx/extras.ts",
     "ngx:validate": "ts-node --transpile-only scripts/ngx/validate.ts",
     "ngx:disclosures": "ts-node --transpile-only scripts/ngx/disclosures.ts",
     "ngx:ocr": "/workspace/ocrenv/bin/python scripts/ngx/ocr/ocr_statements.py",

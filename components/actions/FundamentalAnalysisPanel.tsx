@@ -180,6 +180,7 @@ export function FundamentalAnalysisBody({
   market,
   preferredPortfolioType,
   rating,
+  amountsNote,
 }: {
   model: BrvmFundamentalAnalysis;
   series: readonly PricePoint[];
@@ -188,6 +189,8 @@ export function FundamentalAnalysisBody({
   market: FundamentalMarket;
   preferredPortfolioType: PortfolioTypeId | null;
   rating?: FundamentalRating;
+  /** Note affichée en tête de l'onglet (ex. comptes publiés en US$ convertis en ₦). */
+  amountsNote?: string;
 }) {
   const { t, format, locale } = useI18n();
   const [open, setOpen] = useState<Partial<Record<FundamentalStepId, boolean>>>({});
@@ -258,6 +261,11 @@ export function FundamentalAnalysisBody({
   return (
     <div className={styles.wrap}>
       <p className={styles.intro}>{marketCopy(t, market, "intro")}</p>
+      {amountsNote ? (
+        <p className={styles.note} data-testid="fundamental-amounts-note">
+          {amountsNote}
+        </p>
+      ) : null}
       {model.steps.map((step, index) => {
         const expanded = open[step.id] === true;
         const title = t(`ngx.sheet.sections.${step.id}`);

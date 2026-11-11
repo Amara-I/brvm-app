@@ -150,6 +150,14 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
                 series={company.series}
                 yearPrices={yearPrices}
                 market="NGX"
+                amountsNote={
+                  model.presentation.reportingCurrency?.ngnPerUsd != null
+                    ? t("ngx.sheet.usdAccounts.tabNote", {
+                        rate: format.decimal(model.presentation.reportingCurrency.ngnPerUsd, 2),
+                        date: model.presentation.reportingCurrency.asOf ?? "N/D",
+                      })
+                    : undefined
+                }
                 preferredPortfolioType={preferredPortfolioType}
               />
             ),

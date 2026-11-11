@@ -15,6 +15,14 @@ export interface NgxProfileFundamentals {
   } | null;
   /** Données complémentaires par exercice, clé = année. */
   years: Record<number, NgxYearExtras>;
+  /**
+   * Devise des comptes publiés (montants, BPA, capitaux propres). « USD » pour les sociétés qui publient en dollars
+   * (ETI, AIRTELAFRI) : les montants restent en dollars à l'affichage ; les multiples rapportés au cours en ₦
+   * passent par le taux officiel CBN ci-dessous. Absent = NGN.
+   */
+  reportingCurrency?: NgxReportingCurrency;
+  /** Taux officiel CBN (₦ par US$) servant aux multiples actuels d'une société publiant en USD. */
+  fx?: { ngnPerUsd: number; asOf: string | null; sourceUrl: string | null } | null;
   profile: {
     website: string | null;
     headOffice: string | null;
@@ -39,7 +47,11 @@ export interface NgxYearExtras {
   /** Confiance du BPA publié ; null si non enregistrée. */
   epsConfidence?: NgxConfidence | null;
   sourceUrl: string | null;
+  /** Taux CBN (₦ par US$) à la clôture de l'exercice, pour une société publiant en USD (PER historique). */
+  ngnPerUsd?: number | null;
 }
+
+export type NgxReportingCurrency = "NGN" | "USD";
 
 export interface NgxFinancialYear {
   year: number;
@@ -59,6 +71,14 @@ export interface NgxFinancialYear {
    */
   eraShares: number | null;
   sourceUrl: string | null;
+  /** Flux de trésorerie disponible (flux d'exploitation − investissements corporels), milliards, devise des comptes. */
+  fcfBn?: number | null;
+  /** Dettes financières ÷ capitaux propres (%), hors banques et assureurs. */
+  debtRatioPercent?: number | null;
+  /** Devise des montants de l'exercice (NGN par défaut). */
+  currency?: NgxReportingCurrency;
+  /** Taux CBN (₦ par US$) à la clôture de l'exercice quand currency = USD. */
+  ngnPerUsd?: number | null;
 }
 
 function num(value: unknown): number | null {
@@ -124,6 +144,7 @@ export function parseNgxProfileMeta(meta: unknown): NgxProfileFundamentals {
         equityConfidence: confidence(row.equityConfidence),
         epsConfidence: confidence(row.epsConfidence),
         sourceUrl: safeUrl(row.sourceUrl),
+        ngnPerUsd: positive(row.ngnPerUsd) ?? undefined,
       };
     }
   }
@@ -141,7 +162,26 @@ export function parseNgxProfileMeta(meta: unknown): NgxProfileFundamentals {
       }
     : null;
 
-  return { sharesOutstanding, years, profile };
+  // Champs absents laissés undefined (NGN par défaut) : les lectures existantes restent inchangées.
+  const reportingCurrency: NgxReportingCurrency | undefined = f.reportingCurrency === "USD" ? "USD" : undefined;
+  const fxRaw = record(f.fx);
+  const fxRate = positive(fxRaw?.ngnPerUsd);
+  const fx = fxRaw && fxRate != null ? { ngnPerUsd: fxRate, asOf: str(fxRaw.asOf), sourceUrl: safeUrl(fxRaw.sourceUrl) } : null;
+  return { sharesOutstanding, years, profile, reportingCurrency, fx: fx ?? undefined };
+}
+
+function positive(value: unknown): number | null {
+  const n = num(value);
+  return n != null && n > 0 ? n : null;
+}
+
+/**
+ * Multiplicateur devise des comptes → ₦ pour les multiples rapportés au cours actuel : 1 en NGN, taux CBN en USD,
+ * null si la société publie en USD sans taux enregistré (multiples alors N/D plutôt que faux).
+ */
+export function ngnPerReportingUnit(meta: Pick<NgxProfileFundamentals, "reportingCurrency" | "fx">): number | null {
+  if ((meta.reportingCurrency ?? "NGN") === "NGN") return 1;
+  return meta.fx?.ngnPerUsd ?? null;
 }
 
 export interface RatioRowLike {
@@ -149,6 +189,8 @@ export interface RatioRowLike {
   revenue: unknown;
   operatingIncome: unknown;
   netIncome: unknown;
+  fcf?: unknown;
+  debtRatio?: unknown;
   isCanonical: boolean;
   source: string;
 }
@@ -201,6 +243,10 @@ export function buildFinancialYears(
       epsConfidence: extra?.epsConfidence ?? null,
       eraShares,
       sourceUrl: extra?.sourceUrl ?? null,
+      fcfBn: num(row?.fcf) ?? undefined,
+      debtRatioPercent: num(row?.debtRatio) ?? undefined,
+      currency: meta.reportingCurrency,
+      ngnPerUsd: extra?.ngnPerUsd ?? undefined,
     });
   }
   const useful = out.filter(
