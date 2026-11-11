@@ -10,6 +10,9 @@
   border: 1px solid var(--c-border);
   border-radius: 12px;
   padding: 14px 16px;
+  min-width: 0;
+  overflow-wrap: break-word;
+  box-sizing: border-box;
 }
 
 .kpi span {
@@ -21,8 +24,11 @@
 
 .kpi strong {
   color: var(--c-gold);
-  font-size: 1.35rem;
+  font-size: clamp(0.95rem, 0.6rem + 2.2vw, 1.35rem);
   font-weight: 700;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  white-space: normal;
 }
 
 .sectionTitle {

@@ -22,6 +22,7 @@ export const market = {
   refreshingAria: "Refreshing {market} quotes",
   cap: "{amount} bn",
   capCurrency: "{amount} bn {currency}",
+  capUnit: "bn {currency}",
   kpi: {
     listed: "Listed companies",
     totalCap: "Total market cap",

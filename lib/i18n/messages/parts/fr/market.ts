@@ -22,6 +22,7 @@ export const market = {
   refreshingAria: "Actualisation des cours {market} en cours",
   cap: "{amount} Mds",
   capCurrency: "{amount} Mds {currency}",
+  capUnit: "Mds {currency}",
   kpi: {
     listed: "Sociétés cotées",
     totalCap: "Capitalisation totale",
