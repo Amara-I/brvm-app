@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { familySortRank, isHeadlineIndex, resolveIndexCatalog } from "./index-catalog";
+import { familySortRank, isHeadlineIndex, isHeadlineIndexForExchange, resolveIndexCatalog } from "./index-catalog";
 
 describe("resolveIndexCatalog", () => {
   it("connaît les indices principaux BRVM", () => {
@@ -48,6 +48,13 @@ describe("headline / sort", () => {
     expect(isHeadlineIndex("BRVM_COMPOSITE")).toBe(true);
     expect(isHeadlineIndex("BRVM_30")).toBe(true);
     expect(isHeadlineIndex("BRVM_INDUSTRIE")).toBe(false);
+  });
+
+  it("met en avant NGX ASI sur la place NGX uniquement", () => {
+    expect(isHeadlineIndexForExchange("NGX_ASI", "NGX")).toBe(true);
+    expect(isHeadlineIndexForExchange("NGX30", "NGX")).toBe(false);
+    expect(isHeadlineIndexForExchange("NGX_ASI", "BRVM")).toBe(false);
+    expect(isHeadlineIndexForExchange("BRVM_30", "BRVM")).toBe(true);
   });
 
   it("ordonne principal < sectoriel < autre", () => {

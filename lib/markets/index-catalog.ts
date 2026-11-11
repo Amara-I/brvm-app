@@ -135,6 +135,12 @@ export function isHeadlineIndex(code: string): boolean {
   return (HEADLINE_INDEX_CODES as readonly string[]).includes(code.toUpperCase());
 }
 
+/** Indices mis en avant sur la vue d'ensemble d'une place. */
+export function isHeadlineIndexForExchange(code: string, exchange: string = "BRVM"): boolean {
+  if (exchange === "NGX") return code.toUpperCase() === "NGX_ASI";
+  return isHeadlineIndex(code);
+}
+
 export function familySortRank(family: IndexFamily): number {
   if (family === "principal") return 0;
   if (family === "sectoriel") return 1;

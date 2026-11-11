@@ -4,6 +4,7 @@ const ALLOW_IDENTICAL = new Set([
   "N/D",
   "OuestBourse",
   "BRVM",
+  "NGX — Nigerian Exchange",
   "FCFA",
   "Screener",
   "Excel",
