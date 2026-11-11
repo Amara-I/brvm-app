@@ -4,18 +4,53 @@
 // montants en FCFA. Le score de Vue d'ensemble n'est pas recalculé.
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { TFunc } from "@/lib/i18n/create-i18n";
 import type { FormatApi } from "@/lib/i18n/format";
 import { localizedTypeDef } from "@/lib/i18n/portfolio-type-copy";
-import { outlookSummary, outlookText } from "@/lib/outlook/synthesis";
+import { outlookSummary, outlookText, type OutlookItemType } from "@/lib/outlook/synthesis";
 import { analysisFromSheet, type BrvmSheetSlice, type FundamentalStep, type FundamentalStepId } from "@/lib/fundamental/brvm-analysis";
+import { outlookHeadline } from "@/lib/fundamental/outlook-headline";
+import {
+  PER_NOT_SIGNIFICANT_ABOVE,
+  YIELD_NOT_SIGNIFICANT_ABOVE,
+  type BrvmValueMethod,
+  type MethodSkipReason,
+} from "@/lib/fundamental/valuation-methods";
 import type { PolicyCriterion } from "@/lib/ngx/policy";
 import { VALUATION_BAND_PERCENT } from "@/lib/ngx/valuation";
 import { getPortfolioTypeDef, PORTFOLIO_TYPE_THEME_SLUG } from "@/lib/portfolio-types";
 import type { PortfolioTypeId } from "@/lib/portfolio-types/constants";
 import styles from "./FundamentalAnalysis.module.css";
+
+function ChartLoading() {
+  const { t } = useI18n();
+  return (
+    <p className={styles.note} role="status">
+      {t("company.fundamental.chartLoading")}
+    </p>
+  );
+}
+
+const FundamentalCharts = dynamic(() => import("./FundamentalCharts"), {
+  ssr: false,
+  loading: () => <ChartLoading />,
+});
+
+const OUTLOOK_TYPES: OutlookItemType[] = ["guidance", "project", "analyst", "risk", "sector"];
+
+function methodLabel(t: TFunc, method: BrvmValueMethod): string {
+  if (method === "DIVIDEND_YIELD" || method === "DDM" || method === "HISTORICAL_PE") {
+    return t(`company.fundamental.methods.${method}`);
+  }
+  return t(`ngx.sheet.valuation.methods.${method}`);
+}
+
+function skipLabel(t: TFunc, reason: MethodSkipReason): string {
+  return t(`company.fundamental.skip.${reason}`);
+}
 
 const CEILING = new Set<PolicyCriterion["key"]>(["payout", "drawdown", "volatility"]);
 const INTEGER = new Set<PolicyCriterion["key"]>(["dividendRegularity"]);
@@ -100,7 +135,7 @@ export default function FundamentalAnalysisPanel({
       : nd;
 
   const multiple = (status: string, value: number | null, asMult = true) => {
-    if (status === "stale") return t("company.fundamental.notSignificant");
+    if (status === "stale" || status === "outlier") return t("company.fundamental.notSignificant");
     if (status === "negative") return t("company.fundamental.negativeMultiple");
     return asMult ? mult(value) : pct(value, 1);
   };
@@ -113,13 +148,29 @@ export default function FundamentalAnalysisPanel({
       case "performance":
         return `${t("company.fundamental.field.revenueCagr")} ${pct(perf.revenueCagr.cagr, 1, true)}`;
       case "outlook":
-        return step.verdict === "available" ? t("company.fundamental.verdict.outlook.available") : nd;
-      case "price":
-        return `${t("company.fundamental.field.per")} ${multiple(price.per.status, price.per.value)} · ${t("company.fundamental.field.yield")} ${pct(price.yieldPercent, 2)}`;
+        return outlookHeadline(model.outlook.synthesis, locale) ?? nd;
+      case "price": {
+        const band =
+          model.liquidity.stats.low52 != null && model.liquidity.stats.high52 != null
+            ? `${fcfa(model.liquidity.stats.low52)} – ${fcfa(model.liquidity.stats.high52)}`
+            : null;
+        return [
+          `${t("company.fundamental.field.per")} ${multiple(price.per.status, price.per.value)}`,
+          `${t("company.fundamental.field.yield")} ${pct(price.yieldPercent, 2)}`,
+          band,
+        ]
+          .filter(Boolean)
+          .join(" · ");
+      }
       case "valuation":
+        if (valuation.rangeMode === "none") return t("company.fundamental.notSignificant");
+        if (valuation.rangeMode === "single") return fcfa(valuation.summary.mid);
         return valuation.summary.gapToMidPercent == null ? nd : pct(valuation.summary.gapToMidPercent, 0, true);
-      case "sector":
-        return t("company.fundamental.field.peers", { count: sector.peersWithData });
+      case "sector": {
+        const perRow = sector.rows.find((r) => r.key === "per");
+        const position = perRow?.position ? t(`company.fundamental.position.${perRow.position}`) : null;
+        return [t("company.fundamental.field.peers", { count: sector.peersWithData }), position].filter(Boolean).join(" · ");
+      }
       case "dividends":
         return `${t("company.fundamental.field.yield")} ${pct(d.currentYieldPercent, 2)}`;
       case "conclusion": {
@@ -168,28 +219,95 @@ export default function FundamentalAnalysisPanel({
               </button>
             </h3>
             <div id={panelId} role="region" aria-labelledby={buttonId} hidden={!expanded} className={styles.panel}>
-              {step.id === "presentation" && (
-                <Presentation model={model} t={t} format={format} nd={nd} bn={bn} day={day} />
+              {expanded && step.id === "presentation" && (
+                <Presentation model={model} t={t} format={format} nd={nd} bn={bn} day={day} pct={pct} />
               )}
-              {step.id === "performance" && <Performance model={model} t={t} nd={nd} bn={bn} pct={pct} />}
-              {step.id === "outlook" && <Outlook model={model} t={t} locale={locale} pct={pct} />}
-              {step.id === "price" && (
-                <Price model={model} t={t} format={format} nd={nd} bn={bn} fcfa={fcfa} pct={pct} multiple={multiple} />
+              {expanded && step.id === "performance" && (
+                <>
+                  <Performance model={model} t={t} nd={nd} bn={bn} pct={pct} fcfa={fcfa} />
+                  <FundamentalCharts kind="performance" years={model.performance.years} />
+                </>
               )}
-              {step.id === "valuation" && <Valuation model={model} t={t} format={format} nd={nd} fcfa={fcfa} pct={pct} />}
-              {step.id === "sector" && <Sector model={model} t={t} format={format} nd={nd} pct={pct} mult={mult} />}
-              {step.id === "dividends" && <Dividends model={model} t={t} format={format} nd={nd} fcfa={fcfa} pct={pct} day={day} />}
-              {step.id === "conclusion" && (
-                <Conclusion
-                  model={model}
-                  t={t}
-                  format={format}
-                  locale={locale}
-                  nd={nd}
-                  fcfa={fcfa}
-                  pct={pct}
-                  preferredPortfolioType={preferredPortfolioType}
-                />
+              {expanded && step.id === "outlook" && <Outlook model={model} t={t} locale={locale} pct={pct} />}
+              {expanded && step.id === "price" && (
+                <>
+                  <Price model={model} t={t} format={format} nd={nd} bn={bn} fcfa={fcfa} pct={pct} multiple={multiple} />
+                  <FundamentalCharts
+                    kind="price"
+                    points={slice.series}
+                    high52={model.liquidity.stats.high52}
+                    low52={model.liquidity.stats.low52}
+                  />
+                </>
+              )}
+              {expanded && step.id === "valuation" && (
+                <>
+                  <Valuation model={model} t={t} format={format} nd={nd} fcfa={fcfa} pct={pct} />
+                  <FundamentalCharts
+                    kind="valuation"
+                    price={model.price.close}
+                    low={model.valuation.summary.low}
+                    high={model.valuation.summary.high}
+                    single={model.valuation.rangeMode === "single"}
+                    methods={model.valuation.estimates.map((e) => ({ label: methodLabel(t, e.method), value: e.value }))}
+                  />
+                </>
+              )}
+              {expanded && step.id === "sector" && (
+                <>
+                  <Sector model={model} t={t} format={format} nd={nd} pct={pct} mult={mult} />
+                  <FundamentalCharts
+                    kind="sector"
+                    bars={model.sector.rows
+                      .filter((r) => r.company != null && r.stat.median != null && r.stat.median !== 0)
+                      .map((r) => ({
+                        label:
+                          r.key === "revenueGrowth"
+                            ? t("company.fundamental.field.revenueYoy")
+                            : t(`ngx.sheet.sector.metrics.${r.key as "per" | "pbr" | "yield" | "netMargin" | "roe"}`),
+                        index: (r.company! / r.stat.median!) * 100,
+                      }))}
+                  />
+                </>
+              )}
+              {expanded && step.id === "dividends" && (
+                <>
+                  <Dividends model={model} t={t} format={format} nd={nd} fcfa={fcfa} pct={pct} day={day} />
+                  <FundamentalCharts
+                    kind="dividends"
+                    points={[...model.dividends.lines].reverse().map((line) => {
+                      const yearPrice = slice.company.prices[line.year];
+                      const yieldPercent =
+                        yearPrice != null && yearPrice > 0 && line.dps >= 0 && (line.dps / yearPrice) * 100 <= YIELD_NOT_SIGNIFICANT_ABOVE
+                          ? (line.dps / yearPrice) * 100
+                          : null;
+                      return { year: String(line.year), dps: line.dps, yieldPercent };
+                    })}
+                  />
+                </>
+              )}
+              {expanded && step.id === "conclusion" && (
+                <>
+                  <FundamentalCharts
+                    kind="conclusion"
+                    bars={model.policies
+                      .filter((p) => p.evaluated > 0)
+                      .map((p) => ({
+                        label: localizedTypeDef(getPortfolioTypeDef(p.type), locale).label,
+                        share: (p.okCount / p.evaluated) * 100,
+                      }))}
+                  />
+                  <Conclusion
+                    model={model}
+                    t={t}
+                    format={format}
+                    locale={locale}
+                    nd={nd}
+                    fcfa={fcfa}
+                    pct={pct}
+                    preferredPortfolioType={preferredPortfolioType}
+                  />
+                </>
               )}
             </div>
           </section>
@@ -239,6 +357,7 @@ function Presentation({
   nd,
   bn,
   day,
+  pct,
 }: {
   model: Model;
   t: TFunc;
@@ -246,6 +365,7 @@ function Presentation({
   nd: string;
   bn: (v: number | null) => string;
   day: (iso: string | null) => string;
+  pct: (v: number | null, d?: number, s?: boolean) => string;
 }) {
   const p = model.presentation;
   return (
@@ -253,9 +373,12 @@ function Presentation({
       {p.description ? <p className={styles.bodyText}>{p.description}</p> : <p className={styles.note}>{nd}</p>}
       <div className={styles.grid}>
         <Stat label={t("company.fundamental.field.sector")} value={p.sector || nd} />
+        <Stat label={t("company.fundamental.field.industry")} value={p.industry || nd} />
+        <Stat label={t("company.fundamental.field.country")} value={p.country || nd} />
         <Stat label={t("company.fundamental.field.isin")} value={p.isin || nd} />
         <Stat label={t("company.fundamental.field.listed")} value={day(p.listedSince)} />
         <Stat label={t("company.fundamental.field.shares")} value={p.shares == null ? nd : format.integer(p.shares)} />
+        <Stat label={t("company.fundamental.field.float")} value={pct(p.floatPercent, 2)} />
         <Stat label={t("company.fundamental.field.cap")} value={bn(p.marketCapBn)} />
         <Stat
           label={t("company.fundamental.field.rank")}
@@ -276,12 +399,14 @@ function Performance({
   nd,
   bn,
   pct,
+  fcfa,
 }: {
   model: Model;
   t: TFunc;
   nd: string;
   bn: (v: number | null) => string;
   pct: (v: number | null, d?: number, s?: boolean) => string;
+  fcfa: (v: number | null) => string;
 }) {
   const perf = model.performance;
   const span = (c: typeof perf.revenueCagr) =>
@@ -307,9 +432,33 @@ function Performance({
         />
         <Stat
           label={t("company.fundamental.field.netMargin")}
-          value={perf.latestNetMarginYear != null ? `${pct(perf.latestNetMarginPercent, 1)} · ${perf.latestNetMarginYear}` : nd}
+          value={
+            perf.latestNetMarginYear != null
+              ? `${pct(perf.latestNetMarginPercent, 1)} · ${perf.latestNetMarginYear}${
+                  perf.prevNetMarginPercent != null ? ` · ${t("company.fundamental.prev", { value: pct(perf.prevNetMarginPercent, 1) })}` : ""
+                }`
+              : nd
+          }
+        />
+        <Stat
+          label={t("company.fundamental.field.roe")}
+          value={
+            perf.roePercent == null
+              ? nd
+              : `${pct(perf.roePercent, 1)}${perf.prevRoePercent != null ? ` · ${t("company.fundamental.prev", { value: pct(perf.prevRoePercent, 1) })}` : ""}`
+          }
+        />
+        <Stat label={t("company.fundamental.field.roa")} value={nd} />
+        <Stat
+          label={t("company.fundamental.field.debt")}
+          value={
+            perf.debtRatio == null
+              ? nd
+              : `${pct(perf.debtRatio, 1)}${perf.prevDebtRatio != null ? ` · ${t("company.fundamental.prev", { value: pct(perf.prevDebtRatio, 1) })}` : ""}`
+          }
         />
       </div>
+      <p className={styles.note}>{t("company.fundamental.roaNote")}</p>
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
@@ -320,6 +469,8 @@ function Performance({
               <th scope="col">{t("company.fundamental.table.net")}</th>
               <th scope="col">{t("company.fundamental.table.opMargin")}</th>
               <th scope="col">{t("company.fundamental.table.netMargin")}</th>
+              <th scope="col">{t("company.fundamental.table.eps")}</th>
+              <th scope="col">{t("company.fundamental.table.payout")}</th>
             </tr>
           </thead>
           <tbody>
@@ -331,6 +482,8 @@ function Performance({
                 <td>{bn(y.netIncome)}</td>
                 <td>{pct(y.operatingMargin, 1)}</td>
                 <td>{pct(y.netMargin, 1)}</td>
+                <td>{fcfa(y.eps)}</td>
+                <td>{pct(y.payoutPercent, 0)}</td>
               </tr>
             ))}
           </tbody>
@@ -356,8 +509,32 @@ function Outlook({
   if (!synthesis) return <p className={styles.note}>{t("company.fundamental.outlookEmpty")}</p>;
   const summary = outlookSummary(synthesis, locale);
   const growth = model.outlook.sectorGrowth;
+  const ownGrowth = model.performance.latestRevenueGrowthPercent;
+  const nd = t("common.nd");
+  const hasText = summary.bullets.length + summary.watch.length + synthesis.items.length > 0;
   return (
     <>
+      <p className={styles.lead}>{t("company.fundamental.outlookFigures")}</p>
+      <div className={styles.grid}>
+        <Stat
+          label={t("company.fundamental.field.revenueYoy")}
+          value={
+            model.performance.latestRevenueGrowthYear != null
+              ? `${pct(ownGrowth, 1, true)} · ${model.performance.latestRevenueGrowthYear}`
+              : nd
+          }
+        />
+        <Stat
+          label={t("company.fundamental.field.netMargin")}
+          value={
+            model.performance.latestNetMarginYear != null
+              ? `${pct(model.performance.latestNetMarginPercent, 1)} · ${model.performance.latestNetMarginYear}`
+              : nd
+          }
+        />
+        <Stat label={t("ngx.sheet.sector.median")} value={growth.median == null ? nd : pct(growth.median, 1, true)} />
+      </div>
+      {!hasText ? <p className={styles.note}>{t("company.fundamental.outlookEmpty")}</p> : null}
       {summary.bullets.length > 0 ? (
         <ul className={styles.list}>
           {summary.bullets.map((b) => (
@@ -372,8 +549,10 @@ function Outlook({
           ))}
         </ul>
       ) : null}
+      {synthesis.items.length > 0 ? <h4 className={styles.sub}>{t("company.fundamental.guidance")}</h4> : null}
       {synthesis.items.map((item, i) => (
         <p key={`${item.type}-${i}`} className={styles.item}>
+          <span className={styles.meta}>{t(`company.fundamental.itemType.${item.type}`)}</span>
           {outlookText(item, locale)}
           <span className={styles.meta}>
             {[item.date, item.sourceName, item.confidence].filter(Boolean).join(" · ") || t("common.nd")}
@@ -443,9 +622,37 @@ function Price({
         <Stat label={t("company.fundamental.field.traded")} value={liq.tradedSessionsRatio == null ? nd : pct(liq.tradedSessionsRatio * 100, 0)} />
         <Stat label={t("company.fundamental.field.return3m")} value={pct(stats.return3mPercent, 1, true)} />
         <Stat label={t("company.fundamental.field.return1y")} value={pct(stats.return1yPercent, 1, true)} />
+        <Stat label={t("company.fundamental.field.low52")} value={fcfa(stats.low52)} />
+        <Stat label={t("company.fundamental.field.high52")} value={fcfa(stats.high52)} />
+        <Stat
+          label={t("company.fundamental.field.rangePos")}
+          value={
+            price.close != null && stats.low52 != null && stats.high52 != null && stats.high52 > stats.low52
+              ? t("company.fundamental.inRange", {
+                  value: format.percent(((price.close - stats.low52) / (stats.high52 - stats.low52)) * 100, 0),
+                })
+              : nd
+          }
+        />
         <Stat label={t("company.fundamental.field.drawdown")} value={pct(stats.drawdownFromHighPercent, 1)} />
         <Stat label={t("company.fundamental.field.volatility")} value={pct(stats.volatilityPercent, 1)} />
       </div>
+      {price.per.status === "outlier" && price.per.recorded != null ? (
+        <p className={styles.note}>
+          {t("company.fundamental.outlierPer", { value: format.decimal(price.per.recorded, 1), max: PER_NOT_SIGNIFICANT_ABOVE })}
+        </p>
+      ) : null}
+      {price.epsBlocked === "outlier" && price.impliedPer != null ? (
+        <p className={styles.note}>
+          {t("company.fundamental.outlierEps", {
+            eps: fcfa(price.impliedEps),
+            price: fcfa(price.close),
+            per: format.decimal(price.impliedPer, 1),
+            max: PER_NOT_SIGNIFICANT_ABOVE,
+          })}
+        </p>
+      ) : null}
+      {price.epsBlocked === "negative" ? <p className={styles.note}>{t("company.fundamental.negativeEpsNote")}</p> : null}
       <p className={styles.note}>{t("company.fundamental.ratiosNote")}</p>
       <p className={styles.note}>
         {t("company.fundamental.epsNote", { year: price.impliedEpsYear ?? "" })} {t("company.fundamental.noEquity")}
@@ -469,48 +676,77 @@ function Valuation({
   fcfa: (v: number | null) => string;
   pct: (v: number | null, d?: number, s?: boolean) => string;
 }) {
-  const { summary, estimates } = model.valuation;
-  if (summary.verdict === "UNKNOWN" || estimates.length === 0) {
-    return (
-      <>
-        <p className={styles.note}>{t("ngx.sheet.valuation.empty")}</p>
-        <p className={styles.note}>{t("company.fundamental.noEquity")}</p>
-      </>
-    );
-  }
+  const { summary, estimates, skipped, rangeMode, historicalPer } = model.valuation;
+  const hist = historicalPer;
   return (
     <>
-      <div className={styles.grid}>
-        <Stat label={t("ngx.sheet.valuation.range")} value={`${fcfa(summary.low)} – ${fcfa(summary.high)}`} />
-        <Stat label={t("ngx.sheet.valuation.mid")} value={fcfa(summary.mid)} />
-        <Stat label={t("company.fundamental.field.gap")} value={pct(summary.gapToMidPercent, 0, true)} />
-      </div>
-      <div className={styles.tableWrap}>
-        <table className={styles.table}>
-          <thead>
-            <tr>
-              <th scope="col">{t("company.fundamental.table.method")}</th>
-              <th scope="col">{t("company.fundamental.table.value")}</th>
-              <th scope="col">{t("company.fundamental.table.gap")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {estimates.map((e) => (
-              <tr key={e.method}>
-                <td>
-                  {t(`ngx.sheet.valuation.methods.${e.method}`)}
-                  {e.lowConfidence ? <span className={styles.meta}>{t("ngx.sheet.valuation.lowConfidence")}</span> : null}
-                </td>
-                <td>{fcfa(e.value)}</td>
-                <td>{format.percent(e.priceGapPercent, 0, true)}</td>
+      {rangeMode === "none" ? (
+        <p className={styles.note}>{t("ngx.sheet.valuation.empty")}</p>
+      ) : (
+        <div className={styles.grid}>
+          {rangeMode === "single" ? (
+            <Stat label={t("company.fundamental.oneMethod")} value={fcfa(summary.mid)} />
+          ) : (
+            <Stat label={t("ngx.sheet.valuation.range")} value={`${fcfa(summary.low)} – ${fcfa(summary.high)}`} />
+          )}
+          {rangeMode === "range" ? <Stat label={t("ngx.sheet.valuation.mid")} value={fcfa(summary.mid)} /> : null}
+          <Stat label={t("company.fundamental.field.gap")} value={pct(summary.gapToMidPercent, 0, true)} />
+        </div>
+      )}
+      {rangeMode === "single" && estimates[0] ? (
+        <p className={styles.note}>{t("company.fundamental.singleMethod", { method: methodLabel(t, estimates[0].method) })}</p>
+      ) : null}
+      {estimates.length > 0 ? (
+        <div className={styles.tableWrap}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">{t("company.fundamental.table.method")}</th>
+                <th scope="col">{t("company.fundamental.table.value")}</th>
+                <th scope="col">{t("company.fundamental.table.gap")}</th>
               </tr>
+            </thead>
+            <tbody>
+              {estimates.map((e) => (
+                <tr key={e.method}>
+                  <td>
+                    {methodLabel(t, e.method)}
+                    {e.lowConfidence ? <span className={styles.meta}>{t("ngx.sheet.valuation.lowConfidence")}</span> : null}
+                  </td>
+                  <td>{fcfa(e.value)}</td>
+                  <td>{format.percent(e.priceGapPercent, 0, true)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+      {skipped.length > 0 ? (
+        <>
+          <h4 className={styles.sub}>{t("company.fundamental.skippedTitle")}</h4>
+          <ul className={styles.list}>
+            {skipped.map((s) => (
+              <li key={s.method}>
+                {methodLabel(t, s.method)} — {skipLabel(t, s.reason)}
+              </li>
             ))}
-          </tbody>
-        </table>
-      </div>
+          </ul>
+        </>
+      ) : null}
+      <p className={styles.note}>{t("company.fundamental.howYield")}</p>
+      <p className={styles.note}>{t("company.fundamental.howPb")}</p>
+      <p className={styles.note}>{t("company.fundamental.howDdm")}</p>
       <p className={styles.note}>
-        {t("ngx.sheet.valuation.band", { percent: VALUATION_BAND_PERCENT })} {t("ngx.sheet.valuation.indicative")}
+        {hist
+          ? t("company.fundamental.howHist", { from: hist.fromYear, to: hist.toYear, count: hist.n, max: PER_NOT_SIGNIFICANT_ABOVE })
+          : t("company.fundamental.skip.thinHistory")}
       </p>
+      {rangeMode !== "none" ? (
+        <p className={styles.note}>
+          {t("ngx.sheet.valuation.band", { percent: VALUATION_BAND_PERCENT })} {t("ngx.sheet.valuation.indicative")}
+        </p>
+      ) : null}
+      <p className={styles.srOnly}>{nd}</p>
     </>
   );
 }
@@ -563,7 +799,15 @@ function Sector({
                             `ngx.sheet.sector.metrics.${r.key as "per" | "pbr" | "yield" | "netMargin" | "roe"}`,
                           )}
                     </td>
-                    <td>{r.stale ? t("company.fundamental.notSignificant") : show(r.key, r.company)}</td>
+                    <td>
+                      {r.stale || r.excluded === "outlier" || r.excluded === "negative"
+                        ? t("company.fundamental.notSignificant")
+                        : show(r.key, r.company)}
+                      {r.position ? <span className={styles.meta}>{t(`company.fundamental.position.${r.position}`)}</span> : null}
+                      {r.rank != null ? (
+                        <span className={styles.meta}>{t("company.fundamental.rank", { rank: r.rank, count: r.rankedCount })}</span>
+                      ) : null}
+                    </td>
                     <td>
                       {show(r.key, r.stat.median)}
                       {r.stat.median != null && r.stat.lowConfidence ? "*" : ""}
@@ -585,6 +829,69 @@ function Sector({
           </div>
         </>
       )}
+      <p className={styles.note}>
+        {t("company.fundamental.howMedian", {
+          sector: name || nd,
+          max: PER_NOT_SIGNIFICANT_ABOVE,
+          yieldMax: YIELD_NOT_SIGNIFICANT_ABOVE,
+        })}
+      </p>
+      <p className={styles.note}>{t("company.fundamental.peerIntro", { count: model.sector.peerCount })}</p>
+      {rows[0] && rows[0].peers.length > 0 ? (
+        <>
+          <h4 className={styles.sub}>{t("company.fundamental.referencesTitle")}</h4>
+          <div className={styles.tableWrap}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th scope="col">{t("company.fundamental.table.ticker")}</th>
+                  {rows.map((r) => (
+                    <th key={r.key} scope="col">
+                      {r.key === "revenueGrowth"
+                        ? t("company.fundamental.field.revenueYoy")
+                        : t(`ngx.sheet.sector.metrics.${r.key as "per" | "pbr" | "yield" | "netMargin" | "roe"}`)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{t("company.fundamental.thisCompany")}</td>
+                  {rows.map((r) => (
+                    <td key={r.key}>
+                      {r.excluded === "outlier" || r.excluded === "negative"
+                        ? `${r.recorded == null ? nd : show(r.key, r.recorded)} (${t("company.fundamental.excluded")})`
+                        : r.stale
+                          ? t("company.fundamental.notSignificant")
+                          : show(r.key, r.company)}
+                    </td>
+                  ))}
+                </tr>
+                {rows[0].peers.map((peer) => (
+                  <tr key={peer.ticker}>
+                    <td>
+                      <Link className={styles.peerLink} href={`/actions/${peer.ticker}`}>
+                        {peer.ticker}
+                      </Link>
+                      <span className={styles.meta}>{peer.name}</span>
+                    </td>
+                    {rows.map((r) => {
+                      const ref = r.peers.find((p) => p.ticker === peer.ticker);
+                      if (!ref || ref.value == null) return <td key={r.key}>{nd}</td>;
+                      return (
+                        <td key={r.key}>
+                          {show(r.key, ref.value)}
+                          {ref.included ? "" : ` (${t("company.fundamental.excluded")})`}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : null}
       <p className={styles.note}>{t("company.fundamental.sectorNote")}</p>
     </>
   );

@@ -272,4 +272,143 @@ describe("analyse fondamentale BRVM", () => {
     expect(model.dividends.lines.find((l) => l.year === 2023)?.dps).toBe(100);
     expect(model.steps.find((s) => s.id === "outlook")?.tone).toBe("nd");
   });
+
+  it("ouvre une fourchette réelle pour Sonatel : PER sectoriel, rendement et PER historique", () => {
+    const model = buildBrvmFundamentalAnalysis(
+      input({
+        sector: "Télécoms",
+        close: 4_000,
+        per: 9.67,
+        mktcap: 4_000,
+        sharesOutstanding: 1_000_000_000,
+        pbRatio: null,
+        netMargin: 21.51,
+        revenueGrowth: 8.26,
+        income: [
+          { year: 2023, revenue: 1620.7, netIncome: 331.75, operatingIncome: null },
+          { year: 2024, revenue: 1776.44, netIncome: 393.66, operatingIncome: null },
+          { year: 2025, revenue: 1923.12, netIncome: 413.59, operatingIncome: null },
+        ],
+        dividends: [
+          { year: 2021, amount: 140, exDate: null, paymentDate: null, source: "BRVM officiel" },
+          { year: 2022, amount: 150, exDate: null, paymentDate: null, source: "BRVM officiel" },
+          { year: 2023, amount: 157.5, exDate: null, paymentDate: null, source: "BRVM officiel" },
+          { year: 2024, amount: 165.5, exDate: null, paymentDate: null, source: "BRVM officiel" },
+          { year: 2025, amount: 174, exDate: null, paymentDate: null, source: "BRVM officiel" },
+        ],
+        ratioHistory: [
+          { year: 2021, per: 15.37, pbRatio: null, roe: null, netMargin: 18.91, debtRatio: null, revenueGrowth: null, fcf: null },
+          { year: 2022, per: 13.91, pbRatio: null, roe: null, netMargin: 19.17, debtRatio: null, revenueGrowth: 9, fcf: null },
+          { year: 2023, per: 11.7, pbRatio: null, roe: null, netMargin: 20.47, debtRatio: null, revenueGrowth: 11.38, fcf: null },
+          { year: 2024, per: 9.86, pbRatio: null, roe: null, netMargin: 22.16, debtRatio: null, revenueGrowth: 9.61, fcf: null },
+          { year: 2025, per: 9.38, pbRatio: null, roe: null, netMargin: 21.51, debtRatio: null, revenueGrowth: 8.26, fcf: null },
+          { year: 2026, per: 9.67, pbRatio: null, roe: null, netMargin: null, debtRatio: null, revenueGrowth: null, fcf: null },
+        ],
+        universe: [
+          { ticker: "SNTS", name: "Sonatel", sector: "Télécoms", per: 9.67, mktcap: 4000, pbRatio: null, roe: null, netMargin: 21.51, revenueGrowth: 8.26, close: 4000, dividend: 174 },
+          { ticker: "ONTBF", name: "ONATEL BF", sector: "Télécoms", per: 14, mktcap: 200, pbRatio: null, roe: null, netMargin: 10.87, revenueGrowth: 3.06, close: 3030, dividend: 145.32 },
+          { ticker: "ORAC", name: "Orange CI", sector: "Télécoms", per: 18.94, mktcap: 1500, pbRatio: null, roe: null, netMargin: 14.02, revenueGrowth: 10.42, close: 21000, dividend: 704 },
+        ],
+      }),
+    );
+    expect(model.price.impliedEps).toBeCloseTo(413.59, 1);
+    expect(model.price.epsBlocked).toBeNull();
+    expect(model.valuation.rangeMode).toBe("range");
+    expect(model.valuation.summary.low).not.toBe(model.valuation.summary.high);
+    const methods = model.valuation.estimates.map((e) => e.method);
+    expect(methods).toContain("SECTOR_PER");
+    expect(methods).toContain("DIVIDEND_YIELD");
+    expect(methods).toContain("HISTORICAL_PE");
+    expect(model.valuation.estimates.find((e) => e.method === "SECTOR_PER")!.value).toBeCloseTo(413.59 * 16.47, 0);
+    expect(model.valuation.skipped.find((s) => s.method === "SECTOR_PBR")?.reason).toBe("noBook");
+    expect(model.valuation.skipped.find((s) => s.method === "DDM")?.reason).toBe("growthAboveYield");
+    const perRow = model.sector.rows.find((r) => r.key === "per")!;
+    expect(perRow.stat.n).toBe(2);
+    expect(perRow.stat.lowConfidence).toBe(true);
+    expect(perRow.peers.map((p) => p.ticker).sort()).toEqual(["ONTBF", "ORAC"]);
+    expect(perRow.peers.find((p) => p.ticker === "ORAC")?.name).toBe("Orange CI");
+    expect(perRow.position).toBe("below");
+    expect(perRow.rank).toBe(3);
+    expect(perRow.rankedCount).toBe(3);
+    expect(model.performance.years.find((y) => y.year === 2025)?.eps).toBeCloseTo(413.59, 1);
+    expect(model.performance.years.find((y) => y.year === 2025)?.payoutPercent).toBeCloseTo((174 / 413.59) * 100, 0);
+  });
+
+  it("n'utilise pas le PER 676,7 de Bernabé pour le verdict de valorisation", () => {
+    const model = buildBrvmFundamentalAnalysis(
+      input({
+        ticker: "BNBC",
+        name: "Bernabé CI",
+        sector: "Conso. Discrétionnaire",
+        close: 1_895,
+        per: 676.7,
+        mktcap: 15,
+        sharesOutstanding: 6_624_000,
+        pbRatio: null,
+        roe: null,
+        netMargin: 0.05,
+        revenueGrowth: -6.31,
+        fcf: null,
+        income: [
+          { year: 2023, revenue: 45.96, netIncome: 0.04, operatingIncome: null },
+          { year: 2024, revenue: 45.31, netIncome: 0.01, operatingIncome: null },
+          { year: 2025, revenue: 42.45, netIncome: 0.02, operatingIncome: null },
+        ],
+        dividends: [{ year: 2023, amount: 150, exDate: null, paymentDate: null, source: "BRVM officiel" }],
+        ratioHistory: [
+          { year: 2021, per: 8.72, pbRatio: null, roe: null, netMargin: 3.6, debtRatio: null, revenueGrowth: null, fcf: null },
+          { year: 2022, per: 7.71, pbRatio: null, roe: null, netMargin: 3.52, debtRatio: null, revenueGrowth: 15.66, fcf: null },
+          { year: 2023, per: 421, pbRatio: null, roe: null, netMargin: 0.08, debtRatio: null, revenueGrowth: -10.57, fcf: null },
+          { year: 2024, per: 1913.64, pbRatio: null, roe: null, netMargin: 0.02, debtRatio: null, revenueGrowth: -1.4, fcf: null },
+          { year: 2025, per: 624.63, pbRatio: null, roe: null, netMargin: 0.05, debtRatio: null, revenueGrowth: -6.31, fcf: null },
+        ],
+        universe: [
+          { ticker: "BNBC", name: "Bernabé CI", sector: "Conso. Discrétionnaire", per: 676.7, mktcap: 15, pbRatio: null, roe: null, netMargin: 0.05, revenueGrowth: -6.31, close: 1895, dividend: 150 },
+          { ticker: "ABJC", name: "Servair Abidjan", sector: "Conso. Discrétionnaire", per: 32.92, mktcap: 44, pbRatio: null, roe: null, netMargin: 10.16, revenueGrowth: 6.67, close: 3400, dividend: 201.52 },
+          { ticker: "CFAC", name: "CFAO Motors CI", sector: "Conso. Discrétionnaire", per: 37.17, mktcap: 314, pbRatio: null, roe: null, netMargin: 4.66, revenueGrowth: 14.04, close: 1255, dividend: 55.44 },
+          { ticker: "NEIC", name: "NEI-CEDA CI", sector: "Conso. Discrétionnaire", per: 17.24, mktcap: 35, pbRatio: null, roe: null, netMargin: 39.64, revenueGrowth: -23.8, close: 1850, dividend: 140.4 },
+          { ticker: "PRSC", name: "Tractafric Motors CI", sector: "Conso. Discrétionnaire", per: 18.92, mktcap: 45, pbRatio: null, roe: null, netMargin: 2.92, revenueGrowth: 8.64, close: 3620, dividend: 183.92 },
+          { ticker: "UNXC", name: "Uniwax CI", sector: "Conso. Discrétionnaire", per: 35.26, mktcap: 49, pbRatio: null, roe: null, netMargin: -2.15, revenueGrowth: 6.21, close: 2020, dividend: 60.75 },
+        ],
+        outlook: null,
+      }),
+    );
+    expect(model.price.per.status).toBe("outlier");
+    expect(model.price.per.value).toBeNull();
+    expect(model.price.per.recorded).toBeCloseTo(676.7);
+    expect(model.price.epsBlocked).toBe("outlier");
+    expect(model.price.impliedPer).toBeGreaterThan(100);
+    expect(model.valuation.estimates).toEqual([]);
+    expect(model.valuation.summary.verdict).toBe("UNKNOWN");
+    expect(model.valuation.summary.gapToMidPercent).toBeNull();
+    expect(model.valuation.rangeMode).toBe("none");
+    expect(model.valuation.skipped.find((s) => s.method === "SECTOR_PER")?.reason).toBe("outlierEps");
+    const perRow = model.sector.rows.find((r) => r.key === "per")!;
+    expect(perRow.company).toBeNull();
+    expect(perRow.excluded).toBe("outlier");
+    expect(perRow.recorded).toBeCloseTo(676.7);
+    expect(perRow.stat.n).toBe(5);
+    expect(perRow.peers.every((p) => p.included)).toBe(true);
+    expect(model.steps.find((s) => s.id === "valuation")?.verdict).toBe("UNKNOWN");
+  });
+
+  it("retire un pair au PER extrême de la médiane tout en le listant", () => {
+    const model = buildBrvmFundamentalAnalysis(
+      input({
+        universe: [
+          { ticker: "SNTS", name: "Sonatel", sector: "Télécommunications", per: 12, mktcap: 2000, pbRatio: 2, roe: 18, netMargin: 16, revenueGrowth: 11, close: 20000, dividend: 1000 },
+          { ticker: "AAAA", name: "Pair sain", sector: "Télécommunications", per: 10, mktcap: 100, pbRatio: 1, roe: 10, netMargin: 8, revenueGrowth: 4, close: 1000, dividend: 40 },
+          { ticker: "BBBB", name: "Pair extrême", sector: "Télécommunications", per: 250, mktcap: 50, pbRatio: null, roe: null, netMargin: null, revenueGrowth: null, close: 500, dividend: null },
+        ],
+      }),
+    );
+    const perRow = model.sector.rows.find((r) => r.key === "per")!;
+    expect(perRow.stat.n).toBe(1);
+    expect(perRow.stat.median).toBe(10);
+    const extreme = perRow.peers.find((p) => p.ticker === "BBBB")!;
+    expect(extreme.included).toBe(false);
+    expect(extreme.excludeReason).toBe("outlier");
+    expect(extreme.name).toBe("Pair extrême");
+    expect(extreme.value).toBe(250);
+  });
 });

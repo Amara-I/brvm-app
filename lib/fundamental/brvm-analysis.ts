@@ -15,23 +15,37 @@ import {
 import { priceStats, type PricePoint, type PriceStats } from "@/lib/ngx/price-stats";
 import {
   accountsAreStale,
+  cagrPercent,
   currentDividend,
   dividendYearsPaid,
   dividendYieldPercent,
   earningsPerShare,
-  estimateFairValues,
   growthPercent,
   marginPercent,
   marketCapBn,
   payoutPercent,
+  PBR_NOT_SIGNIFICANT_ABOVE,
   relativeGapPercent,
   sectorStat,
   seriesCagrPercent,
   summarizeValuation,
-  type FairValueEstimate,
   type SectorStat,
   type ValuationSummary,
 } from "@/lib/ngx/valuation";
+import type { AnnualRatioPoint } from "@/lib/fundamental/ratio-history";
+import {
+  PER_NOT_SIGNIFICANT_ABOVE,
+  YIELD_NOT_SIGNIFICANT_ABOVE,
+  epsBlockForValuation,
+  estimateBrvmFairValues,
+  historicalPerMedian,
+  usablePbr,
+  valuationRangeMode,
+  type BrvmValueEstimate,
+  type HistoricalPerMedian,
+  type MethodSkip,
+  type ValuationRangeMode,
+} from "@/lib/fundamental/valuation-methods";
 
 export const FUNDAMENTAL_STEP_IDS = [
   "presentation",
@@ -91,6 +105,8 @@ export interface LiquidityReading {
 
 export interface BrvmPeerSnapshot {
   ticker: string;
+  /** Absent sur d'anciens jeux : repli sur le ticker à l'affichage. */
+  name?: string;
   sector: string;
   per: number;
   mktcap: number;
@@ -136,6 +152,15 @@ export interface BrvmFundamentalInput {
   pbRatio: number | null;
   revenueGrowth: number | null;
   fcf: number | null;
+  /** Historique canonique par exercice. Absent = pas chargé, jamais inventé. */
+  ratioHistory?: readonly AnnualRatioPoint[];
+  prevRoe?: number | null;
+  prevNetMargin?: number | null;
+  prevDebtRatio?: number | null;
+  prevRevenueGrowth?: number | null;
+  country?: string | null;
+  floatPercent?: number | null;
+  industry?: string | null;
   income: BrvmIncomeYear[];
   dividends: BrvmDividendInput[];
   series: readonly PricePoint[];
@@ -152,26 +177,59 @@ export interface PerformanceYear {
   netIncome: number | null;
   operatingMargin: number | null;
   netMargin: number | null;
+  /** BPA indicatif = résultat net ÷ titres actuels. null si l'un des deux manque. */
+  eps: number | null;
+  dps: number | null;
+  payoutPercent: number | null;
+  roe: number | null;
+  debtRatio: number | null;
 }
 
-export type MultipleStatus = "ok" | "stale" | "negative" | "unavailable";
+export type MultipleStatus = "ok" | "stale" | "negative" | "outlier" | "unavailable";
 
 export interface PublishedMultiple {
+  /** null si le multiple ne doit pas entrer dans un calcul. */
   value: number | null;
   status: MultipleStatus;
+  /** Valeur enregistrée, y compris quand elle est écartée. */
+  recorded: number | null;
+}
+
+export type PeerExcludeReason = "missing" | "outlier" | "negative" | null;
+export type SectorPosition = "above" | "below" | "inline" | null;
+
+export interface SectorPeerRef {
+  ticker: string;
+  name: string;
+  /** null seulement quand aucune valeur n'est enregistrée. */
+  value: number | null;
+  included: boolean;
+  excludeReason: PeerExcludeReason;
 }
 
 export type BrvmSectorKey = "per" | "pbr" | "yield" | "netMargin" | "roe" | "revenueGrowth";
 
 export interface BrvmSectorRow {
   key: BrvmSectorKey;
+  /** Valeur retenue dans la comparaison. null si écartée ou absente. */
   company: number | null;
+  /** Valeur enregistrée avant filtrage (un PER de 676 reste lisible ici). */
+  recorded: number | null;
   stale: boolean;
+  excluded: PeerExcludeReason;
   stat: SectorStat;
   /** Écart relatif (PER, PBR). */
   gapPercent: number | null;
   /** Écart en points (rendement, marges, ROE, croissance). */
   pointGap: number | null;
+  /** Autres sociétés du secteur, retenues ou non, avec la raison. */
+  peers: SectorPeerRef[];
+  /** 1 = valeur la plus élevée parmi la société (si retenue) et les pairs retenus. */
+  rank: number | null;
+  rankedCount: number;
+  position: SectorPosition;
+  /** Toujours la médiane : pas de moyenne arithmétique. */
+  aggregator: "median";
 }
 
 export interface DividendLine {
@@ -196,6 +254,9 @@ export interface BrvmFundamentalAnalysis {
     marketCapRank: number | null;
     rankedCount: number;
     sector: string;
+    country: string | null;
+    floatPercent: number | null;
+    industry: string | null;
   };
   performance: {
     years: PerformanceYear[];
@@ -209,6 +270,11 @@ export interface BrvmFundamentalAnalysis {
     latestNetMarginPercent: number | null;
     latestNetMarginYear: number | null;
     latestNetIncomeBn: number | null;
+    roePercent: number | null;
+    prevRoePercent: number | null;
+    debtRatio: number | null;
+    prevDebtRatio: number | null;
+    prevNetMarginPercent: number | null;
   };
   outlook: {
     synthesis: OutlookSynthesis | null;
@@ -229,16 +295,26 @@ export interface BrvmFundamentalAnalysis {
     /** BPA = résultat net ÷ titres actuels. null si l'un des deux manque, ou si les comptes sont trop anciens. */
     impliedEps: number | null;
     impliedEpsYear: number | null;
+    /** Cours / BPA. null si l'un des deux manque. Peut dépasser 100 : voir epsBlocked. */
+    impliedPer: number | null;
+    /** outlier / negative : le BPA ne pilote pas la valorisation. */
+    epsBlocked: "outlier" | "negative" | null;
   };
   valuation: {
     summary: ValuationSummary;
-    estimates: FairValueEstimate[];
+    estimates: BrvmValueEstimate[];
+    skipped: MethodSkip[];
+    /** single : une seule méthode, low et high sont égaux et ne forment pas une fourchette. */
+    rangeMode: ValuationRangeMode;
+    historicalPer: HistoricalPerMedian | null;
   };
   sector: {
     name: string;
     rows: BrvmSectorRow[];
     lowConfidence: boolean;
     peersWithData: number;
+    /** Autres sociétés du même secteur, qu'elles aient ou non un ratio. */
+    peerCount: number;
   };
   dividends: {
     lines: DividendLine[];
@@ -251,6 +327,8 @@ export interface BrvmFundamentalAnalysis {
     currentStatus: "NONE" | "CONFIRMED" | "UNCONFIRMED";
     missingYears: number[];
     payoutPercent: number | null;
+    /** Croissance annualisée, distincte de `growthPercent` (variation totale, inchangée pour les politiques). */
+    growthCagrPercent: number | null;
   };
   policies: PolicyConclusion[];
   adapted: PortfolioTypeId[];
@@ -267,11 +345,51 @@ function positive(n: number | null | undefined): number | null {
   return finite(n) && n > 0 ? n : null;
 }
 
-function publishedMultiple(raw: number | null | undefined, stale: boolean): PublishedMultiple {
-  if (!finite(raw) || raw === 0) return { value: null, status: "unavailable" };
-  if (raw < 0) return { value: null, status: "negative" };
-  if (stale) return { value: null, status: "stale" };
-  return { value: raw, status: "ok" };
+function publishedMultiple(raw: number | null | undefined, stale: boolean, kind: "per" | "pbr" = "per"): PublishedMultiple {
+  if (!finite(raw) || raw === 0) return { value: null, status: "unavailable", recorded: finite(raw) ? raw : null };
+  if (raw < 0) return { value: null, status: "negative", recorded: raw };
+  const cap = kind === "per" ? PER_NOT_SIGNIFICANT_ABOVE : PBR_NOT_SIGNIFICANT_ABOVE;
+  if (raw > cap) return { value: null, status: "outlier", recorded: raw };
+  if (stale) return { value: null, status: "stale", recorded: raw };
+  return { value: raw, status: "ok", recorded: raw };
+}
+
+function peerName(peer: BrvmPeerSnapshot): string {
+  const name = peer.name?.trim();
+  return name || peer.ticker;
+}
+
+function classifyMeasure(
+  key: BrvmSectorKey,
+  raw: number | null,
+): { value: number | null; recorded: number | null; included: boolean; excludeReason: PeerExcludeReason } {
+  if (!finite(raw)) return { value: null, recorded: null, included: false, excludeReason: "missing" };
+  if (key === "per" || key === "pbr" || key === "yield") {
+    if (raw < 0) return { value: null, recorded: raw, included: false, excludeReason: "negative" };
+    if (raw === 0) return { value: null, recorded: null, included: false, excludeReason: "missing" };
+  }
+  if (key === "per" && raw > PER_NOT_SIGNIFICANT_ABOVE) {
+    return { value: null, recorded: raw, included: false, excludeReason: "outlier" };
+  }
+  if (key === "pbr" && raw > PBR_NOT_SIGNIFICANT_ABOVE) {
+    return { value: null, recorded: raw, included: false, excludeReason: "outlier" };
+  }
+  if (key === "yield" && raw > YIELD_NOT_SIGNIFICANT_ABOVE) {
+    return { value: null, recorded: raw, included: false, excludeReason: "outlier" };
+  }
+  return { value: raw, recorded: raw, included: true, excludeReason: null };
+}
+
+function sectorPosition(key: BrvmSectorKey, company: number | null, reference: number | null): SectorPosition {
+  if (company == null || reference == null) return null;
+  if (key === "per" || key === "pbr") {
+    const gap = relativeGapPercent(company, reference);
+    if (gap == null || Math.abs(gap) < 5) return gap == null ? null : "inline";
+    return gap > 0 ? "above" : "below";
+  }
+  const gap = company - reference;
+  if (Math.abs(gap) < 0.5) return "inline";
+  return gap > 0 ? "above" : "below";
 }
 
 function mean(values: number[]): number | null {
@@ -362,17 +480,30 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
   const storedCap = positive(input.mktcap);
   const marketCap = storedCap ?? marketCapBn(close, shares);
 
+  const ratioByYear = new Map<number, AnnualRatioPoint>();
+  for (const row of input.ratioHistory ?? []) {
+    if (Number.isInteger(row.year)) ratioByYear.set(row.year, row);
+  }
   const income = [...input.income]
     .filter((y) => Number.isInteger(y.year))
     .sort((a, b) => a.year - b.year);
-  const performanceYears: PerformanceYear[] = income.map((y) => ({
-    year: y.year,
-    revenue: finite(y.revenue) ? y.revenue : null,
-    operatingIncome: finite(y.operatingIncome) ? y.operatingIncome : null,
-    netIncome: finite(y.netIncome) ? y.netIncome : null,
-    operatingMargin: marginPercent(finite(y.operatingIncome) ? y.operatingIncome : null, finite(y.revenue) ? y.revenue : null),
-    netMargin: marginPercent(finite(y.netIncome) ? y.netIncome : null, finite(y.revenue) ? y.revenue : null),
-  }));
+  const performanceYears: PerformanceYear[] = income.map((y) => {
+    const ratio = ratioByYear.get(y.year);
+    const netIncome = finite(y.netIncome) ? y.netIncome : null;
+    return {
+      year: y.year,
+      revenue: finite(y.revenue) ? y.revenue : null,
+      operatingIncome: finite(y.operatingIncome) ? y.operatingIncome : null,
+      netIncome,
+      operatingMargin: marginPercent(finite(y.operatingIncome) ? y.operatingIncome : null, finite(y.revenue) ? y.revenue : null),
+      netMargin: marginPercent(netIncome, finite(y.revenue) ? y.revenue : null),
+      eps: netIncome != null && netIncome > 0 ? earningsPerShare(netIncome, shares) : null,
+      dps: null,
+      payoutPercent: null,
+      roe: finite(ratio?.roe) ? ratio.roe : null,
+      debtRatio: finite(ratio?.debtRatio) ? ratio.debtRatio : null,
+    };
+  });
   const lastAccountsYear = performanceYears.length > 0 ? performanceYears[performanceYears.length - 1]!.year : null;
   const stale = accountsAreStale(lastAccountsYear, input.today);
   const revenueCagr = seriesCagrPercent(performanceYears, (y) => y.revenue);
@@ -382,13 +513,16 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
   const netMarginSeries = latestWith(performanceYears, (y) => y.netMargin);
   const latestNet = latestWith(performanceYears, (y) => y.netIncome);
 
-  const per = publishedMultiple(input.per, stale);
-  const pbr = publishedMultiple(input.pbRatio, stale);
+  const per = publishedMultiple(input.per, stale, "per");
+  const pbr = publishedMultiple(input.pbRatio, stale, "pbr");
   const roeStatus: MultipleStatus = !finite(input.roe) ? "unavailable" : stale ? "stale" : "ok";
   const roe = roeStatus === "ok" ? input.roe : null;
-  const impliedEps =
-    !stale && latestNet && latestNet.value > 0 ? earningsPerShare(latestNet.value, shares) : null;
+  const rawEps = !stale && latestNet && latestNet.value > 0 ? earningsPerShare(latestNet.value, shares) : null;
+  const impliedEps = rawEps;
   const impliedEpsYear = impliedEps != null && latestNet ? latestNet.year : null;
+  const epsBlocked = epsBlockForValuation(close, rawEps, !stale && latestNet ? latestNet.value : null);
+  const valuationEps = epsBlocked == null ? rawEps : null;
+  const impliedPer = close != null && rawEps != null && rawEps > 0 ? close / rawEps : null;
 
   const ranked = input.universe
     .map((c) => ({ ticker: c.ticker, cap: positive(c.mktcap) }))
@@ -398,7 +532,6 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
 
   const peers = input.universe.filter((c) => c.ticker !== input.ticker && c.sector === input.sector);
   const peerYield = (c: BrvmPeerSnapshot) => dividendYieldPercent(c.dividend, positive(c.close));
-  const companyYieldLater = { current: null as number | null };
 
   const sectorKeys: BrvmSectorKey[] = ["per", "pbr", "yield", "netMargin", "roe", "revenueGrowth"];
   const companyRevenueGrowth = finite(input.revenueGrowth)
@@ -411,11 +544,11 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       return null;
     switch (key) {
       case "per":
-        return per.value;
+        return per.recorded;
       case "pbr":
-        return pbr.value;
+        return pbr.recorded;
       case "yield":
-        return companyYieldLater.current;
+        return null;
       case "netMargin":
         return finite(input.netMargin) ? input.netMargin : netMarginSeries?.value ?? null;
       case "roe":
@@ -424,12 +557,12 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
         return companyRevenueGrowth;
     }
   };
-  const peerValue = (key: BrvmSectorKey, c: BrvmPeerSnapshot): number | null => {
+  const peerRaw = (key: BrvmSectorKey, c: BrvmPeerSnapshot): number | null => {
     switch (key) {
       case "per":
-        return positive(c.per);
+        return finite(c.per) ? c.per : null;
       case "pbr":
-        return positive(c.pbRatio);
+        return finite(c.pbRatio) ? c.pbRatio : null;
       case "yield":
         return peerYield(c);
       case "netMargin":
@@ -441,29 +574,46 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
     }
   };
   const sectorRows: BrvmSectorRow[] = sectorKeys.map((key) => {
-    const stat = sectorStat(peers.map((c) => peerValue(key, c)));
-    const mine = ownValue(key);
+    const refs = peers.map((c) => {
+      const judged = classifyMeasure(key, peerRaw(key, c));
+      return {
+        ticker: c.ticker,
+        name: peerName(c),
+        value: judged.recorded,
+        included: judged.included,
+        excludeReason: judged.excludeReason,
+      };
+    });
+    const stat = sectorStat(refs.map((ref) => (ref.included ? ref.value : null)));
+    const judgedOwn = classifyMeasure(key, ownValue(key));
+    const mine = judgedOwn.included ? judgedOwn.value : null;
+    const includedValues = refs.filter((ref) => ref.included && ref.value != null).map((ref) => ref.value!);
+    const ranked =
+      mine == null
+        ? { rank: null, rankedCount: includedValues.length }
+        : {
+            rank: includedValues.filter((v) => v > mine).length + 1,
+            rankedCount: includedValues.length + 1,
+          };
     return {
       key,
       company: mine,
+      recorded: judgedOwn.recorded,
       stale: stale && mine == null && (key === "per" || key === "pbr" || key === "roe"),
+      excluded: judgedOwn.excludeReason,
       stat,
       gapPercent: key === "per" || key === "pbr" ? relativeGapPercent(mine, stat.median) : null,
       pointGap: mine != null && stat.median != null && key !== "per" && key !== "pbr" ? mine - stat.median : null,
+      peers: refs,
+      rank: ranked.rank,
+      rankedCount: ranked.rankedCount,
+      position: sectorPosition(key, mine, stat.median),
+      aggregator: "median" as const,
     };
   });
   const peersWithData = Math.max(...sectorRows.map((r) => r.stat.n), 0);
   const perStat = sectorRows.find((r) => r.key === "per")!.stat;
   const pbrStat = sectorRows.find((r) => r.key === "pbr")!.stat;
-
-  const estimates = estimateFairValues({
-    price: close,
-    eps: impliedEps,
-    bvps: null,
-    sectorPer: perStat,
-    sectorPbr: pbrStat,
-  });
-  const summary = summarizeValuation(close, estimates);
 
   const divInputs = [...input.dividends]
     .filter((d) => Number.isInteger(d.year) && finite(d.amount))
@@ -474,13 +624,26 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
   const current = currentDividend(asc, lastFiscal);
   const currentDps = current.dps;
   const yieldPercent = dividendYieldPercent(currentDps, close);
-  companyYieldLater.current = yieldPercent;
-  // Le rendement de la société dans le tableau sectoriel a été lu avant ce calcul : on le reporte.
+  const usableCompanyYield = classifyMeasure("yield", yieldPercent);
+  // Le rendement de la société est connu après les dividendes : on le reporte sur la ligne sectorielle.
   const yieldRow = sectorRows.find((r) => r.key === "yield");
   if (yieldRow) {
-    yieldRow.company = yieldPercent;
-    const median = yieldRow.stat.median;
-    yieldRow.pointGap = yieldPercent != null && median != null ? yieldPercent - median : null;
+    const mine = usableCompanyYield.included ? usableCompanyYield.value : null;
+    const includedValues = yieldRow.peers.filter((ref) => ref.included && ref.value != null).map((ref) => ref.value!);
+    yieldRow.company = mine;
+    yieldRow.recorded = usableCompanyYield.recorded;
+    yieldRow.excluded = usableCompanyYield.excludeReason;
+    yieldRow.gapPercent = null;
+    yieldRow.pointGap = mine != null && yieldRow.stat.median != null ? mine - yieldRow.stat.median : null;
+    yieldRow.rank = mine == null ? null : includedValues.filter((v) => v > mine).length + 1;
+    yieldRow.rankedCount = mine == null ? includedValues.length : includedValues.length + 1;
+    yieldRow.position = sectorPosition("yield", mine, yieldRow.stat.median);
+  }
+  const dpsByYear = new Map(divInputs.map((d) => [d.year, d.amount]));
+  for (const year of performanceYears) {
+    const dps = dpsByYear.get(year.year);
+    year.dps = finite(dps) ? dps : null;
+    year.payoutPercent = year.eps != null && year.dps != null ? payoutPercent(year.dps, year.eps) : null;
   }
 
   const payout =
@@ -498,6 +661,28 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
     current.status === "CONFIRMED" && window.length >= 3 && window[0]!.dps > 0
       ? growthPercent(window[0]!.dps, window[window.length - 1]!.dps)
       : null;
+  const dividendCagr =
+    current.status === "CONFIRMED" && window.length >= 3 && window[0]!.dps > 0
+      ? cagrPercent(window[0]!.dps, window[window.length - 1]!.dps, window[window.length - 1]!.year - window[0]!.year)
+      : null;
+  const historicalPer = historicalPerMedian(input.ratioHistory ?? [], lastAccountsYear);
+  const yieldStat = sectorRows.find((r) => r.key === "yield")!.stat;
+  const valued = estimateBrvmFairValues({
+    price: close,
+    eps: valuationEps,
+    epsBlock: epsBlocked,
+    pbRatio: usablePbr(pbr.value),
+    pbNotSignificant: pbr.status === "outlier" || pbr.status === "negative",
+    dps: current.status === "CONFIRMED" ? currentDps : null,
+    dividendCagrPercent: dividendCagr,
+    historicalPer,
+    sectorPer: perStat,
+    sectorPbr: pbrStat,
+    sectorYield: yieldStat,
+  });
+  const estimates = valued.estimates;
+  const summary = summarizeValuation(close, estimates);
+  const rangeMode = valuationRangeMode(estimates.length);
   const missingYears: number[] = [];
   if (current.year != null && lastFiscal != null) {
     for (let y = lastFiscal; y > current.year && missingYears.length < 5; y -= 1) missingYears.push(y);
@@ -628,6 +813,9 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       marketCapRank: rankIdx >= 0 ? rankIdx + 1 : null,
       rankedCount: ranked.length,
       sector: input.sector,
+      country: input.country?.trim() || null,
+      floatPercent: finite(input.floatPercent) ? input.floatPercent : null,
+      industry: input.industry?.trim() || null,
     },
     performance: {
       years: performanceYears,
@@ -641,6 +829,11 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       latestNetMarginPercent: netMarginSeries?.value ?? null,
       latestNetMarginYear: netMarginSeries?.year ?? null,
       latestNetIncomeBn: latestNet?.value ?? null,
+      roePercent: roe,
+      prevRoePercent: finite(input.prevRoe) ? input.prevRoe : null,
+      debtRatio: finite(input.debtRatio) ? input.debtRatio : null,
+      prevDebtRatio: finite(input.prevDebtRatio) ? input.prevDebtRatio : null,
+      prevNetMarginPercent: finite(input.prevNetMargin) ? input.prevNetMargin : null,
     },
     outlook: {
       synthesis: input.outlook,
@@ -660,13 +853,16 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       fcfBn: finite(input.fcf) ? input.fcf : null,
       impliedEps,
       impliedEpsYear,
+      impliedPer,
+      epsBlocked,
     },
-    valuation: { summary, estimates },
+    valuation: { summary, estimates, skipped: valued.skipped, rangeMode, historicalPer },
     sector: {
       name: input.sector,
       rows: sectorRows,
       lowConfidence: sectorLow,
       peersWithData,
+      peerCount: peers.length,
     },
     dividends: {
       lines,
@@ -679,6 +875,7 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       currentStatus: current.status,
       missingYears,
       payoutPercent: payout,
+      growthCagrPercent: dividendCagr,
     },
     policies,
     adapted,
@@ -722,9 +919,15 @@ export interface BrvmSheetSlice {
     fcf: number | null;
     prices: Record<number, number>;
     dividends: Record<number, number>;
+    country?: string;
+    prevRoe?: number | null;
+    prevNetMargin?: number | null;
+    prevDebtRatio?: number | null;
+    prevRevenueGrowth?: number | null;
   };
   peers: BrvmSheetSlice["company"][];
   incomeStatement: BrvmIncomeYear[];
+  ratioHistory?: readonly AnnualRatioPoint[];
   dividendSchedule: Array<{
     year: number;
     amount: number;
@@ -737,7 +940,7 @@ export interface BrvmSheetSlice {
   description: string | null;
   isin: string | null;
   listedSince: string | null;
-  profileMeta: { sharesOutstanding?: number | null } | null;
+  profileMeta: { sharesOutstanding?: number | null; floatPercent?: number | null; industry?: string | null } | null;
   sessionDate: string | null;
 }
 
@@ -760,6 +963,7 @@ export function analysisFromSheet(slice: BrvmSheetSlice, close: number | null, t
   }
   const universe: BrvmPeerSnapshot[] = slice.peers.map((c) => ({
     ticker: c.ticker,
+    name: c.name,
     sector: c.sector,
     per: c.per,
     mktcap: c.mktcap,
@@ -778,6 +982,14 @@ export function analysisFromSheet(slice: BrvmSheetSlice, close: number | null, t
     isin: slice.isin,
     listedSince: slice.listedSince,
     sharesOutstanding: slice.profileMeta?.sharesOutstanding ?? null,
+    ratioHistory: slice.ratioHistory ?? [],
+    prevRoe: slice.company.prevRoe ?? null,
+    prevNetMargin: slice.company.prevNetMargin ?? null,
+    prevDebtRatio: slice.company.prevDebtRatio ?? null,
+    prevRevenueGrowth: slice.company.prevRevenueGrowth ?? null,
+    country: slice.company.country ?? null,
+    floatPercent: slice.profileMeta?.floatPercent ?? null,
+    industry: slice.profileMeta?.industry ?? null,
     close: positive(close) ?? latestPositivePrice(slice.company.prices),
     per: slice.company.per,
     mktcap: slice.company.mktcap,
