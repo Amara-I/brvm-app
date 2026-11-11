@@ -582,6 +582,7 @@ export const company = {
       net: "RN (Mds)",
       opMargin: "Marge REX",
       netMargin: "Marge nette",
+      fcf: "FCF (Mds)",
       metric: "Indicateur",
       company: "Société",
       median: "Médiane",

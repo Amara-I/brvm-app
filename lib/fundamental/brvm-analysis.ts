@@ -183,6 +183,9 @@ export interface BrvmFundamentalInput {
   pbRatio: number | null;
   revenueGrowth: number | null;
   fcf: number | null;
+  /** Exercice de `debtRatio` / `fcf` quand il est connu (sinon déduit de ratioHistory). */
+  debtRatioYear?: number | null;
+  fcfYear?: number | null;
   /** Historique canonique par exercice. Absent = pas chargé, jamais inventé. */
   ratioHistory?: readonly AnnualRatioPoint[];
   prevRoe?: number | null;
@@ -223,6 +226,8 @@ export interface PerformanceYear {
   payoutPercent: number | null;
   roe: number | null;
   debtRatio: number | null;
+  /** Flux de trésorerie disponible de l'exercice (milliards), null si non publié. */
+  fcf: number | null;
 }
 
 export type MultipleStatus = "ok" | "stale" | "negative" | "outlier" | "unavailable";
@@ -313,6 +318,8 @@ export interface BrvmFundamentalAnalysis {
     roePercent: number | null;
     prevRoePercent: number | null;
     debtRatio: number | null;
+    /** Exercice du ratio d'endettement affiché (le plus récent disponible, pas forcément latestYear). */
+    debtRatioYear: number | null;
     prevDebtRatio: number | null;
     prevNetMarginPercent: number | null;
   };
@@ -331,7 +338,10 @@ export interface BrvmFundamentalAnalysis {
     roeStatus: MultipleStatus;
     netMarginPercent: number | null;
     debtRatio: number | null;
+    debtRatioYear: number | null;
     fcfBn: number | null;
+    /** Exercice du FCF affiché (le plus récent disponible). */
+    fcfYear: number | null;
     /** BPA = résultat net ÷ titres actuels. null si l'un des deux manque, ou si les comptes sont trop anciens. */
     impliedEps: number | null;
     impliedEpsYear: number | null;
@@ -544,8 +554,12 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       payoutPercent: null,
       roe: finite(ratio?.roe) ? ratio.roe : null,
       debtRatio: finite(ratio?.debtRatio) ? ratio.debtRatio : null,
+      fcf: finite(ratio?.fcf) ? ratio.fcf : null,
     };
   });
+  // Dette et FCF : dernière valeur disponible avec son exercice (l'exercice le plus récent peut ne pas les avoir).
+  const latestDebt = latestKnown(input.debtRatio, input.debtRatioYear, input.ratioHistory, (r) => r.debtRatio);
+  const latestFcf = latestKnown(input.fcf, input.fcfYear, input.ratioHistory, (r) => r.fcf);
   const lastAccountsYear = performanceYears.length > 0 ? performanceYears[performanceYears.length - 1]!.year : null;
   const stale = accountsAreStale(lastAccountsYear, input.today);
   const revenueCagr = seriesCagrPercent(performanceYears, (y) => y.revenue);
@@ -879,7 +893,8 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       latestNetIncomeBn: latestNet?.value ?? null,
       roePercent: roe,
       prevRoePercent: finite(input.prevRoe) ? input.prevRoe : null,
-      debtRatio: finite(input.debtRatio) ? input.debtRatio : null,
+      debtRatio: latestDebt?.value ?? null,
+      debtRatioYear: latestDebt?.year ?? null,
       prevDebtRatio: finite(input.prevDebtRatio) ? input.prevDebtRatio : null,
       prevNetMarginPercent: finite(input.prevNetMargin) ? input.prevNetMargin : null,
     },
@@ -897,8 +912,10 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       roePercent: roe,
       roeStatus,
       netMarginPercent: stale ? null : finite(input.netMargin) ? input.netMargin : (netMarginSeries?.value ?? null),
-      debtRatio: finite(input.debtRatio) ? input.debtRatio : null,
-      fcfBn: finite(input.fcf) ? input.fcf : null,
+      debtRatio: latestDebt?.value ?? null,
+      debtRatioYear: latestDebt?.year ?? null,
+      fcfBn: latestFcf?.value ?? null,
+      fcfYear: latestFcf?.year ?? null,
       impliedEps,
       impliedEpsYear,
       impliedPer,
@@ -952,6 +969,26 @@ function latestDividendAmount(dividends: Record<number, number>): number | null 
 }
 
 /** Entrée construite depuis la fiche déjà chargée — aucun appel base. */
+/**
+ * Valeur la plus récente d'un ratio avec son exercice : la valeur fournie (et son exercice, ou celui de la ligne
+ * d'historique qui porte la même valeur), sinon le dernier exercice de l'historique qui en a une.
+ */
+export function latestKnown(
+  value: number | null | undefined,
+  year: number | null | undefined,
+  history: readonly AnnualRatioPoint[] | undefined,
+  pick: (r: AnnualRatioPoint) => number | null,
+): { value: number; year: number | null } | null {
+  const rows = [...(history ?? [])].filter((r) => Number.isInteger(r.year) && finite(pick(r))).sort((a, b) => b.year - a.year);
+  if (finite(value)) {
+    if (Number.isInteger(year)) return { value, year: year as number };
+    const same = rows.find((r) => pick(r) === value);
+    return { value, year: same?.year ?? null };
+  }
+  const last = rows[0];
+  return last ? { value: pick(last) as number, year: last.year } : null;
+}
+
 export interface BrvmSheetSlice {
   company: {
     ticker: string;

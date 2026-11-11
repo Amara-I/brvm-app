@@ -104,7 +104,6 @@ export function ngxFundamentalInput(args: NgxFundamentalArgs): BrvmFundamentalIn
   const toNgn = ngnPerReportingUnit(parseNgxProfileMeta(company.profileMeta));
   const conv = (v: number | null | undefined): number | null => (finite(v) && toNgn != null ? v * toNgn : null);
   const prices = args.rawYearEndPrices ?? {};
-  const lastAccountsYear = years.length ? years[years.length - 1].year : null;
   const ratioHistory: AnnualRatioPoint[] = years
     .map((y) => ({
       year: y.year,
@@ -117,10 +116,9 @@ export function ngxFundamentalInput(args: NgxFundamentalArgs): BrvmFundamentalIn
       fcf: conv(y.fcfBn),
     }))
     .filter((r) => r.roe != null || r.per != null || r.debtRatio != null || r.fcf != null);
-  // Dette et FCF de la fiche : dernier exercice publié seulement (pas un ancien exercice présenté comme actuel).
+  // Dette et FCF : dernière valeur publiée, affichée avec son exercice (le dernier exercice peut ne pas les avoir).
   const debtLatest = latestValue(years, (y) => y.debtRatioPercent);
   const fcfLatest = latestValue(years, (y) => y.fcfBn);
-  const current = <T extends { year: number }>(x: T | null) => (x && lastAccountsYear != null && x.year === lastAccountsYear ? x : null);
   const profile = model.presentation.profile;
   return {
     ticker: company.ticker,
@@ -136,10 +134,12 @@ export function ngxFundamentalInput(args: NgxFundamentalArgs): BrvmFundamentalIn
     mktcap: finite(own.marketCapBn) ? own.marketCapBn : 0,
     roe: own.roePercent,
     netMargin: own.netMarginPercent,
-    debtRatio: current(debtLatest)?.value ?? null,
+    debtRatio: debtLatest?.value ?? null,
+    debtRatioYear: debtLatest?.year ?? null,
     pbRatio: own.pbr,
     revenueGrowth: null,
-    fcf: conv(current(fcfLatest)?.value),
+    fcf: conv(fcfLatest?.value),
+    fcfYear: fcfLatest && conv(fcfLatest.value) != null ? fcfLatest.year : null,
     ratioHistory,
     country: "Nigeria",
     floatPercent: profile?.freeFloatPercent ?? null,
