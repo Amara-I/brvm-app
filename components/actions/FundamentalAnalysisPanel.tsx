@@ -545,7 +545,7 @@ function Performance({
         />
         <Stat label={t("company.fundamental.field.roa")} value={nd} />
         <Stat
-          label={t("company.fundamental.field.debt")}
+          label={withYear(t("company.fundamental.field.debt"), perf.debtRatioYear, null)}
           value={
             perf.debtRatio == null
               ? nd
@@ -564,6 +564,7 @@ function Performance({
               <th scope="col">{t("company.fundamental.table.net")}</th>
               <th scope="col">{t("company.fundamental.table.opMargin")}</th>
               <th scope="col">{t("company.fundamental.table.netMargin")}</th>
+              <th scope="col">{t("company.fundamental.table.fcf")}</th>
               <th scope="col">{t("company.fundamental.table.eps")}</th>
               <th scope="col">{t("company.fundamental.table.payout")}</th>
             </tr>
@@ -577,6 +578,7 @@ function Performance({
                 <td>{bn(y.netIncome)}</td>
                 <td>{pct(y.operatingMargin, 1)}</td>
                 <td>{pct(y.netMargin, 1)}</td>
+                <td>{bn(y.fcf)}</td>
                 <td>{fcfa(y.eps)}</td>
                 <td>{pct(y.payoutPercent, 0)}</td>
               </tr>
@@ -710,8 +712,8 @@ function Price({
         <Stat label={t("company.fundamental.field.yield")} value={pct(price.yieldPercent, 2)} />
         <Stat label={t("company.fundamental.field.roe")} value={price.roeStatus === "ok" ? pct(price.roePercent, 1) : multiple(price.roeStatus, null, false)} />
         <Stat label={t("company.fundamental.field.netMargin")} value={pct(price.netMarginPercent, 1)} />
-        <Stat label={t("company.fundamental.field.debt")} value={pct(price.debtRatio, 1)} />
-        <Stat label={t("company.fundamental.field.fcf")} value={bn(price.fcfBn)} />
+        <Stat label={withYear(t("company.fundamental.field.debt"), price.debtRatioYear, null)} value={pct(price.debtRatio, 1)} />
+        <Stat label={withYear(t("company.fundamental.field.fcf"), price.fcfYear, null)} value={bn(price.fcfBn)} />
         <Stat
           label={t("company.fundamental.field.eps")}
           value={price.impliedEps == null ? nd : `${fcfa(price.impliedEps)}${price.impliedEpsYear ? ` · ${price.impliedEpsYear}` : ""}`}
@@ -1214,4 +1216,9 @@ function Conclusion({
       <p className={styles.srOnly}>{nd}</p>
     </>
   );
+}
+
+/** « Free Cash Flow 2024 » : libellé suivi de l'exercice de la valeur quand il est connu. */
+function withYear(label: string, year: number | null | undefined, hideIf: number | null | undefined): string {
+  return year != null && year !== hideIf ? `${label} ${year}` : label;
 }

@@ -578,6 +578,7 @@ export const company = {
       net: "Net income (bn)",
       opMargin: "EBIT margin",
       netMargin: "Net margin",
+      fcf: "FCF (bn)",
       metric: "Metric",
       company: "Company",
       median: "Median",

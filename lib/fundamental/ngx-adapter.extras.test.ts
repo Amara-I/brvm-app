@@ -99,3 +99,37 @@ describe("NGX — comptes publiés en USD", () => {
     expect(model.performance.years.at(-1)?.revenueBn).toBe(2.5);
   });
 });
+
+describe("dette et FCF : dernière valeur disponible avec son exercice", () => {
+  it("latestKnown prend la valeur fournie, sinon le dernier exercice de l'historique", async () => {
+    const { latestKnown } = await import("./brvm-analysis");
+    const h = [
+      { year: 2023, per: null, pbRatio: null, roe: null, netMargin: null, debtRatio: 40, revenueGrowth: null, fcf: 5 },
+      { year: 2024, per: null, pbRatio: null, roe: null, netMargin: null, debtRatio: null, revenueGrowth: null, fcf: 7 },
+    ];
+    expect(latestKnown(null, null, h, (r) => r.debtRatio)).toEqual({ value: 40, year: 2023 });
+    expect(latestKnown(null, null, h, (r) => r.fcf)).toEqual({ value: 7, year: 2024 });
+    expect(latestKnown(12, 2025, h, (r) => r.fcf)).toEqual({ value: 12, year: 2025 });
+    expect(latestKnown(5, null, h, (r) => r.fcf)).toEqual({ value: 5, year: 2023 });
+    expect(latestKnown(null, null, [], (r) => r.fcf)).toBeNull();
+  });
+
+  it("NGX : FCF d'un exercice antérieur affiché avec son année, et colonne FCF par exercice", async () => {
+    const { buildNgxFundamentalAnalysis } = await import("./ngx-adapter");
+    const input = fixtureSheetInput();
+    const years = [...new Set(input.company.ratios.map((r) => r.year))].sort();
+    const prev = years[years.length - 2];
+    input.company = {
+      ...input.company,
+      ratios: input.company.ratios.map((r) => (r.year === prev ? { ...r, fcf: 4.5, debtRatio: 30 } : r)),
+    };
+    const model = buildNgxSheet(input);
+    const a = buildNgxFundamentalAnalysis({ company: input.company, model, universe: input.universe, series: input.series, today: input.today });
+    expect(a.price.fcfBn).toBe(4.5);
+    expect(a.price.fcfYear).toBe(prev);
+    expect(a.price.debtRatio).toBe(30);
+    expect(a.price.debtRatioYear).toBe(prev);
+    expect(a.performance.debtRatioYear).toBe(prev);
+    expect(a.performance.years.find((y) => y.year === prev)?.fcf).toBe(4.5);
+  });
+});
