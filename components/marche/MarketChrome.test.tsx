@@ -40,14 +40,33 @@ describe("MarketChrome KPI capitalisation", () => {
     const ngx = render(
       <MarketChrome
         {...base}
-        totalMktCap={89_412.3}
+        totalMktCap={164_012.986}
         capCurrency="₦"
         currency="NGN"
         exchangeCode="NGX"
         exchangeName="NGX"
       />,
     );
+    expect(ngx).toMatch(/kpiAmount[^"]*"[^>]*>164[\s\u00a0\u202f]012,99</);
     expect(ngx).toMatch(/kpiUnit[^"]*"[^>]*>Mds ₦</);
+    expect(ngx).not.toContain("012,986");
+  });
+
+  it("arrondit la capitalisation à 2 décimales, BRVM et NGX, même formateur", () => {
+    const brvm = render(<MarketChrome {...base} totalMktCap={21_440.5} />);
+    expect(brvm).toMatch(/kpiAmount[^"]*"[^>]*>21[\s\u00a0\u202f]440,50</);
+
+    const enHtml = render(
+      <MarketChrome
+        {...base}
+        totalMktCap={164_012.986}
+        capCurrency="₦"
+        currency="NGN"
+        exchangeCode="NGX"
+      />,
+      "en",
+    );
+    expect(enHtml).toMatch(/kpiAmount[^"]*"[^>]*>164,012\.99</);
   });
 
   it("affiche N/D si la capitalisation est absente", () => {

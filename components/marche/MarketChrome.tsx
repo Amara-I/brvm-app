@@ -53,7 +53,7 @@ export default function MarketChrome(props: MarketChromeProps) {
       v:
         props.totalMktCap > 0
           ? {
-              amount: format.number(props.totalMktCap),
+              amount: format.decimal(props.totalMktCap, 2),
               unit: t("market.capUnit", { currency: capCurrency }),
             }
           : "N/D",
