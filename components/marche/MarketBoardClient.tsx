@@ -2,7 +2,7 @@
 
 // Tableau Marché : liste + aperçus sparklines + lignes expansibles (perf / liens).
 
-import { useCallback, useEffect, useMemo, useState, Fragment } from "react";
+import { useCallback, useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
@@ -32,6 +32,9 @@ import styles from "@/components/marche/MarketBoard.module.css";
 import { C } from "@/lib/theme/colors";
 import ChangeValue from "@/components/ui/ChangeValue";
 import SignalBadge from "@/components/ui/SignalBadge";
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import ConfidenceDot from "@/components/ui/ConfidenceDot";
+import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import { trackFeature } from "@/components/analytics/track-client";
@@ -559,12 +562,7 @@ export default function MarketBoardClient({
                           {m.dividendYieldPercent}%
                         </td>
                         <td>
-                          <span
-                            className={styles.score}
-                            style={{ color: m.signal.color, background: `${m.signal.color}22` }}
-                          >
-                            {m.score}
-                          </span>
+                          <ScoreBadge score={m.score} className={styles.score} />
                         </td>
                         <td>
                           <SignalBadge
@@ -578,7 +576,9 @@ export default function MarketBoardClient({
                             })}
                           />
                         </td>
-                        <td className={styles.meta}>{labels.confidence(m.confidence)}</td>
+                        <td className={styles.meta}>
+                          <ConfidenceDot value={m.confidence} />
+                        </td>
                       </tr>
                       {open && (
                         <tr className={styles.detailRow}>
@@ -613,6 +613,7 @@ export default function MarketBoardClient({
         ) : null}
       </section>
 
+      <ScoreSignalLegend />
       <ScoreExplainer />
     </div>
   );
@@ -635,7 +636,7 @@ function ExpandedPanel({
   const perf10 = m.perf10Percent === "N/D" ? null : parseFloat(m.perf10Percent);
   const vol = m.volatilityPercent === "N/D" ? null : parseFloat(m.volatilityPercent);
 
-  const cards: Array<{ key: string; label: string; text: string; value: string; color?: string }> = [
+  const cards: Array<{ key: string; label: string; text: string; value: string; color?: string; node?: ReactNode }> = [
     {
       key: "price",
       label: "Cours actuel",
@@ -708,13 +709,18 @@ function ExpandedPanel({
       label: "Confiance",
       text: t("market.cards.confidence"),
       value: labels.confidence(m.confidence),
+      node: <ConfidenceDot value={m.confidence} />,
     },
     {
       key: "score",
       label: "Score / Signal",
       text: t("market.cards.scoreSignal"),
       value: `${m.score}/100 · ${labels.signal(m.signal.label)}`,
-      color: m.signal.color,
+      node: (
+        <>
+          <ScoreBadge score={m.score} outOf showTier /> <SignalBadge label={m.signal.label} confidence={m.confidence} />
+        </>
+      ),
     },
   ];
 
@@ -749,7 +755,7 @@ function ExpandedPanel({
                 <AnalysisLabel french={c.label} text={c.text} />
               </div>
               <div className={styles.detailValue} style={c.color ? { color: c.color } : undefined} title={c.value}>
-                {c.value}
+                {c.node ?? c.value}
               </div>
             </div>
           );

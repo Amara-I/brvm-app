@@ -13,6 +13,9 @@ import type { CompanyWithMetrics } from "@/lib/calc/market-summary-stats";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import ChangeValue from "@/components/ui/ChangeValue";
 import SignalBadge from "@/components/ui/SignalBadge";
+import ScoreBadge from "@/components/ui/ScoreBadge";
+import ConfidenceDot from "@/components/ui/ConfidenceDot";
+import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
 import {
   applyColumnSort,
   type ColumnFilterDef,
@@ -220,8 +223,8 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                   </td>
                   <td className={styles.dim}>{labels.sector(co.sector)}</td>
                   <td className={styles.dim}>{labels.country(co.country)}</td>
-                  <td className="ob-num" style={{ color: C.blue, fontWeight: 700 }}>
-                    {metrics.score}
+                  <td>
+                    <ScoreBadge score={metrics.score} />
                   </td>
                   <td>
                     {metrics.perf5Percent !== "N/D" ? (
@@ -262,13 +265,16 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                   >
                     {labels.riskTier(metrics.riskAnalysis.riskTier)}
                   </td>
-                  <td className={styles.dim}>{labels.confidence(metrics.confidence)}</td>
+                  <td className={styles.dim}>
+                    <ConfidenceDot value={metrics.confidence} />
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
+      <ScoreSignalLegend />
     </div>
   );
 }

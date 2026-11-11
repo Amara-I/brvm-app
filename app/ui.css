@@ -180,9 +180,13 @@
   background: var(--c-inset);
 }
 
-.ob-signal {
+/* Score (or / bleu) et signal (vert / ambre / rouge) : couleurs fournies par
+   lib/ui/score-signal-tokens.ts via les variables --ob-fg / --ob-fg-dark / --ob-bg. */
+.ob-signal,
+.ob-score {
   display: inline-flex;
   align-items: center;
+  gap: 0.3rem;
   padding: 0.15rem 0.5rem;
   border-radius: var(--radius-full);
   font-size: 0.68rem;
@@ -190,51 +194,68 @@
   letter-spacing: 0.02em;
   white-space: nowrap;
   line-height: 1.35;
+  color: var(--ob-fg, var(--c-text));
+  background: var(--ob-bg, var(--c-inset));
 }
 
-.ob-signal[data-signal="ACHAT FORT"] {
-  color: #15803d;
-  background: rgba(34, 197, 94, 0.16);
+.ob-score {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
 }
 
-.ob-signal[data-signal="ACHAT"] {
-  color: #4d7c0f;
-  background: rgba(132, 204, 22, 0.18);
+.ob-score-tier {
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 0.65rem;
+  opacity: 0.85;
 }
 
-.ob-signal[data-signal="CONSERVER"] {
-  color: #92720f;
-  background: var(--c-gold-soft);
+.ob-signal-icon {
+  font-size: 0.6rem;
+  line-height: 1;
 }
 
-.ob-signal[data-signal="ALLÉGER"] {
-  color: #c2410c;
-  background: rgba(249, 115, 22, 0.16);
+:root[data-theme="dark"] .ob-signal,
+:root[data-theme="dark"] .ob-score {
+  color: var(--ob-fg-dark, var(--c-text));
 }
 
-.ob-signal[data-signal="VENDRE"] {
-  color: #b91c1c;
-  background: var(--c-red-soft);
+.ob-conf {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
-:root[data-theme="dark"] .ob-signal[data-signal="ACHAT FORT"] {
-  color: #86efac;
+.ob-conf-dot {
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--c-text);
+  flex: none;
 }
 
-:root[data-theme="dark"] .ob-signal[data-signal="ACHAT"] {
-  color: #bef264;
+.ob-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+  color: var(--c-textdim);
 }
 
-:root[data-theme="dark"] .ob-signal[data-signal="CONSERVER"] {
-  color: #e7c56a;
+.ob-legend-group {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
 }
 
-:root[data-theme="dark"] .ob-signal[data-signal="ALLÉGER"] {
-  color: #fdba74;
-}
-
-:root[data-theme="dark"] .ob-signal[data-signal="VENDRE"] {
-  color: #fca5a5;
+.ob-legend-title {
+  font-weight: 650;
+  color: var(--c-text-meta);
 }
 
 .ob-btn,

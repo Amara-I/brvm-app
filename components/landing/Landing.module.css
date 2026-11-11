@@ -958,7 +958,7 @@ a.exchangeChip:hover {
 
 .stockMeta {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   justify-content: flex-end;
   gap: 10px;
   flex: 0 0 auto;
@@ -1526,3 +1526,13 @@ a.exchangeChip:hover {
 }
 
 .topSearch > :global([class*="rootLanding"]) { flex: 1; min-width: 0; width: auto; }
+
+/* La landing est toujours sombre : pastilles score / signal en teinte « dark ». */
+.scoreWrap :global(.ob-score),
+.scoreWrap :global(.ob-signal) {
+  color: var(--ob-fg-dark, var(--lp-text, #e6edf3));
+}
+
+.scoreWrap :global(.ob-conf-dot) {
+  background: currentColor;
+}

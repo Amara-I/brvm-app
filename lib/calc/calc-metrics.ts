@@ -8,6 +8,7 @@
 //     ALLÉGER / VENDRE.
 //   - riskLevel (Faible/Moyen/Élevé/N/D) reste la volatilité simple ;
 //     riskAnalysis porte la gestion du risque détaillée.
+import { SIGNAL_ACCENT } from "@/lib/ui/score-signal-tokens";
 
 import {
   computeRiskAnalysis,
@@ -120,13 +121,8 @@ export interface CalcMetricsOptions {
   dividendRegularityWindow?: number;
 }
 
-const SIGNAL_COLORS: Record<TradeSignal["label"], string> = {
-  "ACHAT FORT": "#22C55E",
-  ACHAT: "#84CC16",
-  CONSERVER: "#D4A843",
-  ALLÉGER: "#F97316",
-  VENDRE: "#EF4444",
-};
+// Couleurs des signaux : source unique dans lib/ui/score-signal-tokens.ts.
+const SIGNAL_COLORS: Record<TradeSignal["label"], string> = SIGNAL_ACCENT;
 
 export function signalOf(label: TradeSignal["label"]): TradeSignal {
   return { label, color: SIGNAL_COLORS[label] };
