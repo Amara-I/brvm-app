@@ -11,6 +11,9 @@ const BALANCE_HEAD = /statements?\s+of\s+financial\s+position|balance\s+sheets?|
 
 const REVENUE_CORPORATE =
   /^(?:total\s+)?(?:net\s+)?(?:revenues?|turnover|sales|net\s+sales|gross\s+revenue|revenue\s+from\s+contracts?\s+with\s+customers|revenue\s+from\s+(?:sale|sales|continuing|contract)[a-z\s]*|revenue\s*\(net\)|income\s+from\s+contracts?\s+with\s+customers|contract\s+revenue|revenue\s*-\s*net)(?:\s*\(note[^)]*\))?$/;
+/** Assureurs : « Insurance revenue » (IFRS 17, depuis 2023), sinon primes brutes (IFRS 4). */
+const REVENUE_INSURANCE_IFRS17 = /^(?:total\s+)?insurance\s+(?:contracts?\s+)?revenue(?:\s*\(note[^)]*\))?$/;
+const REVENUE_INSURANCE_IFRS4 = /^gross\s+(?:premiums?\s+(?:income|earned|written)|written\s+premiums?)(?:\s*\(note[^)]*\))?$/;
 const REVENUE_BANK_PRIMARY = /^(?:total\s+)?gross\s+earnings$/;
 const REVENUE_BANK_FALLBACK = /^(?:total\s+)?(?:operating\s+income|income|interest\s+(?:and\s+(?:similar|other)\s+)?(?:income|revenue)|interest\s+income(?:\s+calculated.*)?|total\s+interest\s+income|interest\s+and\s+similar\s+income)$/;
 const OPERATING =
@@ -333,7 +336,12 @@ export function extractStatements(text: string, company: NgxCompanyConfig, opts:
       out.revenueBasis = norm(interest.row.label);
     }
   } else {
-    const rev = findRow(pages, only, (l) => REVENUE_CORPORATE.test(l) || /^revenue\b/.test(l) && l.length < 60 && !/cost|expense|tax/.test(l), layoutOfIncome);
+    const ins =
+      company.kind === "insurance"
+        ? findRow(pages, only, (l) => REVENUE_INSURANCE_IFRS17.test(l), layoutOfIncome) ??
+          findRow(pages, only, (l) => REVENUE_INSURANCE_IFRS4.test(l), layoutOfIncome)
+        : null;
+    const rev = ins ?? findRow(pages, only, (l) => REVENUE_CORPORATE.test(l) || /^revenue\b/.test(l) && l.length < 60 && !/cost|expense|tax/.test(l), layoutOfIncome);
     if (rev) {
       out.fields.revenue = rev.field;
       out.revenueBasis = norm(rev.row.label);

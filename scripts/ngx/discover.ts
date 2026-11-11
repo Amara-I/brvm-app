@@ -20,27 +20,42 @@ async function main() {
   console.log(`company directory: ${directory.length} issuers`);
 
   const manifest: NgxManifestEntry[] = [];
+  const failed: string[] = [];
+  // Avec --tickers : on fusionne dans le manifeste existant au lieu de l'écraser.
+  const writeManifest = () => {
+    let out = manifest;
+    if (only && fs.existsSync(MANIFEST_PATH)) {
+      const prev = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) as NgxManifestEntry[];
+      const done = new Set(manifest.map((e) => e.ticker));
+      out = [...prev.filter((e) => !only.includes(e.ticker) || !done.has(e.ticker)), ...manifest];
+    }
+    fs.writeFileSync(MANIFEST_PATH, JSON.stringify(out, null, 1));
+    return out.length;
+  };
   for (const company of NGX_COMPANIES) {
     if (only && !only.includes(company.ticker)) continue;
-    const bySymbol: Record<string, NgxListItem[]> = {};
-    for (const symbol of company.symbols) {
-      const res = await politeFetch(buildListUrl(symbol), { headers: { Accept: "application/json;odata=verbose" } });
-      const json = (await res.json()) as { d: { results: NgxListItem[] } };
-      bySymbol[symbol] = json.d.results;
+    // Une erreur réseau sur une société (502 doclib fréquents) ne doit pas faire perdre tout le lot :
+    // on journalise, on continue, et le manifeste est réécrit après chaque société.
+    try {
+      const bySymbol: Record<string, NgxListItem[]> = {};
+      for (const symbol of company.symbols) {
+        const res = await politeFetch(buildListUrl(symbol), { headers: { Accept: "application/json;odata=verbose" } });
+        const json = (await res.json()) as { d: { results: NgxListItem[] } };
+        bySymbol[symbol] = json.d.results;
+      }
+      const entries = buildManifestEntries(company, bySymbol, { fromYear: from, toYear: to });
+      manifest.push(...entries);
+      const afs = new Set(entries.filter((e) => e.docType === "AUDITED_FS").map((e) => e.guessedFiscalYear));
+      console.log(`${company.ticker}: ${entries.length} docs, AFS years ${[...afs].sort().join(",")}`);
+    } catch (err) {
+      failed.push(company.ticker);
+      console.error(`${company.ticker}: ÉCHEC découverte — ${err instanceof Error ? err.message : String(err)}`);
     }
-    const entries = buildManifestEntries(company, bySymbol, { fromYear: from, toYear: to });
-    manifest.push(...entries);
-    const afs = new Set(entries.filter((e) => e.docType === "AUDITED_FS").map((e) => e.guessedFiscalYear));
-    console.log(`${company.ticker}: ${entries.length} docs, AFS years ${[...afs].sort().join(",")}`);
+    if (only) writeManifest();
   }
-  // Avec --tickers : on fusionne dans le manifeste existant au lieu de l'écraser.
-  let out = manifest;
-  if (only && fs.existsSync(MANIFEST_PATH)) {
-    const prev = JSON.parse(fs.readFileSync(MANIFEST_PATH, "utf8")) as NgxManifestEntry[];
-    out = [...prev.filter((e) => !only.includes(e.ticker)), ...manifest];
-  }
-  fs.writeFileSync(MANIFEST_PATH, JSON.stringify(out, null, 1));
-  console.log(`manifest: ${out.length} entries → ${MANIFEST_PATH}`);
+  const total = writeManifest();
+  console.log(`manifest: ${total} entries → ${MANIFEST_PATH}`);
+  if (failed.length > 0) console.log(`échecs (relancer avec --tickers ${failed.join(",")}) : ${failed.length}`);
 }
 main().catch((e) => {
   console.error(e);
