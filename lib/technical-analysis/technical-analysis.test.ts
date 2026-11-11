@@ -3,6 +3,8 @@ import { applyTechnicalSignal } from "./apply-signal";
 import { analyzePriceHistory } from "./analyze";
 import { detectFairValueGaps } from "./fvg";
 import { technicalLevels } from "./levels";
+import { chartLevelLines } from "./chart-lines";
+import { formatDistancePct, formatFcfa, stackLabelYs } from "./level-label";
 import { scenarioChartModel } from "./scenario-chart";
 import { signalOf } from "@/lib/calc/calc-metrics";
 import { detectSupportResistance } from "./support-resistance";
@@ -156,13 +158,27 @@ describe("scénarios", () => {
     }
   });
 
-  it("dessine une figure annotée à partir des cours", () => {
+  it("dessine une figure annotée avec les prix et des pastilles écartées", () => {
+    expect(formatFcfa(4125)).toBe("4 125 FCFA");
+    expect(formatDistancePct(4000, 4320)).toBe("+8,0 %");
+    expect(formatDistancePct(4000, 3792)).toBe("−5,2 %");
+    const stacked = stackLabelYs([10, 14, 80], 20, 0, 200);
+    expect(stacked[1]! - stacked[0]!).toBeGreaterThanOrEqual(20);
+
     const bull = analysis.scenarios[0]!;
-    const model = scenarioChartModel(analysis.chartBars, bull, analysis.zones, "Haussier");
+    const model = scenarioChartModel(analysis.chartBars, bull, analysis.zones, "Haussier", analysis.gaps);
     expect(model.polyline.split(" ").length).toBeGreaterThan(5);
-    expect(model.arrow).not.toBeNull();
-    expect(model.marks.some((mark) => mark.kind === "stop")).toBe(true);
-    expect(model.marks.some((mark) => mark.kind === "target")).toBe(true);
+    expect(model.marks.some((mark) => mark.kind === "stop" && mark.price > 0 && mark.showDistance)).toBe(true);
+    expect(model.marks.some((mark) => mark.kind === "target" && mark.showDistance)).toBe(true);
+    expect(model.marks.some((mark) => mark.kind === "last")).toBe(true);
+    const ordered = [...model.marks].sort((a, b) => a.displayY - b.displayY);
+    for (let i = 1; i < ordered.length; i++) {
+      expect(ordered[i]!.displayY).toBeGreaterThan(ordered[i - 1]!.displayY);
+    }
+    const lines = chartLevelLines(analysis);
+    expect(lines.some((line) => line.title.includes("FCFA") && line.title.startsWith("Objectif"))).toBe(true);
+    expect(lines.some((line) => line.title.includes("Invalidation") && line.title.includes("%"))).toBe(true);
+    expect(lines.some((line) => line.title.startsWith("Cours"))).toBe(true);
   });
 
   it("expose stop, cibles et risque/rendement pour le sizing", () => {

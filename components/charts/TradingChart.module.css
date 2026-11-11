@@ -13,6 +13,33 @@
   width: 100%;
 }
 
+.levelTag {
+  position: absolute;
+  right: 62px;
+  z-index: 3;
+  transform: translateY(-50%);
+  max-width: min(48vw, 230px);
+  padding: 2px 6px;
+  border-radius: 6px;
+  border: 1px solid currentColor;
+  background: rgba(19, 23, 34, 0.92);
+  color: #d1d4dc;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+@media (max-width: 640px) {
+  .levelTag {
+    right: 48px;
+    max-width: 54vw;
+    font-size: 10.5px;
+    padding: 1px 4px;
+  }
+}
+
 .zoomCapture {
   position: absolute;
   inset: 0;

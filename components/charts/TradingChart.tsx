@@ -19,6 +19,7 @@ import {
 } from "lightweight-charts";
 import { closesToCandles, computeSma, type ChartClosePoint } from "@/lib/charts/indicators";
 import type { ChartLevelLine } from "@/lib/technical-analysis/chart-lines";
+import { stackLabelYs } from "@/lib/technical-analysis/level-label";
 import { flatPriceBounds } from "@/lib/charts/sparse-series";
 import { type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import {
@@ -279,6 +280,7 @@ export default function TradingChart({
   const { t, format, locale } = useI18n();
   const fmt = (n: number) => priceText(n, format, priceDecimals);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [levelTags, setLevelTags] = useState<Array<{ id: string; top: number; title: string; color: string }>>([]);
   const chartRef = useRef<IChartApi | null>(null);
   const candleRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   /** 1er point en attente pour tendance / fib / mesure. */
@@ -1433,18 +1435,49 @@ export default function TradingChart({
 
   useEffect(() => {
     const seriesApi = candleRef.current;
-    if (!seriesApi || percentScale || levelLines.length === 0) return;
+    if (!seriesApi || percentScale || levelLines.length === 0) {
+      setLevelTags([]);
+      return;
+    }
     const created = levelLines.map((line) =>
       seriesApi.createPriceLine({
         price: line.price,
         color: line.color,
         lineWidth: 1,
         lineStyle: LineStyle.Dashed,
-        axisLabelVisible: line.title.length > 0,
-        title: line.title,
+        axisLabelVisible: false,
+        title: "",
       })
     );
+    const chart = chartRef.current;
+    const place = () => {
+      const height = containerRef.current?.clientHeight ?? 0;
+      if (!chart || height < 8) {
+        setLevelTags([]);
+        return;
+      }
+      const visible = levelLines.flatMap((line) => {
+        if (!line.title) return [];
+        const y = seriesApi.priceToCoordinate(line.price);
+        if (y == null || !Number.isFinite(y) || y < 0 || y > height) return [];
+        return [{ id: line.id, y, title: line.title, color: line.color }];
+      });
+      const tops = stackLabelYs(
+        visible.map((row) => row.y),
+        22,
+        10,
+        height - 10
+      );
+      setLevelTags(visible.map((row, index) => ({ id: row.id, top: tops[index] ?? row.y, title: row.title, color: row.color })));
+    };
+    place();
+    const onRange = () => place();
+    chart?.timeScale().subscribeVisibleLogicalRangeChange(onRange);
+    const ro = new ResizeObserver(place);
+    if (containerRef.current) ro.observe(containerRef.current);
     return () => {
+      chart?.timeScale().unsubscribeVisibleLogicalRangeChange(onRange);
+      ro.disconnect();
       for (const line of created) {
         try {
           seriesApi.removePriceLine(line);
@@ -1586,6 +1619,15 @@ export default function TradingChart({
       )}
       <div className={styles.chartStage} style={{ height }}>
         <div ref={containerRef} className={styles.canvas} style={{ height }} />
+        {levelTags.map((tag) => (
+          <div
+            key={tag.id}
+            className={styles.levelTag}
+            style={{ top: tag.top, color: tag.color }}
+          >
+            {tag.title}
+          </div>
+        ))}
         {showDrawingHandles &&
           measureBadges.map((b) => (
             <div

@@ -89,6 +89,10 @@ export interface ScenarioPlan {
   bias: ScenarioBias;
   /** Probabilité indicative 0–100. Les trois scénarios somment à 100. */
   probability: number;
+  /** Une phrase : ce que le scénario suppose. */
+  headlineFr: string;
+  headlineEn: string;
+  /** Pourquoi, à partir de l'historique (1–2 phrases). Conservé aussi dans explanation*. */
   explanationFr: string;
   explanationEn: string;
   entryLow: number | null;

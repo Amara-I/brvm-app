@@ -236,7 +236,10 @@ export default function CompanySheetClient({
   );
   const resolvedTab = normalizeSheetTab(tab);
   const [chartAnalysis, setChartAnalysis] = useState<TechnicalAnalysis>(initialAnalysis);
-  const levelLines = useMemo(() => chartLevelLines(chartAnalysis), [chartAnalysis]);
+  const levelLines = useMemo(
+    () => chartLevelLines(chartAnalysis, locale === "en" ? "en" : "fr"),
+    [chartAnalysis, locale]
+  );
   const onActiveSeries = useCallback(
     (symbol: string, points: ChartClosePoint[]) => {
       const last = points[points.length - 1];

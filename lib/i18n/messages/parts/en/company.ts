@@ -243,6 +243,7 @@ export const company = {
     zonesTitle: "Support and resistance",
     zonesEmpty: "Not enough swings to draw a zone (N/D).",
     gapsTitle: "Fair value gaps",
+    fvgTip: "Fair value gap: a zone price jumped through without trading. Price often comes back to it.",
     gapsEmpty: "No fair value gap on this window (N/D).",
     col: {
       kind: "Type",
@@ -273,6 +274,19 @@ export const company = {
       bearish: "Bearish",
     },
     probability: "{value}% indicative",
+    sections: {
+      scenario: "Scenario",
+      why: "Why",
+      plan: "Plan",
+      reward: "Reward/risk",
+    },
+    chart: {
+      last: "Price",
+      entry: "Entry",
+      invalidation: "Invalidation",
+      target: "Target {n}",
+      fvg: "FVG",
+    },
     entry: "Entry zone",
     invalidation: "Invalidation",
     targets: "Targets",

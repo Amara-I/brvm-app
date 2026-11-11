@@ -86,12 +86,14 @@ export function buildScenarios(
   const atr = structure.atr14 != null && structure.atr14 > 0 ? structure.atr14 : last != null ? last * 0.015 : null;
   const probs = probabilities(timing, liquidity.illiquid);
   if (last == null || atr == null) {
-    const ndFr = "Historique insuffisant pour chiffrer ce scénario (N/D).";
-    const ndEn = "Not enough history to price this scenario (N/D).";
+    const ndFr = "Pas assez de séances pour dire comment le cours a réagi aux anciens niveaux (N/D).";
+    const ndEn = "Not enough sessions to say how price reacted at past levels (N/D).";
     return (["bullish", "neutral", "bearish"] as const).map((bias) => ({
       id: bias,
       bias,
       probability: probs[bias],
+      headlineFr: "Scénario non chiffré.",
+      headlineEn: "Scenario not priced.",
       explanationFr: ndFr,
       explanationEn: ndEn,
       entryLow: null,
@@ -140,20 +142,35 @@ export function buildScenarios(
   const neutralTarget = roundPrice(closerToHigh ? rangeLow : rangeHigh);
   const neutralRr = rr((neutralEntry.low + neutralEntry.high) / 2, neutralStop, neutralTarget, closerToHigh ? "short" : "long");
 
-  const bullFr = `Scénario haussier. Zone d'entrée ${money(bullEntry.low)}–${money(bullEntry.high)} FCFA, invalidation sous ${money(bullStop)} FCFA, objectifs ${money(bullT1)} puis ${money(bullT2)} FCFA${bullRr != null ? ` (risque/rendement indicatif ${bullRr.toLocaleString("fr-FR")})` : ""}. ${reactionFr(support, "support")}`;
-  const bullEn = `Bullish scenario. Entry zone ${moneyEn(bullEntry.low)}–${moneyEn(bullEntry.high)} FCFA, invalidation below ${moneyEn(bullStop)} FCFA, targets ${moneyEn(bullT1)} then ${moneyEn(bullT2)} FCFA${bullRr != null ? ` (indicative risk/reward ${bullRr})` : ""}. ${reactionEn(support, "support")}`;
+  const structureFr =
+    structure.bias === "bullish"
+      ? "Les derniers sommets et creux montent."
+      : structure.bias === "bearish"
+        ? "Les derniers sommets et creux descendent."
+        : "Les derniers sommets et creux ne forment pas une tendance claire.";
+  const structureEn =
+    structure.bias === "bullish"
+      ? "Recent peaks and troughs are rising."
+      : structure.bias === "bearish"
+        ? "Recent peaks and troughs are falling."
+        : "Recent peaks and troughs do not form a clear trend.";
 
-  const bearFr = `Scénario baissier. Zone d'entrée ${money(bearEntry.low)}–${money(bearEntry.high)} FCFA, invalidation au-dessus de ${money(bearStop)} FCFA, objectifs ${money(bearT1)} puis ${money(bearT2)} FCFA${bearRr != null ? ` (risque/rendement indicatif ${bearRr.toLocaleString("fr-FR")})` : ""}. ${reactionFr(resistance, "resistance")}`;
-  const bearEn = `Bearish scenario. Entry zone ${moneyEn(bearEntry.low)}–${moneyEn(bearEntry.high)} FCFA, invalidation above ${moneyEn(bearStop)} FCFA, targets ${moneyEn(bearT1)} then ${moneyEn(bearT2)} FCFA${bearRr != null ? ` (indicative risk/reward ${bearRr})` : ""}. ${reactionEn(resistance, "resistance")}`;
-
-  const neuFr = `Scénario neutre (range). Le cours oscille entre ${money(rangeLow)} et ${money(rangeHigh)} FCFA. Entrée autour de ${money(neutralEntry.low)}–${money(neutralEntry.high)} FCFA, invalidation au-delà de ${money(neutralStop)} FCFA, objectif ${money(neutralTarget)} FCFA${neutralRr != null ? ` (risque/rendement indicatif ${neutralRr.toLocaleString("fr-FR")})` : ""}. ${reactionFr(closerToHigh ? resistance : support, closerToHigh ? "resistance" : "support")}`;
-  const neuEn = `Neutral (range) scenario. Price is oscillating between ${moneyEn(rangeLow)} and ${moneyEn(rangeHigh)} FCFA. Entry around ${moneyEn(neutralEntry.low)}–${moneyEn(neutralEntry.high)} FCFA, invalidation beyond ${moneyEn(neutralStop)} FCFA, target ${moneyEn(neutralTarget)} FCFA${neutralRr != null ? ` (indicative risk/reward ${neutralRr})` : ""}. ${reactionEn(closerToHigh ? resistance : support, closerToHigh ? "resistance" : "support")}`;
+  const bullFr = `${reactionFr(support, "support")} ${structureFr}`;
+  const bullEn = `${reactionEn(support, "support")} ${structureEn}`;
+  const bearFr = `${reactionFr(resistance, "resistance")} ${structureFr}`;
+  const bearEn = `${reactionEn(resistance, "resistance")} ${structureEn}`;
+  const neuZone = closerToHigh ? resistance : support;
+  const neuRole = closerToHigh ? "resistance" : "support";
+  const neuFr = `${reactionFr(neuZone, neuRole)} Le cours oscille entre ${money(rangeLow)} et ${money(rangeHigh)} FCFA.`;
+  const neuEn = `${reactionEn(neuZone, neuRole)} Price is oscillating between ${moneyEn(rangeLow)} and ${moneyEn(rangeHigh)} FCFA.`;
 
   const plans: ScenarioPlan[] = [
     {
       id: "bullish",
       bias: "bullish",
       probability: probs.bullish,
+      headlineFr: "Hausse tant que le cours reste au-dessus de l'invalidation.",
+      headlineEn: "Upside while price stays above invalidation.",
       explanationFr: bullFr,
       explanationEn: bullEn,
       entryLow: bullEntry.low,
@@ -166,6 +183,8 @@ export function buildScenarios(
       id: "neutral",
       bias: "neutral",
       probability: probs.neutral,
+      headlineFr: "Aller-retour dans le range, sans nouvelle tendance.",
+      headlineEn: "A round trip inside the range, without a new trend.",
       explanationFr: neuFr,
       explanationEn: neuEn,
       entryLow: neutralEntry.low,
@@ -178,6 +197,8 @@ export function buildScenarios(
       id: "bearish",
       bias: "bearish",
       probability: probs.bearish,
+      headlineFr: "Baisse tant que le cours ne repasse pas au-dessus de l'invalidation.",
+      headlineEn: "Downside while price stays below invalidation.",
       explanationFr: bearFr,
       explanationEn: bearEn,
       entryLow: bearEntry.low,
