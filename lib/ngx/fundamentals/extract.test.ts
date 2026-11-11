@@ -167,9 +167,9 @@ describe("extractStatements (insurance revenue)", () => {
     expect(r.fields.revenue?.values[0]).toBe(110_119_382);
     expect(r.operatingBasis?.startsWith("PBT")).toBe(true);
   });
-  it("falls back to gross premium income (IFRS 4)", () => {
+  it("does not take gross premiums (IFRS 4) as revenue: not comparable with IFRS 17 insurance revenue", () => {
     const r = extractStatements(page("Gross premium income"), ins);
-    expect(r.revenueBasis).toBe("gross premium income");
-    expect(r.fields.revenue?.values[0]).toBe(110_119_382);
+    expect(r.fields.revenue).toBeUndefined();
+    expect(r.fields.netProfit?.values[0]).toBe(16_000_000);
   });
 });

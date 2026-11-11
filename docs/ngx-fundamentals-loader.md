@@ -62,7 +62,7 @@ The value **as originally reported** is kept. If the next AFS's comparative diff
 * sanity: operating profit vs revenue, net profit vs revenue, ROE, revenue ≤ 0, equity ≤ 0;
 * missing unit (header shows only "N", text lost): inferred from net profit ≈ EPS × shares (directory shares, ±15 %), else from a neighbouring year's unit when the implied share counts agree (handles reverse splits, e.g. Transcorp); flagged `unit_inferred_by_eps_shares`, label "(inferred …)";
 * banks: revenue = gross earnings (else interest income), "operating profit" = profit before tax (basis recorded);
-* insurers (`kind: "insurance"`): revenue = « Insurance revenue » (IFRS 17, 2023+), else « Gross premium income/written » (IFRS 4); the 2022→2023 basis change usually shows up as a restatement (`medium`);
+* insurers (`kind: "insurance"`): revenue = « Insurance revenue » (IFRS 17) only; IFRS 4 gross premiums are deliberately not taken (different basis, would distort revenue growth);
 * USD reporters (ETI) keep `currency=USD` (values extracted from the US$'000 column of dual-currency pages) and are **skipped** by step 5. Proposal: store a `currency` in `profile_meta.ngxFundamentals.years.<year>` and display natively as "US$", or use the NGN columns ETI itself publishes on the same pages rather than an invented FX rate; nothing is loaded for ETI until decided. ETI EPS is published in US cents.
 
 `high` is the only level loaded by default (`--min medium` to relax). Everything else goes to `review_queue.csv` with the reason, file and page.
