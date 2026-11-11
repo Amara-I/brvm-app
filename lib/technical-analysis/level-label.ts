@@ -87,6 +87,47 @@ export function stackLabelYs(ys: number[], gap: number, min: number, max: number
   return placed;
 }
 
+
+/**
+ * Place des pastilles de hauteurs variables : `ys` sont les centres souhaités,
+ * `heights` les hauteurs en pixels. Les boîtes restent dans [min, max] et
+ * gardent au moins `gap` pixels entre elles.
+ */
+export function stackLabelBoxes(
+  ys: number[],
+  heights: number[],
+  min: number,
+  max: number,
+  gap = 4
+): number[] {
+  if (ys.length === 0) return [];
+  const order = ys
+    .map((y, index) => ({ index, y, h: Math.max(0, heights[index] ?? 0) }))
+    .sort((a, b) => a.y - b.y || a.index - b.index);
+  const placed = ys.slice();
+  let prevBottom = min;
+  for (const item of order) {
+    const half = item.h / 2;
+    const center = Math.max(item.y, prevBottom + gap + half, min + half);
+    placed[item.index] = center;
+    prevBottom = center + half;
+  }
+  const last = order[order.length - 1]!;
+  const bottom = placed[last.index]! + last.h / 2;
+  if (bottom <= max) return placed;
+
+  const totalH = order.reduce((sum, item) => sum + item.h, 0);
+  const span = Math.max(0, max - min);
+  const gaps = Math.max(0, order.length - 1);
+  const packedGap = gaps === 0 ? 0 : Math.max(0, (span - totalH) / gaps);
+  let cursor = min;
+  for (const item of order) {
+    placed[item.index] = cursor + item.h / 2;
+    cursor += item.h + packedGap;
+  }
+  return placed;
+}
+
 export function rewardRiskSentence(rr: number | null, locale: "fr" | "en"): string {
   if (rr == null || !Number.isFinite(rr) || rr <= 0) {
     return locale === "en"

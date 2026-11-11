@@ -1,5 +1,6 @@
-// Géométrie d'un graphique annoté (SVG maison). Les pastilles de prix
-// sont posées à part pour rester lisibles : displayY écarte les libellés proches.
+// Géométrie d'un graphique annoté (SVG maison). Les pastilles vivent dans
+// une gouttière à droite du tracé, écartées verticalement, reliées par un
+// trait de rappel : elles ne recouvrent ni la courbe ni les unes les autres.
 
 import { levelNearPrice, stackLabelYs } from "./level-label";
 import type { FairValueGap, PriceBar, ScenarioPlan, SrZone } from "./types";
@@ -29,22 +30,57 @@ export interface ScenarioChartMark {
   targetIndex: number | null;
 }
 
+export interface ScenarioChartLeader {
+  kind: ScenarioMarkKind;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  x3: number;
+  y3: number;
+}
+
+export interface ScenarioChartTag {
+  kind: "fvg";
+  x: number;
+  y: number;
+}
+
 export interface ScenarioChartModel {
   width: number;
   height: number;
+  plotLeft: number;
+  plotRight: number;
+  gutter: number;
   polyline: string;
   zones: ScenarioChartBox[];
   marks: ScenarioChartMark[];
+  leaders: ScenarioChartLeader[];
+  tags: ScenarioChartTag[];
   arrow: { x1: number; y1: number; x2: number; y2: number } | null;
   title: string;
   lastClose: number | null;
 }
 
-const WIDTH = 640;
-const HEIGHT = 300;
-const PAD_X = 12;
-const PAD_Y = 22;
-const LABEL_GAP = 46;
+/** Dimensions du viewBox. La gouttière droite accueille les pastilles. */
+export const SCENARIO_CHART = {
+  width: 760,
+  height: 500,
+  padX: 14,
+  padY: 30,
+  gutter: 240,
+  labelGap: 56,
+  leaderBend: 14,
+} as const;
+
+const WIDTH = SCENARIO_CHART.width;
+const HEIGHT = SCENARIO_CHART.height;
+const PAD_X = SCENARIO_CHART.padX;
+const PAD_Y = SCENARIO_CHART.padY;
+const GUTTER = SCENARIO_CHART.gutter;
+const LABEL_GAP = SCENARIO_CHART.labelGap;
+const PLOT_RIGHT = WIDTH - GUTTER;
+const PLOT_W = PLOT_RIGHT - PAD_X;
 
 function yOf(price: number, min: number, max: number): number {
   const span = max - min || 1;
@@ -73,8 +109,7 @@ export function scenarioChartModel(
 
   const min = Math.min(...prices);
   const max = Math.max(...prices);
-  const plotW = WIDTH - PAD_X * 2;
-  const step = window.length > 1 ? plotW / (window.length - 1) : plotW;
+  const step = window.length > 1 ? PLOT_W / (window.length - 1) : PLOT_W;
   const points = window.map((bar, index) => {
     const x = PAD_X + index * step;
     const y = yOf(bar.close, min, max);
@@ -82,6 +117,7 @@ export function scenarioChartModel(
   });
 
   const boxes: ScenarioChartBox[] = [];
+  const tags: ScenarioChartTag[] = [];
   const draft: Omit<ScenarioChartMark, "displayY">[] = [];
 
   const push = (mark: Omit<ScenarioChartMark, "displayY">) => {
@@ -89,6 +125,7 @@ export function scenarioChartModel(
     draft.push(mark);
   };
 
+  // Zones S/R : bandes colorées seulement, sans pastille (tableau au-dessus du graphe).
   for (const zone of zones.filter((z) => z.kind === "support" || z.kind === "resistance").slice(0, 2)) {
     if (!near(zone.mid) && !near(zone.low) && !near(zone.high)) continue;
     const y1 = yOf(zone.high, min, max);
@@ -96,38 +133,30 @@ export function scenarioChartModel(
     boxes.push({
       x: PAD_X,
       y: Math.min(y1, y2),
-      w: plotW * 0.62,
+      w: PLOT_W,
       h: Math.max(2, Math.abs(y2 - y1)),
       kind: zone.kind === "support" ? "support" : "resistance",
     });
-    push({
-      y: yOf(zone.mid, min, max),
-      kind: zone.kind === "support" ? "support" : "resistance",
-      price: zone.low,
-      priceHigh: zone.high,
-      showDistance: false,
-      targetIndex: null,
-    });
   }
 
+  // FVG : bande + petit tag à gauche, pas de pastille à droite.
   for (const gap of gaps.filter((gap) => gap.status !== "filled").slice(-1)) {
     if (!near(gap.low) && !near(gap.high)) continue;
     const y1 = yOf(gap.high, min, max);
     const y2 = yOf(gap.low, min, max);
+    const top = Math.min(y1, y2);
+    const h = Math.max(2, Math.abs(y2 - y1));
     boxes.push({
       x: PAD_X,
-      y: Math.min(y1, y2),
-      w: plotW * 0.62,
-      h: Math.max(2, Math.abs(y2 - y1)),
+      y: top,
+      w: PLOT_W,
+      h,
       kind: "gap",
     });
-    push({
-      y: yOf((gap.low + gap.high) / 2, min, max),
+    tags.push({
       kind: "fvg",
-      price: gap.low,
-      priceHigh: gap.high,
-      showDistance: false,
-      targetIndex: null,
+      x: PAD_X + 6,
+      y: top + h / 2,
     });
   }
 
@@ -137,7 +166,7 @@ export function scenarioChartModel(
     boxes.push({
       x: PAD_X,
       y: Math.min(y1, y2),
-      w: plotW * 0.62,
+      w: PLOT_W,
       h: Math.max(2, Math.abs(y2 - y1)),
       kind: "entry",
     });
@@ -178,7 +207,7 @@ export function scenarioChartModel(
   if (last && target != null && window.length > 0) {
     const x1 = PAD_X + (window.length - 1) * step;
     const y1 = yOf(last.close, min, max);
-    const x2 = Math.min(PAD_X + plotW * 0.7, x1 + 36);
+    const x2 = Math.min(PAD_X + PLOT_W * 0.88, x1 + 36);
     const y2 = yOf(target, min, max);
     arrow = { x1, y1, x2, y2 };
     push({
@@ -200,23 +229,34 @@ export function scenarioChartModel(
     });
   }
 
-  const display = stackLabelYs(
-    draft.map((mark) => mark.y),
-    LABEL_GAP,
-    12,
-    HEIGHT - 12
-  );
+  const display = stackLabelYs(draft.map((mark) => mark.y), LABEL_GAP, 18, HEIGHT - 18);
   const marks: ScenarioChartMark[] = draft.map((mark, index) => ({
     ...mark,
     displayY: display[index] ?? mark.y,
   }));
 
+  const bend = PLOT_RIGHT + SCENARIO_CHART.leaderBend;
+  const leaders: ScenarioChartLeader[] = marks.map((mark) => ({
+    kind: mark.kind,
+    x1: PLOT_RIGHT,
+    y1: mark.y,
+    x2: bend,
+    y2: mark.displayY,
+    x3: bend + 8,
+    y3: mark.displayY,
+  }));
+
   return {
     width: WIDTH,
     height: HEIGHT,
+    plotLeft: PAD_X,
+    plotRight: PLOT_RIGHT,
+    gutter: GUTTER,
     polyline: points.join(" "),
     zones: boxes,
     marks,
+    leaders,
+    tags,
     arrow,
     title,
     lastClose,

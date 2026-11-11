@@ -1,8 +1,10 @@
-/* Fiche NGX — colonne centrée, sections espacées, accent or. Couleurs via les variables du thème. */
+/* Fiche NGX — même largeur de contenu que les fiches BRVM (colonne pleine). */
 
 .column {
-  max-width: 960px;
-  margin: 0 auto;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  min-width: 0;
 }
 
 .toc {
