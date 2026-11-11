@@ -7,7 +7,6 @@
 // le cron quotidien /api/cron/ingest.
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
 import MarketChrome from "@/components/marche/MarketChrome";
 import styles from "@/components/marche/MarketBoard.module.css";
 import ngxStyles from "@/components/ngx/NgxMarket.module.css";
@@ -129,23 +128,6 @@ export default function NgxOverviewClient({ initial }: NgxOverviewClientProps) {
         indexHref={(code) => `/marches/ngx/indices/${code}`}
         indicesFallbackHref="/marches/ngx/indices"
       />
-
-      <div className={ngxStyles.navLinks}>
-        <Link href="/marches/ngx/screener" className={ngxStyles.screenerLink} data-testid="ngx-screener-link">
-          <span>
-            <strong>{t("ngx.screener.link")}</strong>
-            <span className={ngxStyles.sub}>{t("ngx.screener.linkHint")}</span>
-          </span>
-          <span aria-hidden="true">→</span>
-        </Link>
-        <Link href="/marches/ngx/dividendes" className={ngxStyles.screenerLink} data-testid="ngx-dividends-link">
-          <span>
-            <strong>{t("ngx.dividends.link")}</strong>
-            <span className={ngxStyles.sub}>{t("ngx.dividends.linkHint")}</span>
-          </span>
-          <span aria-hidden="true">→</span>
-        </Link>
-      </div>
 
       {rows.length === 0 ? (
         <EmptyState title={t("ngx.market.emptyTitle")} body={t("ngx.market.emptyBody")} />
