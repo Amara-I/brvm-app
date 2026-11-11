@@ -261,6 +261,22 @@ a.indexPill:hover {
   text-decoration: none;
 }
 
+/* Sous 700 px, 3 cartes de 140 px ne tiennent plus : grille 2 colonnes
+   plutôt qu'un défilement horizontal dont la 3e carte paraît coupée. */
+@media (max-width: 700px) {
+  .indicesStrip {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: visible;
+  }
+
+  .indexPill {
+    min-width: 0;
+    width: auto;
+    max-width: none;
+  }
+}
+
 @media (max-width: 480px) {
   .topBar {
     padding: 12px 12px 10px;
