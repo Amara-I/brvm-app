@@ -2,6 +2,9 @@
 // Les cours manquants restent null / tableaux vides, jamais inventés.
 
 import type { TradeSignal } from "@/lib/calc/calc-metrics";
+import type { PriceCurrency } from "./level-label";
+
+export type { PriceCurrency };
 
 export type ConfidenceLevel = "Élevée" | "Moyenne" | "Faible";
 export type ZoneKind = "support" | "resistance" | "pivot";
@@ -111,6 +114,8 @@ export interface TechnicalSignal {
 }
 
 export interface TechnicalAnalysis {
+  /** Devise des prix (XOF = FCFA BRVM, NGN = naira NGX). Absent sur d'anciens objets : FCFA. */
+  currency?: PriceCurrency;
   /** Barres réellement lues (fenêtre récente plafonnée). */
   barsUsed: number;
   /** Dernières bougies pour les figures de scénario. */

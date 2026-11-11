@@ -19,7 +19,7 @@ import {
   YAxis,
 } from "recharts";
 import { useI18n } from "@/components/i18n/I18nProvider";
-import type { PerformanceYear } from "@/lib/fundamental/brvm-analysis";
+import type { FundamentalMarket, PerformanceYear } from "@/lib/fundamental/brvm-analysis";
 import type { PricePoint } from "@/lib/ngx/price-stats";
 import { C } from "@/lib/theme/colors";
 import styles from "./FundamentalAnalysis.module.css";
@@ -37,6 +37,12 @@ function shiftDays(iso: string, days: number): string {
   const d = new Date(`${iso}T00:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
+}
+
+/** Montant dans la devise de la place : FCFA (BRVM) ou ₦ (NGX). */
+function useMoney(market: FundamentalMarket = "BRVM"): (value: number) => string {
+  const { format } = useI18n();
+  return (value: number) => (market === "NGX" ? format.money(value, "NGN") : format.fcfa(value));
 }
 
 function ChartFrame({ label, children }: { label: string; children: ReactNode }) {
@@ -95,12 +101,15 @@ function PriceChart({
   points,
   high52,
   low52,
+  market,
 }: {
   points: readonly PricePoint[];
   high52: number | null;
   low52: number | null;
+  market?: FundamentalMarket;
 }) {
   const { t, format } = useI18n();
+  const money = useMoney(market);
   const data = useMemo(() => {
     const sorted = points
       .filter((p) => p.value > 0 && /^\d{4}-\d{2}-\d{2}$/.test(p.time))
@@ -131,7 +140,7 @@ function PriceChart({
             formatter={(value, name) => {
               const n = typeof value === "number" ? value : Number(value);
               const label = String(name);
-              return label === t("company.fundamental.chartVolume") ? [format.integer(n), label] : [format.fcfa(n), label];
+              return label === t("company.fundamental.chartVolume") ? [format.integer(n), label] : [money(n), label];
             }}
           />
           <Area
@@ -166,14 +175,17 @@ function ValuationChart({
   high,
   single,
   methods,
+  market,
 }: {
   price: number | null;
   low: number | null;
   high: number | null;
   single: boolean;
   methods: { label: string; value: number }[];
+  market?: FundamentalMarket;
 }) {
-  const { t, format } = useI18n();
+  const { t } = useI18n();
+  const money = useMoney(market);
   if (price == null || (methods.length === 0 && low == null)) return null;
   const marks = [price, low, high, ...methods.map((m) => m.value)].filter((v): v is number => v != null && v > 0);
   if (marks.length === 0) return null;
@@ -194,11 +206,11 @@ function ValuationChart({
         <div className={styles.rangeMark} style={{ left: left(price) }} />
       </div>
       <div className={styles.rangeCaption}>
-        <span>{format.fcfa(min)}</span>
+        <span>{money(min)}</span>
         <span>
-          {t("company.fundamental.field.price")} {format.fcfa(price)}
+          {t("company.fundamental.field.price")} {money(price)}
         </span>
-        <span>{format.fcfa(max)}</span>
+        <span>{money(max)}</span>
       </div>
     </div>
   );
@@ -226,8 +238,15 @@ function SectorChart({ bars }: { bars: { label: string; index: number }[] }) {
   );
 }
 
-function DividendChart({ points }: { points: { year: string; dps: number; yieldPercent: number | null }[] }) {
+function DividendChart({
+  points,
+  market,
+}: {
+  points: { year: string; dps: number; yieldPercent: number | null }[];
+  market?: FundamentalMarket;
+}) {
   const { t, format } = useI18n();
+  const money = useMoney(market);
   if (points.length === 0) return null;
   const hasYield = points.some((p) => p.yieldPercent != null);
   return (
@@ -243,7 +262,7 @@ function DividendChart({ points }: { points: { year: string; dps: number; yieldP
             formatter={(value, name) => {
               const n = typeof value === "number" ? value : Number(value);
               const label = String(name);
-              return label === t("company.fundamental.chartYield") ? [format.percent(n, 2), label] : [format.fcfa(n), label];
+              return label === t("company.fundamental.chartYield") ? [format.percent(n, 2), label] : [money(n), label];
             }}
           />
           <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -288,7 +307,7 @@ function ConclusionChart({ bars }: { bars: { label: string; share: number }[] })
   );
 }
 
-export type FundamentalChartProps =
+export type FundamentalChartProps = { market?: FundamentalMarket } & (
   | { kind: "performance"; years: PerformanceYear[] }
   | { kind: "price"; points: readonly PricePoint[]; high52: number | null; low52: number | null }
   | {
@@ -301,22 +320,30 @@ export type FundamentalChartProps =
     }
   | { kind: "sector"; bars: { label: string; index: number }[] }
   | { kind: "dividends"; points: { year: string; dps: number; yieldPercent: number | null }[] }
-  | { kind: "conclusion"; bars: { label: string; share: number }[] };
+  | { kind: "conclusion"; bars: { label: string; share: number }[] }
+);
 
 export default function FundamentalCharts(props: FundamentalChartProps) {
   switch (props.kind) {
     case "performance":
       return <PerformanceChart years={props.years} />;
     case "price":
-      return <PriceChart points={props.points} high52={props.high52} low52={props.low52} />;
+      return <PriceChart points={props.points} high52={props.high52} low52={props.low52} market={props.market} />;
     case "valuation":
       return (
-        <ValuationChart price={props.price} low={props.low} high={props.high} single={props.single} methods={props.methods} />
+        <ValuationChart
+          price={props.price}
+          low={props.low}
+          high={props.high}
+          single={props.single}
+          methods={props.methods}
+          market={props.market}
+        />
       );
     case "sector":
       return <SectorChart bars={props.bars} />;
     case "dividends":
-      return <DividendChart points={props.points} />;
+      return <DividendChart points={props.points} market={props.market} />;
     case "conclusion":
       return <ConclusionChart bars={props.bars} />;
   }

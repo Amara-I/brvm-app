@@ -406,6 +406,19 @@ export const company = {
     confidence: "Confidence",
   },
   fundamental: {
+    ngx: {
+      intro:
+        "Eight readings, the same as on a BRVM sheet: each one sums up a verdict and figures, and opens for the detail. Amounts are in naira (₦). What is not stored stays N/D.",
+      noEquity:
+        "P/B = market cap ÷ latest confirmed shareholders' equity (NGX accounts). Without confirmed equity, the method is not computed.",
+      accountsNote: "Accounts in billions of naira (₦ bn), as stored. A missing value stays N/D.",
+      ratiosNote:
+        "P/E = market cap ÷ net income of the latest fiscal year; P/B = market cap ÷ confirmed equity; ROE and margin on the same year. Zero or missing → N/D.",
+      dividendNote: "Dividend per share in naira (₦). The source is shown when it is known.",
+      outlookEmpty: "No outlook synthesis (ngxOutlook) is loaded for this stock.",
+      illiquidLowValue: "Average value traded: ₦{value} per session.",
+      growthNote: "Revenue growth compared with the sector: compound annual growth (CAGR) over published years, for the company and its peers alike.",
+    },
     intro:
       "Eight readings, the same ones as on an NGX company page: each shows a verdict and key figures, and opens for the detail. Amounts are in FCFA. Anything missing from the database stays N/D.",
     education: "Education — Portfolio types",

@@ -2,6 +2,7 @@
 // Le score (qualité de la société) n'est pas modifié.
 
 import type { SignalReason, TradeSignal } from "@/lib/calc/calc-metrics";
+import type { AnalyzeOptions } from "./analyze";
 import { analyzePriceHistoryCached } from "./cache";
 import { signalReasons, technicalSummary, toTradeSignal } from "./signal";
 import type { CloseInput, ConfidenceLevel, TechnicalAnalysis } from "./types";
@@ -39,8 +40,12 @@ export function patchFromAnalysis(analysis: TechnicalAnalysis, qualityScore: num
   };
 }
 
-export function technicalSignalPatch(qualityScore: number, closes: CloseInput[] | null | undefined): TechnicalSignalPatch {
-  return patchFromAnalysis(analyzePriceHistoryCached(closes ?? []), qualityScore);
+export function technicalSignalPatch(
+  qualityScore: number,
+  closes: CloseInput[] | null | undefined,
+  options: AnalyzeOptions = {},
+): TechnicalSignalPatch {
+  return patchFromAnalysis(analyzePriceHistoryCached(closes ?? [], options), qualityScore);
 }
 
 export function applyTechnicalSignal<T extends SignalCarrier>(metrics: T, closes: CloseInput[] | null | undefined): T {

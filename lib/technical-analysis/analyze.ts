@@ -8,9 +8,15 @@ import { buildScenarios } from "./scenarios";
 import { decideSignal } from "./signal";
 import { detectSupportResistance } from "./support-resistance";
 import { readStructure, timingScore } from "./structure";
-import type { CloseInput, TechnicalAnalysis } from "./types";
+import type { CloseInput, PriceCurrency, TechnicalAnalysis } from "./types";
 
-export function analyzePriceHistory(points: CloseInput[]): TechnicalAnalysis {
+export interface AnalyzeOptions {
+  /** Devise des libellés de prix. Défaut : FCFA (BRVM). */
+  currency?: PriceCurrency;
+}
+
+export function analyzePriceHistory(points: CloseInput[], options: AnalyzeOptions = {}): TechnicalAnalysis {
+  const currency: PriceCurrency = options.currency ?? "XOF";
   const bars = recentBars(barsFromCloses(points));
   const indicators = indicatorSnapshot(bars);
   const structure = readStructure(bars, indicators);
@@ -19,8 +25,9 @@ export function analyzePriceHistory(points: CloseInput[]): TechnicalAnalysis {
   const gaps = detectFairValueGaps(bars, indicators.atr14);
   const timing = timingScore(structure, bars);
   const signal = decideSignal(timing, structure, bars.length, liquidity.illiquid);
-  const scenarios = buildScenarios(structure, zones, timing, liquidity);
+  const scenarios = buildScenarios(structure, zones, timing, liquidity, currency);
   return {
+    currency,
     barsUsed: bars.length,
     chartBars: bars.slice(-CHART_BARS),
     zones,

@@ -4,7 +4,7 @@
 // (components/marche/MarketBoardClient.tsx) — mêmes styles, même en-tête à menus de tri (ColumnFilterRow),
 // même sélecteur de période sur l'Aperçu (HorizonSelect + filterSeriesByHorizon), même pagination.
 // Seules différences : « Cours FCFA » à la place de « Rend. div. », cours et capitalisation en naira,
-// secteur NGX, et note / signal / confiance issus de la note NGX (lib/ngx/signal.ts).
+// secteur NGX ; note = note NGX (lib/ngx/score.ts), signal / confiance = analyse technique seule (lib/ngx/technical-signal.ts).
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -48,8 +48,11 @@ export interface NgxBoardRow {
   /** Note globale /100, null = N/D. */
   score: number | null;
   scoreMode: NgxScoreMode | null;
+  /** Signal technique (lib/ngx/technical-signal.ts), indépendant de la note. */
   signal: NgxSignal | null;
   confidence: NgxOverviewConfidence | null;
+  /** Titre peu liquide (analyse technique) : confiance basse. */
+  illiquid?: boolean;
 }
 
 type SortBy = "score" | "mktcap" | "price" | "perf";
@@ -137,8 +140,12 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
   const cap = (v: number | null) => (v == null || !(v > 0) ? "N/D" : t("market.capCurrency", { amount: format.number(v), currency: "₦" }));
   const fcfa = (v: number | null) => (v == null || !(v > 0) ? "N/D" : format.money(v, "XOF"));
   const signalTitle = (r: NgxBoardRow) =>
-    r.signal && r.score != null && r.confidence
-      ? t("ngx.market.signalTitle", { signal: labels.signal(r.signal.label), score: r.score, confidence: labels.confidence(r.confidence) })
+    r.signal && r.confidence
+      ? t("ngx.market.signalTitle", {
+          signal: labels.signal(r.signal.label),
+          score: r.score == null ? "N/D" : Math.round(r.score),
+          confidence: labels.confidence(r.confidence),
+        })
       : undefined;
   const modeText = (mode: NgxScoreMode | null) =>
     mode === "FULL" ? t("ngx.market.modeFull") : mode === "PARTIAL" ? t("ngx.screener.tags.partial") : mode === "CHART_ONLY" ? t("ngx.screener.tags.chartOnly") : "N/D";
@@ -268,12 +275,12 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                         {fcfa(r.fcfa)}
                       </td>
                       <td data-testid={`ngx-score-${r.ticker}`}>
-                        {r.score == null || !r.signal ? (
+                        {r.score == null ? (
                           <span className="ob-nd">N/D</span>
                         ) : (
                           <span
                             className={styles.score}
-                            style={{ color: r.signal.color, background: `${r.signal.color}22` }}
+                            style={{ color: C.gold, background: `${C.gold}22` }}
                             title={modeTitle(r.scoreMode)}
                           >
                             {Math.round(r.score)}
@@ -283,7 +290,14 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                       <td data-testid={`ngx-signal-${r.ticker}`}>
                         {r.signal ? <SignalBadge label={r.signal.label} title={signalTitle(r)} /> : <span className="ob-nd">N/D</span>}
                       </td>
-                      <td className={styles.meta}>{r.confidence ? labels.confidence(r.confidence) : <span className="ob-nd">N/D</span>}</td>
+                      <td className={styles.meta}>
+                        {r.confidence ? labels.confidence(r.confidence) : <span className="ob-nd">N/D</span>}
+                        {r.illiquid ? (
+                          <span title={t("ngx.market.illiquidTitle")} aria-label={t("ngx.market.illiquidTitle")}>
+                            {" "}⚠
+                          </span>
+                        ) : null}
+                      </td>
                     </tr>
                     {open && (
                       <tr className={styles.detailRow}>
@@ -303,7 +317,7 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                                 {
                                   key: "score",
                                   label: t("market.cards.scoreSignal"),
-                                  value: r.score == null || !r.signal ? "N/D" : `${Math.round(r.score)}/100 · ${labels.signal(r.signal.label)}`,
+                                  value: `${r.score == null ? "N/D" : `${Math.round(r.score)}/100`} · ${r.signal ? labels.signal(r.signal.label) : "N/D"}`,
                                   color: r.signal?.color,
                                 },
                                 { key: "conf", label: t("market.cards.confidence"), value: r.confidence ? labels.confidence(r.confidence) : "N/D" },

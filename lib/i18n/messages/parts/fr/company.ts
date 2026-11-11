@@ -409,6 +409,19 @@ export const company = {
     confidence: "Confiance",
   },
   fundamental: {
+    ngx: {
+      intro:
+        "Huit lectures, les mêmes que sur une fiche BRVM : chacune résume un verdict et des chiffres, et s'ouvre pour le détail. Les montants sont en naira (₦). Ce qui n'est pas en base reste N/D.",
+      noEquity:
+        "PBR = capitalisation ÷ derniers capitaux propres confirmés (comptes NGX). Sans capitaux propres confirmés, la méthode reste non calculée.",
+      accountsNote: "Comptes en milliards de naira (Md ₦), tels qu'enregistrés. Une valeur absente reste N/D.",
+      ratiosNote:
+        "PER = capitalisation ÷ résultat net du dernier exercice ; PBR = capitalisation ÷ capitaux propres confirmés ; ROE et marge sur le même exercice. Zéro ou absent → N/D.",
+      dividendNote: "Dividende par action en naira (₦). La source est indiquée lorsqu'elle est connue.",
+      outlookEmpty: "Aucune synthèse de perspectives (ngxOutlook) n'est chargée pour ce titre.",
+      illiquidLowValue: "Valeur moyenne échangée : {value} ₦ par séance.",
+      growthNote: "Croissance du CA comparée au secteur : taux annuel moyen (TCAM) sur les exercices publiés, pour la société comme pour les pairs.",
+    },
     intro:
       "Huit lectures, les mêmes que sur une fiche NGX : chacune résume un verdict et des chiffres, et s'ouvre pour le détail. Les montants sont en FCFA. Ce qui n'est pas en base reste N/D.",
     education: "Éducation — Types de portefeuille",

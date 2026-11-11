@@ -191,3 +191,39 @@ describe("scénarios", () => {
     if (levels.riskReward != null) expect(levels.riskReward).toBeGreaterThan(0);
   });
 });
+
+describe("devise des libellés (FCFA BRVM, ₦ NGX)", () => {
+  it("formate le naira avec 2 décimales et le FCFA en entier", async () => {
+    const { formatPrice, formatPriceRange } = await import("./level-label");
+    expect(formatPrice(4125, "XOF")).toBe("4 125 FCFA");
+    expect(formatPrice(1250.5, "NGN")).toBe("₦1 250,50");
+    expect(formatPrice(0.47, "NGN")).toBe("₦0,47");
+    expect(formatPriceRange(13.1, 12.5, "NGN")).toBe("₦12,50 – ₦13,10");
+    expect(formatPriceRange(4300, 4100, "XOF")).toBe("4 100 – 4 300 FCFA");
+    expect(formatPrice(1250.5, "NGN", "en")).toBe("₦1,250.50");
+  });
+
+  it("analyse en naira : traits et scénarios sans FCFA ; défaut BRVM inchangé", () => {
+    const points = trend(160, 20, 0.15);
+    const ngx = analyzePriceHistory(points, { currency: "NGN" });
+    const brvm = analyzePriceHistory(points);
+    expect(ngx.currency).toBe("NGN");
+    expect(brvm.currency).toBe("XOF");
+    const ngxTitles = chartLevelLines(ngx).map((l) => l.title).join(" ");
+    expect(ngxTitles).toContain("₦");
+    expect(ngxTitles).not.toContain("FCFA");
+    expect(chartLevelLines(brvm).some((l) => l.title.includes("FCFA"))).toBe(true);
+    const copy = ngx.scenarios.map((s) => s.explanationFr).join(" ");
+    expect(copy).not.toContain("FCFA");
+    // Le signal ne dépend pas de la devise.
+    expect(ngx.signal).toEqual(brvm.signal);
+  });
+
+  it("le cache distingue les devises", async () => {
+    const { analyzePriceHistoryCached, clearTechnicalAnalysisCache } = await import("./cache");
+    clearTechnicalAnalysisCache();
+    const points = trend(120, 30, 0.1);
+    expect(analyzePriceHistoryCached(points, { currency: "NGN" }).currency).toBe("NGN");
+    expect(analyzePriceHistoryCached(points).currency).toBe("XOF");
+  });
+});

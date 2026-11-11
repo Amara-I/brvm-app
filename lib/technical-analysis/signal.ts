@@ -4,6 +4,7 @@
 import type { SignalReason, TradeSignal } from "@/lib/calc/calc-metrics";
 import { signalOf } from "@/lib/calc/calc-metrics";
 import type { SignalReasonCode } from "@/lib/calc/signal-reason-codes";
+import { formatPrice } from "./level-label";
 import type { ConfidenceLevel, StructureSnapshot, TechnicalAnalysis, TechnicalSignal } from "./types";
 
 const SIGNAL_RANK: Record<TradeSignal["label"], number> = {
@@ -69,6 +70,7 @@ function reason(
 
 export function signalReasons(analysis: TechnicalAnalysis): SignalReason[] {
   const { structure, liquidity, signal } = analysis;
+  const currency = analysis.currency ?? "XOF";
   const reasons: SignalReason[] = [];
   if (structure.bias === "bullish") {
     reasons.push(reason("positif", "ta.structureBull", "Structure haussière : plus hauts et plus bas ascendants."));
@@ -96,11 +98,11 @@ export function signalReasons(analysis: TechnicalAnalysis): SignalReason[] {
     const code = zone.kind === "resistance" ? "ta.resistanceReaction" : "ta.supportReaction";
     const text =
       zone.kind === "resistance"
-        ? `Résistance vers ${Math.round(zone.mid).toLocaleString("fr-FR")} FCFA : ${zone.touches} tests, ${zone.bounces} rejets, ${zone.breaks} dépassements.`
-        : `Support vers ${Math.round(zone.mid).toLocaleString("fr-FR")} FCFA : ${zone.touches} tests, ${zone.bounces} rebonds, ${zone.breaks} cassures.`;
+        ? `Résistance vers ${formatPrice(zone.mid, currency, "fr")} : ${zone.touches} tests, ${zone.bounces} rejets, ${zone.breaks} dépassements.`
+        : `Support vers ${formatPrice(zone.mid, currency, "fr")} : ${zone.touches} tests, ${zone.bounces} rebonds, ${zone.breaks} cassures.`;
     reasons.push(
       reason(zone.bounces > zone.breaks ? "positif" : zone.breaks > zone.bounces ? "negatif" : "neutre", code, text, {
-        price: Math.round(zone.mid),
+        price: formatPrice(zone.mid, currency, "en"),
         touches: zone.touches,
         bounces: zone.bounces,
         breaks: zone.breaks,

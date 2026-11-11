@@ -4,7 +4,17 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { buildNgxSheet, type CompanyInput, type DividendRowLike, type NgxSheetModel } from "@/lib/ngx/sheet-model";
+import {
+  buildNgxSheet,
+  computeCompanyMetrics,
+  type CompanyInput,
+  type DividendRowLike,
+  type NgxSheetModel,
+} from "@/lib/ngx/sheet-model";
+import type { BrvmFundamentalAnalysis } from "@/lib/fundamental/brvm-analysis";
+import { buildNgxFundamentalAnalysis, yearEndPrices } from "@/lib/fundamental/ngx-adapter";
+import { ngxTechnicalAnalysis } from "@/lib/ngx/technical-signal";
+import type { TechnicalAnalysis } from "@/lib/technical-analysis/types";
 import type { RatioRowLike } from "@/lib/ngx/fundamentals";
 import { loadNgxCompany, type NgxCompanyPage } from "./ngx-browse";
 
@@ -58,6 +68,12 @@ const toDividend = (d: DividendDb): DividendRowLike => ({
 export interface NgxSheetData {
   page: NgxCompanyPage;
   model: NgxSheetModel;
+  /** Onglet Analyse fondamentale : même analyse que la BRVM, en nairas, pairs NGX. */
+  fundamental: BrvmFundamentalAnalysis;
+  /** Onglet Analyse Graphique et signal : analyse technique de la série présentée (₦). */
+  technical: TechnicalAnalysis;
+  /** Dernière clôture de chaque année (rendement historique des dividendes). */
+  yearPrices: Record<number, number>;
 }
 
 /** Toutes les sociétés NGX actives avec leurs comptes, dividendes et dernier cours (une seule requête). */
@@ -169,6 +185,13 @@ export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null>
     }),
   ]);
 
+  const today = new Date().toISOString().slice(0, 10);
+  const universeMetrics = universe.map((c) => ({ c, m: computeCompanyMetrics(c, today) }));
+  const series = page.series.map((p) => ({
+    time: p.time,
+    value: p.value,
+    volume: p.volume ?? null,
+  }));
   const model = buildNgxSheet({
     company: me,
     previousClose: page.previousClose,
@@ -176,11 +199,7 @@ export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null>
     volume: page.volume,
     sessionDate: page.sessionDate,
     indicativeFcfa: page.indicativeFcfa,
-    series: page.series.map((p) => ({
-      time: p.time,
-      value: p.value,
-      volume: p.volume ?? null,
-    })),
+    series,
     events: events.map((e) => ({
       title: e.title,
       eventType: e.eventType,
@@ -200,7 +219,10 @@ export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null>
       sourceName: d.sourceName,
     })),
     universe,
-    today: new Date().toISOString().slice(0, 10),
+    universeMetrics,
+    today,
   });
-  return { page, model };
+  const fundamental = buildNgxFundamentalAnalysis({ company: me, model, universe, universeMetrics, series, today });
+  const technical = ngxTechnicalAnalysis(series);
+  return { page, model, fundamental, technical, yearPrices: yearEndPrices(series) };
 }

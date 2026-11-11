@@ -8,7 +8,13 @@ import { signalOf } from "@/lib/calc/calc-metrics";
 import EducationTermLink from "@/components/education/EducationTermLink";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { TFunc } from "@/lib/i18n/create-i18n";
-import { formatDistancePct, formatFcfa, formatFcfaRange, rewardRiskSentence } from "@/lib/technical-analysis/level-label";
+import {
+  formatDistancePct,
+  formatPrice,
+  formatPriceRange,
+  rewardRiskSentence,
+  type PriceCurrency,
+} from "@/lib/technical-analysis/level-label";
 import { scenarioChartModel } from "@/lib/technical-analysis/scenario-chart";
 import type { ScenarioChartMark, ScenarioChartModel } from "@/lib/technical-analysis/scenario-chart";
 import type { ScenarioBias, ScenarioPlan, TechnicalAnalysis } from "@/lib/technical-analysis/types";
@@ -33,11 +39,15 @@ function ScenarioFigure({
   caption,
   markerId,
   markName,
+  money,
+  range,
 }: {
   model: ScenarioChartModel;
   caption: string;
   markerId: string;
   markName: (mark: ScenarioChartMark) => string;
+  money: (value: number) => string;
+  range: (low: number, high: number) => string;
 }) {
   return (
     <div className={styles.figureWrap}>
@@ -97,7 +107,7 @@ function ScenarioFigure({
         {model.marks.map((mark, index) => {
           const distance =
             mark.showDistance && model.lastClose != null ? formatDistancePct(model.lastClose, mark.price) : null;
-          const value = mark.priceHigh != null ? formatFcfaRange(mark.price, mark.priceHigh) : formatFcfa(mark.price);
+          const value = mark.priceHigh != null ? range(mark.price, mark.priceHigh) : money(mark.price);
           return (
             <li
               key={`${mark.kind}-${mark.price}-${index}`}
@@ -122,12 +132,18 @@ export default function TechnicalAnalysisPanel({
   qualityScore,
 }: {
   analysis: TechnicalAnalysis;
-  qualityScore: number;
+  /** Score qualité /100. null = N/D (titre non noté). */
+  qualityScore: number | null;
 }) {
   const { t, format, labels, locale } = useI18n();
   const nd = t("common.nd");
   const tone = signalOf(analysis.signal.label).color;
-  const price = (value: number | null | undefined) => (value == null ? nd : format.number(value));
+  const currency: PriceCurrency = analysis.currency ?? "XOF";
+  const lang = locale === "en" ? "en" : "fr";
+  const money = (value: number) => formatPrice(value, currency, lang);
+  const range = (low: number, high: number) => formatPriceRange(low, high, currency, lang);
+  const price = (value: number | null | undefined) =>
+    value == null ? nd : currency === "NGN" ? format.decimal(value, 2) : format.number(value);
   const structure = analysis.structure;
   const figures = useMemo(() => {
     return analysis.scenarios.map((scenario) => ({
@@ -159,7 +175,7 @@ export default function TechnicalAnalysisPanel({
         </div>
       </header>
 
-      <p className={styles.note}>{t("company.ta.scoreVsTiming", { score: qualityScore })}</p>
+      <p className={styles.note}>{t("company.ta.scoreVsTiming", { score: qualityScore == null ? nd : Math.round(qualityScore) })}</p>
       {analysis.liquidity.warningFr ? (
         <p className={styles.warning} role="status">
           {locale === "en" ? analysis.liquidity.warningEn : analysis.liquidity.warningFr}
@@ -265,8 +281,18 @@ export default function TechnicalAnalysisPanel({
               markerId={`ta-arrow-${scenario.bias}`}
               caption={t(`company.ta.scenario.${scenario.bias}`)}
               markName={(mark) => markLabel(mark, t)}
+              money={money}
+              range={range}
             />
-            <ScenarioCopy scenario={scenario} last={structure.lastClose} locale={locale === "en" ? "en" : "fr"} nd={nd} t={t} />
+            <ScenarioCopy
+              scenario={scenario}
+              last={structure.lastClose}
+              locale={lang}
+              nd={nd}
+              t={t}
+              money={money}
+              range={range}
+            />
           </article>
         ))}
       </div>
@@ -291,16 +317,20 @@ function ScenarioCopy({
   locale,
   nd,
   t,
+  money,
+  range,
 }: {
   scenario: ScenarioPlan;
   last: number | null;
   locale: "fr" | "en";
   nd: string;
   t: TFunc;
+  money: (value: number) => string;
+  range: (low: number, high: number) => string;
 }) {
   const distance = (level: number | null) => (level == null || last == null ? null : formatDistancePct(last, level));
   const entry =
-    scenario.entryLow == null || scenario.entryHigh == null ? nd : formatFcfaRange(scenario.entryLow, scenario.entryHigh);
+    scenario.entryLow == null || scenario.entryHigh == null ? nd : range(scenario.entryLow, scenario.entryHigh);
   return (
     <div className={styles.copy}>
       <h5>{t("company.ta.sections.scenario")}</h5>
@@ -310,20 +340,20 @@ function ScenarioCopy({
       <h5>{t("company.ta.sections.plan")}</h5>
       <div className={styles.chips}>
         <span className={`${styles.chip} ${styles.chipLast}`}>
-          {t("company.ta.chart.last")} {last == null ? nd : formatFcfa(last)}
+          {t("company.ta.chart.last")} {last == null ? nd : money(last)}
         </span>
         <span className={`${styles.chip} ${styles.chipEntry}`}>
           {t("company.ta.chart.entry")} {entry}
         </span>
         {scenario.targets.map((target, index) => (
           <span key={`${target}-${index}`} className={`${styles.chip} ${styles.chipTarget}`}>
-            {t("company.ta.chart.target", { n: index + 1 })} {formatFcfa(target)}
+            {t("company.ta.chart.target", { n: index + 1 })} {money(target)}
             {distance(target) ? ` ${distance(target)}` : ""}
           </span>
         ))}
         <span className={`${styles.chip} ${styles.chipStop}`}>
           {t("company.ta.chart.invalidation")}{" "}
-          {scenario.invalidation == null ? nd : formatFcfa(scenario.invalidation)}
+          {scenario.invalidation == null ? nd : money(scenario.invalidation)}
           {distance(scenario.invalidation) ? ` ${distance(scenario.invalidation)}` : ""}
         </span>
       </div>

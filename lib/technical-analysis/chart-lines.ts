@@ -1,7 +1,8 @@
 // Traits de prix pour le graphe existant.
-// Le titre porte le cours en FCFA et, pour l'objectif et l'invalidation, l'écart en %.
+// Le titre porte le cours dans la devise de la place (FCFA ou ₦) et, pour l'objectif
+// et l'invalidation, l'écart en %.
 
-import { formatDistancePct, formatFcfa, formatFcfaRange, levelNearPrice } from "./level-label";
+import { formatDistancePct, formatPrice, formatPriceRange, levelNearPrice } from "./level-label";
 import { technicalLevels } from "./levels";
 import type { TechnicalAnalysis } from "./types";
 
@@ -51,6 +52,9 @@ function words(locale: "fr" | "en") {
 
 export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en" = "fr"): ChartLevelLine[] {
   const copy = words(locale);
+  const currency = analysis.currency ?? "XOF";
+  const money = (value: number) => formatPrice(value, currency, locale);
+  const range = (low: number, high: number) => formatPriceRange(low, high, currency, locale);
   const last = analysis.structure.lastClose;
   const lines: ChartLevelLine[] = [];
   const seen = new Set<string>();
@@ -58,7 +62,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
   const add = (line: ChartLevelLine) => {
     if (!Number.isFinite(line.price) || line.price <= 0) return;
     if (last != null && !levelNearPrice(last, line.price)) return;
-    const key = `${Math.round(line.price)}:${line.title}`;
+    const key = `${currency === "NGN" ? line.price.toFixed(2) : Math.round(line.price)}:${line.title}`;
     if (seen.has(key)) return;
     seen.add(key);
     lines.push(line);
@@ -86,7 +90,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       id: `${zone.id}-high`,
       price: zone.high,
       color,
-      title: `${name}  ${formatFcfaRange(zone.low, zone.high)}`,
+      title: `${name}  ${range(zone.low, zone.high)}`,
       dashed: true,
     });
   }
@@ -98,7 +102,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       id: `${gap.id}-high`,
       price: gap.high,
       color: COLORS.fvg,
-      title: `${name}  ${formatFcfaRange(gap.low, gap.high)}`,
+      title: `${name}  ${range(gap.low, gap.high)}`,
       dashed: true,
     });
   }
@@ -109,7 +113,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       id: "last",
       price: plan.lastClose,
       color: COLORS.last,
-      title: `${copy.last}  ${formatFcfa(plan.lastClose)}`,
+      title: `${copy.last}  ${money(plan.lastClose)}`,
       dashed: false,
     });
   }
@@ -119,7 +123,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       id: "entry-high",
       price: plan.entryHigh,
       color: COLORS.entry,
-      title: `${copy.entry}  ${formatFcfaRange(plan.entryLow, plan.entryHigh)}`,
+      title: `${copy.entry}  ${range(plan.entryLow, plan.entryHigh)}`,
       dashed: true,
     });
   }
@@ -129,7 +133,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       id: `target-${index + 1}`,
       price: target,
       color: COLORS.target,
-      title: `${copy.target} ${index + 1}  ${formatFcfa(target)}${distance ? `  ${distance}` : ""}`,
+      title: `${copy.target} ${index + 1}  ${money(target)}${distance ? `  ${distance}` : ""}`,
       dashed: true,
     });
   });
@@ -139,7 +143,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       id: "invalidation",
       price: plan.invalidation,
       color: COLORS.stop,
-      title: `${copy.invalidation}  ${formatFcfa(plan.invalidation)}${distance ? `  ${distance}` : ""}`,
+      title: `${copy.invalidation}  ${money(plan.invalidation)}${distance ? `  ${distance}` : ""}`,
       dashed: true,
     });
   }

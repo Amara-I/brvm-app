@@ -1,7 +1,7 @@
 "use client";
 
-// Onglet Analyse fondamentale (fiche BRVM). Même logique que les 8 sections NGX,
-// montants en FCFA. Le score de Vue d'ensemble n'est pas recalculé.
+// Onglet Analyse fondamentale, partagé par les fiches BRVM et NGX : mêmes 8 étapes,
+// montants dans la devise de la place (FCFA ou ₦). Le score de Vue d'ensemble n'est pas recalculé.
 
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -11,7 +11,15 @@ import type { TFunc } from "@/lib/i18n/create-i18n";
 import type { FormatApi } from "@/lib/i18n/format";
 import { localizedTypeDef } from "@/lib/i18n/portfolio-type-copy";
 import { outlookSummary, outlookText, type OutlookItemType } from "@/lib/outlook/synthesis";
-import { analysisFromSheet, type BrvmSheetSlice, type FundamentalStep, type FundamentalStepId } from "@/lib/fundamental/brvm-analysis";
+import {
+  analysisFromSheet,
+  type BrvmFundamentalAnalysis,
+  type BrvmSheetSlice,
+  type FundamentalMarket,
+  type FundamentalStep,
+  type FundamentalStepId,
+} from "@/lib/fundamental/brvm-analysis";
+import type { PricePoint } from "@/lib/ngx/price-stats";
 import { outlookHeadline } from "@/lib/fundamental/outlook-headline";
 import {
   PER_NOT_SIGNIFICANT_ABOVE,
@@ -107,6 +115,28 @@ function stepVerdict(t: TFunc, step: FundamentalStep): string {
   return t("common.nd");
 }
 
+/** Textes dont la version NGX parle de nairas (et non de FCFA) ou de la source NGX. */
+const NGX_COPY = new Set([
+  "intro",
+  "noEquity",
+  "accountsNote",
+  "ratiosNote",
+  "dividendNote",
+  "outlookEmpty",
+  "illiquidLowValue",
+] as const);
+type MarketCopyKey = typeof NGX_COPY extends Set<infer K> ? K : never;
+
+function marketCopy(t: TFunc, market: FundamentalMarket, key: MarketCopyKey, vars?: Record<string, string | number>): string {
+  return market === "NGX" ? t(`company.fundamental.ngx.${key}`, vars) : t(`company.fundamental.${key}`, vars);
+}
+
+/** Lien vers la fiche d'un pair, selon la place. */
+export function peerSheetHref(market: FundamentalMarket, ticker: string): string {
+  const safe = encodeURIComponent(ticker);
+  return market === "NGX" ? `/marches/ngx/actions/${safe}` : `/actions/${safe}`;
+}
+
 export default function FundamentalAnalysisPanel({
   slice,
   close,
@@ -117,16 +147,45 @@ export default function FundamentalAnalysisPanel({
   /** Préférence de profil. null = visiteur non connecté ou préférence non enregistrée. */
   preferredPortfolioType: PortfolioTypeId | null;
 }) {
-  const { t, format, locale } = useI18n();
   const today = slice.sessionDate && /^\d{4}-\d{2}-\d{2}/.test(slice.sessionDate)
     ? slice.sessionDate.slice(0, 10)
     : new Date().toISOString().slice(0, 10);
   const model = useMemo(() => analysisFromSheet(slice, close, today), [slice, close, today]);
+  return (
+    <FundamentalAnalysisBody
+      model={model}
+      series={slice.series}
+      yearPrices={slice.company.prices}
+      market="BRVM"
+      preferredPortfolioType={preferredPortfolioType}
+    />
+  );
+}
+
+/**
+ * Corps de l'onglet à partir d'une analyse déjà construite.
+ * NGX : l'analyse est calculée côté serveur (lib/fundamental/ngx-adapter.ts).
+ */
+export function FundamentalAnalysisBody({
+  model,
+  series,
+  yearPrices,
+  market,
+  preferredPortfolioType,
+}: {
+  model: BrvmFundamentalAnalysis;
+  series: readonly PricePoint[];
+  /** Dernière clôture de chaque année : rendement historique du graphique des dividendes. */
+  yearPrices: Record<number, number>;
+  market: FundamentalMarket;
+  preferredPortfolioType: PortfolioTypeId | null;
+}) {
+  const { t, format, locale } = useI18n();
   const [open, setOpen] = useState<Partial<Record<FundamentalStepId, boolean>>>({});
   const nd = t("common.nd");
-  const bn = (v: number | null) =>
-    v == null ? nd : `${format.decimal(v, Math.abs(v) >= 100 ? 0 : 1)} ${t("company.fundamental.field.bnUnit")}`;
-  const fcfa = (v: number | null) => (v == null ? nd : format.fcfa(v));
+  const bnUnit = market === "NGX" ? t("ngx.sheet.unitBn") : t("company.fundamental.field.bnUnit");
+  const bn = (v: number | null) => (v == null ? nd : `${format.decimal(v, Math.abs(v) >= 100 ? 0 : 1)} ${bnUnit}`);
+  const fcfa = (v: number | null) => (v == null ? nd : market === "NGX" ? format.money(v, "NGN") : format.fcfa(v));
   const pct = (v: number | null, digits = 1, sign = false) => (v == null ? nd : format.percent(v, digits, sign));
   const mult = (v: number | null) => (v == null ? nd : `${format.decimal(v, 1)}×`);
   const day = (iso: string | null) =>
@@ -189,7 +248,7 @@ export default function FundamentalAnalysisPanel({
 
   return (
     <div className={styles.wrap}>
-      <p className={styles.intro}>{t("company.fundamental.intro")}</p>
+      <p className={styles.intro}>{marketCopy(t, market, "intro")}</p>
       {model.steps.map((step, index) => {
         const expanded = open[step.id] === true;
         const title = t(`ngx.sheet.sections.${step.id}`);
@@ -224,17 +283,28 @@ export default function FundamentalAnalysisPanel({
               )}
               {expanded && step.id === "performance" && (
                 <>
-                  <Performance model={model} t={t} nd={nd} bn={bn} pct={pct} fcfa={fcfa} />
-                  <FundamentalCharts kind="performance" years={model.performance.years} />
+                  <Performance model={model} t={t} nd={nd} bn={bn} pct={pct} fcfa={fcfa} market={market} />
+                  <FundamentalCharts kind="performance" years={model.performance.years} market={market} />
                 </>
               )}
-              {expanded && step.id === "outlook" && <Outlook model={model} t={t} locale={locale} pct={pct} />}
+              {expanded && step.id === "outlook" && <Outlook model={model} t={t} locale={locale} pct={pct} market={market} />}
               {expanded && step.id === "price" && (
                 <>
-                  <Price model={model} t={t} format={format} nd={nd} bn={bn} fcfa={fcfa} pct={pct} multiple={multiple} />
+                  <Price
+                    model={model}
+                    t={t}
+                    format={format}
+                    nd={nd}
+                    bn={bn}
+                    fcfa={fcfa}
+                    pct={pct}
+                    multiple={multiple}
+                    market={market}
+                  />
                   <FundamentalCharts
                     kind="price"
-                    points={slice.series}
+                    market={market}
+                    points={series}
                     high52={model.liquidity.stats.high52}
                     low52={model.liquidity.stats.low52}
                   />
@@ -245,6 +315,7 @@ export default function FundamentalAnalysisPanel({
                   <Valuation model={model} t={t} format={format} nd={nd} fcfa={fcfa} pct={pct} />
                   <FundamentalCharts
                     kind="valuation"
+                    market={market}
                     price={model.price.close}
                     low={model.valuation.summary.low}
                     high={model.valuation.summary.high}
@@ -255,9 +326,10 @@ export default function FundamentalAnalysisPanel({
               )}
               {expanded && step.id === "sector" && (
                 <>
-                  <Sector model={model} t={t} format={format} nd={nd} pct={pct} mult={mult} />
+                  <Sector model={model} t={t} format={format} nd={nd} pct={pct} mult={mult} market={market} />
                   <FundamentalCharts
                     kind="sector"
+                    market={market}
                     bars={model.sector.rows
                       .filter((r) => r.company != null && r.stat.median != null && r.stat.median !== 0)
                       .map((r) => ({
@@ -272,11 +344,12 @@ export default function FundamentalAnalysisPanel({
               )}
               {expanded && step.id === "dividends" && (
                 <>
-                  <Dividends model={model} t={t} format={format} nd={nd} fcfa={fcfa} pct={pct} day={day} />
+                  <Dividends model={model} t={t} format={format} nd={nd} fcfa={fcfa} pct={pct} day={day} market={market} />
                   <FundamentalCharts
                     kind="dividends"
+                    market={market}
                     points={[...model.dividends.lines].reverse().map((line) => {
-                      const yearPrice = slice.company.prices[line.year];
+                      const yearPrice = yearPrices[line.year];
                       const yieldPercent =
                         yearPrice != null && yearPrice > 0 && line.dps >= 0 && (line.dps / yearPrice) * 100 <= YIELD_NOT_SIGNIFICANT_ABOVE
                           ? (line.dps / yearPrice) * 100
@@ -290,6 +363,7 @@ export default function FundamentalAnalysisPanel({
                 <>
                   <FundamentalCharts
                     kind="conclusion"
+                    market={market}
                     bars={model.policies
                       .filter((p) => p.evaluated > 0)
                       .map((p) => ({
@@ -305,6 +379,7 @@ export default function FundamentalAnalysisPanel({
                     nd={nd}
                     fcfa={fcfa}
                     pct={pct}
+                    market={market}
                     preferredPortfolioType={preferredPortfolioType}
                   />
                 </>
@@ -317,7 +392,7 @@ export default function FundamentalAnalysisPanel({
   );
 }
 
-type Model = ReturnType<typeof analysisFromSheet>;
+type Model = BrvmFundamentalAnalysis;
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -328,7 +403,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function Illiquid({ model, t, format }: { model: Model; t: TFunc; format: FormatApi }) {
+function Illiquid({ model, t, format, market }: { model: Model; t: TFunc; format: FormatApi; market: FundamentalMarket }) {
   if (!model.liquidity.illiquid) return null;
   const ratio = model.liquidity.tradedSessionsRatio;
   return (
@@ -343,7 +418,7 @@ function Illiquid({ model, t, format }: { model: Model; t: TFunc; format: Format
           <li>{t("company.fundamental.illiquidLowVolume", { volume: format.integer(model.liquidity.avgShareVolume) })}</li>
         ) : null}
         {model.liquidity.reasons.includes("lowValue") && model.liquidity.avgDailyValueFcfa != null ? (
-          <li>{t("company.fundamental.illiquidLowValue", { value: format.integer(model.liquidity.avgDailyValueFcfa) })}</li>
+          <li>{marketCopy(t, market, "illiquidLowValue", { value: format.integer(model.liquidity.avgDailyValueFcfa) })}</li>
         ) : null}
       </ul>
     </div>
@@ -400,6 +475,7 @@ function Performance({
   bn,
   pct,
   fcfa,
+  market,
 }: {
   model: Model;
   t: TFunc;
@@ -407,6 +483,7 @@ function Performance({
   bn: (v: number | null) => string;
   pct: (v: number | null, d?: number, s?: boolean) => string;
   fcfa: (v: number | null) => string;
+  market: FundamentalMarket;
 }) {
   const perf = model.performance;
   const span = (c: typeof perf.revenueCagr) =>
@@ -489,7 +566,7 @@ function Performance({
           </tbody>
         </table>
       </div>
-      <p className={styles.note}>{t("company.fundamental.accountsNote")}</p>
+      <p className={styles.note}>{marketCopy(t, market, "accountsNote")}</p>
     </>
   );
 }
@@ -499,14 +576,16 @@ function Outlook({
   t,
   locale,
   pct,
+  market,
 }: {
   model: Model;
   t: TFunc;
   locale: "fr" | "en";
   pct: (v: number | null, d?: number, s?: boolean) => string;
+  market: FundamentalMarket;
 }) {
   const synthesis = model.outlook.synthesis;
-  if (!synthesis) return <p className={styles.note}>{t("company.fundamental.outlookEmpty")}</p>;
+  if (!synthesis) return <p className={styles.note}>{marketCopy(t, market, "outlookEmpty")}</p>;
   const summary = outlookSummary(synthesis, locale);
   const growth = model.outlook.sectorGrowth;
   const ownGrowth = model.performance.latestRevenueGrowthPercent;
@@ -534,7 +613,7 @@ function Outlook({
         />
         <Stat label={t("ngx.sheet.sector.median")} value={growth.median == null ? nd : pct(growth.median, 1, true)} />
       </div>
-      {!hasText ? <p className={styles.note}>{t("company.fundamental.outlookEmpty")}</p> : null}
+      {!hasText ? <p className={styles.note}>{marketCopy(t, market, "outlookEmpty")}</p> : null}
       {summary.bullets.length > 0 ? (
         <ul className={styles.list}>
           {summary.bullets.map((b) => (
@@ -585,6 +664,7 @@ function Price({
   fcfa,
   pct,
   multiple,
+  market,
 }: {
   model: Model;
   t: TFunc;
@@ -594,13 +674,14 @@ function Price({
   fcfa: (v: number | null) => string;
   pct: (v: number | null, d?: number, s?: boolean) => string;
   multiple: (status: string, value: number | null, asMult?: boolean) => string;
+  market: FundamentalMarket;
 }) {
   const price = model.price;
   const liq = model.liquidity;
   const stats = liq.stats;
   return (
     <>
-      <Illiquid model={model} t={t} format={format} />
+      <Illiquid model={model} t={t} format={format} market={market} />
       {liq.level === "ND" ? <p className={styles.note}>{t("company.fundamental.liquidityNd")}</p> : null}
       {model.staleAccountsYear != null ? <p className={styles.note}>{t("company.fundamental.stale", { year: model.staleAccountsYear })}</p> : null}
       <div className={styles.grid}>
@@ -653,9 +734,9 @@ function Price({
         </p>
       ) : null}
       {price.epsBlocked === "negative" ? <p className={styles.note}>{t("company.fundamental.negativeEpsNote")}</p> : null}
-      <p className={styles.note}>{t("company.fundamental.ratiosNote")}</p>
+      <p className={styles.note}>{marketCopy(t, market, "ratiosNote")}</p>
       <p className={styles.note}>
-        {t("company.fundamental.epsNote", { year: price.impliedEpsYear ?? "" })} {t("company.fundamental.noEquity")}
+        {t("company.fundamental.epsNote", { year: price.impliedEpsYear ?? "" })} {marketCopy(t, market, "noEquity")}
       </p>
     </>
   );
@@ -758,6 +839,7 @@ function Sector({
   nd,
   pct,
   mult,
+  market,
 }: {
   model: Model;
   t: TFunc;
@@ -765,6 +847,7 @@ function Sector({
   nd: string;
   pct: (v: number | null, d?: number, s?: boolean) => string;
   mult: (v: number | null) => string;
+  market: FundamentalMarket;
 }) {
   const { rows, name, lowConfidence } = model.sector;
   const usable = rows.some((r) => r.stat.median != null);
@@ -870,7 +953,7 @@ function Sector({
                 {rows[0].peers.map((peer) => (
                   <tr key={peer.ticker}>
                     <td>
-                      <Link className={styles.peerLink} href={`/actions/${peer.ticker}`}>
+                      <Link className={styles.peerLink} href={peerSheetHref(market, peer.ticker)}>
                         {peer.ticker}
                       </Link>
                       <span className={styles.meta}>{peer.name}</span>
@@ -893,6 +976,7 @@ function Sector({
         </>
       ) : null}
       <p className={styles.note}>{t("company.fundamental.sectorNote")}</p>
+      {market === "NGX" ? <p className={styles.note}>{t("company.fundamental.ngx.growthNote")}</p> : null}
     </>
   );
 }
@@ -905,6 +989,7 @@ function Dividends({
   fcfa,
   pct,
   day,
+  market,
 }: {
   model: Model;
   t: TFunc;
@@ -913,6 +998,7 @@ function Dividends({
   fcfa: (v: number | null) => string;
   pct: (v: number | null, d?: number, s?: boolean) => string;
   day: (iso: string | null) => string;
+  market: FundamentalMarket;
 }) {
   const d = model.dividends;
   if (d.lines.length === 0) return <p className={styles.note}>{t("ngx.sheet.dividends.empty")}</p>;
@@ -967,7 +1053,7 @@ function Dividends({
           </tbody>
         </table>
       </div>
-      <p className={styles.note}>{t("company.fundamental.dividendNote")}</p>
+      <p className={styles.note}>{marketCopy(t, market, "dividendNote")}</p>
     </>
   );
 }
@@ -988,6 +1074,7 @@ function Conclusion({
   nd,
   fcfa,
   pct,
+  market,
   preferredPortfolioType,
 }: {
   model: Model;
@@ -997,14 +1084,16 @@ function Conclusion({
   nd: string;
   fcfa: (v: number | null) => string;
   pct: (v: number | null, d?: number, s?: boolean) => string;
+  market: FundamentalMarket;
   preferredPortfolioType: PortfolioTypeId | null;
 }) {
-  const fcfaCompact = (v: number) => format.number(v, { notation: "compact", maximumFractionDigits: 1 });
+  const compact = (v: number) => format.number(v, { notation: "compact", maximumFractionDigits: 1 });
+  const fcfaCompact = (v: number) => (market === "NGX" ? `${compact(v)} ₦` : `${compact(v)} FCFA`);
   const label = (id: PortfolioTypeId) => localizedTypeDef(getPortfolioTypeDef(id), locale);
   const match = preferredPortfolioType != null && model.adapted.includes(preferredPortfolioType) ? preferredPortfolioType : null;
   return (
     <>
-      <Illiquid model={model} t={t} format={format} />
+      <Illiquid model={model} t={t} format={format} market={market} />
       <h4 className={styles.sub}>{t("company.fundamental.adaptedTitle")}</h4>
       {match ? <p className={styles.match}>{t("company.fundamental.match", { type: label(match).label })}</p> : null}
       {model.adapted.length === 0 ? <p className={styles.note}>{t("company.fundamental.noneAdapted")}</p> : null}

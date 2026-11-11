@@ -14,7 +14,12 @@ import { loadNgxCompany } from "@/lib/markets/ngx-browse";
 import { loadNgxChartUniverse } from "@/lib/markets/ngx-chart";
 import { loadNgxSheet } from "@/lib/markets/ngx-sheet";
 import NgxSheetView from "@/components/ngx/sheet/NgxSheetView";
+import NgxSheetTabs from "@/components/ngx/sheet/NgxSheetTabs";
+import NgxTechnicalTab from "@/components/ngx/sheet/NgxTechnicalTab";
 import sheetStyles from "@/components/ngx/sheet/NgxSheet.module.css";
+import { FundamentalAnalysisBody } from "@/components/actions/FundamentalAnalysisPanel";
+import SignalBadge from "@/components/ui/SignalBadge";
+import { getPreferredPortfolioType } from "@/lib/auth/preferred-portfolio-type";
 
 export const dynamic = "force-dynamic";
 
@@ -29,14 +34,19 @@ export async function generateMetadata({ params }: { params: { ticker: string } 
 }
 
 export default async function NgxCompanyPage({ params }: { params: { ticker: string } }) {
-  const { t, format } = getI18n();
-  const [data, chartUniverse, userId] = await Promise.all([
+  const { t, format, labels, locale } = getI18n();
+  const [data, chartUniverse, userId, preference] = await Promise.all([
     loadNgxSheet(params.ticker).catch(() => null),
     loadNgxChartUniverse().catch(() => []),
     getCurrentUserId().catch(() => null),
+    getPreferredPortfolioType().catch(() => null),
   ]);
   if (!data) notFound();
-  const { page: company, model } = data;
+  const { page: company, model, fundamental, technical, yearPrices } = data;
+  const preferredPortfolioType = userId ? preference ?? null : null;
+  const score = model.score.overall;
+  const signal = technical.barsUsed > 0 ? technical.signal : null;
+  const liquidityWarning = locale === "en" ? technical.liquidity.warningEn : technical.liquidity.warningFr;
   const session = company.sessionDate
     ? format.date(`${company.sessionDate}T00:00:00.000Z`, {
         day: "numeric",
@@ -83,36 +93,74 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
             <p className={styles.note}>{company.fx ? t("ngx.market.attribution") : t("ngx.company.indicativeMissing")}</p>
           </div>
         </div>
-        <div className={styles.metaGrid}>
-          <div className={styles.kpi}>
-            <span>{t("ngx.company.previous")}</span>
+        <div className={styles.metaGrid} aria-label={t("ngx.company.overview.keyInfo")}>
+          <div className={styles.kpi} data-testid="ngx-sheet-score">
+            <span>{t("ngx.company.overview.score")}</span>
+            <strong style={{ fontSize: "1rem" }}>{score == null ? t("ngx.company.overview.scoreNd") : `${Math.round(score)}/100`}</strong>
+          </div>
+          <div className={styles.kpi} data-testid="ngx-sheet-signal">
+            <span>{t("ngx.company.overview.signal")}</span>
             <strong style={{ fontSize: "1rem" }}>
-              {company.previousClose == null ? "N/D" : format.money(company.previousClose, "NGN")}
+              {signal ? <SignalBadge label={signal.label} title={t("ngx.company.overview.signalNote")} /> : "N/D"}
             </strong>
           </div>
           <div className={styles.kpi}>
-            <span>{t("ngx.company.volume")}</span>
-            <strong style={{ fontSize: "1rem" }}>
-              {company.volume == null ? "N/D" : format.integer(company.volume)}
-            </strong>
-          </div>
-          <div className={styles.kpi}>
-            <span>{t("ngx.company.session")}</span>
-            <strong style={{ fontSize: "1rem" }}>{session}</strong>
+            <span>{t("ngx.company.overview.confidence")}</span>
+            <strong style={{ fontSize: "1rem" }}>{signal ? labels.confidence(signal.confidence) : "N/D"}</strong>
           </div>
           <div className={styles.kpi}>
             <span>{t("ngx.company.board")}</span>
             <strong style={{ fontSize: "1rem" }}>{ngxBoardLabel(company.board, t)}</strong>
           </div>
         </div>
-        <h2 className={styles.sectionTitle} id="ngx-chart">{t("ngx.company.chartTitle")}</h2>
-        {company.series.length > 1 ? (
-          <NgxChart symbol={company.ticker} universe={chartUniverse} isAuthenticated={Boolean(userId)} />
-        ) : (
-          <p className={styles.note}>{t("ngx.company.chartEmpty")}</p>
-        )}
-        <p className={styles.note}>{t("ngx.company.chartNote")}</p>
-        <NgxSheetView model={model} />
+        <p className={styles.note}>{t("ngx.company.overview.signalNote")}</p>
+        {liquidityWarning ? (
+          <p className={styles.note} role="status" data-testid="ngx-sheet-illiquid">
+            ⚠ {liquidityWarning}
+          </p>
+        ) : null}
+        <NgxSheetTabs
+          ticker={company.ticker}
+          panels={{
+            overview: (
+              <>
+                <h2 className={styles.sectionTitle} id="ngx-overview-chart">
+                  {t("ngx.company.chartTitle")}
+                </h2>
+                {company.series.length > 1 ? (
+                  <NgxChart symbol={company.ticker} universe={chartUniverse} isAuthenticated={Boolean(userId)} />
+                ) : (
+                  <p className={styles.note}>{t("ngx.company.chartEmpty")}</p>
+                )}
+                <p className={styles.note}>
+                  {t("ngx.company.chartNote")} · {t("ngx.company.session")} {session}
+                </p>
+                <NgxSheetView model={model} />
+              </>
+            ),
+            fundamental: (
+              <FundamentalAnalysisBody
+                model={fundamental}
+                series={company.series}
+                yearPrices={yearPrices}
+                market="NGX"
+                preferredPortfolioType={preferredPortfolioType}
+              />
+            ),
+            charts:
+              company.series.length > 1 ? (
+                <NgxTechnicalTab
+                  symbol={company.ticker}
+                  universe={chartUniverse}
+                  isAuthenticated={Boolean(userId)}
+                  initialAnalysis={technical}
+                  qualityScore={score}
+                />
+              ) : (
+                <p className={styles.note}>{t("ngx.company.chartEmpty")}</p>
+              ),
+          }}
+        />
         </div>
       </div>
       <SiteFooter />
