@@ -18,6 +18,7 @@ import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
 import HorizonSelect from "@/components/marche/HorizonSelect";
 import MarketSparkline from "@/components/marche/MarketSparkline";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import CompanyMark from "@/components/ui/CompanyMark";
 import { trackFeature } from "@/components/analytics/track-client";
 import styles from "@/components/marche/MarketBoard.module.css";
 import { applyColumnSort, type ColumnFilterDef, type ColumnSortState } from "@/lib/ui/column-filters";
@@ -226,7 +227,10 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                             toggleRow(r.ticker);
                           }}
                         />
-                        <span className={styles.ticker}>{r.ticker}</span> <span aria-hidden="true">🇳🇬</span>
+                        <span className="ob-ticker-with-mark">
+                          <CompanyMark ticker={r.ticker} name={r.name} size={20} />
+                          <span className={styles.ticker}>{r.ticker}</span>
+                        </span>
                       </td>
                       <td>
                         <div className={styles.name}>{r.name}</div>

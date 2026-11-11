@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import CompanyMark from "@/components/ui/CompanyMark";
 import ChangeValue from "@/components/ui/ChangeValue";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import { PORTFOLIO_TYPE_IDS, type PortfolioTypeId } from "@/lib/portfolio-types/constants";
@@ -198,7 +199,10 @@ export default function NgxScreenerTable({
                 <tr key={r.ticker} data-mode={r.mode}>
                   <td>
                     <Link href={`/marches/ngx/actions/${r.ticker}`} className={styles.tickerLink}>
-                      <strong>{r.ticker}</strong>
+                      <span className="ob-ticker-with-mark">
+                        <CompanyMark ticker={r.ticker} name={r.name} size={20} />
+                        <strong>{r.ticker}</strong>
+                      </span>
                       <span className={styles.nameDim}> — {r.name}</span>
                     </Link>
                   </td>
