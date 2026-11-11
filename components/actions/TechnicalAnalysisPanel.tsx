@@ -5,7 +5,7 @@
 
 import SignalBadge from "@/components/ui/SignalBadge";
 import ConfidenceDot from "@/components/ui/ConfidenceDot";
-import { useMemo, type ReactNode } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { signalOf } from "@/lib/calc/calc-metrics";
 import EducationTermLink from "@/components/education/EducationTermLink";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -15,6 +15,7 @@ import {
   formatPrice,
   formatPriceRange,
   rewardRiskSentence,
+  stackLabelBoxes,
   type PriceCurrency,
 } from "@/lib/technical-analysis/level-label";
 import { scenarioChartModel } from "@/lib/technical-analysis/scenario-chart";
@@ -36,11 +37,19 @@ function lineClass(kind: ScenarioChartMark["kind"]): string {
   return styles.lastLine;
 }
 
+function leaderClass(kind: ScenarioChartMark["kind"]): string {
+  if (kind === "target" || kind === "support") return styles.leaderTarget;
+  if (kind === "stop" || kind === "resistance") return styles.leaderStop;
+  if (kind === "entry" || kind === "fvg") return styles.leaderEntry;
+  return styles.leaderLast;
+}
+
 function ScenarioFigure({
   model,
   caption,
   markerId,
   markName,
+  fvgLabel,
   money,
   range,
 }: {
@@ -48,11 +57,50 @@ function ScenarioFigure({
   caption: string;
   markerId: string;
   markName: (mark: ScenarioChartMark) => string;
+  fvgLabel: string;
   money: (value: number) => string;
   range: (low: number, high: number) => string;
 }) {
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
+  const [placedTops, setPlacedTops] = useState<number[] | null>(null);
+  const gutterPct = (model.gutter / model.width) * 100;
+
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    const list = listRef.current;
+    if (!wrap || !list) return;
+
+    const layout = () => {
+      const height = wrap.clientHeight;
+      if (height <= 0) return;
+      const items = Array.from(list.children) as HTMLElement[];
+      const desired = model.marks.map((mark) => (mark.y / model.height) * height);
+      const sizes = items.map((item) => item.getBoundingClientRect().height);
+      const next = stackLabelBoxes(desired, sizes, 4, height - 4, 6);
+      setPlacedTops((prev) => {
+        if (prev && prev.length === next.length && prev.every((value, index) => Math.abs(value - next[index]!) < 0.5)) {
+          return prev;
+        }
+        return next;
+      });
+    };
+
+    layout();
+    const observer = new ResizeObserver(layout);
+    observer.observe(wrap);
+    return () => observer.disconnect();
+  }, [model]);
+
+  const displayYs = placedTops
+    ? placedTops.map((px) => {
+        const height = wrapRef.current?.clientHeight ?? 0;
+        return height > 0 ? (px / height) * model.height : 0;
+      })
+    : model.marks.map((mark) => mark.displayY);
+
   return (
-    <div className={styles.figureWrap}>
+    <div ref={wrapRef} className={styles.figureWrap} style={{ ["--label-gutter" as string]: `${gutterPct}%` }}>
       <svg
         className={styles.figure}
         viewBox={`0 0 ${model.width} ${model.height}`}
@@ -87,12 +135,30 @@ function ScenarioFigure({
         {model.marks.map((mark, index) => (
           <line
             key={`${mark.kind}-${mark.price}-${index}`}
-            x1={12}
-            x2={model.width * 0.62}
+            x1={model.plotLeft}
+            x2={model.plotRight}
             y1={mark.y}
             y2={mark.y}
             className={lineClass(mark.kind)}
           />
+        ))}
+        {model.leaders.map((leader, index) => {
+          const displayY = displayYs[index] ?? leader.y3;
+          return (
+            <path
+              key={`leader-${leader.kind}-${index}`}
+              d={`M${leader.x1},${leader.y1} L${leader.x2},${displayY} L${leader.x3},${displayY}`}
+              className={`${styles.leader} ${leaderClass(leader.kind)}`}
+            />
+          );
+        })}
+        {model.tags.map((tag, index) => (
+          <g key={`${tag.kind}-${index}`} className={styles.fvgTag}>
+            <rect x={tag.x} y={tag.y - 11} width="44" height="20" rx="4" />
+            <text x={tag.x + 22} y={tag.y + 4} textAnchor="middle">
+              {fvgLabel}
+            </text>
+          </g>
         ))}
         {model.arrow ? (
           <line
@@ -105,16 +171,19 @@ function ScenarioFigure({
           />
         ) : null}
       </svg>
-      <ul className={styles.figureLabels}>
+      <ul ref={listRef} className={styles.figureLabels}>
         {model.marks.map((mark, index) => {
           const distance =
             mark.showDistance && model.lastClose != null ? formatDistancePct(model.lastClose, mark.price) : null;
           const value = mark.priceHigh != null ? range(mark.price, mark.priceHigh) : money(mark.price);
+          const top = placedTops
+            ? `${placedTops[index]!}px`
+            : `${((displayYs[index] ?? mark.displayY) / model.height) * 100}%`;
           return (
             <li
               key={`${mark.kind}-${mark.price}-${index}`}
               className={`${styles.figureLabel} ${markClass(mark.kind)}`}
-              style={{ top: `${(mark.displayY / model.height) * 100}%` }}
+              style={{ top }}
             >
               <span className={styles.markName}>{markName(mark)}</span>
               <span className={styles.markValue}>
@@ -283,6 +352,7 @@ export default function TechnicalAnalysisPanel({
               markerId={`ta-arrow-${scenario.bias}`}
               caption={t(`company.ta.scenario.${scenario.bias}`)}
               markName={(mark) => markLabel(mark, t)}
+              fvgLabel={t("company.ta.chart.fvg")}
               money={money}
               range={range}
             />

@@ -4,7 +4,7 @@ import { analyzePriceHistory } from "./analyze";
 import { detectFairValueGaps } from "./fvg";
 import { technicalLevels } from "./levels";
 import { chartLevelLines } from "./chart-lines";
-import { formatDistancePct, formatFcfa, stackLabelYs } from "./level-label";
+import { formatDistancePct, formatFcfa, stackLabelBoxes, stackLabelYs } from "./level-label";
 import { scenarioChartModel } from "./scenario-chart";
 import { signalOf } from "@/lib/calc/calc-metrics";
 import { detectSupportResistance } from "./support-resistance";
@@ -164,16 +164,38 @@ describe("scénarios", () => {
     expect(formatDistancePct(4000, 3792)).toBe("−5,2 %");
     const stacked = stackLabelYs([10, 14, 80], 20, 0, 200);
     expect(stacked[1]! - stacked[0]!).toBeGreaterThanOrEqual(20);
+    const boxes = stackLabelBoxes([50, 55, 200], [40, 48, 40], 0, 400, 6);
+    expect(boxes[1]! - boxes[0]!).toBeGreaterThanOrEqual(40 / 2 + 6 + 48 / 2);
+    expect(boxes[0]! - 20).toBeGreaterThanOrEqual(0);
+    expect(boxes[2]! + 20).toBeLessThanOrEqual(400);
 
     const bull = analysis.scenarios[0]!;
     const model = scenarioChartModel(analysis.chartBars, bull, analysis.zones, "Haussier", analysis.gaps);
     expect(model.polyline.split(" ").length).toBeGreaterThan(5);
+    expect(model.height).toBeGreaterThanOrEqual(400);
+    expect(model.gutter).toBeGreaterThan(150);
+    expect(model.plotRight).toBe(model.width - model.gutter);
     expect(model.marks.some((mark) => mark.kind === "stop" && mark.price > 0 && mark.showDistance)).toBe(true);
     expect(model.marks.some((mark) => mark.kind === "target" && mark.showDistance)).toBe(true);
     expect(model.marks.some((mark) => mark.kind === "last")).toBe(true);
+    const chartKinds = new Set(model.marks.map((mark) => mark.kind));
+    expect([...chartKinds].every((kind) => kind === "stop" || kind === "target" || kind === "last" || kind === "entry")).toBe(
+      true
+    );
+    const xs = model.polyline.split(" ").map((pt) => Number(pt.split(",")[0]));
+    expect(Math.max(...xs)).toBeLessThanOrEqual(model.plotRight + 1);
     const ordered = [...model.marks].sort((a, b) => a.displayY - b.displayY);
     for (let i = 1; i < ordered.length; i++) {
-      expect(ordered[i]!.displayY).toBeGreaterThan(ordered[i - 1]!.displayY);
+      expect(ordered[i]!.displayY - ordered[i - 1]!.displayY).toBeGreaterThanOrEqual(20);
+    }
+    expect(model.leaders).toHaveLength(model.marks.length);
+    for (const leader of model.leaders) {
+      expect(leader.x1).toBe(model.plotRight);
+      expect(leader.x3).toBeGreaterThan(model.plotRight);
+    }
+    if (model.zones.some((zone) => zone.kind === "gap")) {
+      expect(model.tags.some((tag) => tag.kind === "fvg")).toBe(true);
+      expect(model.marks.some((mark) => mark.kind === "fvg")).toBe(false);
     }
     const lines = chartLevelLines(analysis);
     expect(lines.some((line) => line.title.includes("FCFA") && line.title.startsWith("Objectif"))).toBe(true);
