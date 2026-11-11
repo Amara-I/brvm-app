@@ -6,7 +6,7 @@ import ConfidenceDot from "./ConfidenceDot";
 import ScoreBadge from "./ScoreBadge";
 import SignalBadge from "./SignalBadge";
 
-/** Légende courte : score (qualité, or / bleu) ≠ signal (timing, vert / ambre / rouge) ≠ confiance (point). */
+/** Légende courte : score, signal et confiance partagent le même code couleur, du vert au rouge. */
 export default function ScoreSignalLegend({ className }: { className?: string }) {
   const { t } = useI18n();
   const sample: Record<string, number> = { excellent: 75, good: 60, average: 45, weak: 30 };

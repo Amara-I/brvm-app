@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
-  CONFIDENCE_OPACITY,
+  CONFIDENCE_TOKENS,
   SCORE_TIER_TOKENS,
   SIGNAL_ACCENT,
   SIGNAL_TOKENS,
-  confidenceOpacity,
+  TRAFFIC_LIGHT_TOKENS,
+  confidenceToken,
   contrastRatio,
   scoreTier,
   scoreTierLabel,
@@ -41,21 +42,43 @@ describe("paliers du score", () => {
     expect(scoreTierLabel("good")).toBe("Bon");
     expect(scoreTierLabel("average", "en")).toBe("Average");
   });
+});
 
-  it("jamais vert ni rouge : uniquement or / bleu / ardoise", () => {
-    for (const tok of Object.values(SCORE_TIER_TOKENS)) {
-      for (const c of [tok.fg, tok.fgDark]) {
-        const h = hue(c);
-        // Vert ≈ 90–170°, rouge ≈ 340–20°.
-        expect(h >= 90 && h <= 170).toBe(false);
-        expect(h >= 340 || h <= 20).toBe(false);
-      }
-    }
+describe("échelle partagée vert → rouge", () => {
+  it("score, signal et confiance réutilisent les mêmes jetons", () => {
+    expect(SCORE_TIER_TOKENS.excellent).toEqual(paintCheck("green"));
+    expect(SCORE_TIER_TOKENS.good).toEqual(paintCheck("lime"));
+    expect(SCORE_TIER_TOKENS.average).toEqual(paintCheck("amber"));
+    expect(SCORE_TIER_TOKENS.weak).toEqual(paintCheck("red"));
+
+    expect(SIGNAL_TOKENS["ACHAT FORT"].fg).toBe(TRAFFIC_LIGHT_TOKENS.green.fg);
+    expect(SIGNAL_TOKENS.ACHAT.fg).toBe(TRAFFIC_LIGHT_TOKENS.lime.fg);
+    expect(SIGNAL_TOKENS.CONSERVER.fg).toBe(TRAFFIC_LIGHT_TOKENS.amber.fg);
+    expect(SIGNAL_TOKENS.ALLÉGER.fg).toBe(TRAFFIC_LIGHT_TOKENS.orange.fg);
+    expect(SIGNAL_TOKENS.VENDRE.fg).toBe(TRAFFIC_LIGHT_TOKENS.red.fg);
+
+    expect(CONFIDENCE_TOKENS.Élevée).toEqual(paintCheck("green"));
+    expect(CONFIDENCE_TOKENS.Moyenne).toEqual(paintCheck("amber"));
+    expect(CONFIDENCE_TOKENS.Faible).toEqual(paintCheck("red"));
+
+    expect(SIGNAL_ACCENT.CONSERVER).toBe(TRAFFIC_LIGHT_TOKENS.amber.accent);
+  });
+
+  it("Excellent est vert, Faible est rouge", () => {
+    const excellent = hue(SCORE_TIER_TOKENS.excellent.fgDark);
+    const weak = hue(SCORE_TIER_TOKENS.weak.fgDark);
+    expect(excellent >= 90 && excellent <= 170).toBe(true);
+    expect(weak >= 340 || weak <= 20).toBe(true);
   });
 });
 
+function paintCheck(light: keyof typeof TRAFFIC_LIGHT_TOKENS) {
+  const { fg, fgDark, bg } = TRAFFIC_LIGHT_TOKENS[light];
+  return { fg, fgDark, bg };
+}
+
 describe("signal", () => {
-  it("familles et icônes : acheter ▲ vert, conserver ● ambre, vendre ▼ rouge", () => {
+  it("familles et icônes : acheter ▲, conserver ●, alléger/vendre ▼", () => {
     expect(signalFamily("ACHAT FORT")).toBe("buy");
     expect(signalFamily("ACHAT")).toBe("buy");
     expect(signalFamily("CONSERVER")).toBe("hold");
@@ -64,17 +87,13 @@ describe("signal", () => {
     expect(signalFamily("N/D")).toBeNull();
     expect(SIGNAL_TOKENS.ACHAT.icon).toBe("▲");
     expect(SIGNAL_TOKENS.CONSERVER.icon).toBe("●");
+    expect(SIGNAL_TOKENS.ALLÉGER.icon).toBe("▼");
     expect(SIGNAL_TOKENS.VENDRE.icon).toBe("▼");
-  });
-
-  it("Conserver n'utilise plus l'or du score", () => {
-    expect(SIGNAL_ACCENT.CONSERVER.toLowerCase()).not.toBe("#d4a843");
-    expect(SIGNAL_TOKENS.CONSERVER.fg).not.toBe(SCORE_TIER_TOKENS.excellent.fg);
   });
 });
 
 describe("contraste accessible (WCAG AA texte ≥ 4,5:1)", () => {
-  const all = [...Object.values(SCORE_TIER_TOKENS), ...Object.values(SIGNAL_TOKENS)];
+  const all = [...Object.values(SCORE_TIER_TOKENS), ...Object.values(SIGNAL_TOKENS), ...Object.values(CONFIDENCE_TOKENS)];
   it("thème clair (carte blanche et fond de page)", () => {
     for (const tok of all) {
       expect(contrastRatio(tok.fg, LIGHT_BG)).toBeGreaterThanOrEqual(4.5);
@@ -87,10 +106,11 @@ describe("contraste accessible (WCAG AA texte ≥ 4,5:1)", () => {
 });
 
 describe("confiance", () => {
-  it("point plus discret quand la confiance baisse", () => {
-    expect(confidenceOpacity("Élevée")).toBe(1);
-    expect(confidenceOpacity("Faible")).toBeLessThan(confidenceOpacity("Moyenne")!);
-    expect(confidenceOpacity("N/D")).toBeNull();
-    expect(Object.keys(CONFIDENCE_OPACITY)).toHaveLength(3);
+  it("jeton coloré selon le niveau, pas une opacité", () => {
+    expect(confidenceToken("Élevée")?.fg).toBe(TRAFFIC_LIGHT_TOKENS.green.fg);
+    expect(confidenceToken("Moyenne")?.fg).toBe(TRAFFIC_LIGHT_TOKENS.amber.fg);
+    expect(confidenceToken("Faible")?.fg).toBe(TRAFFIC_LIGHT_TOKENS.red.fg);
+    expect(confidenceToken("N/D")).toBeNull();
+    expect(Object.keys(CONFIDENCE_TOKENS)).toHaveLength(3);
   });
 });

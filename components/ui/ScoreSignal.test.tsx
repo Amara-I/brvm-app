@@ -17,12 +17,12 @@ const render = (node: React.ReactNode, locale: "fr" | "en" = "fr") =>
   );
 
 describe("pastilles score / signal", () => {
-  it("score : palier or/bleu, valeur arrondie, N/D sans score", () => {
+  it("score : palier vert→rouge, valeur arrondie, N/D sans score", () => {
     const html = render(<ScoreBadge score={72.4} outOf showTier />);
     expect(html).toContain('data-tier="excellent"');
     expect(html).toContain("72/100");
     expect(html).toContain("Excellent");
-    expect(html).toContain("--ob-fg:#7a5200");
+    expect(html).toContain("--ob-fg:#166534");
     expect(render(<ScoreBadge score={44} />)).toContain('data-tier="average"');
     expect(render(<ScoreBadge score={null} />)).toContain("N/D");
   });
@@ -32,7 +32,7 @@ describe("pastilles score / signal", () => {
     expect(html).toContain('data-family="hold"');
     expect(html).toContain("●");
     expect(html).toContain("ob-conf-dot");
-    expect(html).toContain("opacity:0.3");
+    expect(html).toContain("--ob-fg:#b91c1c");
     expect(render(<SignalBadge label="VENDRE" />)).toContain("▼");
     expect(render(<SignalBadge label="ACHAT" />)).toContain('data-family="buy"');
   });

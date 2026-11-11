@@ -180,7 +180,7 @@
   background: var(--c-inset);
 }
 
-/* Score (or / bleu) et signal (vert / ambre / rouge) : couleurs fournies par
+/* Score, signal et confiance : même échelle vert → rouge, couleurs fournies par
    lib/ui/score-signal-tokens.ts via les variables --ob-fg / --ob-fg-dark / --ob-bg. */
 .ob-signal,
 .ob-score {
@@ -233,8 +233,17 @@
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
-  background: var(--c-text);
+  background: var(--ob-fg, var(--c-text));
   flex: none;
+}
+
+:root[data-theme="dark"] .ob-conf-dot {
+  background: var(--ob-fg-dark, var(--c-text));
+}
+
+/* Anneau pour rester visible sur une pastille de même teinte. */
+.ob-signal .ob-conf-dot {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6), 0 0 0 2px rgba(0, 0, 0, 0.28);
 }
 
 .ob-legend {

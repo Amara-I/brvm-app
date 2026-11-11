@@ -1,7 +1,8 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { useI18n } from "@/components/i18n/I18nProvider";
-import { confidenceOpacity } from "@/lib/ui/score-signal-tokens";
+import { confidenceToken } from "@/lib/ui/score-signal-tokens";
 
 type Props = {
   value: string | null | undefined;
@@ -9,16 +10,17 @@ type Props = {
   compact?: boolean;
 };
 
-/** Confiance : un point plus ou moins opaque, sans couleur de signal ni de score. */
+/** Confiance : un point coloré sur l'échelle verte → rouge, partagée avec le score et le signal. */
 export default function ConfidenceDot({ value, compact = false }: Props) {
   const { labels, t } = useI18n();
-  const opacity = confidenceOpacity(value);
-  if (opacity == null) return compact ? null : <span className="ob-nd">{t("common.nd")}</span>;
+  const tok = confidenceToken(value);
+  if (tok == null) return compact ? null : <span className="ob-nd">{t("common.nd")}</span>;
   const label = labels.confidence(value);
+  const style = { "--ob-fg": tok.fg, "--ob-fg-dark": tok.fgDark } as CSSProperties;
   const dot = (
     <span
       className="ob-conf-dot"
-      style={{ opacity }}
+      style={style}
       aria-hidden={compact ? undefined : true}
       role={compact ? "img" : undefined}
       aria-label={compact ? t("scoreSignal.confidenceAria", { value: label }) : undefined}

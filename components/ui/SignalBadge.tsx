@@ -8,11 +8,11 @@ import ConfidenceDot from "./ConfidenceDot";
 type Props = {
   label: SignalLabel;
   title?: string;
-  /** Confiance du signal : point discret dans la pastille (opacité). */
+  /** Confiance du signal : point coloré dans la pastille (vert / ambre / rouge). */
   confidence?: string | null;
 };
 
-/** Pastille de signal (timing) — vert / ambre / rouge avec icône, jamais les couleurs du score. */
+/** Pastille de signal (timing) — même échelle vert → rouge que le score, avec icône. */
 export default function SignalBadge({ label, title, confidence }: Props) {
   const { labels } = useI18n();
   const tok = SIGNAL_TOKENS[label];

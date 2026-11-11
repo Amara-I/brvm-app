@@ -14,7 +14,7 @@ type Props = {
   className?: string;
 };
 
-/** Score de qualité (0–100) — échelle or / bleu par paliers, jamais vert ni rouge. */
+/** Score de qualité (0–100) — même échelle vert → rouge que le signal et la confiance. */
 export default function ScoreBadge({ score, outOf = false, showTier = false, title, className }: Props) {
   const { t, locale } = useI18n();
   const tier = scoreTier(score);

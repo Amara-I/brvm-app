@@ -1092,7 +1092,7 @@ export interface FundamentalRating {
   confidence: string | null;
 }
 
-/** Rappel score (or/bleu) et signal (vert/ambre/rouge) : deux lectures distinctes, non recalculées ici. */
+/** Rappel score et signal (même échelle vert → rouge) : deux lectures distinctes, non recalculées ici. */
 function RatingRecall({ rating, t }: { rating: FundamentalRating; t: TFunc }) {
   return (
     <div className={styles.ratingRecall} data-testid="fundamental-rating-recall">
