@@ -549,7 +549,8 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       netIncome,
       operatingMargin: marginPercent(finite(y.operatingIncome) ? y.operatingIncome : null, finite(y.revenue) ? y.revenue : null),
       netMargin: marginPercent(netIncome, finite(y.revenue) ? y.revenue : null),
-      eps: netIncome != null && netIncome > 0 ? earningsPerShare(netIncome, shares) : null,
+      // BPA négatif affiché (exercice déficitaire) ; le taux de distribution reste N/D (payoutPercent exige BPA > 0).
+      eps: netIncome != null && netIncome !== 0 ? earningsPerShare(netIncome, shares) : null,
       dps: null,
       payoutPercent: null,
       roe: finite(ratio?.roe) ? ratio.roe : null,
