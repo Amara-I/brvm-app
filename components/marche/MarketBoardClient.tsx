@@ -521,7 +521,7 @@ export default function MarketBoardClient({
                             }}
                           />
                           <span className="ob-ticker-with-mark">
-                            <CompanyMark ticker={co.ticker} name={co.name} size={20} market="BRVM" />
+                            <CompanyMark ticker={co.ticker} name={co.name} size={24} market="BRVM" />
                             <span className={styles.ticker} style={{ color: co.color }}>
                               {co.ticker}
                             </span>

@@ -360,7 +360,7 @@ export default function LandingPage({
                   return (
                     <Link key={co.ticker} href={`/actions/${co.ticker}`} className={styles.stockRow}>
                       <span className={styles.stockIdentity}>
-                        <CompanyMark ticker={co.ticker} name={co.name} size={20} market="BRVM" />
+                        <CompanyMark ticker={co.ticker} name={co.name} size={24} market="BRVM" />
                         <span className={styles.stockTicker}>{co.ticker}</span>
                         <span className={styles.stockName}>{co.name || t("common.nd")}</span>
                       </span>

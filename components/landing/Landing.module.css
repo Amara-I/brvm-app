@@ -926,7 +926,7 @@ a.exchangeChip:hover {
   min-width: 0;
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 20px 4.75rem minmax(0, 1fr);
+  grid-template-columns: 24px 4.75rem minmax(0, 1fr);
   gap: 8px;
   align-items: center;
 }
@@ -1495,7 +1495,7 @@ a.exchangeChip:hover {
   }
 
   .stockIdentity {
-    grid-template-columns: 20px minmax(0, 1fr);
+    grid-template-columns: 24px minmax(0, 1fr);
     gap: 0 8px;
   }
 

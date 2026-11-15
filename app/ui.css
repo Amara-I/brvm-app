@@ -36,23 +36,33 @@
 
 
 .ob-company-mark {
+  /* Tuile claire : rend les logos sombres et les wordmarks lisibles sur le thème or/sombre. */
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex: none;
   vertical-align: middle;
-  object-fit: contain;
-  border-radius: 4px;
-  background: var(--c-panel);
   box-sizing: border-box;
+  overflow: hidden;
+  border-radius: 5px;
+  background: #f4efe4;
+  border: 1px solid color-mix(in srgb, var(--c-gold) 28%, #cfc6b3);
+  padding: 11%;
+}
+
+.ob-company-mark-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .ob-company-monogram {
-  border: 1px solid var(--c-border);
+  padding: 0;
   font-size: 0.55em;
   font-weight: 800;
   letter-spacing: 0.02em;
-  color: var(--c-gold);
+  color: #8a6a1c;
   line-height: 1;
   text-transform: uppercase;
   font-family: var(--font-sans, inherit);

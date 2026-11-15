@@ -895,7 +895,7 @@ export default function ChartWorkbench({
                     >
                       <span className={styles.itemTicker}>
                         <span className="ob-ticker-with-mark">
-                          <CompanyMark ticker={u.ticker} name={u.name} size={18} market={isNgx ? "NGX" : "BRVM"} />
+                          <CompanyMark ticker={u.ticker} name={u.name} size={20} market={isNgx ? "NGX" : "BRVM"} />
                           {u.countryFlag ? <span aria-hidden="true">{u.countryFlag}</span> : null}
                           {u.ticker}
                         </span>

@@ -219,7 +219,7 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                   <td>
                     <Link href={`/actions/${co.ticker}`} className={styles.tickerLink}>
                       <span className="ob-ticker-with-mark">
-                        <CompanyMark ticker={co.ticker} name={co.name} size={20} market="BRVM" />
+                        <CompanyMark ticker={co.ticker} name={co.name} size={24} market="BRVM" />
                         <span aria-hidden="true">{co.countryFlag}</span>
                         <strong>{co.ticker}</strong>
                       </span>

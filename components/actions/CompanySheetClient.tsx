@@ -562,7 +562,7 @@ export default function CompanySheetClient({
       <header className={styles.hero}>
         <div className={styles.heroMain}>
           <div className={styles.logoMark} style={{ borderColor: company.color }}>
-            <CompanyMark ticker={company.ticker} name={company.name} size={44} market="BRVM" />
+            <CompanyMark ticker={company.ticker} name={company.name} size={52} market="BRVM" />
           </div>
           <div>
             <h1 className={styles.title}>{company.name}</h1>
@@ -862,7 +862,7 @@ export default function CompanySheetClient({
                         <Link href={`/actions/${p.ticker}`} className={styles.peerLink}>
                           <span className={styles.peerTicker}>
                             <span className="ob-ticker-with-mark">
-                              <CompanyMark ticker={p.ticker} name={p.name} size={18} market="BRVM" />
+                              <CompanyMark ticker={p.ticker} name={p.name} size={20} market="BRVM" />
                               {p.ticker}
                             </span>
                           </span>

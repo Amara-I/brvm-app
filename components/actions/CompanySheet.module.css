@@ -51,22 +51,16 @@
 .logoMark {
   width: 52px;
   height: 52px;
-  border-radius: 12px;
-  border: 2px solid var(--c-border);
-  background: var(--c-panel);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 800;
-  color: var(--c-gold);
   flex-shrink: 0;
-  overflow: hidden;
-  padding: 3px;
 }
 
 .logoMark :global(.ob-company-mark) {
-  background: transparent;
-  border-radius: 8px;
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
 }
 
 .title {

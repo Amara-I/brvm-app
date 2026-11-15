@@ -367,7 +367,7 @@ export default function CompanyComparisonPanel({
                 gap: 6,
               }}
             >
-              <CompanyMark ticker={co.ticker} name={co.name} size={16} market="BRVM" />
+              <CompanyMark ticker={co.ticker} name={co.name} size={20} market="BRVM" />
               <span aria-hidden="true">{co.countryFlag}</span> {co.ticker}
             </button>
           );

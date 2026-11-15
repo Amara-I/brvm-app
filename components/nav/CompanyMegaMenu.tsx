@@ -93,7 +93,7 @@ export default function CompanyMegaMenu({
                     data-analytics-action="mega_menu"
                   >
                     <span className={styles.logoMark} aria-hidden="true">
-                      <CompanyMark ticker={co.ticker} name={co.name} size={18} market="BRVM" />
+                      <CompanyMark ticker={co.ticker} name={co.name} size={22} market="BRVM" />
                     </span>
                     <span className={styles.companyMain}>
                       <span className={styles.companyTicker}>{co.ticker}</span>

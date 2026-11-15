@@ -218,7 +218,7 @@ export default async function SocietesCoteesPage() {
                       <Link href={`/actions/${co.ticker}`} className={styles.cardMain}>
                         <div className={styles.cardTop}>
                           <span className={styles.logo} aria-hidden="true">
-                            <CompanyMark ticker={co.ticker} name={co.name} size={40} market="BRVM" />
+                            <CompanyMark ticker={co.ticker} name={co.name} size={48} market="BRVM" />
                           </span>
                           <div className={styles.cardIdentity}>
                             <span className={styles.ticker}>{co.ticker}</span>

@@ -131,7 +131,7 @@ function EventsTable({ rows }: { rows: DividendCalendarEvent[] }) {
               <td>
                 <Link href={`/actions/${ev.ticker}`} className={styles.tickerLink}>
                   <span className="ob-ticker-with-mark">
-                    <CompanyMark ticker={ev.ticker} name={ev.name} size={20} market="BRVM" />
+                    <CompanyMark ticker={ev.ticker} name={ev.name} size={24} market="BRVM" />
                     {ev.ticker}
                   </span>
                 </Link>
