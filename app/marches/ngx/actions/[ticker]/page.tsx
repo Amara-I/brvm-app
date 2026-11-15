@@ -2,7 +2,6 @@ import { notFound } from "next/navigation";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import { translateDataSourceLabel } from "@/components/marche/market-copy";
-import NgxChart from "@/components/ngx/NgxChart";
 import { ngxBoardLabel, ngxSectorLabel } from "@/components/ngx/ngx-labels";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import PageHeader from "@/components/ui/PageHeader";
@@ -16,6 +15,7 @@ import { loadNgxSheet } from "@/lib/markets/ngx-sheet";
 import NgxSheetView from "@/components/ngx/sheet/NgxSheetView";
 import NgxLiveQuote from "@/components/ngx/sheet/NgxLiveQuote";
 import NgxSheetTabs from "@/components/ngx/sheet/NgxSheetTabs";
+import NgxOverviewPriceCard from "@/components/ngx/sheet/NgxOverviewPriceCard";
 import NgxTechnicalTab from "@/components/ngx/sheet/NgxTechnicalTab";
 import sheetStyles from "@/components/ngx/sheet/NgxSheet.module.css";
 import { FundamentalAnalysisBody } from "@/components/actions/FundamentalAnalysisPanel";
@@ -51,15 +51,6 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
   const score = model.score.overall;
   const signal = technical.barsUsed > 0 ? technical.signal : null;
   const liquidityWarning = locale === "en" ? technical.liquidity.warningEn : technical.liquidity.warningFr;
-  const session = company.sessionDate
-    ? format.date(`${company.sessionDate}T00:00:00.000Z`, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-        timeZone: "UTC",
-      })
-    : "N/D";
-
   return (
     <AppHeader>
       <div className="ob-page">
@@ -136,17 +127,11 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
           panels={{
             overview: (
               <>
-                <h2 className={styles.sectionTitle} id="ngx-overview-chart">
-                  {t("ngx.company.chartTitle")}
-                </h2>
-                {company.series.length > 1 ? (
-                  <NgxChart symbol={company.ticker} universe={chartUniverse} isAuthenticated={Boolean(userId)} />
-                ) : (
-                  <p className={styles.note}>{t("ngx.company.chartEmpty")}</p>
-                )}
-                <p className={styles.note}>
-                  {t("ngx.company.chartNote")} · {t("ngx.company.session")} {session}
-                </p>
+                <NgxOverviewPriceCard
+                  ticker={company.ticker}
+                  series={company.series.map((p) => ({ time: p.time, value: p.value, volume: p.volume ?? null }))}
+                  sessionDate={company.sessionDate}
+                />
                 <NgxSheetView model={model} />
               </>
             ),
