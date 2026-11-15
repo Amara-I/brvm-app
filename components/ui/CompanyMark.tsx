@@ -36,7 +36,14 @@ type Props = {
 export default function CompanyMark({ ticker, name, size = 24, className, market }: Props) {
   const src = companyLogoSrc(ticker, market);
   const label = name ? `${name} (${ticker})` : ticker;
-  const style: CSSProperties = { width: size, height: size, minWidth: size, minHeight: size };
+  const pad = Math.max(2, Math.round(size * 0.08));
+  const style: CSSProperties = {
+    width: size,
+    height: size,
+    minWidth: size,
+    minHeight: size,
+    padding: src ? pad : 0,
+  };
   if (!src) {
     style.fontSize = Math.max(9, Math.round(size * 0.42));
     return (
