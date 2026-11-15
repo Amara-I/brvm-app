@@ -1,13 +1,17 @@
-// Page Graphes — catalogue de tous les graphes (actions et indices, toutes places),
-// et workbench BRVM lorsqu'un ticker est demandé (?ticker=).
+// Page Graphes — workbench unique (actions et indices, BRVM et NGX).
+// Sans ticker : ouvre le graphe d'ABJC (ou la première action BRVM).
+// La recherche du workbench est alimentée par le catalogue mis en cache
+// (`chart-catalog-v1`) : une nouvelle cotation y apparaît automatiquement.
 import AppHeader from "@/components/AppHeader";
 import ChartWorkbench from "@/components/charts/LazyChartWorkbench";
-import ChartCatalog, { ChartsBackLink } from "@/components/charts/ChartCatalog";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
-import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { getChartCatalog } from "@/lib/charts/chart-catalog";
+import {
+  catalogToUniverse,
+  resolveChartInstrument,
+} from "@/lib/charts/chart-selection";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { getI18n } from "@/lib/i18n/get-i18n";
 
@@ -24,48 +28,16 @@ export function generateMetadata() {
 export default async function GraphesPage({
   searchParams,
 }: {
-  searchParams?: { ticker?: string };
+  searchParams?: { ticker?: string; indice?: string };
 }) {
   const { t } = getI18n();
-  const requested = searchParams?.ticker?.toUpperCase();
-
-  if (requested) {
-    const dataset = await getCompaniesFullDataset();
-    const universe = dataset.companies.map((c) => ({
-      ticker: c.ticker,
-      name: c.name,
-      color: c.color,
-      sector: c.sector,
-      countryFlag: c.countryFlag,
-    }));
-    const initialTicker =
-      (universe.some((u) => u.ticker === requested) && requested) ||
-      (universe.some((u) => u.ticker === "ABJC") ? "ABJC" : null) ||
-      (universe.some((u) => u.ticker === "SNTS") ? "SNTS" : universe[0]?.ticker ?? "SNTS");
-    const userId = await getCurrentUserId().catch(() => null);
-
-    return (
-      <AppHeader>
-        <div className="ob-page">
-          <ChartsBackLink />
-          <PageHeader
-            kicker={t("charts.page.kicker")}
-            title={t("charts.page.title")}
-            lead={t("charts.page.workbenchLead")}
-          />
-
-          {universe.length === 0 ? (
-            <EmptyState title={t("charts.page.emptyTitle")} body={t("charts.page.emptyBody")} />
-          ) : (
-            <ChartWorkbench universe={universe} initialTicker={initialTicker} isAuthenticated={Boolean(userId)} />
-          )}
-        </div>
-        <SiteFooter />
-      </AppHeader>
-    );
-  }
-
   const catalog = await getChartCatalog();
+  const universe = catalogToUniverse(catalog.entries);
+  const instrument = resolveChartInstrument(
+    { ticker: searchParams?.ticker, indice: searchParams?.indice },
+    catalog.entries.filter((entry) => entry.exchange === "BRVM" || entry.exchange === "NGX")
+  );
+  const userId = await getCurrentUserId().catch(() => null);
 
   return (
     <AppHeader>
@@ -73,13 +45,20 @@ export default async function GraphesPage({
         <PageHeader
           kicker={t("charts.page.kicker")}
           title={t("charts.page.title")}
-          lead={t("charts.page.lead")}
+          lead={t("charts.page.workbenchLead")}
         />
 
-        {catalog.entries.length === 0 ? (
+        {universe.length === 0 || !instrument ? (
           <EmptyState title={t("charts.page.emptyTitle")} body={t("charts.page.emptyBody")} />
         ) : (
-          <ChartCatalog catalog={catalog} />
+          <ChartWorkbench
+            universe={universe}
+            initialTicker={instrument.symbol}
+            initialKind={instrument.kind}
+            initialExchange={instrument.exchange === "NGX" ? "NGX" : "BRVM"}
+            mixedMarkets
+            isAuthenticated={Boolean(userId)}
+          />
         )}
       </div>
       <SiteFooter />

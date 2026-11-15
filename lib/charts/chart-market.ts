@@ -55,3 +55,19 @@ export function ngxSymbolHref(symbol: string, kind: "company" | "index"): string
 export function chartStorageKey(market: ChartMarket | undefined, symbol: string): string {
   return market === "NGX" ? `NGX:${symbol}` : symbol;
 }
+
+/** `/api/charts/indices/:code` — série sous-échantillonnée d'un indice BRVM ou NGX. */
+export function indexChartApiPath(
+  code: string,
+  exchange: string,
+  range: string,
+  interval = "1D"
+): string {
+  const params = new URLSearchParams({
+    range,
+    interval,
+  });
+  const place = exchange.trim().toUpperCase();
+  if (place === "BRVM" || place === "NGX") params.set("exchange", place);
+  return `/api/charts/indices/${encodeURIComponent(code)}?${params.toString()}`;
+}

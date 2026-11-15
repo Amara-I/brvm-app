@@ -118,7 +118,7 @@
   top: calc(100% + 8px);
   left: 0;
   z-index: 30;
-  width: 280px;
+  width: min(340px, calc(100vw - 32px));
   max-height: 420px;
   background: #1c2030;
   border: 1px solid var(--tv-border);
@@ -172,6 +172,62 @@
   color: var(--tv-text);
   font-weight: 700;
   font-size: 0.78rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+}
+
+.itemBadges {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.itemBadge {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--tv-dim);
+  border: 1px solid var(--tv-border);
+  background: var(--tv-elev);
+  white-space: nowrap;
+}
+
+.watchlistGroup {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tv-dim);
+  padding: 8px 12px 4px;
+  background: #1c2030;
+}
+
+.watchlistEmpty {
+  margin: 0;
+  padding: 12px;
+  color: var(--tv-dim);
+  font-size: 0.75rem;
+}
+
+.indexMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  background: rgba(212, 168, 67, 0.16);
+  color: #d4a843;
+  font-weight: 800;
+  flex-shrink: 0;
+  line-height: 1;
 }
 
 .itemName {
