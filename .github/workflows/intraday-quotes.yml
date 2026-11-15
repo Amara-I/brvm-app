@@ -1,0 +1,112 @@
+# Actualisation intrajournalière des cours BRVM et NGX.
+#
+# Appelle /api/cron/refresh-quotes en production toutes les 30 min en semaine.
+# L'endpoint ignore lui-même chaque place hors de sa séance (et dans l'heure
+# qui suit la clôture), sans requête vers la source :
+#   - BRVM : 09:00–15:30 UTC (Abidjan = UTC) ;
+#   - NGX  : 09:30–14:30 heure de Lagos = 08:30–13:30 UTC.
+# Les horaires GitHub sont en UTC et peuvent être retardés de quelques minutes.
+#
+# Alertes : évaluées une fois par heure (passages de :00), pas aux passages
+# de :30, pour limiter la bande passante Supabase. Dernier passage à 16:00 UTC,
+# juste après la clôture BRVM, avec alertes.
+#
+# Secret : CRON_SECRET (secret du dépôt), envoyé dans l'en-tête
+# « Authorization: Bearer … » attendu par lib/security/cron-auth.ts.
+# Aucun changement de vercel.json (plan Hobby : crons quotidiens seulement).
+
+name: Cours intrajournaliers
+
+on:
+  schedule:
+    # :00 — de 09:00 à 16:00 UTC (16:00 = dernier passage après la clôture BRVM), alertes évaluées.
+    - cron: "0 9-16 * * 1-5"
+    # :30 — de 08:30 (ouverture NGX) à 15:30 UTC (clôture BRVM), sans alertes.
+    - cron: "30 8-15 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      market:
+        description: "Place(s) à actualiser"
+        type: choice
+        options: [ALL, BRVM, NGX]
+        default: ALL
+      alerts:
+        description: "Évaluer les alertes (1) ou non (0)"
+        type: choice
+        options: ["0", "1"]
+        default: "0"
+      force:
+        description: "Tirer même hors séance (1)"
+        type: choice
+        options: ["0", "1"]
+        default: "0"
+
+concurrency:
+  group: intraday-quotes
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      PROD_URL: ${{ vars.PROD_URL || 'https://brwm-app.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      SCHEDULE: ${{ github.event.schedule }}
+      INPUT_MARKET: ${{ inputs.market }}
+      INPUT_ALERTS: ${{ inputs.alerts }}
+      INPUT_FORCE: ${{ inputs.force }}
+    steps:
+      - name: Paramètres
+        id: params
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET absent du dépôt."
+            exit 1
+          fi
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ]; then
+            market="${INPUT_MARKET:-ALL}"
+            alerts="${INPUT_ALERTS:-0}"
+            force="${INPUT_FORCE:-0}"
+          else
+            market="ALL"
+            force="0"
+            # Passages de :00 → alertes ; passages de :30 → sans alertes.
+            if [ "$SCHEDULE" = "0 9-16 * * 1-5" ]; then alerts="1"; else alerts="0"; fi
+          fi
+          if [ "$market" = "ALL" ]; then markets="BRVM NGX"; else markets="$market"; fi
+          echo "markets=$markets" >> "$GITHUB_OUTPUT"
+          echo "alerts=$alerts" >> "$GITHUB_OUTPUT"
+          echo "force=$force" >> "$GITHUB_OUTPUT"
+          echo "Places : $markets · alertes=$alerts · force=$force"
+
+      # Une place par appel : chaque appel tient dans la durée maximale de la
+      # fonction Vercel (BRVM ≈ 80 s à cause du délai entre requêtes brvm.org).
+      - name: Actualiser les cours
+        env:
+          MARKETS: ${{ steps.params.outputs.markets }}
+          ALERTS: ${{ steps.params.outputs.alerts }}
+          FORCE: ${{ steps.params.outputs.force }}
+        run: |
+          status=0
+          for m in $MARKETS; do
+            # L'évaluation BRVM couvre aussi les règles NGX : pas de seconde passe NGX.
+            alerts="$ALERTS"
+            if [ "$m" = "NGX" ] && [ "${MARKETS#*BRVM}" != "$MARKETS" ]; then alerts="0"; fi
+            echo "::group::$m"
+            if ! curl --fail-with-body --silent --show-error \
+                --retry 2 --retry-delay 20 --retry-all-errors \
+                --connect-timeout 15 --max-time 170 \
+                -H "Authorization: Bearer ${CRON_SECRET}" \
+                -H "Accept: application/json" \
+                "${PROD_URL}/api/cron/refresh-quotes?market=${m}&alerts=${alerts}&force=${FORCE}"; then
+              echo "::error::Échec de l'actualisation $m"
+              status=1
+            fi
+            echo
+            echo "::endgroup::"
+          done
+          exit $status
