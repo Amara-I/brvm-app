@@ -1536,6 +1536,9 @@ export default function CompanySheetClient({
                           year: "numeric",
                           hour: "2-digit",
                           minute: "2-digit",
+                          // Fuseau fixe (heure de la BRVM, UTC) : sinon le serveur (UTC) et le
+                          // navigateur n'affichent pas la même heure → erreur d'hydratation React.
+                          timeZone: "UTC",
                         })
                       : nd}
                   </dd>

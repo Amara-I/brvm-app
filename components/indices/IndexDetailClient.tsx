@@ -18,6 +18,7 @@ import type { FormatApi } from "@/lib/i18n/format";
 import { buildIndexReading, indexReadingLabel, type IndexBreadth, type ReadingLine } from "@/lib/markets/index-insights";
 import type { IndexPageData } from "@/lib/markets/index-page";
 import styles from "./Indices.module.css";
+import { keepNumbersTogether } from "@/lib/text/no-break";
 
 const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
   day: "2-digit",
@@ -25,13 +26,6 @@ const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
   year: "numeric",
   timeZone: "UTC",
 };
-
-/** Évite les coupures de ligne à l'intérieur d'un nombre ou entre un nombre et son unité. */
-function unbreakable(text: string): string {
-  return text
-    .replace(/(\d) (?=\d)/g, "$1\u202f")
-    .replace(/(\d) (?=(%|pts\b))/g, "$1\u00a0");
-}
 
 function formatLevel(value: number | null | undefined, format: FormatApi): string {
   if (value == null || Number.isNaN(value)) return "N/D";
@@ -52,10 +46,10 @@ function ReadingText({ line }: { line: ReadingLine }) {
             key={i}
             className={seg.tone === "pos" ? styles.pos : seg.tone === "neg" ? styles.neg : styles.hl}
           >
-            {unbreakable(seg.text)}
+            {keepNumbersTogether(seg.text)}
           </strong>
         ) : (
-          <span key={i}>{unbreakable(seg.text)}</span>
+          <span key={i}>{keepNumbersTogether(seg.text)}</span>
         )
       )}
     </li>

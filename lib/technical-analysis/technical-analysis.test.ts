@@ -159,9 +159,9 @@ describe("scénarios", () => {
   });
 
   it("dessine une figure annotée avec les prix et des pastilles écartées", () => {
-    expect(formatFcfa(4125)).toBe("4 125 FCFA");
-    expect(formatDistancePct(4000, 4320)).toBe("+8,0 %");
-    expect(formatDistancePct(4000, 3792)).toBe("−5,2 %");
+    expect(formatFcfa(4125)).toBe("4\u202f125\u00a0FCFA");
+    expect(formatDistancePct(4000, 4320)).toBe("+8,0\u00a0%");
+    expect(formatDistancePct(4000, 3792)).toBe("−5,2\u00a0%");
     const stacked = stackLabelYs([10, 14, 80], 20, 0, 200);
     expect(stacked[1]! - stacked[0]!).toBeGreaterThanOrEqual(20);
     const boxes = stackLabelBoxes([50, 55, 200], [40, 48, 40], 0, 400, 6);
@@ -271,12 +271,15 @@ describe("scénarios", () => {
 describe("devise des libellés (FCFA BRVM, ₦ NGX)", () => {
   it("formate le naira avec 2 décimales et le FCFA en entier", async () => {
     const { formatPrice, formatPriceRange } = await import("./level-label");
-    expect(formatPrice(4125, "XOF")).toBe("4 125 FCFA");
-    expect(formatPrice(1250.5, "NGN")).toBe("₦1 250,50");
+    expect(formatPrice(4125, "XOF")).toBe("4\u202f125\u00a0FCFA");
+    expect(formatPrice(1250.5, "NGN")).toBe("₦1\u202f250,50");
     expect(formatPrice(0.47, "NGN")).toBe("₦0,47");
     expect(formatPriceRange(13.1, 12.5, "NGN")).toBe("₦12,50 – ₦13,10");
-    expect(formatPriceRange(4300, 4100, "XOF")).toBe("4 100 – 4 300 FCFA");
+    expect(formatPriceRange(4300, 4100, "XOF")).toBe("4\u202f100 – 4\u202f300\u00a0FCFA");
     expect(formatPrice(1250.5, "NGN", "en")).toBe("₦1,250.50");
+    // Aucun espace sécable dans un prix : seul le tiret d'une fourchette peut couper la ligne.
+    expect(formatPrice(246932.6, "PTS")).not.toMatch(/ /);
+    expect(formatPriceRange(4100, 4300, "XOF").split(" ")).toEqual([`4${"\u202f"}100`, "–", `4${"\u202f"}300${"\u00a0"}FCFA`]);
   });
 
   it("analyse en naira : traits et scénarios sans FCFA ; défaut BRVM inchangé", () => {

@@ -180,7 +180,7 @@ export const auth = {
     capitalHint: "Laissé vide : l’analyse utilise la valeur de marché du portefeuille.",
     risk: "Risque max par position (%)",
     riskHint: "Entre 0,5 et 2. Laissé vide : dérivé des critères (1 % à 2 %).",
-    derivedRisk: "Repère dérivé : {percent} %",
+    derivedRisk: "Repère dérivé : {percent} %",
     unset: "Non renseigné",
     horizons: {
       MOINS_1_AN: "Moins d’un an",

@@ -17,6 +17,7 @@ import {
 } from "./risk-analysis";
 import { computeTechnicalSnapshot, type TechnicalSnapshot } from "../charts/technical-indicators";
 import type { SignalReasonCode } from "./signal-reason-codes";
+import { keepNumbersTogether } from "@/lib/text/no-break";
 
 export interface CalcMetricsInput {
   /// Années disponibles, en ordre chronologique croissant (ex: 2015..2026).
@@ -141,7 +142,9 @@ function reason(
   text: string,
   params?: Record<string, string | number>
 ): SignalReason {
-  return params ? { kind, code, text, params } : { kind, code, text };
+  // Chiffres insécables (« +3,6 % », « 4 197 FCFA ») dans le texte affiché.
+  const shown = keepNumbersTogether(text);
+  return params ? { kind, code, text: shown, params } : { kind, code, text: shown };
 }
 
 function clamp100(n: number): number {

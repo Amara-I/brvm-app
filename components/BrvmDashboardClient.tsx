@@ -58,6 +58,7 @@ import {
 } from "@/lib/markets/african-exchanges";
 import marketStyles from "@/components/marche/MarketChrome.module.css";
 import { FONT_FAMILY } from "@/lib/theme/colors";
+import { keepNumbersTogether } from "@/lib/text/no-break";
 
 // ── PALETTE ─────────────────────────────────────────────────────────────────
 // Bascule mode clair/sombre (étape 12) : référence désormais les variables
@@ -859,7 +860,7 @@ export default function BrvmDashboardClient({
                         }}
                       >
                         {reason.kind === "positif" ? "▲ " : reason.kind === "negatif" ? "▼ " : "● "}
-                        {reason.text}
+                        {keepNumbersTogether(reason.text)}
                       </li>
                     ))}
                   </ul>

@@ -10,7 +10,7 @@ export function formatMoney(value: number, currency: string, locale: Locale): st
     const body = new Intl.NumberFormat(intlLocale(locale), { maximumFractionDigits: 0 }).format(
       Math.round(value)
     );
-    return `${body} FCFA`;
+    return `${body}\u00a0FCFA`;
   }
   if (code === "NGN") {
     const body = new Intl.NumberFormat(locale === "en" ? "en-NG" : "fr-FR", {
@@ -23,5 +23,5 @@ export function formatMoney(value: number, currency: string, locale: Locale): st
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value);
-  return `${body} ${code}`;
+  return `${body}\u00a0${code}`;
 }

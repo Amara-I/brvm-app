@@ -22,10 +22,10 @@ function daily(n: number, start = "2025-01-01", f: (i: number) => number = (i) =
 
 describe("points d'indice", () => {
   it("formate en pts avec 2 décimales", () => {
-    expect(formatPrice(515.94, "PTS")).toBe("515,94 pts");
-    expect(formatPrice(252269.16, "PTS")).toBe("252 269,16 pts");
-    expect(formatPriceRange(498.1, 503.25, "PTS")).toBe("498,10 – 503,25 pts");
-    expect(formatPrice(515.94, "PTS", "en")).toBe("515.94 pts");
+    expect(formatPrice(515.94, "PTS")).toBe("515,94\u00a0pts");
+    expect(formatPrice(252269.16, "PTS")).toBe("252\u202f269,16\u00a0pts");
+    expect(formatPriceRange(498.1, 503.25, "PTS")).toBe("498,10 – 503,25\u00a0pts");
+    expect(formatPrice(515.94, "PTS", "en")).toBe("515.94\u00a0pts");
   });
 
   it("formule les scénarios pour un indice, sans « cours »", () => {
@@ -131,12 +131,12 @@ describe("buildIndexReading", () => {
     expect(ids).toEqual(expect.arrayContaining(["level", "range", "trend", "momentum", "risk", "scenario", "breadth"]));
     const text = lines.map((l) => l.segments.map((s) => s.text).join("")).join("\n");
     expect(text).toContain("BRVM Composite termine la séance du");
-    expect(text).toContain("−0,92 %");
-    expect(text).toContain("+12,3 %");
+    expect(text).toContain("−0,92\u00a0%");
+    expect(text).toContain("+12,3\u00a0%");
     expect(text).toContain("18 hausses");
     expect(text).not.toMatch(/achat|entrée|acheter/i);
     const level = lines.find((l) => l.id === "level")!;
-    expect(level.segments.find((s) => s.text === "−0,92 %")).toMatchObject({ strong: true, tone: "neg" });
+    expect(level.segments.find((s) => s.text === "−0,92\u00a0%")).toMatchObject({ strong: true, tone: "neg" });
   });
 
   it("omet les phrases sans données", () => {
