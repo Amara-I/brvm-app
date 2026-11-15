@@ -35,6 +35,7 @@
 import { IngestionStatus } from "@prisma/client";
 import { tipLatestChartPoints, type RefreshChartSeriesSummary } from "../charts/refresh-chart-series";
 import { prisma } from "../prisma";
+import { revalidateQuotesAfterWrite } from "../cache/revalidate-quotes";
 import { sendIngestionAlert } from "./alerts";
 import { getConnectorFeatureFlags, getHistoryBackfillFlags, getIndexEnrichmentFlags } from "./connector-config";
 import { brvmConnector } from "./connectors/brvm_connector";
@@ -251,6 +252,12 @@ async function persistCollected(
     (async () => {
       const { reconciled: reconciledPrices, discrepancies } = reconcilePriceBatch(allPriceQuotes);
       const priceResult = await persistPriceQuotes(prisma, allPriceQuotes, reconciledPrices, companyIdByTicker);
+      if (allPriceQuotes.length > 0) {
+        revalidateQuotesAfterWrite({
+          markets: ["BRVM"],
+          tickers: [...new Set(allPriceQuotes.map((q) => q.ticker))],
+        });
+      }
       const reconciledIndices = reconcileIndices(allIndexQuotes);
       await persistIndexQuotes(prisma, allIndexQuotes, reconciledIndices);
       return {

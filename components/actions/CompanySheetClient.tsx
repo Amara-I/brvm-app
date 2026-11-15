@@ -6,7 +6,7 @@ import CompanyMark from "@/components/ui/CompanyMark";
 import ScoreBadge from "@/components/ui/ScoreBadge";
 import SignalBadge from "@/components/ui/SignalBadge";
 import ConfidenceDot from "@/components/ui/ConfidenceDot";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ResponsiveContainer,
@@ -39,6 +39,9 @@ import { downsampleLttb } from "@/lib/charts/downsample";
 import { companyChartApiPath, lastPointAsOf } from "@/lib/charts/chart-window";
 import { chartDisplayNeedsRefresh } from "@/lib/charts/chart-series-cache";
 import { flatPriceBounds } from "@/lib/charts/sparse-series";
+import { overlayLatestClose, seriesBehindLatest } from "@/lib/charts/overlay-latest-close";
+import { useLiveQuotes } from "@/lib/ui/use-live-quotes";
+import type { LatestQuote } from "@/lib/quotes/types";
 import {
   computeWindowChange,
   formatWindowChangePercent,
@@ -221,7 +224,7 @@ export default function CompanySheetClient({
     seriesCacheStale,
     splitMarkers,
     performance,
-    sessionDate,
+    sessionDate: initialSessionDate,
     dayChangePercent,
     dayChangeAbs,
     isin,
@@ -288,7 +291,29 @@ export default function CompanySheetClient({
   }, [initialTab, setTab]);
   const [range, setRange] = usePersistedState<ChartRange>(`ouestbourse:sheet:${company.ticker}:range`, "1A");
   const [series, setSeries] = useState<ChartClosePoint[]>(initialSeries);
+  const seriesRef = useRef(series);
+  seriesRef.current = series;
   const [liveChange, setLiveChange] = useState<{ pct: number | null; abs: number | null } | null>(null);
+  const [sessionDate, setSessionDate] = useState<string | null>(initialSessionDate);
+  // Dernier cours live (même source que les notifications) : en séance, relu toutes
+  // les 60 s onglet visible, et aussitôt qu'une notification arrive ou est ouverte.
+  // Seul le dernier point change : pas de rechargement complet de la fiche.
+  const onLiveQuotes = useCallback(
+    (changed: LatestQuote[]) => {
+      const q = changed.find((item) => item.ticker === company.ticker);
+      if (!q || !(q.close > 0)) return;
+      const latest = { date: q.date, close: q.close };
+      // Rien à faire si la fiche affiche déjà ce cours (cas courant).
+      if (!seriesBehindLatest(seriesRef.current, latest)) return;
+      setSeries((prev) => overlayLatestClose(prev, latest));
+      setSessionDate((prev) => (!prev || q.date >= prev ? q.date : prev));
+      if (q.changePercent != null || q.changeAbs != null) {
+        setLiveChange({ pct: q.changePercent, abs: q.changeAbs });
+      }
+    },
+    [company.ticker]
+  );
+  useLiveQuotes({ market: "BRVM", tickers: [company.ticker], onChange: onLiveQuotes });
   const [denseLoading, setDenseLoading] = useState(false);
   // Cache `chart_series` chaud : la série SSR est déjà la base d'affichage.
   // Manquant ou périmé : compléter en arrière-plan (densify / tip), sans bloquer le premier paint.

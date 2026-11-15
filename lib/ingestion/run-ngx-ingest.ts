@@ -4,6 +4,7 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
 import { IngestionStatus } from "@prisma/client";
 import { refreshChartSeries } from "@/lib/charts/refresh-chart-series";
+import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 import { fetchEurNgnRate, upsertEurNgnRate } from "@/lib/markets/fx";
 import { currencyForExchange } from "@/lib/markets/listing-scope";
 import { prisma } from "@/lib/prisma";
@@ -261,6 +262,8 @@ export async function runNgxDailyIngest(options: NgxIngestOptions = {}): Promise
         });
       }
       summary.quotes = await persistNgxQuotes(db, loaded.quotes, upserted.companyIdByTicker, new Date().toISOString());
+      // Avant toute évaluation d'alertes : le cours affiché suit celui des notifications.
+      if (summary.quotes > 0) revalidateQuotesAfterWrite({ markets: ["NGX"] });
       log(options, `${summary.quotes} cours ${loaded.kind} ${loaded.date}`);
     }
 

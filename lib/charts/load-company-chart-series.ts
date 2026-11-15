@@ -20,6 +20,7 @@ import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 import { closeForSession, sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
 import type { DataSourceCode } from "@/lib/ingestion/types";
 import { dedupeChartPointsByDay } from "./indicators";
+import { overlayLatestClose, seriesBehindLatest, type LatestClosePoint } from "./overlay-latest-close";
 
 export interface LoadedCompanyChartSeries {
   series: ChartClosePoint[];
@@ -142,19 +143,31 @@ function withFreshness(
   };
 }
 
-/** Ajoute la dernière séance de price_history si le cache s'arrête avant. */
+/** Dernière clôture affichée, ramenée sur la base de la série (fractionnements). */
+function adjustedLatest(
+  actions: AdjustmentAction[],
+  latest: LatestCanonicalClose | null
+): LatestClosePoint | null {
+  if (!latest || !(latest.close > 0)) return null;
+  const adjusted = adjustSeries([{ time: latest.date, value: latest.close, volume: null }], actions);
+  const point = adjusted[adjusted.length - 1];
+  if (!point || !(point.value > 0)) return null;
+  return { date: latest.date, close: point.value };
+}
+
+/**
+ * Aligne la série sur la dernière séance de price_history : ajoute la séance si le
+ * cache s'arrête avant, remplace le cours si le cache porte une autre valeur le
+ * même jour (cours intrajournalier remplacé par la clôture officielle).
+ */
 function overlayFreshClose(
   series: ChartClosePoint[],
   actions: AdjustmentAction[],
   latest: LatestCanonicalClose | null
 ): ChartClosePoint[] {
-  if (!latest || !(latest.close > 0)) return series;
-  const last = series[series.length - 1]?.time ?? "";
-  if (last >= latest.date) return series;
-  const adjusted = adjustSeries([{ time: latest.date, value: latest.close, volume: null }], actions);
-  const point = adjusted[adjusted.length - 1];
-  if (!point || !(point.value > 0)) return series;
-  return dedupeChartPointsByDay([...series, point]);
+  const point = adjustedLatest(actions, latest);
+  if (!point) return series;
+  return dedupeChartPointsByDay(overlayLatestClose(series, point));
 }
 
 export async function loadCompanyChartSeries(opts: {
@@ -185,7 +198,10 @@ export async function loadCompanyChartSeries(opts: {
       ? { points, actions, fingerprint: fp }
       : await presentCompanyCloses(prisma, opts.companyId, opts.ticker, points);
     const rawLast = presented.points[presented.points.length - 1]?.time ?? null;
-    const cacheWasBehind = fromCache && isChartSeriesStale(rawLast, latest?.date ?? null);
+    const cacheWasBehind =
+      fromCache &&
+      (isChartSeriesStale(rawLast, latest?.date ?? null) ||
+        seriesBehindLatest(presented.points, adjustedLatest(presented.actions, latest)));
     const series = overlayFreshClose(presented.points, presented.actions, latest);
     const sources = meta?.sources ?? [];
     return withFreshness(

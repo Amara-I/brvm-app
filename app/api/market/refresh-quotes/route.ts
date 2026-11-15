@@ -11,6 +11,7 @@ import { NextRequest } from "next/server";
 import { getCompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import { getMarketSparkSeriesByTicker, getMarketDayChangeByTicker } from "@/lib/api/market-spark-series";
 import { revalidateMarketDataCache } from "@/lib/api/revalidate-market-cache";
+import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 import { apiError, apiSuccess, privateCacheHeaders } from "@/lib/api/response";
 import { runBrvmQuotesRefresh } from "@/lib/ingestion/run-brvm-quotes-refresh";
 import { checkRateLimit } from "@/lib/security/rate-limit";
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest) {
     const ingestion = await runBrvmQuotesRefresh();
     if (!ingestion.skipped && ingestion.reconciledPricesCount > 0) {
       revalidateMarketDataCache();
+      revalidateQuotesAfterWrite({ markets: ["BRVM"] });
     }
     const { dataset, sparkSeries, dayChanges } = await datasetAndSpark();
     return apiSuccess({ dataset, sparkSeries, dayChanges, ingestion }, { headers: privateCacheHeaders() });

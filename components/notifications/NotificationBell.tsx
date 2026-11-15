@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { collapseDuplicateNotifications } from "@/lib/notifications/dedupe";
+import { requestQuoteRefresh } from "@/lib/quotes/quote-events";
 import { notificationTypeLabel } from "./type-label";
 import styles from "./NotificationBell.module.css";
 
@@ -26,6 +27,8 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
   const [unread, setUnread] = useState(0);
   const [items, setItems] = useState<Notif[]>([]);
   const wrapRef = useRef<HTMLDivElement>(null);
+  /** Notifications déjà vues par ce composant : une nouvelle déclenche la relecture des cours concernés. */
+  const seenRef = useRef<Set<string> | null>(null);
 
   const load = useCallback(async () => {
     if (!isAuthenticated) return;
@@ -34,7 +37,14 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
       const json = await res.json();
       if (!res.ok || !json.ok) return;
       // Filet de sécurité : jamais deux cartes pour la même information.
-      setItems(collapseDuplicateNotifications((json.data?.notifications ?? []) as Notif[]));
+      const list = collapseDuplicateNotifications((json.data?.notifications ?? []) as Notif[]);
+      setItems(list);
+      // Une notification de cours vient d'arriver : relire aussitôt le cours affiché
+      // (fiche, liste, portefeuille) pour qu'il soit celui de la notification.
+      const seen = seenRef.current;
+      const fresh = seen ? list.filter((n) => !seen.has(n.id) && !n.readAt && n.ticker) : [];
+      seenRef.current = new Set([...(seen ?? []), ...list.map((n) => n.id)]);
+      if (fresh.length > 0) requestQuoteRefresh(fresh.map((n) => n.ticker));
       setUnread(Number(json.data?.unreadCount ?? 0));
     } catch {
       /* silencieux — le badge reste à 0 */
@@ -132,6 +142,7 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
                 className={`${styles.item} ${n.readAt ? "" : styles.itemUnread}`}
                 onClick={() => {
                   void markOpened(n.id);
+                  if (n.ticker) requestQuoteRefresh([n.ticker]);
                   setOpen(false);
                 }}
               >

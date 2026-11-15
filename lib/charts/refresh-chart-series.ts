@@ -273,6 +273,26 @@ export function mergeTipPoints(opts: {
   };
 }
 
+/**
+ * Vrai si la dernière séance du cache a été corrigée en base (même date, autre cours) :
+ * ex. cours intrajournalier enregistré par « Actualiser », remplacé ensuite par la
+ * clôture officielle. Sans ce test, le tip ne réécrivait que les séances NOUVELLES.
+ */
+export function tipLastDayCorrected(
+  cached: readonly ChartClosePoint[],
+  raw: readonly ChartClosePoint[],
+  actions: AdjustmentAction[]
+): boolean {
+  const last = cached[cached.length - 1];
+  if (!last) return false;
+  const day = last.time.slice(0, 10);
+  const rawLast = raw.find((point) => point.time.slice(0, 10) === day);
+  if (!rawLast || !(rawLast.value > 0)) return false;
+  const adjusted = adjustSeries([{ time: day, value: rawLast.value, volume: rawLast.volume }], actions)[0];
+  if (!adjusted) return false;
+  return Math.abs(adjusted.value - last.value) > 1e-6;
+}
+
 function shiftIsoDate(iso: string, days: number): string {
   const d = new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -366,7 +386,8 @@ export async function tipLatestChartPoints(
       const newer = last ? raw.some((point) => point.time > last) : raw.length > 0;
       const fp = adjustmentFingerprint(actions);
       const fpMismatch = (cached.meta?.adjustmentFingerprint ?? null) !== fp && fp !== "none";
-      if (!newer && !fpMismatch) continue;
+      const lastDayCorrected = tipLastDayCorrected(cached.points, raw, actions);
+      if (!newer && !fpMismatch && !lastDayCorrected) continue;
       const contextRaw = last ? raw.filter((point) => point.time <= last) : [];
       const newRaw = last ? raw.filter((point) => point.time > last) : raw;
       const merged = mergeTipPoints({
@@ -410,7 +431,7 @@ export async function tipLatestChartPoints(
         const since = last ? shiftIsoDate(last, -8) : "1990-01-01";
         const raw = dedupeChartPointsByDay(await loadClosesSince(db, "INDEX", index.id, since));
         const newer = last ? raw.some((point) => point.time > last) : raw.length > 0;
-        if (!newer) continue;
+        if (!newer && !tipLastDayCorrected(cached.points, raw, [])) continue;
         const merged = mergeTipPoints({
           cached: cached.points,
           cachedFingerprint: cached.meta?.adjustmentFingerprint ?? "none",

@@ -15,6 +15,7 @@ import { persistFinancialRatios, persistPriceQuotes } from "./persist";
 import { toPrismaDataSource } from "./prisma-mappers";
 import { reconcilePriceBatch } from "./reconciliation";
 import type { RawPriceQuote } from "./types";
+import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 
 export interface BrvmQuotesRefreshSummary {
   quotesFetched: number;
@@ -30,12 +31,14 @@ export interface BrvmQuotesRefreshSummary {
 export interface BrvmQuotesRefreshOptions {
   /** Si true (cron horaire), ne tente pas les fiches PER/cap. */
   skipFundamentals?: boolean;
+  /** false : n'évalue pas les alertes (ingestion intrajournalière fréquente, alertes à un autre rythme). */
+  evaluateAlerts?: boolean;
 }
 
 export async function runBrvmQuotesRefresh(
   options: BrvmQuotesRefreshOptions = {}
 ): Promise<BrvmQuotesRefreshSummary> {
-  const { skipFundamentals = false } = options;
+  const { skipFundamentals = false, evaluateAlerts = true } = options;
   const startedAt = Date.now();
   const companies = await prisma.company.findMany({
     where: { isActive: true, exchange: "BRVM" },
@@ -71,6 +74,14 @@ export async function runBrvmQuotesRefresh(
 
     const { reconciled: reconciledPrices } = reconcilePriceBatch(priceQuotes);
     const priceResult = await persistPriceQuotes(prisma, priceQuotes, reconciledPrices, companyIdByTicker);
+    // Avant l'évaluation des alertes : fiche, listes et sondage live relisent le même
+    // dernier cours que la notification (cache des derniers cours + jeu marché).
+    if (priceQuotes.length > 0) {
+      revalidateQuotesAfterWrite({
+        markets: ["BRVM"],
+        tickers: [...new Set(priceQuotes.map((q) => q.ticker))],
+      });
+    }
 
     // Fondamentaux (PER / cap.) : uniquement hors cron horaire, et seulement
     // les sociétés encore sans capitalisation canonique (Crawl-delay BRVM 10s).
@@ -122,14 +133,16 @@ export async function runBrvmQuotesRefresh(
     });
 
     // Alertes + centre de notifications : best-effort après mise à jour des cours.
-    try {
-      const { evaluateAllAlerts } = await import("../notifications/evaluate-all");
-      await evaluateAllAlerts();
-    } catch (err) {
-      console.error(
-        "[quotes-refresh] Évaluation des alertes ignorée :",
-        err instanceof Error ? err.message : err
-      );
+    if (evaluateAlerts) {
+      try {
+        const { evaluateAllAlerts } = await import("../notifications/evaluate-all");
+        await evaluateAllAlerts();
+      } catch (err) {
+        console.error(
+          "[quotes-refresh] Évaluation des alertes ignorée :",
+          err instanceof Error ? err.message : err
+        );
+      }
     }
 
     return {

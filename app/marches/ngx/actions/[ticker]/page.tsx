@@ -5,7 +5,6 @@ import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import NgxChart from "@/components/ngx/NgxChart";
 import { ngxBoardLabel, ngxSectorLabel } from "@/components/ngx/ngx-labels";
 import styles from "@/components/ngx/NgxMarket.module.css";
-import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
 import CompanyMark from "@/components/ui/CompanyMark";
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
@@ -15,6 +14,7 @@ import { loadNgxCompany } from "@/lib/markets/ngx-browse";
 import { loadNgxChartUniverse } from "@/lib/markets/ngx-chart";
 import { loadNgxSheet } from "@/lib/markets/ngx-sheet";
 import NgxSheetView from "@/components/ngx/sheet/NgxSheetView";
+import NgxLiveQuote from "@/components/ngx/sheet/NgxLiveQuote";
 import NgxSheetTabs from "@/components/ngx/sheet/NgxSheetTabs";
 import NgxTechnicalTab from "@/components/ngx/sheet/NgxTechnicalTab";
 import sheetStyles from "@/components/ngx/sheet/NgxSheet.module.css";
@@ -78,8 +78,12 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
         <div className={styles.hero}>
           <div>
             <span className={styles.sub}>{t("ngx.company.price")}</span>
-            <div className={styles.heroPrice}>{company.close == null ? "N/D" : format.money(company.close, "NGN")}</div>
-            <ChangeValue value={company.changePercent} />
+            <NgxLiveQuote
+              ticker={company.ticker}
+              close={company.close}
+              changePercent={company.changePercent}
+              priceClassName={styles.heroPrice}
+            />
             <div style={{ marginTop: "0.6rem" }}>
               <TickerAlertButton
                 isAuthenticated={Boolean(userId)}
