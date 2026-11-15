@@ -43,10 +43,11 @@ export async function GET(request: NextRequest) {
   if (!userId) return apiError("Authentification requise", 401);
 
   const ticker = request.nextUrl.searchParams.get("ticker")?.trim().toUpperCase() ?? null;
+  const indexCode = request.nextUrl.searchParams.get("indexCode")?.trim().toUpperCase() ?? null;
 
   try {
     const rules = await prisma.alertRule.findMany({
-      where: { userId, ...(ticker ? { ticker } : {}) },
+      where: { userId, ...(ticker ? { ticker } : {}), ...(indexCode ? { indexCode } : {}) },
       orderBy: { updatedAt: "desc" },
       take: 80,
     });
@@ -71,8 +72,14 @@ export async function POST(request: NextRequest) {
   try {
     if (data.kind === "INDEX_MOVE") {
       const code = data.indexCode.toUpperCase();
-      if (!(HEADLINE_INDEX_ALERT_CODES as readonly string[]).includes(code) && !code.startsWith("BRVM")) {
-        return apiError("Indice non suivi", 422);
+      const isBrvmCode = (HEADLINE_INDEX_ALERT_CODES as readonly string[]).includes(code) || code.startsWith("BRVM");
+      if (!isBrvmCode) {
+        // Indices NGX (NGX_ASI, NGX30, sectoriels…) : seulement s'ils existent en base sous la NGX.
+        const ngxIndex = await prisma.marketIndex.findFirst({
+          where: { code, exchange: "NGX" },
+          select: { id: true },
+        });
+        if (!ngxIndex) return apiError("Indice non suivi", 422);
       }
       const created = await prisma.alertRule.create({
         data: {

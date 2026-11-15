@@ -31,6 +31,25 @@ function clientIp(request: NextRequest): string {
   );
 }
 
+const ALERTS_BUDGET_MS = 25_000;
+
+async function evaluateNgxAlertsAfterRefresh(): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const { evaluateAllAlerts } = await import("@/lib/notifications/evaluate-all");
+    await Promise.race([
+      evaluateAllAlerts({ exchanges: ["NGX"], skipEmailFlush: true }),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("délai dépassé")), ALERTS_BUDGET_MS);
+      }),
+    ]);
+  } catch (err) {
+    console.error("[refresh-ngx] Évaluation des alertes ignorée :", err instanceof Error ? err.message : err);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 export async function POST(request: NextRequest) {
   const ip = clientIp(request);
   const cooldown = checkRateLimit(`refresh-ngx-quotes:${ip}`, {
@@ -81,6 +100,11 @@ export async function POST(request: NextRequest) {
     // Nouveaux cours en base : on invalide le cache serveur NGX et on relit
     // la base directement pour cette réponse.
     revalidateNgxMarketCache();
+    // Comme l'actualisation BRVM : alertes NGX (seuils ₦, variations, signaux,
+    // indices NGX) évaluées sur les nouveaux cours. Best-effort et borné.
+    if (ingestion.status !== "FAILED" && ingestion.quotes + ingestion.indices > 0) {
+      await evaluateNgxAlertsAfterRefresh();
+    }
     const board = await loadNgxOverviewBoard(t, { fresh: true });
     return apiSuccess(
       {
