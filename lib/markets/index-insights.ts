@@ -338,12 +338,12 @@ export function buildIndexReading(input: IndexReadingInput): ReadingLine[] {
     if (sup || res) {
       const seg: ReadingSegment[] = [];
       if (sup) {
-        seg.push(s(en ? "Nearest support: " : "Support le plus proche : "), b(formatPriceRange(sup.low, sup.high, "PTS", locale), "pos"));
+        seg.push(s(en ? "Nearest support: " : "Support le plus proche : "), b(formatPriceRange(sup.low, sup.high, "PTS", locale), "neutral"));
         seg.push(s(` (${pct(((sup.mid - last) / last) * 100, locale)})`));
       }
       if (res) {
         seg.push(s(sup ? (en ? "; resistance: " : " ; résistance : ") : en ? "Nearest resistance: " : "Résistance la plus proche : "));
-        seg.push(b(formatPriceRange(res.low, res.high, "PTS", locale), "neg"));
+        seg.push(b(formatPriceRange(res.low, res.high, "PTS", locale), "neutral"));
         seg.push(s(` (${pct(((res.mid - last) / last) * 100, locale)})`));
       }
       seg.push(s("."));
