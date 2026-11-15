@@ -4,13 +4,15 @@ import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import { getIndexSearchIndex } from "@/lib/api/index-search-index";
 import { getListingSearchIndex } from "@/lib/api/listing-search-index";
 import SidebarLayout from "@/components/layout/SidebarLayout";
+import { loadNgxListedCompanies } from "@/lib/markets/ngx-listed-companies";
 
 export default async function AppHeader({ children }: { children?: React.ReactNode }) {
-  const [user, nav, searchIndex, searchIndices] = await Promise.all([
+  const [user, nav, searchIndex, searchIndices, ngxListed] = await Promise.all([
     getCurrentUser().catch(() => null),
     getCompaniesNavIndex(),
     getListingSearchIndex().catch(() => []),
     getIndexSearchIndex().catch(() => []),
+    loadNgxListedCompanies().catch(() => null),
   ]);
 
   return (
@@ -19,6 +21,11 @@ export default async function AppHeader({ children }: { children?: React.ReactNo
       totalCompanies={nav.companies.length}
       searchCompanies={searchIndex}
       searchIndices={searchIndices}
+      ngxListedCategories={(ngxListed?.sectors ?? []).map((sector) => ({
+        slug: sector.slug,
+        group: sector.group,
+        count: sector.count,
+      }))}
       user={
         user
           ? {

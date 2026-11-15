@@ -8,6 +8,8 @@ import { parseNgxProfileMeta } from "@/lib/ngx/fundamentals";
 import { marketCapBn } from "@/lib/ngx/valuation";
 import { getMarketLatestQuotes } from "@/lib/quotes/latest-quotes";
 import type { LatestQuote } from "@/lib/quotes/types";
+import { ngxCompanyDisplayName } from "@/lib/ngx/official-names";
+import { ngxSectorGroup, ngxSectorGroupSlug, NGX_SECTOR_GROUPS } from "@/lib/ngx/sectors";
 import type { NgxListedCompaniesData, NgxListedCompanyRow, NgxListedSectorCount } from "./ngx-listed-companies-core";
 
 export type {
@@ -15,7 +17,7 @@ export type {
   NgxListedCompanyRow,
   NgxListedSectorCount,
 } from "./ngx-listed-companies-core";
-export { filterNgxListedRows } from "./ngx-listed-companies-core";
+export { filterNgxListedRows, groupNgxListedRows } from "./ngx-listed-companies-core";
 
 export function buildNgxListedCompanies(
   companies: ReadonlyArray<{
@@ -32,11 +34,14 @@ export function buildNgxListedCompanies(
     const quote = quoteByTicker.get(company.ticker);
     const close = quote != null && quote.close > 0 ? quote.close : null;
     const shares = parseNgxProfileMeta(company.profileMeta).sharesOutstanding?.value ?? null;
+    const category = ngxSectorGroup(company.ticker, company.sectorSlug || company.sectorName);
     return {
       ticker: company.ticker,
-      name: company.name,
+      name: ngxCompanyDisplayName(company.ticker, company.name),
       sectorSlug: company.sectorSlug,
       sectorName: company.sectorName,
+      category,
+      categorySlug: ngxSectorGroupSlug(category),
       close,
       changePercent: quote?.changePercent ?? null,
       marketCapBn: marketCapBn(close, shares),
@@ -46,15 +51,18 @@ export function buildNgxListedCompanies(
 
   const sectorMap = new Map<string, NgxListedSectorCount>();
   for (const row of rows) {
-    const current = sectorMap.get(row.sectorSlug) ?? {
-      slug: row.sectorSlug,
-      name: row.sectorName,
+    const current = sectorMap.get(row.categorySlug) ?? {
+      slug: row.categorySlug,
+      group: row.category,
+      name: row.category,
       count: 0,
     };
     current.count += 1;
-    sectorMap.set(row.sectorSlug, current);
+    sectorMap.set(row.categorySlug, current);
   }
-  const sectors = [...sectorMap.values()].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  const sectors = NGX_SECTOR_GROUPS.map((group) => sectorMap.get(ngxSectorGroupSlug(group))).filter(
+    (sector): sector is NgxListedSectorCount => sector != null && sector.count > 0,
+  );
 
   const sessionDate = rows.reduce<string | null>((max, row) => {
     if (!row.sessionDate) return max;

@@ -14,6 +14,7 @@ import NotificationBell from "@/components/notifications/NotificationBell";
 import AccountMenu from "@/components/auth/AccountMenu";
 import VerifyEmailBanner from "@/components/auth/VerifyEmailBanner";
 import type { HeaderNavUser } from "@/components/nav/HeaderNav";
+import type { NgxListedNavCategory } from "@/components/nav/NgxListedCategoryMenu";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import type { IndexSearchSource } from "@/lib/search/documents";
@@ -27,6 +28,7 @@ type Props = {
   searchCompanies: HeaderSearchItem[];
   searchIndices: IndexSearchSource[];
   user: HeaderNavUser | null;
+  ngxListedCategories?: NgxListedNavCategory[];
 };
 
 export default function SidebarLayout({
@@ -36,6 +38,7 @@ export default function SidebarLayout({
   searchCompanies,
   searchIndices,
   user,
+  ngxListedCategories = [],
 }: Props) {
   const pathname = usePathname();
   const { t } = useI18n();
@@ -64,6 +67,7 @@ export default function SidebarLayout({
     totalCompanies,
     searchCompanies,
     user,
+    ngxListedCategories,
     onNavigate: () => setMobileOpen(false),
   };
 

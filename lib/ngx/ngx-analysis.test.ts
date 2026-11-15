@@ -121,10 +121,11 @@ describe("secteurs et noms", () => {
   it("sépare banques et assureurs de FINANCIAL SERVICES", () => {
     expect(ngxSectorGroup("GTCO", "financial-services")).toBe("BANKING");
     expect(ngxSectorGroup("AIICO", "FINANCIAL SERVICES")).toBe("INSURANCE");
-    expect(ngxSectorGroup("UCAP", "financial-services")).toBe("OTHER");
+    expect(ngxSectorGroup("UCAP", "financial-services")).toBe("FINANCIAL_SERVICES");
+    expect(ngxSectorGroup("INFINITY", "financial-services")).toBe("BANKING");
     expect(ngxSectorGroup("DANGCEM", "INDUSTRIAL GOODS")).toBe("INDUSTRIAL_GOODS");
     expect(ngxSectorGroup("SEPLAT", "OIL AND GAS")).toBe("OIL_GAS");
-    expect(ngxSectorGroup("GEREGU", "UTILITIES")).toBe("OTHER");
+    expect(ngxSectorGroup("GEREGU", "UTILITIES")).toBe("UTILITIES");
     expect(ngxSectorGroup("XYZ", "unknown")).toBe("OTHER");
     expect(isFinancialGroup("BANKING")).toBe(true);
     expect(isFinancialGroup("ICT")).toBe(false);
