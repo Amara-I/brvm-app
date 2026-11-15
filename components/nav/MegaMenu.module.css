@@ -132,15 +132,21 @@
   width: 22px;
   height: 22px;
   border-radius: 4px;
-  border: 1px solid color-mix(in srgb, var(--mm-green) 45%, var(--mm-border));
-  background: color-mix(in srgb, var(--mm-green) 14%, transparent);
-  color: var(--mm-green);
+  border: 1px solid var(--mm-border);
+  background: var(--mm-panelAlt);
+  color: var(--mm-gold);
   font-size: 0.55rem;
   font-weight: 800;
   letter-spacing: -0.02em;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+}
+
+.logoMark :global(.ob-company-mark) {
+  background: transparent;
+  border-radius: 3px;
 }
 
 .companyMain {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import AnalysisRecap from "@/components/analysis/AnalysisRecap";
+import CompanyMark from "@/components/ui/CompanyMark";
 import ScoreBadge from "@/components/ui/ScoreBadge";
 import SignalBadge from "@/components/ui/SignalBadge";
 import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
@@ -217,7 +218,7 @@ export default async function SocietesCoteesPage() {
                       <Link href={`/actions/${co.ticker}`} className={styles.cardMain}>
                         <div className={styles.cardTop}>
                           <span className={styles.logo} aria-hidden="true">
-                            {co.ticker.slice(0, 2)}
+                            <CompanyMark ticker={co.ticker} name={co.name} size={40} market="BRVM" />
                           </span>
                           <div className={styles.cardIdentity}>
                             <span className={styles.ticker}>{co.ticker}</span>

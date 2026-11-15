@@ -228,7 +228,7 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                           }}
                         />
                         <span className="ob-ticker-with-mark">
-                          <CompanyMark ticker={r.ticker} name={r.name} size={20} />
+                          <CompanyMark ticker={r.ticker} name={r.name} size={20} market="NGX" />
                           <span className={styles.ticker}>{r.ticker}</span>
                         </span>
                       </td>

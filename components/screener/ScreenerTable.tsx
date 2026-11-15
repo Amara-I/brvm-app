@@ -11,6 +11,7 @@ import { C } from "@/lib/theme/colors";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import type { CompanyWithMetrics } from "@/lib/calc/market-summary-stats";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
+import CompanyMark from "@/components/ui/CompanyMark";
 import ChangeValue from "@/components/ui/ChangeValue";
 import SignalBadge from "@/components/ui/SignalBadge";
 import ScoreBadge from "@/components/ui/ScoreBadge";
@@ -217,7 +218,11 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                 <tr key={co.ticker}>
                   <td>
                     <Link href={`/actions/${co.ticker}`} className={styles.tickerLink}>
-                      {co.countryFlag} <strong>{co.ticker}</strong>
+                      <span className="ob-ticker-with-mark">
+                        <CompanyMark ticker={co.ticker} name={co.name} size={20} market="BRVM" />
+                        <span aria-hidden="true">{co.countryFlag}</span>
+                        <strong>{co.ticker}</strong>
+                      </span>
                       <span className={styles.nameDim}> — {co.name}</span>
                     </Link>
                   </td>

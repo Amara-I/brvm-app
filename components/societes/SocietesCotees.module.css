@@ -200,14 +200,21 @@
   width: 3rem;
   height: 3rem;
   border-radius: 10px;
-  border: 1px solid color-mix(in srgb, var(--c-green) 45%, var(--c-border));
-  background: color-mix(in srgb, var(--c-green) 14%, transparent);
-  color: var(--c-green);
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+  color: var(--c-gold);
   font-size: 0.78rem;
   font-weight: 800;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  padding: 4px;
+}
+
+.logo :global(.ob-company-mark) {
+  background: transparent;
+  border-radius: 6px;
 }
 
 .cardIdentity {
