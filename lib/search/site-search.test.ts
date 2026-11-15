@@ -98,6 +98,7 @@ describe("recherche sur tout le site", () => {
     expect(dividendPages.some((hit) => hit.href === "/screener")).toBe(false);
     expect(searchSite(pages, "taille de position").some((group) => group.items.some((hit) => hit.href === "/outils/taille-position"))).toBe(true);
     expect(searchSite(pages, "screener ngx").some((group) => group.items.some((hit) => hit.href === "/marches/ngx/screener"))).toBe(true);
+    expect(searchSite(pages, "societes cotees ngx").some((group) => group.items.some((hit) => hit.href === "/marches/ngx/societes"))).toBe(true);
     expect(searchSite(pages, "graphiques").some((group) => group.items.some((hit) => hit.href === "/graphes"))).toBe(true);
   });
 

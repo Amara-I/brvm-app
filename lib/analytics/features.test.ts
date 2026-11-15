@@ -12,6 +12,7 @@ describe("featureFromPath", () => {
     expect(featureFromPath("/simulation")).toBe("simulation");
     expect(featureFromPath("/actions/SNTS")).toBe("company_sheet");
     expect(featureFromPath("/societes-cotees")).toBe("societes_cotees");
+    expect(featureFromPath("/marches/ngx/societes")).toBe("societes_cotees");
     expect(featureFromPath("/marches/jse")).toBe("coming_soon_market");
     expect(featureFromPath("/calendrier-dividendes")).toBe("dividendes");
     expect(featureFromPath("/education/introduire")).toBe("education");

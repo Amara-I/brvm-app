@@ -23,6 +23,12 @@ const EXTRA_MARKET_ROUTES: Record<string, ExtraRoute[]> = {
       keywords: ["screener", "filtre", "filter", "ngx"],
     },
     {
+      slug: "societes",
+      title: "Sociétés cotées NGX",
+      titleEn: "NGX listed companies",
+      keywords: ["societes", "societe", "companies", "listed companies", "annuaire", "liste", "ngx"],
+    },
+    {
       slug: "dividendes",
       title: "Dividendes NGX",
       titleEn: "NGX dividends",

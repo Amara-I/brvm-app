@@ -70,6 +70,12 @@ export function marketDividendsHref(code: AfricanExchange["code"]): string | nul
   return null;
 }
 
+/** Annuaire des sociétés cotées, quand il existe (NGX seulement pour l'instant ; la BRVM a /societes-cotees). */
+export function marketListedCompaniesHref(code: AfricanExchange["code"]): string | null {
+  if (code === "NGX") return `${comingSoonMarketHref(code)}/societes`;
+  return null;
+}
+
 export function parseComingSoonMarketSlug(slug: string | undefined): AfricanExchange | null {
   if (!slug) return null;
   const exchange = AFRICAN_EXCHANGES.find((item) => item.code === slug.trim().toUpperCase());

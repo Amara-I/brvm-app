@@ -56,7 +56,7 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
       <div className="ob-page">
         <div className={sheetStyles.column}>
         <p>
-          <a className={styles.back} href="/marches/ngx">
+          <a className={styles.back} href="/marches/ngx/societes">
             ← {t("ngx.company.back")}
           </a>
         </p>

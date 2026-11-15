@@ -16,6 +16,7 @@ import {
   liveSecondaryExchanges,
   marketIndicesHref,
   marketDividendsHref,
+  marketListedCompaniesHref,
   marketScreenerHref,
 } from "@/lib/markets/nav-structure";
 import CompanyMegaMenu from "./CompanyMegaMenu";
@@ -267,6 +268,7 @@ export default function HeaderNav({
             const indicesHref = marketIndicesHref(exchange.code);
             const screenerHref = marketScreenerHref(exchange.code);
             const dividendsHref = marketDividendsHref(exchange.code);
+            const listedHref = marketListedCompaniesHref(exchange.code);
             const marketActive = isSecondaryMarketPath(pathname, exchange.code);
             const open = soonOpen[exchange.code] ?? marketActive;
             return (
@@ -305,6 +307,15 @@ export default function HeaderNav({
                     href={screenerHref}
                     label={t("chrome.nav.screener")}
                     active={isActive(screenerHref)}
+                    onClick={close}
+                    sidebar={sidebar}
+                  />
+                ) : null}
+                {listedHref ? (
+                  <NavLink
+                    href={listedHref}
+                    label={t("chrome.nav.companies")}
+                    active={isActive(listedHref)}
                     onClick={close}
                     sidebar={sidebar}
                   />
