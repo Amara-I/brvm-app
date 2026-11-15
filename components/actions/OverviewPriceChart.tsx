@@ -35,6 +35,8 @@ interface Props {
   defaultUp: boolean;
   nd: string;
   emptyLabel: string;
+  /** Devise affichée dans l'infobulle (FCFA par défaut ; ₦ sur la fiche NGX). */
+  currency?: string;
 }
 
 interface HoverInfo {
@@ -71,6 +73,7 @@ function OverviewPriceChart({
   defaultUp,
   nd,
   emptyLabel,
+  currency = "FCFA",
 }: Props) {
   const { t, format } = useI18n();
   const [hoverTime, setHoverTime] = useState<string | null>(null);
@@ -191,7 +194,7 @@ function OverviewPriceChart({
                     <div className={styles.chartTip}>
                       <div className={styles.chartTipDate}>{dateLabel(info.time, format, true)}</div>
                       <div className={styles.chartTipPrice}>
-                        {priceFmt(info.close)} <span>FCFA</span>
+                        {priceFmt(info.close)} <span>{currency}</span>
                       </div>
                       {info.variation != null && (
                         <div className={info.variation >= 0 ? styles.pos : styles.neg}>{signed(info.variation)}</div>

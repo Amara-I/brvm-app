@@ -35,6 +35,18 @@ export default function NgxSheetTabs({
     else if (rawTab) setTab(normalizeNgxSheetTab(rawTab));
   }, [setTab]);
 
+  // « Ouvrir les graphes détaillés » (carte Cours de la vue d'ensemble) → onglet Analyse Graphique.
+  useEffect(() => {
+    const onTab = (event: Event) => {
+      const next = normalizeNgxSheetTab(String((event as CustomEvent).detail ?? ""));
+      setTab(next);
+      trackFeature("company_sheet", `ngx-tab:${next}`);
+      window.scrollTo({ top: Math.max(0, (document.getElementById("ngx-tab-charts")?.getBoundingClientRect().top ?? 0) + window.scrollY - 80) });
+    };
+    window.addEventListener("ouestbourse:ngx-sheet-tab", onTab);
+    return () => window.removeEventListener("ouestbourse:ngx-sheet-tab", onTab);
+  }, [setTab]);
+
   return (
     <>
       <div className={styles.tabs} role="tablist" aria-label={t("company.tabsAria")}>
