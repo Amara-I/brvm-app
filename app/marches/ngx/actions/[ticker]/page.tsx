@@ -73,7 +73,7 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
           kicker={`${company.ticker} · ${ngxSectorLabel(company.sectorSlug, company.sectorName, t)}`}
           title={company.name}
           lead={t("ngx.market.sourceLine", { source: translateDataSourceLabel(company.sourceLabel, t) })}
-          mark={<CompanyMark ticker={company.ticker} name={company.name} size={52} />}
+          mark={<CompanyMark ticker={company.ticker} name={company.name} size={52} market="NGX" />}
         />
         <div className={styles.hero}>
           <div>

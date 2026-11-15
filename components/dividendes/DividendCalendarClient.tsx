@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import CompanyMark from "@/components/ui/CompanyMark";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import {
@@ -129,7 +130,10 @@ function EventsTable({ rows }: { rows: DividendCalendarEvent[] }) {
             <tr key={ev.id}>
               <td>
                 <Link href={`/actions/${ev.ticker}`} className={styles.tickerLink}>
-                  {ev.ticker}
+                  <span className="ob-ticker-with-mark">
+                    <CompanyMark ticker={ev.ticker} name={ev.name} size={24} market="BRVM" />
+                    {ev.ticker}
+                  </span>
                 </Link>
               </td>
               <td>

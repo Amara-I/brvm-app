@@ -145,7 +145,7 @@ export default function NgxDividendsTable({
                     <td>
                       <Link href={`/marches/ngx/actions/${r.ticker}`} className={styles.tickerLink}>
                         <span className="ob-ticker-with-mark">
-                          <CompanyMark ticker={r.ticker} name={r.name} size={20} />
+                          <CompanyMark ticker={r.ticker} name={r.name} size={24} market="NGX" />
                           {r.ticker}
                         </span>
                       </Link>

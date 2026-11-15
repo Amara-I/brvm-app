@@ -926,9 +926,9 @@ a.exchangeChip:hover {
   min-width: 0;
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 4.75rem minmax(0, 1fr);
+  grid-template-columns: 24px 4.75rem minmax(0, 1fr);
   gap: 8px;
-  align-items: baseline;
+  align-items: center;
 }
 
 .stockTicker {
@@ -1495,8 +1495,18 @@ a.exchangeChip:hover {
   }
 
   .stockIdentity {
-    grid-template-columns: minmax(0, 1fr);
-    gap: 0;
+    grid-template-columns: 24px minmax(0, 1fr);
+    gap: 0 8px;
+  }
+
+  .stockIdentity :global(.ob-company-mark) {
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+
+  .stockTicker,
+  .stockName {
+    grid-column: 2;
   }
 
   .stockMeta {

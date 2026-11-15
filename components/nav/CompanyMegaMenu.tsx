@@ -5,6 +5,7 @@
 
 import Link from "next/link";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
+import CompanyMark from "@/components/ui/CompanyMark";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { C } from "@/lib/theme/colors";
 import MegaMenuTrigger from "./MegaMenuTrigger";
@@ -92,7 +93,7 @@ export default function CompanyMegaMenu({
                     data-analytics-action="mega_menu"
                   >
                     <span className={styles.logoMark} aria-hidden="true">
-                      {co.ticker.slice(0, 2)}
+                      <CompanyMark ticker={co.ticker} name={co.name} size={22} market="BRVM" />
                     </span>
                     <span className={styles.companyMain}>
                       <span className={styles.companyTicker}>{co.ticker}</span>

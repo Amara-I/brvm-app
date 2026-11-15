@@ -31,6 +31,7 @@ import {
 } from "@/lib/ui/column-filters";
 import styles from "@/components/marche/MarketBoard.module.css";
 import { C } from "@/lib/theme/colors";
+import CompanyMark from "@/components/ui/CompanyMark";
 import ChangeValue from "@/components/ui/ChangeValue";
 import SignalBadge from "@/components/ui/SignalBadge";
 import ScoreBadge from "@/components/ui/ScoreBadge";
@@ -508,10 +509,13 @@ export default function MarketBoardClient({
                               toggleRow(co.ticker);
                             }}
                           />
-                          <span className={styles.ticker} style={{ color: co.color }}>
-                            {co.ticker}
-                          </span>{" "}
-                          <span aria-hidden="true">{co.countryFlag}</span>
+                          <span className="ob-ticker-with-mark">
+                            <CompanyMark ticker={co.ticker} name={co.name} size={24} market="BRVM" />
+                            <span className={styles.ticker} style={{ color: co.color }}>
+                              {co.ticker}
+                            </span>
+                            <span aria-hidden="true">{co.countryFlag}</span>
+                          </span>
                         </td>
                         <td>
                           <div className={styles.name}>{co.name}</div>

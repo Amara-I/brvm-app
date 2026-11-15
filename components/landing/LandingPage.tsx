@@ -1,6 +1,7 @@
 // Landing page — contenu aligné sur les modules réels de la plateforme OuestBourse.
 // Chiffres exclusivement issus des données BRVM (jamais inventés).
 
+import CompanyMark from "@/components/ui/CompanyMark";
 import ScoreBadge from "@/components/ui/ScoreBadge";
 import SignalBadge from "@/components/ui/SignalBadge";
 import { isSignalLabel } from "@/lib/ui/score-signal-tokens";
@@ -359,6 +360,7 @@ export default function LandingPage({
                   return (
                     <Link key={co.ticker} href={`/actions/${co.ticker}`} className={styles.stockRow}>
                       <span className={styles.stockIdentity}>
+                        <CompanyMark ticker={co.ticker} name={co.name} size={24} market="BRVM" />
                         <span className={styles.stockTicker}>{co.ticker}</span>
                         <span className={styles.stockName}>{co.name || t("common.nd")}</span>
                       </span>

@@ -14,6 +14,7 @@ import {
   CartesianGrid,
   ReferenceLine,
 } from "recharts";
+import CompanyMark from "@/components/ui/CompanyMark";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { C } from "@/lib/theme/colors";
 import { calcMetrics, type CalcMetricsResult } from "@/lib/calc/calc-metrics";
@@ -361,8 +362,12 @@ export default function CompanyComparisonPanel({
                 fontWeight: sel ? 700 : 400,
                 fontFamily: "inherit",
                 transition: "all 0.15s",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
               }}
             >
+              <CompanyMark ticker={co.ticker} name={co.name} size={20} market="BRVM" />
               <span aria-hidden="true">{co.countryFlag}</span> {co.ticker}
             </button>
           );

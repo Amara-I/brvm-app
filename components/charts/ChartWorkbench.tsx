@@ -857,8 +857,13 @@ export default function ChartWorkbench({
             title={t("charts.changeSymbol")}
             aria-expanded={showWatchlist}
           >
-            {isNgx && payload?.ticker ? (
-              <CompanyMark ticker={payload.ticker} name={payload.name} size={28} />
+            {payload?.ticker ? (
+              <CompanyMark
+                ticker={payload.ticker}
+                name={payload.name}
+                size={28}
+                market={isNgx ? "NGX" : "BRVM"}
+              />
             ) : (
               payload?.ticker?.slice(0, 1) ?? "·"
             )}
@@ -889,8 +894,11 @@ export default function ChartWorkbench({
                       onClick={() => selectTicker(u.ticker)}
                     >
                       <span className={styles.itemTicker}>
-                        {isNgx ? <CompanyMark ticker={u.ticker} name={u.name} size={18} /> : <span aria-hidden="true">{u.countryFlag}</span>}{" "}
-                        {u.ticker}
+                        <span className="ob-ticker-with-mark">
+                          <CompanyMark ticker={u.ticker} name={u.name} size={20} market={isNgx ? "NGX" : "BRVM"} />
+                          {u.countryFlag ? <span aria-hidden="true">{u.countryFlag}</span> : null}
+                          {u.ticker}
+                        </span>
                       </span>
                       <span className={styles.itemName}>{u.name}</span>
                     </button>
