@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
-import MarketSelector from "@/components/nav/MarketSelector";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
@@ -18,6 +17,7 @@ import type { HeaderNavUser } from "@/components/nav/HeaderNav";
 import type { NgxListedNavCategory } from "@/components/nav/NgxListedCategoryMenu";
 import type { SectorGroup } from "@/lib/calc/market-summary-stats";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
+import type { IndexSearchSource } from "@/lib/search/documents";
 import { BRAND_NAME, BRAND_LOGO_SRC, BRAND_LOGO_WIDTH, BRAND_LOGO_HEIGHT } from "@/lib/theme/brand";
 import styles from "@/components/AppHeader.module.css";
 
@@ -26,6 +26,7 @@ type Props = {
   sectorGroups: SectorGroup[];
   totalCompanies: number;
   searchCompanies: HeaderSearchItem[];
+  searchIndices: IndexSearchSource[];
   user: HeaderNavUser | null;
   ngxListedCategories?: NgxListedNavCategory[];
 };
@@ -35,6 +36,7 @@ export default function SidebarLayout({
   sectorGroups,
   totalCompanies,
   searchCompanies,
+  searchIndices,
   user,
   ngxListedCategories = [],
 }: Props) {
@@ -119,8 +121,7 @@ export default function SidebarLayout({
         </Link>
 
         <div className={styles.topActions}>
-          <MarketSelector />
-          <HeaderSearch companies={searchCompanies} />
+          <HeaderSearch companies={searchCompanies} indices={searchIndices} />
           <NotificationBell isAuthenticated={Boolean(user)} />
           <span className={styles.desktopLanguage}><LanguageSwitcher /></span>
           <ThemeToggle />
@@ -141,7 +142,6 @@ export default function SidebarLayout({
 
       <aside className={`${styles.sidebar} ${mobileOpen ? styles.sidebarOpen : ""}`} data-app-sidebar>
         <div className={styles.mobileLang}>
-          <MarketSelector variant="mobile" />
           <LanguageSwitcher />
         </div>
         <div className={styles.navArea}>

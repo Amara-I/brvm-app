@@ -2,9 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import MarketSelector from "@/components/nav/MarketSelector";
 import HeaderSearch from "@/components/nav/HeaderSearch";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
+import type { IndexSearchSource } from "@/lib/search/documents";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -22,9 +22,11 @@ import styles from "./Landing.module.css";
 
 export default function LandingTopBar({
   searchCompanies,
+  searchIndices,
   user,
 }: {
   searchCompanies: HeaderSearchItem[];
+  searchIndices: IndexSearchSource[];
   user: HeaderNavUser | null;
 }) {
   const { t } = useI18n();
@@ -44,8 +46,7 @@ export default function LandingTopBar({
           </Link>
 
           <div className={styles.topSearch}>
-            <MarketSelector variant="always" />
-            <HeaderSearch companies={searchCompanies} variant="landing" />
+            <HeaderSearch companies={searchCompanies} indices={searchIndices} variant="landing" />
           </div>
 
           <div className={styles.topActions}>
