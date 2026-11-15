@@ -192,7 +192,6 @@ export default function HeaderNav({
         onClick={close}
         sidebar={sidebar}
       />
-      <NavLink href="/graphes" label={t("chrome.nav.charts")} active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
       <CompanyMegaMenu
         groups={sectorGroups}
         totalCount={totalCompanies}
@@ -226,6 +225,7 @@ export default function HeaderNav({
         onClick={close}
         sidebar={sidebar}
       />
+      <NavLink href="/graphes" label={t("chrome.nav.charts")} active={isActive("/graphes")} onClick={close} sidebar={sidebar} />
       {user ? (
         <>
           <NavLink

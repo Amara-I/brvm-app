@@ -54,10 +54,17 @@ describe("isBrvmNavPath", () => {
 });
 
 describe("isGlobalNavPath", () => {
-  it("identifie Portefeuille et Simulation", () => {
+  it("identifie Portefeuille, Simulation et Graphes", () => {
     expect(isGlobalNavPath("/portefeuille")).toBe(true);
     expect(isGlobalNavPath("/simulation")).toBe(true);
+    expect(isGlobalNavPath("/graphes")).toBe(true);
     expect(isGlobalNavPath("/portefeuille/demo")).toBe(true);
+  });
+
+  it("place Graphes parmi les entrées transverses, plus dans le groupe BRVM", () => {
+    expect(GLOBAL_NAV_HREFS).toEqual(["/portefeuille", "/simulation", "/graphes"]);
+    expect(BRVM_NAV_HREFS).not.toContain("/graphes");
+    expect(isBrvmNavPath("/graphes")).toBe(false);
   });
 
   it("ne prend pas les pages BRVM pour globales", () => {
