@@ -23,7 +23,7 @@ import { dailyIngestBudgetMs, runDailyAfterClose, type DailyFollowUpSummary } fr
 import { runFullIngestion } from "@/lib/ingestion/run-full-ingestion";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
-import { revalidateNgxMarketCache } from "@/lib/cache/market-cache";
+import { revalidateMarketIndicesCache, revalidateNgxMarketCache } from "@/lib/cache/market-cache";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest) {
     // Cours NGX du jour (runNgxDailyIngest) et historique importés : le cache
     // serveur NGX (vue d'ensemble, screener, fiches) est invalidé.
     revalidateNgxMarketCache();
+    revalidateMarketIndicesCache();
     console.log(
       `[ingest] http done durationMs=${summary.durationMs} incomplete=${summary.incomplete} stoppedAt=${summary.stoppedAt ?? "-"} budgetMs=${summary.budgetMs} followUp=${followUp.steps.map((s) => `${s.name}:${s.skipped ? "skip" : s.durationMs}`).join(",")}`
     );

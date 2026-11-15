@@ -2,7 +2,7 @@
 // Le titre porte le cours dans la devise de la place (FCFA ou ₦) et, pour l'objectif
 // et l'invalidation, l'écart en %.
 
-import { formatDistancePct, formatPrice, formatPriceRange, levelNearPrice } from "./level-label";
+import { formatDistancePct, formatPrice, formatPriceRange, hasDecimals, levelNearPrice } from "./level-label";
 import { technicalLevels } from "./levels";
 import type { TechnicalAnalysis } from "./types";
 
@@ -35,46 +35,46 @@ const COLORS = {
   fvg: "#D4A843",
 };
 
-function words(locale: "fr" | "en") {
+function words(locale: "fr" | "en", index = false) {
   if (locale === "en") {
     return {
       support: "Support",
       resistance: "Resistance",
-      entry: "Entry",
+      entry: index ? "Key zone" : "Entry",
       invalidation: "Invalidation",
       target: "Target",
-      last: "Price",
+      last: index ? "Level" : "Price",
       fvgBull: "Bullish FVG",
       fvgBear: "Bearish FVG",
       supportShort: "S",
       resistanceShort: "R",
-      entryShort: "E",
+      entryShort: index ? "K" : "E",
       targetShort: "T",
       invalidationShort: "I",
-      lastShort: "P",
+      lastShort: index ? "L" : "P",
     };
   }
   return {
     support: "Support",
     resistance: "Résistance",
-    entry: "Entrée",
+    entry: index ? "Zone clé" : "Entrée",
     invalidation: "Invalidation",
     target: "Objectif",
-    last: "Cours",
+    last: index ? "Niveau" : "Cours",
     fvgBull: "FVG haussier",
     fvgBear: "FVG baissier",
     supportShort: "S",
     resistanceShort: "R",
-    entryShort: "E",
+    entryShort: index ? "Z" : "E",
     targetShort: "O",
     invalidationShort: "I",
-    lastShort: "C",
+    lastShort: index ? "N" : "C",
   };
 }
 
 export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en" = "fr"): ChartLevelLine[] {
-  const copy = words(locale);
   const currency = analysis.currency ?? "XOF";
+  const copy = words(locale, currency === "PTS");
   const money = (value: number) => formatPrice(value, currency, locale);
   const range = (low: number, high: number) => formatPriceRange(low, high, currency, locale);
   const last = analysis.structure.lastClose;
@@ -84,7 +84,7 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
   const add = (line: ChartLevelLine) => {
     if (!Number.isFinite(line.price) || line.price <= 0) return;
     if (last != null && !levelNearPrice(last, line.price)) return;
-    const key = `${currency === "NGN" ? line.price.toFixed(2) : Math.round(line.price)}:${line.title}`;
+    const key = `${hasDecimals(currency) ? line.price.toFixed(2) : Math.round(line.price)}:${line.title}`;
     if (seen.has(key)) return;
     seen.add(key);
     lines.push(line);
