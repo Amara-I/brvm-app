@@ -26,6 +26,13 @@ const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
   timeZone: "UTC",
 };
 
+/** Évite les coupures de ligne à l'intérieur d'un nombre ou entre un nombre et son unité. */
+function unbreakable(text: string): string {
+  return text
+    .replace(/(\d) (?=\d)/g, "$1\u202f")
+    .replace(/(\d) (?=(%|pts\b))/g, "$1\u00a0");
+}
+
 function formatLevel(value: number | null | undefined, format: FormatApi): string {
   if (value == null || Number.isNaN(value)) return "N/D";
   return format.decimal(value, 2);
@@ -45,10 +52,10 @@ function ReadingText({ line }: { line: ReadingLine }) {
             key={i}
             className={seg.tone === "pos" ? styles.pos : seg.tone === "neg" ? styles.neg : styles.hl}
           >
-            {seg.text}
+            {unbreakable(seg.text)}
           </strong>
         ) : (
-          <span key={i}>{seg.text}</span>
+          <span key={i}>{unbreakable(seg.text)}</span>
         )
       )}
     </li>

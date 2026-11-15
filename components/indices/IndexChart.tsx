@@ -93,6 +93,11 @@ function dateLabel(iso: string, format: FormatApi, withDay = true): string {
   });
 }
 
+/** Espaces de groupement insécables : la ligne se coupe au tiret, jamais dans un nombre. */
+function keepNumbers(text: string): string {
+  return text.replace(/(\d) (?=\d)/g, "$1\u202f").replace(/ pts$/, "\u00a0pts");
+}
+
 function levelColor(kind: LevelKind): string {
   if (kind === "support" || kind === "target") return "#26a69a";
   if (kind === "resistance" || kind === "stop") return "#ef5350";
@@ -319,7 +324,7 @@ function IndexChart({ series, analysis }: { series: IndexSeriesPoint[]; analysis
                   >
                     <span className={styles.levelName}>{l.name}</span>
                     <span className={styles.levelValue}>
-                      {l.priceHigh != null ? formatPriceRange(l.price, l.priceHigh, "PTS", lang) : pts(l.price)}
+                      {keepNumbers(l.priceHigh != null ? formatPriceRange(l.price, l.priceHigh, "PTS", lang) : pts(l.price))}
                       {distance ? <span className={styles.levelPct}> {distance}</span> : null}
                     </span>
                   </li>

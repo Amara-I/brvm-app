@@ -298,7 +298,6 @@
 .levelValue {
   font-family: var(--font-num);
   color: var(--c-text);
-  overflow-wrap: anywhere;
 }
 
 .levelPct {
