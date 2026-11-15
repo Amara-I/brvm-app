@@ -7,7 +7,7 @@
 // (performances, ratios, risque, horizons…) est chargé à la demande pour ce seul ticker
 // (GET /api/market/ngx-row/:ticker, quelques ko, cache serveur + CDN) et gardé en mémoire.
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import SignalBadge from "@/components/ui/SignalBadge";
@@ -91,6 +91,21 @@ export default function NgxExpandedPanel({ row }: { row: NgxBoardRow }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [row.ticker, row.close]);
+
+  // Le tableau défile horizontalement (11 colonnes) : le détail reste calé sur la largeur visible
+  // du cadre de défilement (collé à gauche), pour être lisible sans défilement horizontal sur mobile.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [visibleWidth, setVisibleWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const el = panelRef.current;
+    const wrap = el?.closest("table")?.parentElement;
+    if (!wrap) return;
+    const update = () => setVisibleWidth(wrap.clientWidth > 0 ? wrap.clientWidth : null);
+    update();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(update) : null;
+    ro?.observe(wrap);
+    return () => ro?.disconnect();
+  }, []);
 
   const d = state.status === "ready" ? state.data : null;
   const pending = state.status === "loading";
@@ -250,7 +265,13 @@ export default function NgxExpandedPanel({ row }: { row: NgxBoardRow }) {
   const chartHref = `/marches/ngx/actions/${row.ticker}?tab=charts`;
 
   return (
-    <div className={styles.detail} onClick={(e) => e.stopPropagation()} data-testid={`ngx-detail-${row.ticker}`}>
+    <div
+      ref={panelRef}
+      className={styles.detail}
+      onClick={(e) => e.stopPropagation()}
+      data-testid={`ngx-detail-${row.ticker}`}
+      style={visibleWidth ? { position: "sticky", left: 0, width: visibleWidth, boxSizing: "border-box" } : undefined}
+    >
       {d?.signal ? (
         <p className={styles.detailSummary}>
           {labels.signalSummary({
