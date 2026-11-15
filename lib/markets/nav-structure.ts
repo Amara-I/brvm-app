@@ -1,5 +1,5 @@
 // Groupement IA de la sidebar : pages BRVM vs. entrées globales
-// (Portefeuille, Simulation) vs. autres places « bientôt ».
+// (Portefeuille, Simulation, Graphes) vs. autres places « bientôt ».
 // Les routes restent plates ; seul le menu les range sous BRVM.
 
 import { AFRICAN_EXCHANGES, type AfricanExchange } from "./african-exchanges";
@@ -9,7 +9,6 @@ export const BRVM_NAV_HREFS = [
   "/marche",
   "/indices",
   "/screener",
-  "/graphes",
   "/societes-cotees",
   "/calendrier-dividendes",
 ] as const;
@@ -18,7 +17,7 @@ export const BRVM_NAV_HREFS = [
 export const BRVM_NAV_PREFIXES = [...BRVM_NAV_HREFS, "/actions"] as const;
 
 /** Entrées transverses — restent au premier niveau, hors BRVM. */
-export const GLOBAL_NAV_HREFS = ["/portefeuille", "/simulation"] as const;
+export const GLOBAL_NAV_HREFS = ["/portefeuille", "/simulation", "/graphes"] as const;
 
 export function isBrvmNavPath(pathname: string | null | undefined): boolean {
   if (!pathname) return false;

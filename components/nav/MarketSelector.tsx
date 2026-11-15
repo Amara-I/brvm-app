@@ -13,7 +13,7 @@ export default function MarketSelector({ variant = "desktop" }: { variant?: "des
   useEffect(() => {
     // La route explicite prime toujours sur la préférence (pas de redirection silencieuse).
     const routeMarket = pathname.includes("/marches/ngx") ? "NGX" :
-      /\/(marche|actions|indices|screener|graphes|societes-cotees|calendrier-dividendes)(\/|$)/.test(pathname) ? "BRVM" : null;
+      /\/(marche|actions|indices|screener|societes-cotees|calendrier-dividendes)(\/|$)/.test(pathname) ? "BRVM" : null;
     let stored: string | null = null;
     try { stored = localStorage.getItem(STORAGE_KEY); } catch { /* stockage privé indisponible */ }
     const value = routeMarket ?? (isListingExchange(stored) ? stored : "BRVM");

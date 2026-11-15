@@ -2,15 +2,27 @@ export const charts = {
   meta: {
     title: "Graphes — OuestBourse",
     description:
-      "Analyse graphique BRVM façon trading : historique, moyennes mobiles, comparaison multi-titres.",
+      "Tous les graphes OuestBourse : actions et indices BRVM et NGX, indicateurs et comparaison multi-titres.",
   },
   page: {
     kicker: "Analyse technique",
     title: "Graphes",
-    lead: "Analyse graphique des titres BRVM — indicateurs, tracés et comparaison multi-titres.",
-    emptyTitle: "Aucune société disponible",
+    lead: "Tous les graphes de la plateforme — actions et indices, BRVM et NGX. Une nouvelle cotation apparaît ici automatiquement.",
+    workbenchLead: "Analyse graphique des titres BRVM — indicateurs, tracés et comparaison multi-titres.",
+    emptyTitle: "Aucun graphe disponible",
     emptyBody:
-      "Le graphique s’affichera dès que des titres seront chargés. En l’absence de série, l’interface indique N/D.",
+      "Le catalogue s’affichera dès que des séries de cours seront chargées. En l’absence de série, l’interface indique N/D.",
+  },
+  catalog: {
+    searchPlaceholder: "Rechercher un titre, un indice ou une place…",
+    searchAria: "Rechercher un graphe",
+    groupActions: "{exchange} — Actions",
+    groupIndices: "{exchange} — Indices",
+    jump: "Aller à une section",
+    hiddenOne: "{count} valeur sans historique de cours est masquée.",
+    hiddenMany: "{count} valeurs sans historique de cours sont masquées.",
+    emptyFilter: "Aucun graphe ne correspond à la recherche.",
+    backToAll: "Tous les graphes",
   },
   loadingChart: "Chargement du graphique…",
   ranges: {
