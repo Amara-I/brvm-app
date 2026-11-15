@@ -37,6 +37,19 @@ export const ngx = {
     scoreBasis: "Score basis",
     attribution:
       "EUR→NGN rate: open.er-api.com. Indicative CFA = ₦ price × 655.957 / rate. This is not an official FX fixing.",
+    detail: {
+      pbr: "P/B (price / book)",
+      roe: "ROE",
+      eps: "EPS",
+      range52: "52-week low / high",
+      pillarsTitle: "NGX score by pillar",
+      policiesTitle: "Score by portfolio type",
+      loading: "Loading indicators…",
+      error: "Detailed indicators unavailable for now.",
+      perfSince: "Perf. since {year}",
+      perfSinceTitle: "NGX history in the database starts in {year}: under 10 years, so the 10-year perf. is N/A.",
+      ofYear: "Fiscal year {year}",
+    },
     sourceLine: "Source: {source}",
   },
   screener: {

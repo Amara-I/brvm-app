@@ -16,7 +16,7 @@ import { policyScore, type NgxPillarKey, type NgxScoreBand, type NgxScoreConfide
 import { NGX_PILLAR_KEYS } from "@/lib/ngx/score";
 import { ngxSectorGroup, cleanNgxName, type NgxSectorGroup } from "@/lib/ngx/sectors";
 import { ngxTechnicalSignal, type NgxTechnicalSignal } from "@/lib/ngx/technical-signal";
-import { packNgxSpark, type NgxSparkPacked } from "./ngx-spark";
+import { ngxBoardSparkPoints, packNgxSpark, type NgxSparkPacked } from "./ngx-spark";
 import { loadNgxUniverse, loadNgxUniverseFresh } from "./ngx-sheet";
 
 export interface NgxScreenerRow {
@@ -180,10 +180,10 @@ async function loadNgxScreenerUncached(opts: { withSparks?: boolean; fresh?: boo
   const full = count("FULL");
   const partial = count("PARTIAL");
   const chartOnly = out.filter((r) => r.mode === "CHART_ONLY" && r.overall != null).length;
-  // Aperçus : série SPARK ; à défaut (ligne de cache absente), la série 1A utilisée pour la note.
+  // Aperçus : forme SPARK au-delà d'un an + année complète tirée de la série 1A (rendu régulier comme la BRVM).
   const sparks: Record<string, NgxSparkPacked> = {};
   for (const ticker of opts.withSparks ? new Set([...sparkByTicker.keys(), ...seriesByTicker.keys()]) : []) {
-    const packed = packNgxSpark(sparkByTicker.get(ticker) ?? seriesByTicker.get(ticker) ?? []);
+    const packed = packNgxSpark(ngxBoardSparkPoints(sparkByTicker.get(ticker) ?? [], seriesByTicker.get(ticker) ?? []));
     if (packed) sparks[ticker] = packed;
   }
   return {

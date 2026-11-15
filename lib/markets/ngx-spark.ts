@@ -38,3 +38,41 @@ export function unpackNgxSpark(packed: NgxSparkPacked | null | undefined): Chart
   }
   return out;
 }
+
+const isoToDay = (iso: string) => Math.floor(Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) / DAY_MS);
+
+/**
+ * Points d'aperçu de la vue d'ensemble NGX, pour un rendu aussi régulier que la BRVM.
+ *
+ * La série SPARK ne garde que 80 séances journalières plus une « forme » de toute la vie du titre.
+ * Sur la NGX, où beaucoup de titres ne cotent pas chaque jour, ces 80 séances ne couvrent que
+ * quelques semaines : le reste de l'année se réduit alors à 2 ou 3 points tassés à gauche de
+ * l'aperçu « 1 an » (fausse chute verticale). On complète donc l'année avec la série 1A déjà
+ * chargée pour la note (même ajustement) : journalier sur les 100 derniers jours, une clôture
+ * tous les 3 jours avant, et la forme SPARK au-delà d'un an. ≈ 160 points par titre au plus.
+ */
+export function ngxBoardSparkPoints(spark: readonly ChartClosePoint[], window: readonly ChartClosePoint[]): ChartClosePoint[] {
+  const valid = (p: ChartClosePoint) => p.value > 0 && /^\d{4}-\d{2}-\d{2}/.test(p.time);
+  const year = window.filter(valid).sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+  if (year.length < 2) return [...spark];
+  const lastDay = isoToDay(year[year.length - 1]!.time);
+  const yearFrom = lastDay - 366;
+  const dailyFrom = lastDay - 100;
+  const older = spark.filter((p) => valid(p) && isoToDay(p.time) < yearFrom);
+  const kept: ChartClosePoint[] = [];
+  let bucket: number | null = null;
+  for (const p of year) {
+    const day = isoToDay(p.time);
+    if (day < yearFrom) continue;
+    if (day >= dailyFrom) {
+      kept.push(p);
+      bucket = null;
+      continue;
+    }
+    const b = Math.floor(day / 3);
+    if (bucket === b) kept[kept.length - 1] = p;
+    else kept.push(p);
+    bucket = b;
+  }
+  return [...older, ...kept];
+}

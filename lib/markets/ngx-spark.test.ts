@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { filterSeriesByHorizon, horizonChangePercent, MARKET_HORIZON_OPTIONS } from "./market-horizon";
-import { packNgxSpark, unpackNgxSpark } from "./ngx-spark";
+import { ngxBoardSparkPoints, packNgxSpark, unpackNgxSpark } from "./ngx-spark";
 
 const pt = (time: string, value: number) => ({ time, value, volume: null });
 
@@ -34,5 +34,28 @@ describe("packNgxSpark / unpackNgxSpark", () => {
     const series = unpackNgxSpark(packNgxSpark([pt("2026-01-05", 10), pt("2026-03-05", 11), pt("2026-06-05", 12)]));
     expect(filterSeriesByHorizon(series, "1S", asOf)).toEqual([]);
     expect(filterSeriesByHorizon(series, "1A", asOf)).toHaveLength(3);
+  });
+});
+
+describe("ngxBoardSparkPoints", () => {
+  const day = (offset: number) => new Date(Date.UTC(2026, 10, 13) - offset * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  it("complète l'année avec la série 1A : journalier sur 100 jours, 1 point / 3 jours avant, forme SPARK au-delà", () => {
+    const window = Array.from({ length: 500 }, (_, i) => pt(day(499 - i), 100 + i));
+    const spark = [pt(day(2000), 50), pt(day(800), 60), pt(day(300), 999), ...window.slice(-80)];
+    const out = ngxBoardSparkPoints(spark, window);
+    expect(out.slice(0, 2)).toEqual([pt(day(2000), 50), pt(day(800), 60)]);
+    expect(out.some((p) => p.value === 999)).toBe(false);
+    const inYear = out.slice(2);
+    expect(inYear.length).toBeGreaterThan(150);
+    expect(inYear.length).toBeLessThan(200);
+    expect(inYear[inYear.length - 1]).toEqual(window[window.length - 1]);
+    expect(inYear.filter((p) => p.time >= day(99)).length).toBe(100);
+    const asOf = new Date(`${day(0)}T12:00:00Z`);
+    const y1 = filterSeriesByHorizon(inYear, "1A", asOf);
+    expect(y1.length).toBeGreaterThan(150);
+  });
+  it("sans série 1A, garde la série SPARK", () => {
+    const spark = [pt(day(10), 1), pt(day(5), 2)];
+    expect(ngxBoardSparkPoints(spark, [])).toEqual(spark);
   });
 });
