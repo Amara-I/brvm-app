@@ -7,7 +7,7 @@ import { trackFeature } from "@/components/analytics/track-client";
 import styles from "./HeaderSearch.module.css";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { loadSiteSearchCatalogClient } from "@/lib/search/client-catalog";
-import { stockDocument, type StockSearchSource } from "@/lib/search/documents";
+import { indexDocument, stockDocument, type IndexSearchSource, type StockSearchSource } from "@/lib/search/documents";
 import { applySearchKey, isSearchShortcut, searchSite } from "@/lib/search/match";
 import type { SiteSearchDocument, SiteSearchGroup, SiteSearchHit } from "@/lib/search/types";
 import SearchKindIcon from "./SearchKindIcon";
@@ -21,9 +21,11 @@ function localized(locale: string, primary?: string, english?: string): string {
 
 export default function HeaderSearch({
   companies,
+  indices = [],
   variant = "default",
 }: {
   companies: HeaderSearchItem[];
+  indices?: IndexSearchSource[];
   variant?: "default" | "landing";
 }) {
   const router = useRouter();
@@ -108,8 +110,11 @@ export default function HeaderSearch({
   const landing = variant === "landing";
   const documents = useMemo(() => {
     if (catalog && catalog.length > 0) return catalog;
-    return companies.map((company) => stockDocument(company));
-  }, [catalog, companies]);
+    return [
+      ...companies.map((company) => stockDocument(company)),
+      ...indices.map((index) => indexDocument(index)),
+    ];
+  }, [catalog, companies, indices]);
 
   const groups = useMemo(() => searchSite(documents, q), [documents, q]);
   const flat = useMemo(() => groups.flatMap((group) => group.items), [groups]);
@@ -246,7 +251,14 @@ export default function HeaderSearch({
                               {hit.code ? <span className={styles.ticker}>{hit.code}</span> : null}
                               <span>{hit.code ? ` · ${title}` : title}</span>
                             </span>
-                            {subtitle ? <span className={styles.sector}>{subtitle}</span> : null}
+                            {hit.kind === "index" ? (
+                              <span className={styles.badges}>
+                                <span className={styles.badge}>{t("chrome.search.badge.index")}</span>
+                                {hit.exchange ? <span className={styles.badge}>{hit.exchange}</span> : null}
+                              </span>
+                            ) : subtitle ? (
+                              <span className={styles.sector}>{subtitle}</span>
+                            ) : null}
                           </button>
                         </li>
                       );

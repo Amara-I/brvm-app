@@ -15,7 +15,9 @@ const companies = [
 
 const indices = [
   { code: "BRVM_COMPOSITE", name: "BRVM Composite", exchange: "BRVM" },
+  { code: "BRVM_30", name: "BRVM-30", exchange: "BRVM" },
   { code: "NGX_ASI", name: "NGX All-Share", exchange: "NGX" },
+  { code: "NGX30", name: "NGX 30 Index", exchange: "NGX" },
 ];
 
 describe("routes par place", () => {
@@ -78,6 +80,16 @@ describe("recherche sur tout le site", () => {
   it("trouve indices, leçons, guides de portefeuille, outils et pages de marché", () => {
     expect(searchSite(catalog, "composite").some((group) => group.items.some((hit) => hit.href === "/indices/BRVM_COMPOSITE"))).toBe(true);
     expect(searchSite(catalog, "all-share").some((group) => group.items.some((hit) => hit.href === "/marches/ngx/indices/NGX_ASI"))).toBe(true);
+    expect(
+      searchSite(catalog, "BRVM 30").some((group) =>
+        group.items.some((hit) => hit.kind === "index" && hit.code === "BRVM_30" && hit.href === "/indices/BRVM_30"),
+      ),
+    ).toBe(true);
+    expect(
+      searchSite(catalog, "NGX 30").some((group) =>
+        group.items.some((hit) => hit.kind === "index" && hit.code === "NGX30" && hit.href === "/marches/ngx/indices/NGX30"),
+      ),
+    ).toBe(true);
 
     const lessons = educationDocuments();
     expect(

@@ -1,6 +1,6 @@
-import { unstable_cache } from "next/cache";
+import { getIndexSearchIndex } from "@/lib/api/index-search-index";
 import { getListingSearchIndex } from "@/lib/api/listing-search-index";
-import { prisma } from "@/lib/prisma";
+import { cachedLoader, MARKET_INDICES_TAG } from "@/lib/cache/market-cache";
 import { educationDocuments } from "@/lib/search/education-documents";
 import { indexDocument, stockDocument, type IndexSearchSource, type StockSearchSource } from "@/lib/search/documents";
 import { pageDocuments } from "@/lib/search/pages";
@@ -39,15 +39,7 @@ async function readCompanies(): Promise<StockSearchSource[]> {
 
 async function readIndices(): Promise<IndexSearchSource[]> {
   try {
-    const rows = await prisma.marketIndex.findMany({
-      select: { code: true, name: true, exchange: true },
-      orderBy: [{ exchange: "asc" }, { name: "asc" }],
-    });
-    return rows.map((row) => ({
-      code: row.code,
-      name: row.name,
-      exchange: String(row.exchange),
-    }));
+    return await getIndexSearchIndex();
   } catch {
     return [];
   }
@@ -57,9 +49,10 @@ async function readIndices(): Promise<IndexSearchSource[]> {
  * Index de recherche mis en cache. Les sociétés et les indices viennent de
  * la base (toutes les places) ; l'éducation et les pages sont statiques.
  * Un échec de lecture ne retire pas le reste du catalogue.
+ * Invalidé avec les sociétés (`companies-nav`) et les indices (`market-indices`).
  */
-export const getSiteSearchCatalog = unstable_cache(
+export const getSiteSearchCatalog = cachedLoader(
   async () => assembleSiteSearchCatalog(await readCompanies(), await readIndices()),
   ["site-search-catalog-v1"],
-  { revalidate: 60, tags: ["companies-nav"] },
+  { revalidate: 60, tags: ["companies-nav", MARKET_INDICES_TAG] },
 );

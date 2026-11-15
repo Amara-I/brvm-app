@@ -74,6 +74,9 @@ export const chrome = {
     placeholder: "Ticker, company, index, lesson or page…",
     empty: "No results — N/D",
     loading: "Loading search…",
+    badge: {
+      index: "Index",
+    },
     groups: {
       stocks: "Stocks · {exchange}",
       indices: "Indices · {exchange}",
