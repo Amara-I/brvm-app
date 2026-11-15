@@ -24,6 +24,7 @@ import { runFullIngestion } from "@/lib/ingestion/run-full-ingestion";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
 import { revalidateNgxMarketCache } from "@/lib/cache/market-cache";
+import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -52,6 +53,9 @@ export async function GET(request: NextRequest) {
     // Cours NGX du jour (runNgxDailyIngest) et historique importés : le cache
     // serveur NGX (vue d'ensemble, screener, fiches) est invalidé.
     revalidateNgxMarketCache();
+    // Clôtures BRVM + NGX du jour : derniers cours et jeu marché BRVM (companies-full)
+    // relus dès la requête suivante, au lieu d'attendre l'expiration du cache.
+    revalidateQuotesAfterWrite({ markets: ["BRVM", "NGX"] });
     console.log(
       `[ingest] http done durationMs=${summary.durationMs} incomplete=${summary.incomplete} stoppedAt=${summary.stoppedAt ?? "-"} budgetMs=${summary.budgetMs} followUp=${followUp.steps.map((s) => `${s.name}:${s.skipped ? "skip" : s.durationMs}`).join(",")}`
     );

@@ -6,7 +6,7 @@
 // sans re-scraper. L'ingestion officielle est déclenchée par le bouton et par
 // le cron quotidien /api/cron/ingest.
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import MarketChrome from "@/components/marche/MarketChrome";
 import styles from "@/components/marche/MarketBoard.module.css";
 import ngxStyles from "@/components/ngx/NgxMarket.module.css";
@@ -24,6 +24,8 @@ import {
 import type { MarketIndexSnapshot } from "@/lib/api/market-summary-snapshot";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
 import { useThrottledPoll } from "@/lib/ui/use-throttled-poll";
+import { useLiveQuotes } from "@/lib/ui/use-live-quotes";
+import type { LatestQuote } from "@/lib/quotes/types";
 
 const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
   day: "2-digit",
@@ -82,6 +84,34 @@ export default function NgxOverviewClient({ initial }: NgxOverviewClientProps) {
   // Relecture douce : au plus toutes les 10 min, onglet visible uniquement
   // (le cron quotidien et « Actualiser les cours » apportent les nouveaux cours).
   const markFresh = useThrottledPoll(reloadFromDb);
+
+  // Derniers cours live NGX (09:30–14:30 heure de Lagos : 60 s), mêmes lignes que
+  // les notifications : seuls le cours, la variation et la date de séance changent.
+  const sessionRef = useRef<string | null>(initial.sessionDate);
+  const onLiveQuotes = useCallback(
+    (changed: LatestQuote[]) => {
+      const byTicker = new Map(changed.map((q) => [q.ticker, q]));
+      setRows((prev) => {
+        let dirty = false;
+        const next = prev.map((row) => {
+          const q = byTicker.get(row.ticker);
+          if (!q || !(q.close > 0)) return row;
+          if (row.close === q.close && row.changePercent === q.changePercent) return row;
+          dirty = true;
+          const fcfa = row.fcfa != null && row.close ? (row.fcfa / row.close) * q.close : row.fcfa;
+          return { ...row, close: q.close, changePercent: q.changePercent, fcfa };
+        });
+        return dirty ? next : prev;
+      });
+      const newest = changed.reduce((max, q) => (q.date > max ? q.date : max), "");
+      if (newest && (!sessionRef.current || newest > sessionRef.current)) {
+        sessionRef.current = newest;
+        setLastUpdate(formatSessionDate(newest, format));
+      }
+    },
+    [format]
+  );
+  useLiveQuotes({ market: "NGX", onChange: onLiveQuotes });
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);

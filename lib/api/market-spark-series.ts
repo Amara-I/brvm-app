@@ -9,6 +9,30 @@ import { actionsByTicker } from "@/lib/corporate-actions/load";
 import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 import { sessionDayChangePercent, type SessionCloseRow } from "@/lib/api/session-day-change";
 import type { DataSourceCode } from "@/lib/ingestion/types";
+import { overlayLatestCloses, type LatestClosePoint } from "@/lib/charts/overlay-latest-close";
+import { getMarketLatestQuoteMap } from "@/lib/quotes/latest-quotes";
+
+/**
+ * Dernier point de chaque aperçu = dernier cours canonique (celui des notifications).
+ * Le cache `chart_series` n'est reconstruit qu'au cron quotidien : un cours corrigé
+ * le même jour (bouton « Actualiser », clôture officielle) restait sinon invisible
+ * dans les listes et le portefeuille jusqu'au lendemain.
+ */
+async function withLatestCloses(
+  byTicker: Record<string, ChartClosePoint[]>
+): Promise<Record<string, ChartClosePoint[]>> {
+  try {
+    const quotes = await getMarketLatestQuoteMap("BRVM");
+    const latest = new Map<string, LatestClosePoint>();
+    for (const [ticker, q] of quotes) latest.set(ticker, { date: q.date, close: q.close });
+    return overlayLatestCloses(byTicker, latest);
+  } catch (err) {
+    if (!isMissingDatabaseObject(err)) {
+      console.warn("[spark] derniers cours:", err instanceof Error ? err.message : err);
+    }
+    return byTicker;
+  }
+}
 
 function sparkFromRows(
   companies: Array<{ id: string; ticker: string }>,
@@ -53,7 +77,7 @@ export async function getMarketSparkSeriesByTicker(): Promise<Record<string, Cha
     if (cached && Object.keys(cached).length >= Math.min(8, companies.length)) {
       const out: Record<string, ChartClosePoint[]> = {};
       for (const c of companies) out[c.ticker] = cached[c.ticker] ?? [];
-      return out;
+      return withLatestCloses(out);
     }
   } catch (err) {
     if (!isMissingDatabaseObject(err)) {
@@ -86,7 +110,7 @@ export async function getMarketSparkSeriesByTicker(): Promise<Record<string, Cha
   } catch {
     /* catalogue indisponible — série brute */
   }
-  return raw;
+  return withLatestCloses(raw);
 }
 
 /**

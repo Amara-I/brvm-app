@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { requestQuoteRefresh } from "@/lib/quotes/quote-events";
 import Link from "next/link";
 import PageHeader from "@/components/ui/PageHeader";
 import EmptyState from "@/components/ui/EmptyState";
@@ -160,7 +161,10 @@ export default function NotificationCenter() {
                   <Link
                     href={n.href}
                     className={styles.ghost}
-                    onClick={() => void mark(n.id, true)}
+                    onClick={() => {
+                      void mark(n.id, true);
+                      if (n.ticker) requestQuoteRefresh([n.ticker]);
+                    }}
                   >
                     {t("notifications.center.open")}
                   </Link>

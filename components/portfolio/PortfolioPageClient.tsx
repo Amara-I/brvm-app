@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { C } from "@/lib/theme/colors";
 import CreatePortfolioButton from "@/components/portfolio/CreatePortfolioButton";
 import AddHoldingForm from "@/components/portfolio/AddHoldingForm";
@@ -30,6 +30,10 @@ import type { UserPortfoliosWithMetrics } from "@/lib/api/portfolio-data";
 import type { PortfolioTradeRow } from "@/lib/api/portfolio-trades";
 import { PORTFOLIO_CHANGED_EVENT, PORTFOLIO_TRADES_CHANGED_EVENT, summarizeRealizedPnlClient } from "@/lib/api/portfolio-trades-client";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
+import { useLiveQuotes } from "@/lib/ui/use-live-quotes";
+import { useThrottledPoll } from "@/lib/ui/use-throttled-poll";
+import { holdingsBehindQuotes } from "@/lib/quotes/holdings-sync";
+import type { LatestQuote } from "@/lib/quotes/types";
 import { usePersistedState } from "@/lib/ui/use-persisted-state";
 import {
   PORTFOLIO_DISCRETE_STORAGE_KEY,
@@ -52,7 +56,6 @@ type Props = {
   tradesByPortfolio: Record<string, TradesBundle>;
 };
 
-const SOFT_REFRESH_MS = 3 * 60_000;
 
 function useDiscreteMasks(): [DiscreteMaskConfig, (next: DiscreteMaskConfig) => void] {
   const [masks, setMasksState] = useState<DiscreteMaskConfig>(DEFAULT_DISCRETE_MASKS);
@@ -149,6 +152,31 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
     };
   }, [reloadFromApi]);
 
+  // Derniers cours live des lignes BRVM : en séance toutes les 60 s (onglet visible),
+  // et dès qu'une notification arrive. Les lignes (valeur, P&L) ne sont relues
+  // que si un cours a réellement changé.
+  const holdingTickers = useMemo(
+    () => [...new Set(portfolios.flatMap((p) => p.metrics.holdings.map((h) => h.ticker.toUpperCase())))].sort(),
+    [portfolios]
+  );
+  const portfoliosRef = useRef(portfolios);
+  portfoliosRef.current = portfolios;
+  const onLiveQuotes = useCallback(
+    (changed: LatestQuote[]) => {
+      const holdings = portfoliosRef.current.flatMap((p) => p.metrics.holdings);
+      if (holdingsBehindQuotes(holdings, changed)) void reloadFromApi();
+    },
+    [reloadFromApi]
+  );
+  const { quotes: liveQuotes } = useLiveQuotes({
+    market: "BRVM",
+    tickers: holdingTickers,
+    onChange: onLiveQuotes,
+    enabled: holdingTickers.length > 0,
+  });
+  // Relecture complète douce (au plus toutes les 10 min, onglet visible).
+  useThrottledPoll(reloadFromApi);
+
   const refreshOnOpen = useCallback(async () => {
     // Afficher d'abord les données déjà en mémoire / SSR, puis rafraîchir
     // les cours en arrière-plan (évite 30–100 s de blocage au premier paint).
@@ -163,21 +191,7 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
 
   useEffect(() => {
     void refreshOnOpen();
-
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void reloadFromApi();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") void reloadFromApi();
-    }, SOFT_REFRESH_MS);
-
-    return () => {
-      document.removeEventListener("visibilitychange", onVisible);
-      window.clearInterval(id);
-    };
-  }, [refreshOnOpen, reloadFromApi]);
+  }, [refreshOnOpen]);
 
   const acceptDroppedFile = useCallback(
     (file: File) => {
@@ -355,6 +369,7 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                 <PortfolioHoldingsTable
                   portfolioId={p.id}
                   holdings={p.metrics.holdings}
+                  liveQuotes={liveQuotes}
                   latestQuoteLabel={p.metrics.marketPricesAsOfLabel}
                   portfolioValue={p.combined.totalMarketValue}
                   discrete={discrete}

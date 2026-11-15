@@ -1,5 +1,7 @@
 "use client";
 
+import { overlayLatestClose } from "@/lib/charts/overlay-latest-close";
+import type { LatestQuote } from "@/lib/quotes/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { C } from "@/lib/theme/colors";
@@ -114,6 +116,8 @@ const STATIC_COL_DEFS_AFTER_VAR: ColumnFilterDef<EnrichedHoldingMetrics>[] = [
 type Props = {
   portfolioId: string;
   holdings: EnrichedHoldingMetrics[];
+  /** Derniers cours live (sondage /api/quotes) : variation du jour et dernier point des aperçus. */
+  liveQuotes?: Record<string, LatestQuote>;
   latestQuoteLabel?: string;
   /** Valeur totale du portefeuille, pour la colonne Poids. */
   portfolioValue?: number;
@@ -126,6 +130,7 @@ type Props = {
 export default function PortfolioHoldingsTable({
   portfolioId,
   holdings,
+  liveQuotes,
   latestQuoteLabel,
   portfolioValue = 0,
   discrete = false,
@@ -184,11 +189,14 @@ export default function PortfolioHoldingsTable({
     const map = new Map<string, number | null>();
     for (const h of holdings) {
       if (map.has(h.ticker)) continue;
+      const live = liveQuotes?.[h.ticker];
       if (varHorizon === "1J") {
-        map.set(h.ticker, dayChangesByTicker[h.ticker] ?? null);
+        map.set(h.ticker, live?.changePercent ?? dayChangesByTicker[h.ticker] ?? null);
         continue;
       }
-      const dated = sparkSeriesByTicker[h.ticker];
+      const baseSeries = sparkSeriesByTicker[h.ticker];
+      const dated =
+        live && baseSeries?.length ? overlayLatestClose(baseSeries, { date: live.date, close: live.close }) : baseSeries;
       if (!dated?.length) {
         map.set(h.ticker, null);
         continue;
@@ -197,7 +205,7 @@ export default function PortfolioHoldingsTable({
       map.set(h.ticker, horizonChangePercent(series));
     }
     return map;
-  }, [holdings, varHorizon, sparkSeriesByTicker, dayChangesByTicker]);
+  }, [holdings, varHorizon, sparkSeriesByTicker, dayChangesByTicker, liveQuotes]);
 
   const colDefs = useMemo<ColumnFilterDef<EnrichedHoldingMetrics>[]>(() => {
     const defs: ColumnFilterDef<EnrichedHoldingMetrics>[] = [

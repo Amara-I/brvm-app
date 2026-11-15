@@ -2,13 +2,16 @@
 
 // Tableau Marché : liste + aperçus sparklines + lignes expansibles (perf / liens).
 
-import { useCallback, useEffect, useMemo, useState, Fragment, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
 import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import { useThrottledPoll } from "@/lib/ui/use-throttled-poll";
+import { useLiveQuotes } from "@/lib/ui/use-live-quotes";
+import { overlayLatestClose, seriesBehindLatest } from "@/lib/charts/overlay-latest-close";
+import type { LatestQuote } from "@/lib/quotes/types";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import type { MarketSummarySnapshot } from "@/lib/api/market-summary-snapshot";
 import { DEFAULT_EXCHANGE_CODE, getExchange } from "@/lib/markets/african-exchanges";
@@ -344,6 +347,46 @@ export default function MarketBoardClient({
 
   // Relecture douce : au plus toutes les 10 min, onglet visible uniquement.
   useThrottledPoll(reloadFromDb);
+
+  // Derniers cours live (même source que les notifications), 60 s en séance :
+  // seuls le dernier point de l'aperçu, le cours et la variation du jour changent.
+  const lastUpdateIsoRef = useRef(initialData.generatedAt);
+  const onLiveQuotes = useCallback(
+    (changed: LatestQuote[]) => {
+      const behind = changed.filter((q) => q.close > 0);
+      if (behind.length === 0) return;
+      let patched = false;
+      setSparkSeriesByTicker((prev) => {
+        const next = { ...prev };
+        for (const q of behind) {
+          const series = prev[q.ticker] ?? [];
+          const latest = { date: q.date, close: q.close };
+          if (!seriesBehindLatest(series, latest)) continue;
+          next[q.ticker] = overlayLatestClose(series, latest);
+          patched = true;
+        }
+        return patched ? next : prev;
+      });
+      setDayChangesByTicker((prev) => {
+        let dirty = false;
+        const next = { ...prev };
+        for (const q of behind) {
+          if (q.changePercent != null && prev[q.ticker] !== q.changePercent) {
+            next[q.ticker] = q.changePercent;
+            dirty = true;
+          }
+        }
+        return dirty ? next : prev;
+      });
+      const newest = behind.reduce((max, q) => (q.asOf > max ? q.asOf : max), "");
+      if (newest && newest > lastUpdateIsoRef.current) {
+        lastUpdateIsoRef.current = newest;
+        setLastUpdate(format.date(newest, NUMERIC_DATE));
+      }
+    },
+    [format]
+  );
+  useLiveQuotes({ market: "BRVM", onChange: onLiveQuotes });
 
   function toggleRow(ticker: string) {
     setExpanded((cur) => (cur === ticker ? null : ticker));
