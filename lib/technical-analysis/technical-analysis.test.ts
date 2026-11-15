@@ -5,7 +5,7 @@ import { detectFairValueGaps } from "./fvg";
 import { technicalLevels } from "./levels";
 import { chartLevelLines } from "./chart-lines";
 import { formatDistancePct, formatFcfa, stackLabelBoxes, stackLabelYs } from "./level-label";
-import { scenarioChartModel } from "./scenario-chart";
+import { mostProbableScenarioIndex, projectionArrow, scenarioChartModel } from "./scenario-chart";
 import { signalOf } from "@/lib/calc/calc-metrics";
 import { detectSupportResistance } from "./support-resistance";
 import type { CloseInput, PriceBar } from "./types";
@@ -169,30 +169,48 @@ describe("scénarios", () => {
     expect(boxes[0]! - 20).toBeGreaterThanOrEqual(0);
     expect(boxes[2]! + 20).toBeLessThanOrEqual(400);
 
-    const bull = analysis.scenarios[0]!;
-    const model = scenarioChartModel(analysis.chartBars, bull, analysis.zones, "Haussier", analysis.gaps);
+    const bull = analysis.scenarios.find((scenario) => scenario.bias === "bullish") ?? analysis.scenarios[0]!;
+    const model = scenarioChartModel(analysis.chartBars, bull, analysis.zones, "Haussier", analysis.gaps, {
+      width: 380,
+      height: 260,
+      gutter: 120,
+    });
     expect(model.polyline.split(" ").length).toBeGreaterThan(5);
-    expect(model.height).toBeGreaterThanOrEqual(400);
-    expect(model.gutter).toBeGreaterThan(150);
+    // Format compact (taille d'avant la PR #115).
+    expect(model.width).toBe(380);
+    expect(model.height).toBe(260);
+    expect(model.gutter).toBe(120);
     expect(model.plotRight).toBe(model.width - model.gutter);
     expect(model.marks.some((mark) => mark.kind === "stop" && mark.price > 0 && mark.showDistance)).toBe(true);
     expect(model.marks.some((mark) => mark.kind === "target" && mark.showDistance)).toBe(true);
     expect(model.marks.some((mark) => mark.kind === "last")).toBe(true);
     const chartKinds = new Set(model.marks.map((mark) => mark.kind));
-    expect([...chartKinds].every((kind) => kind === "stop" || kind === "target" || kind === "last" || kind === "entry")).toBe(
-      true
-    );
+    expect(
+      [...chartKinds].every((kind) => ["stop", "target", "last", "entry", "support", "resistance"].includes(kind))
+    ).toBe(true);
+    // Zone de projection réservée à droite de la dernière séance.
     const xs = model.polyline.split(" ").map((pt) => Number(pt.split(",")[0]));
-    expect(Math.max(...xs)).toBeLessThanOrEqual(model.plotRight + 1);
+    expect(Math.max(...xs)).toBeLessThanOrEqual(model.lastX + 0.5);
+    expect(model.plotRight - model.lastX).toBeGreaterThanOrEqual(40);
+    // Étiquettes sans chevauchement, dans le cadre.
     const ordered = [...model.marks].sort((a, b) => a.displayY - b.displayY);
     for (let i = 1; i < ordered.length; i++) {
-      expect(ordered[i]!.displayY - ordered[i - 1]!.displayY).toBeGreaterThanOrEqual(20);
+      expect(ordered[i]!.displayY - ordered[i - 1]!.displayY).toBeGreaterThanOrEqual(model.tagHeight);
+    }
+    for (const mark of model.marks) {
+      expect(mark.displayY - model.tagHeight / 2).toBeGreaterThanOrEqual(0);
+      expect(mark.displayY + model.tagHeight / 2).toBeLessThanOrEqual(model.height);
     }
     expect(model.leaders).toHaveLength(model.marks.length);
     for (const leader of model.leaders) {
       expect(leader.x1).toBe(model.plotRight);
       expect(leader.x3).toBeGreaterThan(model.plotRight);
     }
+    // La flèche part de la dernière séance et va vers la droite.
+    expect(model.arrow).not.toBeNull();
+    expect(model.arrow!.x1).toBeGreaterThanOrEqual(model.lastX);
+    expect(model.arrow!.x2).toBeGreaterThan(model.arrow!.x1);
+    expect(model.arrow!.x2).toBeLessThanOrEqual(model.plotRight);
     if (model.zones.some((zone) => zone.kind === "gap")) {
       expect(model.tags.some((tag) => tag.kind === "fvg")).toBe(true);
       expect(model.marks.some((mark) => mark.kind === "fvg")).toBe(false);
@@ -201,6 +219,42 @@ describe("scénarios", () => {
     expect(lines.some((line) => line.title.includes("FCFA") && line.title.startsWith("Objectif"))).toBe(true);
     expect(lines.some((line) => line.title.includes("Invalidation") && line.title.includes("%"))).toBe(true);
     expect(lines.some((line) => line.title.startsWith("Cours"))).toBe(true);
+  });
+
+  it("oriente la flèche de projection vers la droite selon le scénario", () => {
+    const up = projectionArrow(200, 100, 260, 40, "bullish");
+    expect(up.direction).toBe("up");
+    expect(up.x2).toBeGreaterThan(up.x1);
+    expect(up.y2).toBeLessThan(up.y1);
+    const down = projectionArrow(200, 100, 260, 160, "bearish");
+    expect(down.direction).toBe("down");
+    expect(down.x2).toBeGreaterThan(down.x1);
+    expect(down.y2).toBeGreaterThan(down.y1);
+    const flat = projectionArrow(200, 100, 260, 160, "neutral");
+    expect(flat.direction).toBe("flat");
+    expect(flat.y2).toBe(flat.y1);
+    expect(flat.x2).toBeGreaterThan(flat.x1);
+    const headXs = up.head.split(" ").map((pt) => Number(pt.split(",")[0]));
+    expect(headXs[0]).toBe(Math.max(...headXs));
+  });
+
+  it("désigne le scénario le plus probable, égalités départagées", () => {
+    expect(
+      mostProbableScenarioIndex([
+        { bias: "bullish", probability: 30 },
+        { bias: "neutral", probability: 45 },
+        { bias: "bearish", probability: 25 },
+      ])
+    ).toBe(1);
+    const tie = [
+      { bias: "bullish" as const, probability: 40 },
+      { bias: "neutral" as const, probability: 20 },
+      { bias: "bearish" as const, probability: 40 },
+    ];
+    expect(mostProbableScenarioIndex(tie, "bearish")).toBe(2);
+    expect(mostProbableScenarioIndex(tie, "neutral")).toBe(0);
+    expect(mostProbableScenarioIndex(tie)).toBe(0);
+    expect(mostProbableScenarioIndex([])).toBe(-1);
   });
 
   it("expose stop, cibles et risque/rendement pour le sizing", () => {

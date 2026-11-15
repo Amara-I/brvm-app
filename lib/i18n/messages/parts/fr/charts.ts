@@ -139,6 +139,7 @@ export const charts = {
     openCharts: "Ouvrir en page Graphes →",
     switchSymbol: "· Cliquez sur le ticker ({symbol} ▾) pour changer de société",
   },
+  levelsLegend: "Niveaux sur le graphe",
   recap: {
     reading: "Lecture graphique de {ticker} — {summary}",
     sheetLink: "Fiche société & signal →",
