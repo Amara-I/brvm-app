@@ -8,10 +8,10 @@ export const charts = {
     kicker: "Analyse technique",
     title: "Graphes",
     lead: "Tous les graphes de la plateforme — actions et indices, BRVM et NGX. Une nouvelle cotation apparaît ici automatiquement.",
-    workbenchLead: "Analyse graphique des titres BRVM — indicateurs, tracés et comparaison multi-titres.",
+    workbenchLead: "Actions et indices BRVM et NGX — indicateurs, tracés et comparaison. Recherchez un titre pour l’afficher.",
     emptyTitle: "Aucun graphe disponible",
     emptyBody:
-      "Le catalogue s’affichera dès que des séries de cours seront chargées. En l’absence de série, l’interface indique N/D.",
+      "Les graphes s’afficheront dès que des séries de cours seront chargées. En l’absence de série, l’interface indique N/D.",
   },
   catalog: {
     searchPlaceholder: "Rechercher un titre, un indice ou une place…",
@@ -85,9 +85,16 @@ export const charts = {
     volumeFlow: "Flux volume / SMA20",
     volumeFlowShort: "Flux volume",
   },
-  searchPlaceholder: "Rechercher ticker ou nom…",
-  searchAria: "Rechercher une société",
+  searchPlaceholder: "Rechercher ticker, nom ou indice…",
+  searchAria: "Rechercher un titre ou un indice",
   changeSymbol: "Changer de titre",
+  badge: {
+    stock: "Action",
+    index: "Indice",
+  },
+  price: {
+    points: "{value} pts",
+  },
   metrics: {
     rangeChange: "Variation {range}",
     volume: "Volume",

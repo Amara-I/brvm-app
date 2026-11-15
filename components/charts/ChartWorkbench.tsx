@@ -22,10 +22,19 @@ import {
 import {
   chartMarketConfig,
   chartStorageKey,
+  indexChartApiPath,
   ngxChartApiPath,
   ngxSymbolHref,
   type ChartMarket,
 } from "@/lib/charts/chart-market";
+import { chartCatalogHref } from "@/lib/charts/chart-catalog-core";
+import {
+  chartWorkbenchHref,
+  filterUniverse,
+  groupUniverse,
+  universeItemKey,
+  type ChartUniverseItem,
+} from "@/lib/charts/chart-selection";
 import { CANDLE_INTERVALS, type CandleInterval } from "@/lib/charts/ohlc-aggregate";
 import { buildSyncedChartView } from "@/lib/charts/synced-chart-view";
 import { computeWindowChangeFromCandles } from "@/lib/charts/window-change";
@@ -111,15 +120,7 @@ type UndoEntry =
   | ChartViewUndoEntry
   | { type: "indicators"; indicators: ChartIndicatorsState };
 
-export interface ChartUniverseItem {
-  ticker: string;
-  name: string;
-  color: string;
-  sector: string;
-  countryFlag: string;
-  /** NGX : un indice se rouvre sur sa fiche d'indice, pas sur une fiche société. */
-  kind?: "company" | "index";
-}
+export type { ChartUniverseItem } from "@/lib/charts/chart-selection";
 
 interface ChartApiPayload {
   ticker: string;
@@ -180,6 +181,13 @@ interface ChartApiPayload {
     high52: number | null;
     low52: number | null;
     mktCapBn: number | null;
+  };
+  /** Indice (API /api/charts/indices) : plus haut / plus bas 52 semaines. */
+  index?: {
+    exchange: "BRVM" | "NGX";
+    high52: number | null;
+    low52: number | null;
+    storedHistoryPoints?: number | null;
   };
   /** Série déjà peinte (fiche) — remplacée quand l'API renvoie une fenêtre différente. */
   provisional?: boolean;
@@ -270,6 +278,9 @@ export default function ChartWorkbench({
   initialSeries,
   initialSeriesComplete = false,
   market = "BRVM",
+  initialKind,
+  initialExchange,
+  mixedMarkets = false,
   levelLines,
   onActiveSeries,
 }: {
@@ -277,6 +288,11 @@ export default function ChartWorkbench({
   market?: ChartMarket;
   universe: ChartUniverseItem[];
   initialTicker: string;
+  /** /graphes mixte : type et place de l'instrument initial (URL partageable). */
+  initialKind?: "company" | "index";
+  initialExchange?: "BRVM" | "NGX";
+  /** /graphes : un seul workbench pour BRVM + NGX, actions et indices. */
+  mixedMarkets?: boolean;
   /** Sur fiche société : masque le lien « Ouvrir la fiche » (déjà sur place). */
   embedded?: boolean;
   /** Compte actif — active la sauvegarde cloud des analyses. */
@@ -292,24 +308,53 @@ export default function ChartWorkbench({
 }) {
   const { t, format, labels, locale } = useI18n();
   const router = useRouter();
-  const marketCfg = chartMarketConfig(market);
-  const isNgx = market === "NGX";
-  const priceDecimals = marketCfg.priceDecimals;
-  const seriesPath = isNgx ? ngxChartApiPath : companyChartApiPath;
   const [ticker, setTicker] = useState(initialTicker);
-  /** Clé des tracés locaux : `NGX:SYMBOL` côté NGX (aucune collision avec un ticker BRVM). */
-  const chartKey = chartStorageKey(market, ticker);
-  // Un indice NGX n'est pas une société : analyses sauvegardées oui, alertes de cours non.
-  const isNgxIndex = isNgx && universe.find((u) => u.ticker === ticker)?.kind === "index";
+  const [activeKey, setActiveKey] = useState(() =>
+    universeItemKey({
+      ticker: initialTicker,
+      kind: initialKind,
+      exchange: initialExchange ?? (market === "NGX" ? "NGX" : "BRVM"),
+    })
+  );
+
+  const activeItem = mixedMarkets
+    ? (universe.find((u) => universeItemKey(u) === activeKey) ??
+      universe.find((u) => u.ticker === ticker))
+    : universe.find((u) => u.ticker === ticker);
+  const activeKind: "company" | "index" = activeItem?.kind ?? initialKind ?? "company";
+  const activeExchange: ChartMarket = mixedMarkets
+    ? (activeItem?.exchange === "NGX" ? "NGX" : "BRVM")
+    : market;
+  const marketCfg = chartMarketConfig(activeExchange);
+  const isNgx = activeExchange === "NGX";
+  const isIndex = activeKind === "index";
+  const priceDecimals = isIndex ? 2 : marketCfg.priceDecimals;
+  const isNgxIndex = isNgx && isIndex;
+  /** Signaux d'achat/vente, scénarios et panneau d'analyse : actions BRVM uniquement sur /graphes. */
+  const showSignals = mixedMarkets ? !isIndex && !isNgx : true;
+  const chartKey = isIndex
+    ? `${activeExchange}:index:${ticker}`
+    : chartStorageKey(activeExchange, ticker);
   const accountCallbackPath = isNgx
-    ? ngxSymbolHref(ticker, isNgxIndex ? "index" : "company")
+    ? ngxSymbolHref(ticker, isIndex ? "index" : "company")
     : embedded
       ? `/actions/${ticker}`
-      : `/graphes?ticker=${encodeURIComponent(ticker)}`;
+      : chartWorkbenchHref({
+          kind: activeKind,
+          symbol: ticker,
+          exchange: activeExchange,
+        });
 
-  useEffect(() => {
-    setTicker(initialTicker);
-  }, [initialTicker]);
+  const pathFor = (item: ChartUniverseItem | undefined, symbol: string, viewRange: string, viewInterval: string) => {
+    if (!mixedMarkets) {
+      return isNgx ? ngxChartApiPath(symbol, viewRange, viewInterval) : companyChartApiPath(symbol, viewRange, viewInterval);
+    }
+    const kind = item?.kind ?? "company";
+    const exchange = item?.exchange ?? "BRVM";
+    if (kind === "index") return indexChartApiPath(symbol, exchange, viewRange, viewInterval);
+    if (exchange === "NGX") return ngxChartApiPath(symbol, viewRange, viewInterval);
+    return companyChartApiPath(symbol, viewRange, viewInterval);
+  };
   const [query, setQuery] = useState("");
   const [showWatchlist, setShowWatchlist] = useState(false);
   const [range, setRange] = useState<ChartRange>("1A");
@@ -367,6 +412,17 @@ export default function ChartWorkbench({
   const chartUndoApiRef = useRef<{ hasPendingTrend: () => boolean } | null>(null);
 
   useEffect(() => {
+    setTicker(initialTicker);
+    setActiveKey(
+      universeItemKey({
+        ticker: initialTicker,
+        kind: initialKind,
+        exchange: initialExchange ?? (market === "NGX" ? "NGX" : "BRVM"),
+      })
+    );
+  }, [initialTicker, initialKind, initialExchange, market]);
+
+  useEffect(() => {
     function syncHeight() {
       const w = window.innerWidth;
       if (fullscreen) {
@@ -394,12 +450,18 @@ export default function ChartWorkbench({
 
 
   const filteredUniverse = useMemo(() => {
+    if (mixedMarkets) return filterUniverse(universe, query);
     const q = query.trim().toLowerCase();
     if (!q) return universe;
     return universe.filter(
       (u) => u.ticker.toLowerCase().includes(q) || u.name.toLowerCase().includes(q)
     );
-  }, [universe, query]);
+  }, [universe, query, mixedMarkets]);
+
+  const watchlistGroups = useMemo(
+    () => (mixedMarkets ? groupUniverse(filteredUniverse) : null),
+    [mixedMarkets, filteredUniverse]
+  );
 
   const indicatorCount = useMemo(
     () => Object.values(indicators).filter(Boolean).length,
@@ -446,7 +508,11 @@ export default function ChartWorkbench({
     try {
       // Sans `cache: "no-store"` : le navigateur peut réutiliser la réponse
       // (max-age du prefetch fiche) au lieu de relancer Sika/Rich.
-      const res = await fetch(seriesPath(symbol, apiRange, viewInterval));
+      const item = mixedMarkets
+        ? (universe.find((u) => universeItemKey(u) === activeKey && u.ticker === symbol) ??
+          universe.find((u) => u.ticker === symbol))
+        : universe.find((u) => u.ticker === symbol);
+      const res = await fetch(pathFor(item, symbol, apiRange, viewInterval));
       const text = await res.text();
       let json: { ok?: boolean; error?: string; data?: unknown } = {};
       try {
@@ -475,7 +541,7 @@ export default function ChartWorkbench({
     } finally {
       if (loadSeq.current === seq) setLoading(false);
     }
-  }, [t, seriesPath]);
+  }, [t, mixedMarkets, universe, activeKey]);
 
   useEffect(() => {
     void loadTicker(ticker, range, interval);
@@ -489,7 +555,12 @@ export default function ChartWorkbench({
       await Promise.all(
         compare.map(async (symbol) => {
           try {
-            const res = await fetch(seriesPath(symbol, apiRange, interval));
+            const item = mixedMarkets
+              ? (universe.find((u) => universeItemKey(u) === symbol) ??
+                universe.find((u) => u.ticker === symbol))
+              : universe.find((u) => u.ticker === symbol);
+            const code = item?.ticker ?? symbol;
+            const res = await fetch(pathFor(item, code, apiRange, interval));
             const json = await res.json();
             if (json.ok) {
               const data = json.data as ChartApiPayload;
@@ -507,7 +578,7 @@ export default function ChartWorkbench({
     return () => {
       cancelled = true;
     };
-  }, [compare, range, interval, seriesPath]);
+  }, [compare, range, interval, mixedMarkets, universe]);
 
   const payloadSeries = payload?.series;
   const payloadLookback = payload?.lookback;
@@ -560,9 +631,13 @@ export default function ChartWorkbench({
       .filter(Boolean) as Array<{ id: string; color: string; points: ChartClosePoint[] }>;
   }, [compare, compareData, range, percentScale]);
 
-  function selectTicker(symbol: string) {
-    const next = symbol.toUpperCase();
-    if (next === ticker) {
+  function selectTicker(symbol: string, item?: ChartUniverseItem) {
+    const target = item ?? universe.find((u) => u.ticker === symbol.toUpperCase());
+    const next = (target?.ticker ?? symbol).toUpperCase();
+    const nextKey = target
+      ? universeItemKey(target)
+      : universeItemKey({ ticker: next, kind: "company", exchange: activeExchange });
+    if (nextKey === activeKey || (next === ticker && !mixedMarkets)) {
       setShowWatchlist(false);
       setQuery("");
       return;
@@ -572,8 +647,19 @@ export default function ChartWorkbench({
     setQuery("");
     setSeedDrawings(null);
     setActiveSavedAnalysis(null);
+    if (mixedMarkets) {
+      const ref = {
+        kind: target?.kind ?? "company",
+        symbol: next,
+        exchange: target?.exchange ?? "BRVM",
+      } as const;
+      router.replace(chartWorkbenchHref(ref), { scroll: false });
+      setTicker(next);
+      setActiveKey(nextKey);
+      return;
+    }
     if (isNgx) {
-      const kind = universe.find((u) => u.ticker === next)?.kind ?? "company";
+      const kind = target?.kind ?? "company";
       router.push(ngxSymbolHref(next, kind));
       return;
     }
@@ -583,6 +669,7 @@ export default function ChartWorkbench({
     }
     router.replace(`/graphes?ticker=${encodeURIComponent(next)}`, { scroll: false });
     setTicker(next);
+    setActiveKey(nextKey);
   }
 
   const applySavedAnalysis = useCallback(
@@ -597,8 +684,19 @@ export default function ChartWorkbench({
         router.push(`/actions/${nextTicker}?tab=charts`);
         return;
       }
-      if (universe.some((u) => u.ticker === nextTicker)) {
-        if (!embedded && !isNgx && nextTicker !== ticker) {
+      const savedItem = universe.find((u) => u.ticker === nextTicker);
+      if (savedItem || universe.some((u) => u.ticker === nextTicker)) {
+        if (mixedMarkets && savedItem && universeItemKey(savedItem) !== activeKey) {
+          router.replace(
+            chartWorkbenchHref({
+              kind: savedItem.kind ?? "company",
+              symbol: savedItem.ticker,
+              exchange: savedItem.exchange ?? "BRVM",
+            }),
+            { scroll: false }
+          );
+          setActiveKey(universeItemKey(savedItem));
+        } else if (!embedded && !isNgx && nextTicker !== ticker) {
           router.replace(`/graphes?ticker=${encodeURIComponent(nextTicker)}`, { scroll: false });
         }
         setTicker(nextTicker);
@@ -624,11 +722,11 @@ export default function ChartWorkbench({
       setDrawingsSeedKey((n) => n + 1);
       setActiveSavedAnalysis(analysis);
     },
-    [universe, embedded, isNgx, ticker, router]
+    [universe, embedded, isNgx, ticker, router, mixedMarkets, activeKey]
   );
 
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !showSignals) {
       setSavedAnalysesCount(0);
       setActiveSavedAnalysis(null);
       autoLoadedTickerRef.current = null;
@@ -659,7 +757,7 @@ export default function ChartWorkbench({
     return () => {
       cancelled = true;
     };
-  }, [ticker, isAuthenticated, applySavedAnalysis]);
+  }, [ticker, isAuthenticated, applySavedAnalysis, showSignals]);
 
   function recordUndo(entry: UndoEntry) {
     undoStackRef.current.push(entry);
@@ -858,7 +956,9 @@ export default function ChartWorkbench({
             title={t("charts.changeSymbol")}
             aria-expanded={showWatchlist}
           >
-            {payload?.ticker ? (
+            {isIndex ? (
+              <IndexMark exchange={activeExchange} size={28} />
+            ) : payload?.ticker ? (
               <CompanyMark
                 ticker={payload.ticker}
                 name={payload.name}
@@ -871,7 +971,9 @@ export default function ChartWorkbench({
           </button>
           <div className={styles.symbolPick}>
             <button type="button" className={styles.symbolBtn} onClick={() => setShowWatchlist((v) => !v)}>
-              <span className={styles.ticker}>{payload?.ticker ?? ticker}</span>
+              <span className={styles.ticker}>
+                {displayChartSymbol(payload?.ticker ?? ticker, isIndex)}
+              </span>
               <span className={styles.chev}>▾</span>
             </button>
             <div className={styles.companyName}>{payload?.name ?? ""}</div>
@@ -887,23 +989,39 @@ export default function ChartWorkbench({
                   aria-label={t("charts.searchAria")}
                 />
                 <div className={styles.watchlistScroll}>
-                  {filteredUniverse.map((u) => (
-                    <button
-                      key={u.ticker}
-                      type="button"
-                      className={u.ticker === ticker ? styles.itemActive : styles.item}
-                      onClick={() => selectTicker(u.ticker)}
-                    >
-                      <span className={styles.itemTicker}>
-                        <span className="ob-ticker-with-mark">
-                          <CompanyMark ticker={u.ticker} name={u.name} size={20} market={isNgx ? "NGX" : "BRVM"} />
-                          {u.countryFlag ? <span aria-hidden="true">{u.countryFlag}</span> : null}
-                          {u.ticker}
-                        </span>
-                      </span>
-                      <span className={styles.itemName}>{u.name}</span>
-                    </button>
-                  ))}
+                  {filteredUniverse.length === 0 ? (
+                    <p className={styles.watchlistEmpty}>{t("charts.catalog.emptyFilter")}</p>
+                  ) : watchlistGroups ? (
+                    watchlistGroups.map((group) => (
+                      <div key={group.id}>
+                        <div className={styles.watchlistGroup}>
+                          {t(
+                            group.kind === "company" ? "charts.catalog.groupActions" : "charts.catalog.groupIndices",
+                            { exchange: group.exchange }
+                          )}
+                        </div>
+                        {group.items.map((u) => (
+                          <WatchlistItem
+                            key={universeItemKey(u)}
+                            item={u}
+                            active={universeItemKey(u) === activeKey}
+                            showBadges
+                            onSelect={() => selectTicker(u.ticker, u)}
+                          />
+                        ))}
+                      </div>
+                    ))
+                  ) : (
+                    filteredUniverse.map((u) => (
+                      <WatchlistItem
+                        key={u.ticker}
+                        item={u}
+                        active={u.ticker === ticker}
+                        market={isNgx ? "NGX" : "BRVM"}
+                        onSelect={() => selectTicker(u.ticker, u)}
+                      />
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -930,9 +1048,11 @@ export default function ChartWorkbench({
               <>
                 <div className={styles.lastPrice} style={{ color }}>
                   {shownPrice != null
-                    ? isNgx
-                      ? format.money(shownPrice, marketCfg.currency)
-                      : `${format.number(shownPrice)} FCFA`
+                    ? isIndex
+                      ? t("charts.price.points", { value: format.number(shownPrice, { maximumFractionDigits: priceDecimals }) })
+                      : isNgx
+                        ? format.money(shownPrice, marketCfg.currency)
+                        : `${format.number(shownPrice)} FCFA`
                     : "N/D"}
                 </div>
                 <div className={styles.dayChange} style={{ color }}>
@@ -962,13 +1082,42 @@ export default function ChartWorkbench({
             up={windowChange == null ? undefined : windowChange.percent >= 0}
             title={changeTitle}
           />
+          {isIndex ? (
+            <>
+              <Metric
+                label={t("charts.metrics.high52")}
+                value={
+                  (payload?.index?.high52 ?? payload?.ngx?.high52) != null
+                    ? t("charts.price.points", {
+                        value: format.number((payload?.index?.high52 ?? payload?.ngx?.high52) as number, {
+                          maximumFractionDigits: priceDecimals,
+                        }),
+                      })
+                    : "N/D"
+                }
+              />
+              <Metric
+                label={t("charts.metrics.low52")}
+                value={
+                  (payload?.index?.low52 ?? payload?.ngx?.low52) != null
+                    ? t("charts.price.points", {
+                        value: format.number((payload?.index?.low52 ?? payload?.ngx?.low52) as number, {
+                          maximumFractionDigits: priceDecimals,
+                        }),
+                      })
+                    : "N/D"
+                }
+              />
+            </>
+          ) : (
           <Metric
             label={t("charts.metrics.volume")}
             value={
               stats?.lastVolume != null && stats.lastVolume > 0 ? format.number(stats.lastVolume) : "N/D"
             }
           />
-          {isNgx ? (
+          )}
+          {isIndex ? null : isNgx ? (
             <>
               {payload?.ngx?.kind !== "index" && (
               <Metric
@@ -1015,9 +1164,9 @@ export default function ChartWorkbench({
           )}
         </div>
 
-        {marketCfg.accountTools && (
+        {marketCfg.accountTools && (showSignals || !isIndex) && (
           <div className={styles.headerActions}>
-            <ChartAnalysisControls
+            {showSignals ? <ChartAnalysisControls
               isAuthenticated={isAuthenticated}
               ticker={ticker}
               drawings={drawings}
@@ -1043,17 +1192,17 @@ export default function ChartWorkbench({
               onOpenChange={setAnalysisPanelOpen}
               savedCount={savedAnalysesCount}
               loginCallbackPath={accountCallbackPath}
-            />
-            {!isNgxIndex && (
+            /> : null}
+            {!isIndex && (
               <ChartAlertControls
                 isAuthenticated={isAuthenticated}
                 ticker={ticker}
-                market={market}
+                market={activeExchange}
                 lastClose={stats?.lastClose ?? null}
                 loginCallbackPath={accountCallbackPath}
               />
             )}
-            {!isNgx && (
+            {showSignals && !isNgx && (
             <PortfolioTickerAction
               ticker={ticker}
               isAuthenticated={isAuthenticated}
@@ -1192,18 +1341,22 @@ export default function ChartWorkbench({
             {showCompare && (
               <div className={styles.dropdown}>
                 {universe
-                  .filter((u) => u.ticker !== ticker)
-                  .slice(0, isNgx ? universe.length : 20)
-                  .map((u) => (
-                    <label key={u.ticker} className={styles.dropItem} title={isNgx ? u.name : undefined}>
+                  .filter((u) => (mixedMarkets ? universeItemKey(u) !== activeKey : u.ticker !== ticker))
+                  .filter((u) => !mixedMarkets || (u.exchange ?? activeExchange) === activeExchange)
+                  .slice(0, mixedMarkets || isNgx ? universe.length : 20)
+                  .map((u) => {
+                    const id = mixedMarkets ? universeItemKey(u) : u.ticker;
+                    return (
+                    <label key={id} className={styles.dropItem} title={u.name}>
                       <input
                         type="checkbox"
-                        checked={compare.includes(u.ticker)}
-                        onChange={() => toggleCompare(u.ticker)}
+                        checked={compare.includes(id)}
+                        onChange={() => toggleCompare(id)}
                       />
-                      {u.ticker}
+                      {displayChartSymbol(u.ticker, u.kind === "index")}
                     </label>
-                  ))}
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -1355,7 +1508,7 @@ export default function ChartWorkbench({
                 onRemoveIndicator={(key) =>
                   setIndicatorsWithUndo((prev) => ({ ...prev, [key]: false }))
                 }
-                levelLines={percentScale ? undefined : levelLines}
+                levelLines={percentScale || !showSignals ? undefined : levelLines}
               />
             ) : loading ? (
               <div className={styles.empty}>{t("charts.loadingChart")}</div>
@@ -1367,17 +1520,25 @@ export default function ChartWorkbench({
             )}
           </div>
           <div className={styles.footerNote}>
-            {!isNgx && !embedded && (
+            {mixedMarkets && (
+              <Link
+                href={chartCatalogHref({ kind: activeKind, symbol: ticker, exchange: activeExchange })}
+                className={styles.ficheLink}
+              >
+                {t("charts.footer.openSheet", { ticker: displayChartSymbol(ticker, isIndex) })}
+              </Link>
+            )}
+            {!mixedMarkets && !isNgx && !embedded && (
               <Link href={`/actions/${ticker}`} className={styles.ficheLink}>
                 {t("charts.footer.openSheet", { ticker })}
               </Link>
             )}
-            {isNgx && (
+            {!mixedMarkets && isNgx && (
               <span className={styles.embeddedTickerHint}>
                 {t("charts.footer.switchSymbol", { symbol: payload?.ticker ?? ticker })}
               </span>
             )}
-            {!isNgx && embedded && (
+            {!mixedMarkets && !isNgx && embedded && (
               <>
                 <Link href={`/graphes?ticker=${ticker}`} className={styles.ficheLink}>
                   {t("charts.footer.openCharts")}
@@ -1390,8 +1551,9 @@ export default function ChartWorkbench({
             <span>{chartSourceNote()}</span>
           </div>
           {(() => {
-            const showRecap = Boolean(payload?.analysis && !loading && !error);
-            const legendItems = !loading && !error && levelLines && !percentScale ? levelLegendItems(levelLines) : [];
+            const showRecap = Boolean(showSignals && payload?.analysis && !loading && !error);
+            const legendItems =
+              !loading && !error && showSignals && levelLines && !percentScale ? levelLegendItems(levelLines) : [];
             if (!showRecap && legendItems.length === 0) return null;
             return (
               <div className={`${styles.analysisRecap} ${legendItems.length > 0 ? styles.analysisSplit : ""}`}>
@@ -1448,6 +1610,65 @@ export default function ChartWorkbench({
         />
       )}
     </div>
+  );
+}
+
+function displayChartSymbol(symbol: string, isIndex: boolean): string {
+  return isIndex ? symbol.replace(/_/g, " ") : symbol;
+}
+
+function IndexMark({ exchange, size = 20 }: { exchange: string; size?: number }) {
+  const label = exchange.slice(0, 2).toUpperCase();
+  return (
+    <span className={styles.indexMark} style={{ width: size, height: size, fontSize: Math.max(9, size * 0.36) }} aria-hidden="true">
+      {label}
+    </span>
+  );
+}
+
+function WatchlistItem({
+  item,
+  active,
+  showBadges = false,
+  market,
+  onSelect,
+}: {
+  item: ChartUniverseItem;
+  active: boolean;
+  showBadges?: boolean;
+  market?: "BRVM" | "NGX";
+  onSelect: () => void;
+}) {
+  const { t } = useI18n();
+  const exchange = item.exchange ?? market ?? "BRVM";
+  const isIndex = item.kind === "index";
+  return (
+    <button
+      type="button"
+      className={active ? styles.itemActive : styles.item}
+      onClick={onSelect}
+    >
+      <span className={styles.itemTicker}>
+        <span className="ob-ticker-with-mark">
+          {isIndex ? (
+            <IndexMark exchange={exchange} size={20} />
+          ) : (
+            <CompanyMark ticker={item.ticker} name={item.name} size={20} market={exchange === "NGX" ? "NGX" : "BRVM"} />
+          )}
+          {item.countryFlag ? <span aria-hidden="true">{item.countryFlag}</span> : null}
+          {displayChartSymbol(item.ticker, isIndex)}
+        </span>
+        {showBadges ? (
+          <span className={styles.itemBadges}>
+            <span className={styles.itemBadge}>{exchange}</span>
+            <span className={styles.itemBadge}>
+              {isIndex ? t("charts.badge.index") : t("charts.badge.stock")}
+            </span>
+          </span>
+        ) : null}
+      </span>
+      <span className={styles.itemName}>{item.name}</span>
+    </button>
   );
 }
 

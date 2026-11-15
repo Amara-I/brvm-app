@@ -8,10 +8,10 @@ export const charts = {
     kicker: "Technical analysis",
     title: "Charts",
     lead: "Every chart on the platform — stocks and indices, BRVM and NGX. Newly listed names appear here automatically.",
-    workbenchLead: "Chart analysis of BRVM stocks — indicators, drawings, and multi-symbol comparison.",
+    workbenchLead: "BRVM and NGX stocks and indices — indicators, drawings, and comparison. Search for a name to display it.",
     emptyTitle: "No charts available",
     emptyBody:
-      "The catalog will appear once price series are loaded. If a series is missing, the interface shows N/D.",
+      "Charts will appear once price series are loaded. If a series is missing, the interface shows N/D.",
   },
   catalog: {
     searchPlaceholder: "Search a stock, an index, or a market…",
@@ -85,9 +85,16 @@ export const charts = {
     volumeFlow: "Volume flow / SMA20",
     volumeFlowShort: "Volume flow",
   },
-  searchPlaceholder: "Search ticker or name…",
-  searchAria: "Search for a company",
+  searchPlaceholder: "Search ticker, name or index…",
+  searchAria: "Search for a stock or an index",
   changeSymbol: "Change symbol",
+  badge: {
+    stock: "Stock",
+    index: "Index",
+  },
+  price: {
+    points: "{value} pts",
+  },
   metrics: {
     rangeChange: "Change {range}",
     volume: "Volume",
