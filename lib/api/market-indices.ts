@@ -3,18 +3,19 @@
 
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
-import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
+import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { loadLatestCanonicalIndexValues } from "@/lib/db/latest-canonical";
 import { dataSourceLabel } from "@/lib/api/data-source-label";
 import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import { resolveIndexCatalog } from "@/lib/markets/index-catalog";
 import { computeIndexStats, type IndexHistoryPoint } from "@/lib/markets/index-stats";
-import { readCachedChartSeries } from "@/lib/charts/refresh-chart-series";
+import { loadIndexSheetBundle, type IndexSheetBundle } from "@/lib/markets/index-sheet";
 import {
   brvm30AvisFallbackComposition,
   buildIndexComposition,
   sortIndexItems,
   toIndexListItem,
+  type MarketIndexComposition,
   type MarketIndexDetail,
   type MarketIndexListItem,
 } from "@/lib/markets/index-view";
@@ -66,113 +67,60 @@ async function loadIndexDetailFromDb(
   code: string,
   exchange: "BRVM" | "NGX" = "BRVM"
 ): Promise<MarketIndexDetail | null> {
-  const row = await prisma.marketIndex.findUnique({
-    where: { code: code.toUpperCase() },
-  });
-  if (!row || row.exchange !== exchange) return null;
+  // Série composée d'UN indice (quotidien 800 j, puis hebdo / mensuel), en cache 1 h :
+  // l'ancienne lecture de `chart_series` MAX renvoyait tout l'historique à chaque visite.
+  const bundle = await loadIndexSheetBundle(code, exchange);
+  if (!bundle) return null;
+  return detailFromBundle(bundle);
+}
 
-  const now = Date.now();
-  const byDay = new Map<string, IndexHistoryPoint>();
-
-  const cached = await readCachedChartSeries(prisma, "INDEX", row.code, "MAX");
-  if (cached && cached.points.length > 0) {
-    for (const p of cached.points) {
-      byDay.set(p.time, { time: p.time, value: p.value, volume: p.volume ?? null, changePercent: null });
-    }
-  } else {
-    const values = await prisma.marketIndexValue.findMany({
-      where: { marketIndexId: row.id, isCanonical: true },
-      orderBy: { date: "asc" },
-    });
-    for (const value of values) {
-      if (value.date.getTime() > now) continue;
-      const time = value.date.toISOString().slice(0, 10);
-      byDay.set(time, {
-        time,
-        value: Number(value.value),
-        volume: value.volume != null ? Number(value.volume) : null,
-        changePercent: value.changePercent != null ? Number(value.changePercent) : null,
-      });
-    }
-  }
-  const series = [...byDay.values()].sort((a, b) => a.time.localeCompare(b.time));
+/** Détail d'indice (liste, stats, composition BRVM) à partir de la fiche en cache. */
+export async function detailFromBundle(bundle: IndexSheetBundle): Promise<MarketIndexDetail> {
+  const series: IndexHistoryPoint[] = bundle.series.map((p, i, all) => ({
+    time: p.time,
+    value: p.value,
+    volume: null,
+    changePercent: i === all.length - 1 ? bundle.lastChangePercent : null,
+  }));
   const last = series[series.length - 1] ?? null;
-  const stats = computeIndexStats(series);
-  const catalog = resolveIndexCatalog(row.code, row.name);
-  const nav = await getCompaniesNavIndex();
-  const storedComposition = (await loadStoredComposition(row.id)) ?? (row.code === "BRVM_30" ? brvm30AvisFallbackComposition() : null);
+  const stats = {
+    ...computeIndexStats(series),
+    historyPoints: bundle.historyPoints,
+    firstDate: bundle.firstDate,
+  };
+  const catalog = resolveIndexCatalog(bundle.code, bundle.name);
   const list = toIndexListItem(
-    row.code,
-    row.name,
+    bundle.code,
+    bundle.name,
     last
       ? {
           value: last.value,
           changePercent: stats.sessionChangePercent,
           date: last.time,
-          source: "BRVM_OFFICIEL",
+          source: bundle.lastSource ?? (bundle.exchange === "NGX" ? "NGX_OFFICIEL" : "BRVM_OFFICIEL"),
         }
       : null,
-    series.length
+    bundle.historyPoints
   );
-
-  const lastCanonical = await prisma.marketIndexValue.findFirst({
-    where: { marketIndexId: row.id, isCanonical: true, date: { lte: new Date() } },
-    orderBy: { date: "desc" },
-    select: { source: true },
-  });
-  if (lastCanonical) {
-    list.source = lastCanonical.source;
-    list.sourceLabel = dataSourceLabel(lastCanonical.source);
+  if (bundle.lastSource) {
+    list.source = bundle.lastSource;
+    list.sourceLabel = dataSourceLabel(bundle.lastSource);
   }
-
-  return {
-    ...list,
-    stats,
-    series,
-    composition: buildIndexComposition(
-      catalog.compositionKind,
-      catalog.sectorName,
-      nav.companies,
-      storedComposition
-    ),
+  let composition: MarketIndexComposition = {
+    kind: "unavailable",
+    note: "",
+    sectorName: null,
+    constituents: [],
+    asOf: null,
+    official: false,
   };
-}
-
-async function loadStoredComposition(marketIndexId: string) {
-  try {
-    const latest = await prisma.marketIndexConstituent.findFirst({
-      where: { marketIndexId },
-      orderBy: [{ asOf: "desc" }, { source: "asc" }],
-      select: { asOf: true, source: true, note: true },
-    });
-    if (!latest) return null;
-
-    const rows = await prisma.marketIndexConstituent.findMany({
-      where: { marketIndexId, asOf: latest.asOf, source: latest.source },
-      orderBy: { ticker: "asc" },
-    });
-    if (rows.length === 0) return null;
-
-    return {
-      tickers: rows.map((row) => ({
-        ticker: row.ticker,
-        weight: row.weight != null ? Number(row.weight) : null,
-      })),
-      asOf: latest.asOf.toISOString().slice(0, 10),
-      note: latest.note,
-      official: latest.source === "BRVM_OFFICIEL",
-    };
-  } catch (err) {
-    // Preview/prod avant `prisma migrate deploy` : la table n'existe pas encore.
-    if (isMissingDatabaseObject(err) || isDatabaseUnavailable(err)) {
-      console.warn(
-        "[indices] composition stockée indisponible — repli catalogue",
-        err instanceof Error ? err.message : err
-      );
-      return null;
-    }
-    throw err;
+  if (bundle.exchange === "BRVM") {
+    const nav = await getCompaniesNavIndex();
+    const stored =
+      bundle.storedComposition ?? (bundle.code === "BRVM_30" ? brvm30AvisFallbackComposition() : null);
+    composition = buildIndexComposition(catalog.compositionKind, catalog.sectorName, nav.companies, stored);
   }
+  return { ...list, stats, series, composition };
 }
 
 export const getMarketIndexList = cache(async (exchange: "BRVM" | "NGX" = "BRVM"): Promise<MarketIndexListItem[]> => {

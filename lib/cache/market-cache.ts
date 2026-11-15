@@ -42,3 +42,17 @@ export function revalidateNgxMarketCache(): void {
     if (!isMissingNextCache(err)) throw err;
   }
 }
+
+/** Étiquette des fiches d'indice (séries, variations du jour des composantes). */
+export const MARKET_INDICES_TAG = "market-indices";
+/** 1 h : les niveaux d'indice ne changent qu'une fois par séance. */
+export const MARKET_INDICES_REVALIDATE_S = 3600;
+
+/** Invalide le cache des fiches d'indice (après ingestion). Sans effet hors runtime Next.js. */
+export function revalidateMarketIndicesCache(): void {
+  try {
+    revalidateTag(MARKET_INDICES_TAG);
+  } catch (err) {
+    if (!isMissingNextCache(err)) throw err;
+  }
+}

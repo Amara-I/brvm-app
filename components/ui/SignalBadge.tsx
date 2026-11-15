@@ -10,10 +10,12 @@ type Props = {
   title?: string;
   /** Confiance du signal : point coloré dans la pastille (vert / ambre / rouge). */
   confidence?: string | null;
+  /** Libellé affiché à la place du signal (ex. lecture d'indice « Haussier »), même couleur. */
+  display?: string;
 };
 
 /** Pastille de signal (timing) — même échelle vert → rouge que le score, avec icône. */
-export default function SignalBadge({ label, title, confidence }: Props) {
+export default function SignalBadge({ label, title, confidence, display }: Props) {
   const { labels } = useI18n();
   const tok = SIGNAL_TOKENS[label];
   const style = tok
@@ -26,7 +28,7 @@ export default function SignalBadge({ label, title, confidence }: Props) {
           {tok.icon}
         </span>
       ) : null}
-      {labels.signal(label)}
+      {display ?? labels.signal(label)}
       {confidence ? <ConfidenceDot value={confidence} compact /> : null}
     </span>
   );

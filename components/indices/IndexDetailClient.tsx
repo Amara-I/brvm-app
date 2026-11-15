@@ -1,26 +1,22 @@
 "use client";
 
-import { useMemo, useState } from "react";
+// Fiche d'un indice (BRVM ou NGX) : niveau, chiffres clés, courbe avec niveaux techniques,
+// lecture de marché, participation des valeurs, analyse technique en points et composition.
+
 import Link from "next/link";
-import {
-  Area,
-  AreaChart,
-  CartesianGrid,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import type { ReactNode } from "react";
+import TechnicalAnalysisPanel from "@/components/actions/TechnicalAnalysisPanel";
 import { useI18n } from "@/components/i18n/I18nProvider";
-import ChangeValue from "@/components/ui/ChangeValue";
-import KpiStat from "@/components/ui/KpiStat";
+import IndexChart from "@/components/indices/IndexChart";
 import { translateCompositionNote, translateIndexDescription, translateIndexFamily } from "@/components/indices/index-copy";
 import { translateDataSourceLabel } from "@/components/marche/market-copy";
-import type { MarketIndexDetail } from "@/lib/api/market-indices";
-import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
-import type { ChartRange } from "@/lib/charts/indicators";
+import ChangeValue from "@/components/ui/ChangeValue";
+import ConfidenceDot from "@/components/ui/ConfidenceDot";
+import KpiStat from "@/components/ui/KpiStat";
+import SignalBadge from "@/components/ui/SignalBadge";
 import type { FormatApi } from "@/lib/i18n/format";
-import { C } from "@/lib/theme/colors";
+import { buildIndexReading, indexReadingLabel, type IndexBreadth, type ReadingLine } from "@/lib/markets/index-insights";
+import type { IndexPageData } from "@/lib/markets/index-page";
 import styles from "./Indices.module.css";
 
 const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
@@ -40,31 +36,102 @@ function formatSessionDate(iso: string | null | undefined, format: FormatApi): s
   return format.date(`${iso}T00:00:00.000Z`, NUMERIC_DATE);
 }
 
-export default function IndexDetailClient({ detail }: { detail: MarketIndexDetail }) {
-  const { t, format, labels } = useI18n();
-  const [range, setRange] = useState<ChartRange>("1A");
-  const ranges: Array<{ key: ChartRange; label: string }> = [
-    { key: "1M", label: "1M" },
-    { key: "3M", label: "3M" },
-    { key: "6M", label: "6M" },
-    { key: "YTD", label: t("market.indices.kpi.ytd") },
-    { key: "1A", label: t("market.indices.range1A") },
-    { key: "5A", label: t("market.indices.range5A") },
-    { key: "MAX", label: t("market.indices.rangeAll") },
-  ];
-  const windowed = useMemo(
-    () => applyChartSeriesWindow(detail.series, { range, defaultTo1A: false }),
-    [detail.series, range]
+function ReadingText({ line }: { line: ReadingLine }) {
+  return (
+    <li>
+      {line.segments.map((seg, i) =>
+        seg.strong ? (
+          <strong
+            key={i}
+            className={seg.tone === "pos" ? styles.pos : seg.tone === "neg" ? styles.neg : styles.hl}
+          >
+            {seg.text}
+          </strong>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        )
+      )}
+    </li>
   );
-  const chartData = useMemo(
-    () => windowed.series.map((point) => ({ ...point, label: point.time.slice(0, 7) })),
-    [windowed.series]
+}
+
+function BreadthCard({
+  breadth,
+  stockHref,
+}: {
+  breadth: IndexBreadth;
+  stockHref: (ticker: string) => string;
+}) {
+  const { t, format } = useI18n();
+  const pct = (n: number) => (breadth.total > 0 ? (n / breadth.total) * 100 : 0);
+  const chip = (row: { ticker: string; name: string; changePercent: number }) => (
+    <li key={row.ticker}>
+      <Link href={stockHref(row.ticker)} className={styles.moverLink} title={row.name}>
+        <span className={styles.moverTicker}>{row.ticker}</span>
+        <ChangeValue value={row.changePercent} />
+      </Link>
+    </li>
   );
-  const chartIndexByTime = useMemo(() => {
-    const m = new Map<string, number>();
-    chartData.forEach((p, i) => m.set(p.time, i));
-    return m;
-  }, [chartData]);
+  return (
+    <section className={styles.card} aria-labelledby="index-breadth-title">
+      <div className={styles.cardHead}>
+        <h2 id="index-breadth-title" className={styles.cardTitle}>
+          {t("market.indices.sheet.breadthTitle")}
+        </h2>
+        <span className={styles.meta}>
+          {t("market.indices.sheet.breadthSession", { date: formatSessionDate(breadth.sessionDate, format) })}
+        </span>
+      </div>
+      <p className={styles.note}>{t(`market.indices.sheet.basis.${breadth.basis}`)}</p>
+      <div className={styles.breadthBar} role="img" aria-label={`${breadth.up} / ${breadth.flat} / ${breadth.down}`}>
+        <span className={styles.breadthUp} style={{ width: `${pct(breadth.up)}%` }} />
+        <span className={styles.breadthFlat} style={{ width: `${pct(breadth.flat)}%` }} />
+        <span className={styles.breadthDown} style={{ width: `${pct(breadth.down)}%` }} />
+      </div>
+      <div className={styles.breadthCounts}>
+        <span>
+          <strong className={styles.pos}>{breadth.up}</strong> {t("market.indices.sheet.breadthUp")}
+        </span>
+        <span>
+          <strong className={styles.hl}>{breadth.flat}</strong> {t("market.indices.sheet.breadthFlat")}
+        </span>
+        <span>
+          <strong className={styles.neg}>{breadth.down}</strong> {t("market.indices.sheet.breadthDown")}
+        </span>
+      </div>
+      <div className={styles.movers}>
+        <div>
+          <h3 className={styles.subTitle}>{t("market.indices.sheet.gainers")}</h3>
+          {breadth.topGainers.length ? <ul className={styles.moverList}>{breadth.topGainers.map(chip)}</ul> : <p className={styles.empty}>N/D</p>}
+        </div>
+        <div>
+          <h3 className={styles.subTitle}>{t("market.indices.sheet.losers")}</h3>
+          {breadth.topLosers.length ? <ul className={styles.moverList}>{breadth.topLosers.map(chip)}</ul> : <p className={styles.empty}>N/D</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default function IndexDetailClient({
+  data,
+  backHref = "/indices",
+  backLabel,
+  stockHrefPrefix = "/actions/",
+  extraHeader,
+}: {
+  data: IndexPageData;
+  backHref?: string;
+  backLabel?: string;
+  /** Préfixe des fiches société (chaîne : une fonction ne traverse pas la frontière serveur → client). */
+  stockHrefPrefix?: string;
+  /** Lien supplémentaire sous l'en-tête (ex. graphe détaillé NGX). */
+  extraHeader?: ReactNode;
+}) {
+  const { t, format, labels, locale } = useI18n();
+  const stockHref = (ticker: string) => `${stockHrefPrefix}${encodeURIComponent(ticker)}`;
+  const lang = locale === "en" ? "en" : "fr";
+  const { detail, risk, analysis, breadth } = data;
   const { stats, composition } = detail;
   const history =
     stats.historyPoints > 0
@@ -73,19 +140,38 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
         })
       : t("market.indices.historyNd");
   const sectorName = (name: string) => labels.sector(name);
+  const pctPlain = (v: number | null) => (v == null ? "N/D" : format.percent(v, 2, true));
+  const reading = buildIndexReading({
+    name: detail.name,
+    locale: lang,
+    lastValue: stats.lastValue,
+    lastDate: stats.lastDate,
+    sessionChangePercent: stats.sessionChangePercent,
+    changeYtdPercent: stats.changeYtdPercent,
+    change1YPercent: stats.change1YPercent,
+    high52w: stats.high52w,
+    low52w: stats.low52w,
+    risk,
+    analysis,
+    breadth,
+  });
+  const showComposition = data.exchange === "BRVM";
 
   return (
-    <>
+    <div className={styles.sheet}>
       <header className={styles.detailHead}>
-        <Link href="/indices" className={styles.back}>
-          {t("market.indices.back")}
+        <Link href={backHref} className={styles.back}>
+          {backLabel ?? t("market.indices.back")}
         </Link>
         <p className="ob-kicker">
-          {translateIndexFamily(detail.family, t)} · {detail.code.replace(/_/g, " ")}
+          {data.exchange === "BRVM" ? `${translateIndexFamily(detail.family, t)} · ` : "NGX · "}
+          {detail.code.replace(/_/g, " ")}
         </p>
         <h1 className="ob-page-title">{detail.name}</h1>
         <div className={styles.levelRow}>
-          <span className={styles.level}>{formatLevel(stats.lastValue, format)}</span>
+          <span className={styles.level}>
+            {formatLevel(stats.lastValue, format)} <span className={styles.unit}>pts</span>
+          </span>
           <ChangeValue value={stats.sessionChangePercent} pill />
         </div>
         <p className={styles.meta}>
@@ -95,148 +181,137 @@ export default function IndexDetailClient({ detail }: { detail: MarketIndexDetai
             history,
           })}
         </p>
-        <p className={styles.note}>
-          {translateIndexDescription(detail.code, detail.description, t, sectorName)}
-        </p>
+        {data.exchange === "BRVM" ? (
+          <p className={styles.note}>{translateIndexDescription(detail.code, detail.description, t, sectorName)}</p>
+        ) : null}
+        {extraHeader}
       </header>
 
       <div className={styles.kpiGrid}>
-        <KpiStat label={t("market.indices.kpi.session")} value={<ChangeValue value={stats.sessionChangePercent} />} />
-        <KpiStat label={t("market.indices.kpi.month")} value={<ChangeValue value={stats.change1MPercent} />} />
-        <KpiStat label={t("market.indices.kpi.threeMonths")} value={<ChangeValue value={stats.change3MPercent} />} />
-        <KpiStat label={t("market.indices.kpi.ytd")} value={<ChangeValue value={stats.changeYtdPercent} />} />
-        <KpiStat label={t("market.indices.kpi.year")} value={<ChangeValue value={stats.change1YPercent} />} />
+        <KpiStat label={t("market.indices.sheet.kpi.session")} value={<ChangeValue value={stats.sessionChangePercent} />} />
+        <KpiStat label={t("market.indices.sheet.kpi.ytd")} value={<ChangeValue value={stats.changeYtdPercent} />} />
+        <KpiStat label={t("market.indices.sheet.kpi.year")} value={<ChangeValue value={stats.change1YPercent} />} />
         <KpiStat
-          label={t("market.indices.kpi.high52")}
+          label={t("market.indices.sheet.kpi.high52")}
           value={formatLevel(stats.high52w, format)}
-          hint={stats.high52w == null ? t("market.indices.historyShort") : undefined}
+          hint={risk.fromHigh52wPercent != null ? pctPlain(risk.fromHigh52wPercent) : t("market.indices.historyShort")}
         />
         <KpiStat
-          label={t("market.indices.kpi.low52")}
+          label={t("market.indices.sheet.kpi.low52")}
           value={formatLevel(stats.low52w, format)}
-          hint={stats.low52w == null ? t("market.indices.historyShort") : undefined}
+          hint={risk.fromLow52wPercent != null ? pctPlain(risk.fromLow52wPercent) : t("market.indices.historyShort")}
         />
-        <KpiStat label={t("market.indices.kpi.first")} value={formatSessionDate(stats.firstDate, format)} />
+        <KpiStat
+          label={t("market.indices.sheet.kpi.volatility")}
+          value={risk.volatility1YPercent == null ? "N/D" : format.percent(risk.volatility1YPercent, 1)}
+        />
+        <KpiStat
+          label={t("market.indices.sheet.kpi.drawdown")}
+          value={<ChangeValue value={risk.maxDrawdown1YPercent} />}
+        />
+        <KpiStat
+          label={t("market.indices.sheet.kpi.ath")}
+          value={formatLevel(data.athValue, format)}
+          hint={
+            data.athDate
+              ? `${formatSessionDate(data.athDate, format)}${
+                  risk.fromAthPercent != null && risk.fromAthPercent < -0.005
+                    ? ` · ${t("market.indices.sheet.kpi.fromAth", { value: pctPlain(risk.fromAthPercent) })}`
+                    : ""
+                }`
+              : undefined
+          }
+        />
       </div>
 
-      <section className={styles.card} aria-labelledby="index-chart-title">
+      <IndexChart series={detail.series} analysis={analysis} />
+
+      <section className={styles.card} aria-labelledby="index-reading-title">
         <div className={styles.cardHead}>
-          <h2 id="index-chart-title" className={styles.cardTitle}>
-            {t("market.indices.historyTitle")}
-          </h2>
-          <div className={styles.rangeRow} role="group" aria-label={t("market.indices.period")}>
-            {ranges.map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className={range === item.key ? styles.rangeActive : styles.rangeBtn}
-                onClick={() => setRange(item.key)}
-              >
-                {item.label}
-              </button>
-            ))}
+          <div>
+            <h2 id="index-reading-title" className={styles.cardTitle}>
+              {t("market.indices.sheet.readingTitle")}
+            </h2>
+            <p className={styles.note}>{t("market.indices.sheet.readingLead")}</p>
           </div>
+          {analysis ? (
+            <div className={styles.readingSignal}>
+              <span className={styles.readingSignalLabel}>{t("market.indices.sheet.readingSignal")}</span>
+              <SignalBadge label={analysis.signal.label} display={indexReadingLabel(analysis.signal.label, lang)} />
+              <ConfidenceDot value={analysis.signal.confidence} />
+            </div>
+          ) : null}
         </div>
-        {chartData.length > 1 ? (
-          <div className={styles.chartBox}>
-            <ResponsiveContainer width="100%" height={300}>
-              <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 4 }}>
-                <defs>
-                  <linearGradient id="indexGold" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor={C.gold} stopOpacity={0.35} />
-                    <stop offset="100%" stopColor={C.gold} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke={C.borderThin} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="time"
-                  stroke={C.textDim}
-                  fontSize={11}
-                  minTickGap={40}
-                  tickFormatter={(time: string) => time.slice(0, 7)}
-                />
-                <YAxis stroke={C.textDim} fontSize={11} domain={["auto", "auto"]} width={64} />
-                <Tooltip
-                  contentStyle={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 8 }}
-                  labelStyle={{ color: C.text }}
-                  labelFormatter={(_label, items) => {
-                    const time = (items?.[0]?.payload as { time?: string } | undefined)?.time;
-                    return time ? formatSessionDate(time.slice(0, 10), format) : String(_label);
-                  }}
-                  formatter={(value, _name, item) => {
-                    const level = formatLevel(typeof value === "number" ? value : null, format);
-                    const time = (item?.payload as { time?: string } | undefined)?.time;
-                    const i = time ? (chartIndexByTime.get(time) ?? -1) : -1;
-                    const prev = i > 0 ? chartData[i - 1]!.value : null;
-                    const cur = typeof value === "number" ? value : null;
-                    const day =
-                      prev != null && prev > 0 && cur != null
-                        ? ` (${format.percent(((cur - prev) / prev) * 100, 2, true)})`
-                        : "";
-                    return [`${level}${day}`, t("market.indices.level")];
-                  }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  name={t("market.indices.level")}
-                  isAnimationActive={false}
-                  stroke={C.gold}
-                  fill="url(#indexGold)"
-                  strokeWidth={2}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+        {reading.length ? (
+          <ul className={styles.reading}>
+            {reading.map((line) => (
+              <ReadingText key={line.id} line={line} />
+            ))}
+          </ul>
         ) : (
           <p className={styles.empty}>{t("market.indices.historyEmpty")}</p>
         )}
       </section>
 
-      <section className={styles.card} aria-labelledby="index-compo-title">
-        <div className={styles.cardHead}>
-          <h2 id="index-compo-title" className={styles.cardTitle}>
-            {t("market.indices.composition")}
-          </h2>
-        </div>
-        <p className={styles.note}>{translateCompositionNote(composition.note, t, sectorName)}</p>
-        {composition.constituents.length === 0 ? (
-          <p className={styles.empty}>{t("market.indices.constituentsNd")}</p>
-        ) : (
-          <div className={styles.tableWrap}>
-            <table className="ob-table">
-              <thead>
-                <tr>
-                  <th scope="col">{t("market.indices.col.ticker")}</th>
-                  <th scope="col">{t("market.indices.col.company")}</th>
-                  <th scope="col">{t("market.indices.col.sector")}</th>
-                  <th scope="col">{t("market.indices.col.weight")}</th>
-                  <th scope="col">{t("market.indices.col.price")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {composition.constituents.map((row) => (
-                  <tr key={row.ticker}>
-                    <td>
-                      <Link href={`/actions/${row.ticker}`} className={styles.constLink}>
-                        {row.ticker}
-                      </Link>
-                    </td>
-                    <td>{row.name}</td>
-                    <td>{row.sector ? labels.sector(row.sector) : "N/D"}</td>
-                    <td className="ob-num">
-                      {row.weight == null || Number.isNaN(row.weight) ? "N/D" : format.percent(row.weight, 2)}
-                    </td>
-                    <td className="ob-num">
-                      {row.lastPrice == null || !(row.lastPrice > 0) ? "N/D" : format.integer(row.lastPrice)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {breadth ? (
+        <BreadthCard breadth={breadth} stockHref={stockHref} />
+      ) : (
+        <section className={styles.card}>
+          <h2 className={styles.cardTitle}>{t("market.indices.sheet.breadthTitle")}</h2>
+          <p className={styles.note} style={{ marginTop: 8, marginBottom: 0 }}>
+            {t("market.indices.sheet.breadthNd")}
+          </p>
+        </section>
+      )}
+
+      {analysis ? <TechnicalAnalysisPanel analysis={analysis} qualityScore={null} variant="index" /> : null}
+
+      {showComposition ? (
+        <section className={styles.card} aria-labelledby="index-compo-title">
+          <div className={styles.cardHead}>
+            <h2 id="index-compo-title" className={styles.cardTitle}>
+              {t("market.indices.composition")}
+            </h2>
           </div>
-        )}
-      </section>
-    </>
+          <p className={styles.note}>{translateCompositionNote(composition.note, t, sectorName)}</p>
+          {composition.constituents.length === 0 ? (
+            <p className={styles.empty}>{t("market.indices.constituentsNd")}</p>
+          ) : (
+            <div className={styles.tableWrap}>
+              <table className="ob-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("market.indices.col.ticker")}</th>
+                    <th scope="col">{t("market.indices.col.company")}</th>
+                    <th scope="col">{t("market.indices.col.sector")}</th>
+                    <th scope="col">{t("market.indices.col.weight")}</th>
+                    <th scope="col">{t("market.indices.col.price")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {composition.constituents.map((row) => (
+                    <tr key={row.ticker}>
+                      <td>
+                        <Link href={stockHref(row.ticker)} className={styles.constLink}>
+                          {row.ticker}
+                        </Link>
+                      </td>
+                      <td>{row.name}</td>
+                      <td>{row.sector ? labels.sector(row.sector) : "N/D"}</td>
+                      <td className="ob-num">
+                        {row.weight == null || Number.isNaN(row.weight) ? "N/D" : format.percent(row.weight, 2)}
+                      </td>
+                      <td className="ob-num">
+                        {row.lastPrice == null || !(row.lastPrice > 0) ? "N/D" : format.integer(row.lastPrice)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      ) : null}
+    </div>
   );
 }

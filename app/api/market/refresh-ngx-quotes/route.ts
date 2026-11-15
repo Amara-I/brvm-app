@@ -6,7 +6,7 @@
 
 import { NextRequest } from "next/server";
 import { apiError, apiSuccess, privateCacheHeaders } from "@/lib/api/response";
-import { revalidateNgxMarketCache } from "@/lib/cache/market-cache";
+import { revalidateMarketIndicesCache, revalidateNgxMarketCache } from "@/lib/cache/market-cache";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { getConnectorFeatureFlags } from "@/lib/ingestion/connector-config";
 import { runNgxDailyIngest } from "@/lib/ingestion/run-ngx-ingest";
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest) {
     // Nouveaux cours en base : on invalide le cache serveur NGX et on relit
     // la base directement pour cette réponse.
     revalidateNgxMarketCache();
+    revalidateMarketIndicesCache();
     const board = await loadNgxOverviewBoard(t, { fresh: true });
     return apiSuccess(
       {

@@ -7,6 +7,7 @@ import SignalBadge from "@/components/ui/SignalBadge";
 import ConfidenceDot from "@/components/ui/ConfidenceDot";
 import { useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { signalOf } from "@/lib/calc/calc-metrics";
+import { indexReadingLabel } from "@/lib/markets/index-insights";
 import EducationTermLink from "@/components/education/EducationTermLink";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { TFunc } from "@/lib/i18n/create-i18n";
@@ -14,6 +15,7 @@ import {
   formatDistancePct,
   formatPrice,
   formatPriceRange,
+  hasDecimals,
   rewardRiskSentence,
   stackLabelBoxes,
   type PriceCurrency,
@@ -201,12 +203,16 @@ function ScenarioFigure({
 export default function TechnicalAnalysisPanel({
   analysis,
   qualityScore,
+  variant = "stock",
 }: {
   analysis: TechnicalAnalysis;
   /** Score qualité /100. null = N/D (titre non noté). */
   qualityScore: number | null;
+  /** `index` : lecture de marché d'un indice (points, pas d'entrée d'achat ni de gain/risque). */
+  variant?: "stock" | "index";
 }) {
   const { t, format, locale } = useI18n();
+  const isIndex = variant === "index";
   const nd = t("common.nd");
   const tone = signalOf(analysis.signal.label).color;
   const currency: PriceCurrency = analysis.currency ?? "XOF";
@@ -214,7 +220,7 @@ export default function TechnicalAnalysisPanel({
   const money = (value: number) => formatPrice(value, currency, lang);
   const range = (low: number, high: number) => formatPriceRange(low, high, currency, lang);
   const price = (value: number | null | undefined) =>
-    value == null ? nd : currency === "NGN" ? format.decimal(value, 2) : format.number(value);
+    value == null ? nd : hasDecimals(currency) ? format.decimal(value, 2) : format.number(value);
   const structure = analysis.structure;
   const figures = useMemo(() => {
     return analysis.scenarios.map((scenario) => ({
@@ -234,22 +240,33 @@ export default function TechnicalAnalysisPanel({
       <header className={styles.header}>
         <div>
           <h2 id="ta-title" className={styles.title}>
-            {t("company.ta.title")}
+            {t(isIndex ? "market.indices.ta.title" : "company.ta.title")}
           </h2>
-          <p className={styles.lead}>{t("company.ta.lead")}</p>
+          <p className={styles.lead}>{t(isIndex ? "market.indices.ta.lead" : "company.ta.lead")}</p>
         </div>
         <div className={styles.signalPill} style={{ borderColor: tone }}>
-          <SignalBadge label={analysis.signal.label} />
+          <SignalBadge
+            label={analysis.signal.label}
+            display={isIndex ? indexReadingLabel(analysis.signal.label, lang) : undefined}
+          />
           <span>
             {t("company.ta.confidence")} <ConfidenceDot value={analysis.signal.confidence} />
           </span>
         </div>
       </header>
 
-      <p className={styles.note}>{t("company.ta.scoreVsTiming", { score: qualityScore == null ? nd : Math.round(qualityScore) })}</p>
+      <p className={styles.note}>
+        {isIndex
+          ? t("market.indices.ta.note")
+          : t("company.ta.scoreVsTiming", { score: qualityScore == null ? nd : Math.round(qualityScore) })}
+      </p>
       {analysis.liquidity.warningFr ? (
         <p className={styles.warning} role="status">
-          {locale === "en" ? analysis.liquidity.warningEn : analysis.liquidity.warningFr}
+          {isIndex
+            ? t("market.indices.ta.lowHistory")
+            : locale === "en"
+              ? analysis.liquidity.warningEn
+              : analysis.liquidity.warningFr}
         </p>
       ) : null}
 
@@ -351,7 +368,7 @@ export default function TechnicalAnalysisPanel({
               model={model}
               markerId={`ta-arrow-${scenario.bias}`}
               caption={t(`company.ta.scenario.${scenario.bias}`)}
-              markName={(mark) => markLabel(mark, t)}
+              markName={(mark) => markLabel(mark, t, isIndex)}
               fvgLabel={t("company.ta.chart.fvg")}
               money={money}
               range={range}
@@ -364,20 +381,21 @@ export default function TechnicalAnalysisPanel({
               t={t}
               money={money}
               range={range}
+              isIndex={isIndex}
             />
           </article>
         ))}
       </div>
-      <p className={styles.disclaimer}>{t("company.ta.disclaimer")}</p>
+      <p className={styles.disclaimer}>{t(isIndex ? "market.indices.ta.disclaimer" : "company.ta.disclaimer")}</p>
     </section>
   );
 }
 
-function markLabel(mark: ScenarioChartMark, t: TFunc): string {
+function markLabel(mark: ScenarioChartMark, t: TFunc, isIndex = false): string {
   if (mark.kind === "target") return t("company.ta.chart.target", { n: mark.targetIndex ?? 1 });
   if (mark.kind === "stop") return t("company.ta.chart.invalidation");
-  if (mark.kind === "entry") return t("company.ta.chart.entry");
-  if (mark.kind === "last") return t("company.ta.chart.last");
+  if (mark.kind === "entry") return t(isIndex ? "market.indices.ta.chart.entry" : "company.ta.chart.entry");
+  if (mark.kind === "last") return t(isIndex ? "market.indices.ta.chart.last" : "company.ta.chart.last");
   if (mark.kind === "support") return t("company.ta.zone.support");
   if (mark.kind === "resistance") return t("company.ta.zone.resistance");
   return t("company.ta.chart.fvg");
@@ -391,6 +409,7 @@ function ScenarioCopy({
   t,
   money,
   range,
+  isIndex = false,
 }: {
   scenario: ScenarioPlan;
   last: number | null;
@@ -399,6 +418,7 @@ function ScenarioCopy({
   t: TFunc;
   money: (value: number) => string;
   range: (low: number, high: number) => string;
+  isIndex?: boolean;
 }) {
   const distance = (level: number | null) => (level == null || last == null ? null : formatDistancePct(last, level));
   const entry =
@@ -409,13 +429,13 @@ function ScenarioCopy({
       <p>{locale === "en" ? scenario.headlineEn : scenario.headlineFr}</p>
       <h5>{t("company.ta.sections.why")}</h5>
       <p>{locale === "en" ? scenario.explanationEn : scenario.explanationFr}</p>
-      <h5>{t("company.ta.sections.plan")}</h5>
+      <h5>{t(isIndex ? "market.indices.ta.plan" : "company.ta.sections.plan")}</h5>
       <div className={styles.chips}>
         <span className={`${styles.chip} ${styles.chipLast}`}>
-          {t("company.ta.chart.last")} {last == null ? nd : money(last)}
+          {t(isIndex ? "market.indices.ta.chart.last" : "company.ta.chart.last")} {last == null ? nd : money(last)}
         </span>
         <span className={`${styles.chip} ${styles.chipEntry}`}>
-          {t("company.ta.chart.entry")} {entry}
+          {t(isIndex ? "market.indices.ta.chart.entry" : "company.ta.chart.entry")} {entry}
         </span>
         {scenario.targets.map((target, index) => (
           <span key={`${target}-${index}`} className={`${styles.chip} ${styles.chipTarget}`}>
@@ -429,8 +449,12 @@ function ScenarioCopy({
           {distance(scenario.invalidation) ? ` ${distance(scenario.invalidation)}` : ""}
         </span>
       </div>
-      <h5>{t("company.ta.sections.reward")}</h5>
-      <p>{rewardRiskSentence(scenario.riskReward, locale)}</p>
+      {isIndex ? null : (
+        <>
+          <h5>{t("company.ta.sections.reward")}</h5>
+          <p>{rewardRiskSentence(scenario.riskReward, locale)}</p>
+        </>
+      )}
     </div>
   );
 }
