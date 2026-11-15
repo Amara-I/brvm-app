@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { Suspense, useEffect, useId, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { C } from "@/lib/theme/colors";
@@ -20,6 +20,7 @@ import {
   marketScreenerHref,
 } from "@/lib/markets/nav-structure";
 import CompanyMegaMenu from "./CompanyMegaMenu";
+import NgxListedCategoryMenu, { type NgxListedNavCategory } from "./NgxListedCategoryMenu";
 import EducationMegaMenu from "./EducationMegaMenu";
 import type { HeaderSearchItem } from "@/components/nav/HeaderSearch";
 import { featureFromPath } from "@/lib/analytics/features";
@@ -133,6 +134,7 @@ export default function HeaderNav({
   layout = "sidebar",
   onNavigate,
   user,
+  ngxListedCategories = [],
 }: {
   sectorGroups: SectorGroup[];
   totalCompanies: number;
@@ -140,6 +142,7 @@ export default function HeaderNav({
   user: HeaderNavUser | null;
   layout?: "sidebar";
   onNavigate?: () => void;
+  ngxListedCategories?: NgxListedNavCategory[];
 }) {
   const pathname = usePathname();
   const { t } = useI18n();
@@ -312,13 +315,23 @@ export default function HeaderNav({
                   />
                 ) : null}
                 {listedHref ? (
-                  <NavLink
-                    href={listedHref}
-                    label={t("chrome.nav.companies")}
-                    active={isActive(listedHref)}
-                    onClick={close}
-                    sidebar={sidebar}
-                  />
+                  <Suspense
+                    fallback={
+                      <NavLink
+                        href={listedHref}
+                        label={t("chrome.nav.companies")}
+                        active={isActive(listedHref)}
+                        onClick={close}
+                        sidebar={sidebar}
+                      />
+                    }
+                  >
+                    <NgxListedCategoryMenu
+                      categories={ngxListedCategories}
+                      sidebar={sidebar}
+                      onNavigate={close}
+                    />
+                  </Suspense>
                 ) : null}
                 {dividendsHref ? (
                   <NavLink

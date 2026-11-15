@@ -1,7 +1,6 @@
 import Link from "next/link";
 import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
-import { ngxSectorLabel } from "@/components/ngx/ngx-labels";
 import NgxListedCompaniesTable, {
   type NgxListedCompaniesTableRow,
 } from "@/components/ngx/NgxListedCompaniesTable";
@@ -20,16 +19,18 @@ export function generateMetadata() {
   return { title: t("ngx.listed.metaTitle"), description: t("ngx.listed.metaDescription") };
 }
 
-export default async function NgxListedCompaniesPage() {
+export default async function NgxListedCompaniesPage({
+  searchParams,
+}: {
+  searchParams?: { secteur?: string };
+}) {
   const { t, format } = getI18n();
   const data = await loadNgxListedCompanies().catch(() => null);
   const rows: NgxListedCompaniesTableRow[] = (data?.rows ?? []).map((row) => ({
     ...row,
-    sectorLabel: ngxSectorLabel(row.sectorSlug, row.sectorName, t),
+    sectorLabel: row.category,
   }));
-  const sectorLabels = Object.fromEntries(
-    (data?.sectors ?? []).map((sector) => [sector.slug, ngxSectorLabel(sector.slug, sector.name, t)]),
-  );
+  const initialSector = typeof searchParams?.secteur === "string" ? searchParams.secteur : "";
   const sessionLabel = data?.sessionDate
     ? format.date(data.sessionDate, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
     : t("common.nd");
@@ -65,7 +66,7 @@ export default async function NgxListedCompaniesPage() {
                 <strong>{capLabel}</strong>
               </div>
             </div>
-            <NgxListedCompaniesTable rows={rows} sectors={data.sectors} sectorLabels={sectorLabels} />
+            <NgxListedCompaniesTable rows={rows} sectors={data.sectors} initialSector={initialSector} />
             <p className={local.note}>{t("ngx.listed.note", { date: sessionLabel })}</p>
             <p className={local.disclaimer}>{t("ngx.listed.disclaimer")}</p>
           </>

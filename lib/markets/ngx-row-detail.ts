@@ -79,6 +79,7 @@ const WINDOW_DAYS = 365 + 420;
 const RISK_SECTOR: Record<NgxSectorGroup, string> = {
   BANKING: "Banques",
   INSURANCE: "Services Financiers",
+  FINANCIAL_SERVICES: "Services Financiers",
   CONSUMER_GOODS: "Conso. Base",
   OIL_GAS: "Énergie",
   INDUSTRIAL_GOODS: "Industrie",
@@ -89,6 +90,7 @@ const RISK_SECTOR: Record<NgxSectorGroup, string> = {
   SERVICES: "Services",
   CONGLOMERATES: "Conglomérats",
   NATURAL_RESOURCES: "Ressources naturelles",
+  UTILITIES: "Services Publics",
   OTHER: "Autres",
 };
 

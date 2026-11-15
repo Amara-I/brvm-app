@@ -1,4 +1,5 @@
 import type { TFunc } from "@/lib/i18n/create-i18n";
+import { ngxSectorGroupSlug, type NgxSectorGroup } from "@/lib/ngx/sectors";
 
 const SECTOR_KEYS = {
   agriculture: "ngx.sectors.agriculture",
@@ -44,4 +45,8 @@ export function ngxBoardLabel(board: string | null, t: TFunc): string {
   if (!board) return "N/D";
   const key = BOARD_KEYS[slug(board) as keyof typeof BOARD_KEYS];
   return key ? t(key) : board;
+}
+
+export function ngxSectorGroupLabel(group: NgxSectorGroup, t: TFunc): string {
+  return t(`ngx.sectorGroups.${ngxSectorGroupSlug(group)}`);
 }
