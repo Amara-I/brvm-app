@@ -4,6 +4,7 @@ import SiteFooter from "@/components/layout/SiteFooter";
 import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import NgxChart from "@/components/ngx/NgxChart";
 import styles from "@/components/ngx/NgxMarket.module.css";
+import IndexAlertButton from "@/components/notifications/IndexAlertButton";
 import ChangeValue from "@/components/ui/ChangeValue";
 import PageHeader from "@/components/ui/PageHeader";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
@@ -50,6 +51,15 @@ export default async function NgxIndexDetailPage({ params }: { params: { code: s
             <span className={styles.sub}>{t("market.indices.col.last")}</span>
             <div className={styles.heroPrice}>{index.value == null ? "N/D" : format.decimal(index.value, 2)}</div>
             <ChangeValue value={index.changePercent} />
+            <div style={{ marginTop: "0.6rem" }}>
+              <IndexAlertButton
+                isAuthenticated={Boolean(userId)}
+                indexCode={index.code}
+                indexName={index.name}
+                lastValue={index.value}
+                loginCallbackPath={`/marches/ngx/indices/${encodeURIComponent(index.code)}`}
+              />
+            </div>
           </div>
           <div>
             <span className={styles.sub}>{t("ngx.company.session")}</span>

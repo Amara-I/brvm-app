@@ -29,6 +29,7 @@ import {
   utcDateDaysAgo,
 } from "./logic";
 import { getPrefsMap } from "./prefs";
+import { amountKey, dedupeKey, sessionDateOf, SIGNAL_REPEAT_WINDOW_DAYS } from "./dedupe";
 import {
   type AlertHorizonCode,
   type PrefsSnapshot,
@@ -57,12 +58,23 @@ function numParam(raw: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+const ALL_EXCHANGES: AlertExchange[] = ["BRVM", "NGX"];
+
 export async function evaluateAllAlerts(options?: {
   tickers?: string[];
   now?: Date;
   skipEmailFlush?: boolean;
+  /**
+   * Places à évaluer. Défaut : BRVM + NGX (cron quotidien, actualisation BRVM).
+   * `["NGX"]` après l'actualisation des cours NGX : seuils, règles et signaux NGX
+   * uniquement — portefeuille, indices phares BRVM, rappels de séance et digest
+   * e-mail restent au cron (comportement BRVM inchangé).
+   */
+  exchanges?: AlertExchange[];
 }): Promise<AlertEvalSummary> {
   const now = options?.now ?? new Date();
+  const exchanges = options?.exchanges?.length ? [...new Set(options.exchanges)] : ALL_EXCHANGES;
+  const withBrvm = exchanges.includes("BRVM");
   const today = civilDateInTimeZone(now);
   const summary: AlertEvalSummary = {
     price: { checked: 0, triggered: 0 },
@@ -76,7 +88,12 @@ export async function evaluateAllAlerts(options?: {
 
   try {
     const price = await evaluateActivePriceAlerts(
-      options?.tickers?.length ? { tickers: options.tickers } : undefined
+      options?.tickers?.length || options?.exchanges?.length
+        ? {
+            ...(options?.tickers?.length ? { tickers: options.tickers } : {}),
+            ...(options?.exchanges?.length ? { exchanges } : {}),
+          }
+        : undefined
     );
     summary.price = { checked: price.checked, triggered: price.triggered };
     await notifyFiredPriceAlerts(price.fired, now);
@@ -85,40 +102,46 @@ export async function evaluateAllAlerts(options?: {
   }
 
   try {
-    const rulesPart = await evaluateUserRules({ tickers: options?.tickers, now, today });
+    const rulesPart = await evaluateUserRules({ tickers: options?.tickers, now, today, exchanges });
     summary.rules = rulesPart;
   } catch (err) {
     console.error("[alerts] rules eval:", err instanceof Error ? err.message : err);
   }
 
-  try {
-    const port = await evaluatePortfolioAlerts({ now, today });
-    summary.portfolio = port;
-  } catch (err) {
-    console.error("[alerts] portfolio eval:", err instanceof Error ? err.message : err);
+  if (withBrvm) {
+    // Portefeuilles : lignes BRVM uniquement (l'ajout de ligne n'accepte que la BRVM).
+    try {
+      const port = await evaluatePortfolioAlerts({ now, today });
+      summary.portfolio = port;
+    } catch (err) {
+      console.error("[alerts] portfolio eval:", err instanceof Error ? err.message : err);
+    }
   }
 
   try {
-    const sig = await evaluateSignalAlerts({ now, today });
+    const sig = await evaluateSignalAlerts({ now, today, exchanges });
     summary.signals = sig;
   } catch (err) {
     console.error("[alerts] signal eval:", err instanceof Error ? err.message : err);
   }
 
-  try {
-    const idx = await evaluateIndexAlerts({ now, today });
-    summary.indices = idx;
-  } catch (err) {
-    console.error("[alerts] index eval:", err instanceof Error ? err.message : err);
+  if (withBrvm) {
+    // Indices phares BRVM (préférence « Indices ») et rappels de séance BRVM.
+    try {
+      const idx = await evaluateIndexAlerts({ now, today });
+      summary.indices = idx;
+    } catch (err) {
+      console.error("[alerts] index eval:", err instanceof Error ? err.message : err);
+    }
+
+    try {
+      summary.sessions.triggered = await evaluateSessionReminders({ now, today });
+    } catch (err) {
+      console.error("[alerts] session eval:", err instanceof Error ? err.message : err);
+    }
   }
 
-  try {
-    summary.sessions.triggered = await evaluateSessionReminders({ now, today });
-  } catch (err) {
-    console.error("[alerts] session eval:", err instanceof Error ? err.message : err);
-  }
-
-  if (!options?.skipEmailFlush && isSessionCloseWindow(now)) {
+  if (withBrvm && !options?.skipEmailFlush && isSessionCloseWindow(now)) {
     try {
       summary.emailsFlushed = await flushPendingNotificationEmails(now);
     } catch (err) {
@@ -236,6 +259,7 @@ async function evaluateUserRules(opts: {
   tickers?: string[];
   now: Date;
   today: string;
+  exchanges: AlertExchange[];
 }): Promise<{ checked: number; triggered: number }> {
   const rules = await prisma.alertRule.findMany({
     where: {
@@ -248,7 +272,10 @@ async function evaluateUserRules(opts: {
 
   const userIds = [...new Set(rules.map((r) => r.userId))];
   const prefsByUser = await getPrefsMap(userIds);
-  const quotes = await loadLatestQuotes(undefined, ["BRVM", "NGX"]);
+  // Derniers cours des seuls titres suivis par une règle (pas tout le marché) :
+  // une ligne par société, calculée en SQL — jamais l'historique complet.
+  const ruleTickers = [...new Set(rules.map((r) => r.ticker).filter((t): t is string => Boolean(t)))];
+  const quotes = ruleTickers.length ? await loadLatestQuotes(ruleTickers, opts.exchanges) : [];
   const quoteByTicker = new Map(quotes.map((q) => [q.ticker, q]));
 
   for (const rule of rules) {
@@ -262,7 +289,10 @@ async function evaluateUserRules(opts: {
       const move = await dailyMove(quote);
       const change = move.change;
       if (change == null || !dailyMoveHits(change, threshold)) continue;
-      const key = fireKey(opts.today, "DAILY", rule.ticker, threshold);
+      // Clé par SÉANCE (date du cours), pas par jour civil : le cron du
+      // week-end relit la séance de vendredi et ne doit pas la renotifier.
+      const session = sessionDateOf(quote.date);
+      const key = fireKey(session, "DAILY", rule.ticker, threshold);
       if (alreadyFiredToday(rule.lastFireKey, key)) continue;
       const emitted = await emitNotification({
         userId: rule.userId,
@@ -278,7 +308,8 @@ async function evaluateUserRules(opts: {
         alertRuleId: rule.id,
         prefs,
         now: opts.now,
-        payload: { change, threshold, close: move.close },
+        payload: { change, threshold, close: move.close, session },
+        dedupeKey: dedupeKey("DAILY", rule.id, session),
       });
       if (emitted.created) {
         result.triggered += 1;
@@ -317,7 +348,7 @@ async function evaluateUserRules(opts: {
         horizonActions
       );
       if (change == null || !dailyMoveHits(change, threshold)) continue;
-      const key = fireKey(opts.today, "HORIZON", rule.ticker, horizon);
+      const key = fireKey(quoteDate, "HORIZON", rule.ticker, horizon);
       if (alreadyFiredToday(rule.lastFireKey, key)) continue;
       const emitted = await emitNotification({
         userId: rule.userId,
@@ -330,7 +361,8 @@ async function evaluateUserRules(opts: {
         alertRuleId: rule.id,
         prefs,
         now: opts.now,
-        payload: { change, threshold, horizon },
+        payload: { change, threshold, horizon, session: quoteDate },
+        dedupeKey: dedupeKey("HORIZON", rule.id, horizon, quoteDate),
       });
       if (emitted.created) {
         result.triggered += 1;
@@ -343,21 +375,21 @@ async function evaluateUserRules(opts: {
 
     if (rule.kind === AlertRuleKind.INDEX_MOVE && rule.indexCode) {
       const threshold = clampDailyMovePct(numParam(params.percent) ?? 1.5);
-      const fired = await maybeFireIndexMove({
+      const firedKey = await maybeFireIndexMove({
         userId: rule.userId,
         indexCode: rule.indexCode,
         threshold,
-        today: opts.today,
         now: opts.now,
         prefs,
         alertRuleId: rule.id,
         lastFireKey: rule.lastFireKey,
+        exchanges: opts.exchanges,
       });
-      if (fired) {
+      if (firedKey) {
         result.triggered += 1;
         await prisma.alertRule.update({
           where: { id: rule.id },
-          data: { lastFiredAt: opts.now, lastFireKey: fireKey(opts.today, "INDEX", rule.indexCode) },
+          data: { lastFiredAt: opts.now, lastFireKey: firedKey },
         });
       }
     }
@@ -394,31 +426,23 @@ async function evaluatePortfolioAlerts(opts: {
     const move = await dailyMove(quote);
     const change = move.change;
     const threshold = clampDailyMovePct(prefs.portfolioMovePct);
+    // Une notification par titre et par SÉANCE (même si le titre est dans
+    // plusieurs portefeuilles, et même si le cron repasse le week-end).
+    const session = sessionDateOf(quote.date);
     if (change != null && dailyMoveHits(change, threshold)) {
-      const already = await prisma.notificationEvent.findFirst({
-        where: {
-          userId,
-          type: "PORTEFEUILLE",
-          ticker: h.company.ticker,
-          createdAt: { gte: new Date(`${opts.today}T00:00:00.000Z`) },
-          title: { contains: "ligne" },
-        },
-        select: { id: true },
+      const emitted = await emitNotification({
+        userId,
+        type: "PORTEFEUILLE",
+        title: `${h.company.ticker} (ligne) : ${fmtSignedPct(change)} aujourd'hui`,
+        body: `Variation ≥ ${fmtSignedPct(threshold)} sur une position. Cours ${fmtFcfa(move.close)}.`,
+        ticker: h.company.ticker,
+        href: "/portefeuille",
+        prefs,
+        now: opts.now,
+        payload: { change, threshold, kind: "holding_move", session },
+        dedupeKey: dedupeKey("PF_MOVE", h.company.ticker, session),
       });
-      if (!already) {
-        const emitted = await emitNotification({
-          userId,
-          type: "PORTEFEUILLE",
-          title: `${h.company.ticker} (ligne) : ${fmtSignedPct(change)} aujourd'hui`,
-          body: `Variation ≥ ${fmtSignedPct(threshold)} sur une position. Cours ${fmtFcfa(move.close)}.`,
-          ticker: h.company.ticker,
-          href: "/portefeuille",
-          prefs,
-          now: opts.now,
-          payload: { change, threshold, kind: "holding_move" },
-        });
-        if (emitted.created) result.triggered += 1;
-      }
+      if (emitted.created) result.triggered += 1;
     }
 
     const positionActions = await actionsForTicker(h.company.ticker);
@@ -431,57 +455,36 @@ async function evaluatePortfolioAlerts(opts: {
     const comparableClose = quote.close / quoteFactor;
     const target = h.targetPrice != null ? Number(h.targetPrice) / positionFactor : null;
     const stop = h.stopPrice != null ? Number(h.stopPrice) / positionFactor : null;
+    // Objectif / stop : une seule fois par niveau saisi (nouvelle valeur = nouvelle alerte).
     if (target != null && comparableClose >= target) {
-      const dup = await prisma.notificationEvent.findFirst({
-        where: {
-          userId,
-          type: "PORTEFEUILLE",
-          ticker: h.company.ticker,
-          createdAt: { gte: new Date(`${opts.today}T00:00:00.000Z`) },
-          title: { contains: "objectif" },
-        },
-        select: { id: true },
+      const emitted = await emitNotification({
+        userId,
+        type: "PORTEFEUILLE",
+        title: `${h.company.ticker} : objectif ${fmtFcfa(target)} atteint`,
+        body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
+        ticker: h.company.ticker,
+        href: "/portefeuille",
+        prefs,
+        now: opts.now,
+        payload: { kind: "target", target, close: comparableClose, session },
+        dedupeKey: dedupeKey("PF_TARGET", h.company.ticker, amountKey(target)),
       });
-      if (!dup) {
-        const emitted = await emitNotification({
-          userId,
-          type: "PORTEFEUILLE",
-          title: `${h.company.ticker} : objectif ${fmtFcfa(target)} atteint`,
-          body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
-          ticker: h.company.ticker,
-          href: "/portefeuille",
-          prefs,
-          now: opts.now,
-          payload: { kind: "target", target, close: comparableClose },
-        });
-        if (emitted.created) result.triggered += 1;
-      }
+      if (emitted.created) result.triggered += 1;
     }
     if (stop != null && comparableClose <= stop) {
-      const dup = await prisma.notificationEvent.findFirst({
-        where: {
-          userId,
-          type: "PORTEFEUILLE",
-          ticker: h.company.ticker,
-          createdAt: { gte: new Date(`${opts.today}T00:00:00.000Z`) },
-          title: { contains: "stop" },
-        },
-        select: { id: true },
+      const emitted = await emitNotification({
+        userId,
+        type: "PORTEFEUILLE",
+        title: `${h.company.ticker} : stop ${fmtFcfa(stop)} atteint`,
+        body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
+        ticker: h.company.ticker,
+        href: "/portefeuille",
+        prefs,
+        now: opts.now,
+        payload: { kind: "stop", stop, close: comparableClose, session },
+        dedupeKey: dedupeKey("PF_STOP", h.company.ticker, amountKey(stop)),
       });
-      if (!dup) {
-        const emitted = await emitNotification({
-          userId,
-          type: "PORTEFEUILLE",
-          title: `${h.company.ticker} : stop ${fmtFcfa(stop)} atteint`,
-          body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
-          ticker: h.company.ticker,
-          href: "/portefeuille",
-          prefs,
-          now: opts.now,
-          payload: { kind: "stop", stop, close: comparableClose },
-        });
-        if (emitted.created) result.triggered += 1;
-      }
+      if (emitted.created) result.triggered += 1;
     }
   }
 
@@ -491,6 +494,7 @@ async function evaluatePortfolioAlerts(opts: {
 async function evaluateSignalAlerts(opts: {
   now: Date;
   today: string;
+  exchanges: AlertExchange[];
 }): Promise<{ checked: number; triggered: number }> {
   const rules = await prisma.alertRule.findMany({
     where: { enabled: true, kind: AlertRuleKind.SIGNAL_ENTRY, ticker: { not: null } },
@@ -518,6 +522,12 @@ async function evaluateSignalAlerts(opts: {
     select: { ticker: true, exchange: true },
   });
   const exchangeByTicker = new Map(placed.map((c) => [c.ticker, alertExchangeOf(c.exchange)] as const));
+  // Restreint aux places demandées (ex. NGX seule après l'actualisation NGX).
+  for (const ticker of [...watchers.keys()]) {
+    if (!opts.exchanges.includes(exchangeByTicker.get(ticker) ?? "BRVM")) watchers.delete(ticker);
+  }
+  result.checked = watchers.size;
+  if (watchers.size === 0) return result;
   const watchedExchanges = new Set([...watchers.keys()].map((t) => exchangeByTicker.get(t) ?? "BRVM"));
 
   const byTicker = new Map<string, { label: string; score: number }>();
@@ -561,16 +571,20 @@ async function evaluateSignalAlerts(opts: {
       const key = fireKey(opts.today, ticker, label.replace(/\s+/g, "_"));
       if (rule && alreadyFiredToday(rule.lastFireKey, key)) continue;
 
-      const already = await prisma.notificationEvent.findFirst({
+      // « Entre en » : on ne renotifie pas un signal inchangé. Si la dernière
+      // alerte signal de ce titre (fenêtre de 30 j) porte déjà ce libellé,
+      // l'information n'est pas nouvelle.
+      const last = await prisma.notificationEvent.findFirst({
         where: {
           userId,
           type: "SIGNAUX",
           ticker,
-          createdAt: { gte: new Date(`${opts.today}T00:00:00.000Z`) },
+          createdAt: { gte: new Date(opts.now.getTime() - SIGNAL_REPEAT_WINDOW_DAYS * 86_400_000) },
         },
-        select: { id: true },
+        orderBy: { createdAt: "desc" },
+        select: { payload: true },
       });
-      if (already) continue;
+      if (last && asRecord(last.payload ?? null).signal === label) continue;
 
       const emitted = await emitNotification({
         userId,
@@ -583,6 +597,7 @@ async function evaluateSignalAlerts(opts: {
         prefs,
         now: opts.now,
         payload: { signal: label, score },
+        dedupeKey: dedupeKey("SIGNAL", ticker, label, opts.today),
       });
       if (emitted.created) {
         result.triggered += 1;
@@ -599,20 +614,24 @@ async function evaluateSignalAlerts(opts: {
   return result;
 }
 
-async function latestIndexChange(code: string): Promise<{ value: number; change: number } | null> {
+async function latestIndexChange(
+  code: string
+): Promise<{ value: number; change: number; exchange: AlertExchange; session: string } | null> {
   const index = await prisma.marketIndex.findUnique({
     where: { code },
-    select: { id: true },
+    select: { id: true, exchange: true },
   });
   if (!index) return null;
+  const exchange = alertExchangeOf(index.exchange);
   const latest = await prisma.marketIndexValue.findFirst({
     where: { marketIndexId: index.id, isCanonical: true, date: { lte: new Date() } },
     orderBy: { date: "desc" },
   });
   if (!latest) return null;
   const value = Number(latest.value);
+  const session = sessionDateOf(latest.date);
   if (latest.changePercent != null && Number.isFinite(Number(latest.changePercent))) {
-    return { value, change: Number(latest.changePercent) };
+    return { value, change: Number(latest.changePercent), exchange, session };
   }
   const prev = await prisma.marketIndexValue.findFirst({
     where: { marketIndexId: index.id, isCanonical: true, date: { lt: latest.date } },
@@ -620,45 +639,43 @@ async function latestIndexChange(code: string): Promise<{ value: number; change:
   });
   if (!prev) return null;
   const change = horizonReturnPct(Number(prev.value), value);
-  return change == null ? null : { value, change };
+  return change == null ? null : { value, change, exchange, session };
 }
 
+/** Renvoie la clé de séance si une notification a été créée, sinon null. */
 async function maybeFireIndexMove(input: {
   userId: string;
   indexCode: string;
   threshold: number;
-  today: string;
   now: Date;
   prefs?: PrefsSnapshot;
   alertRuleId?: string;
   lastFireKey?: string | null;
-}): Promise<boolean> {
+  /** Places couvertes par ce passage (défaut : toutes). */
+  exchanges?: AlertExchange[];
+}): Promise<string | null> {
   const snap = await latestIndexChange(input.indexCode);
-  if (!snap || !dailyMoveHits(snap.change, input.threshold)) return false;
-  const key = fireKey(input.today, "INDEX", input.indexCode);
-  if (alreadyFiredToday(input.lastFireKey, key)) return false;
-  const already = await prisma.notificationEvent.findFirst({
-    where: {
-      userId: input.userId,
-      type: "INDICES",
-      indexCode: input.indexCode,
-      createdAt: { gte: new Date(`${input.today}T00:00:00.000Z`) },
-    },
-    select: { id: true },
-  });
-  if (already) return false;
+  if (!snap) return null;
+  if (input.exchanges && !input.exchanges.includes(snap.exchange)) return null;
+  if (!dailyMoveHits(snap.change, input.threshold)) return null;
+  // Séance de l'indice (pas le jour civil) ; clé commune règle + préférence :
+  // un utilisateur qui a les deux ne reçoit qu'une notification.
+  const key = fireKey(snap.session, "INDEX", input.indexCode);
+  if (alreadyFiredToday(input.lastFireKey, key)) return null;
   const emitted = await emitNotification({
     userId: input.userId,
     type: "INDICES",
     title: `${input.indexCode} : ${fmtSignedPct(snap.change)}`,
     body: `Variation ≥ ${fmtSignedPct(input.threshold)}. Niveau ${snap.value.toLocaleString("fr-FR", { maximumFractionDigits: 2 })}.`,
     indexCode: input.indexCode,
+    exchange: snap.exchange,
     alertRuleId: input.alertRuleId ?? null,
     prefs: input.prefs,
     now: input.now,
-    payload: { change: snap.change, value: snap.value, threshold: input.threshold },
+    payload: { change: snap.change, value: snap.value, threshold: input.threshold, session: snap.session },
+    dedupeKey: dedupeKey("INDEX", input.indexCode, snap.session),
   });
-  return emitted.created;
+  return emitted.created ? key : null;
 }
 
 async function evaluateIndexAlerts(opts: {
@@ -681,7 +698,6 @@ async function evaluateIndexAlerts(opts: {
         userId: row.userId,
         indexCode: code,
         threshold,
-        today: opts.today,
         now: opts.now,
         prefs,
       });
@@ -710,16 +726,6 @@ async function evaluateSessionReminders(opts: { now: Date; today: string }): Pro
 
   let triggered = 0;
   for (const u of users) {
-    const already = await prisma.notificationEvent.findFirst({
-      where: {
-        userId: u.userId,
-        type: "SYSTEME",
-        createdAt: { gte: new Date(`${opts.today}T00:00:00.000Z`) },
-        title,
-      },
-      select: { id: true },
-    });
-    if (already) continue;
     const emitted = await emitNotification({
       userId: u.userId,
       type: "SYSTEME",
@@ -729,6 +735,9 @@ async function evaluateSessionReminders(opts: { now: Date; today: string }): Pro
       prefs: prefsByUser.get(u.userId),
       now: opts.now,
       payload: { kind: `session_${kind}` },
+      dedupeKey: dedupeKey("SESSION", kind, opts.today),
+      // Rappel quotidien volontaire : même texte chaque jour, une fois par jour.
+      allowSameText: true,
     });
     if (emitted.created) triggered += 1;
   }

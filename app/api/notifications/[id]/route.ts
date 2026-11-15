@@ -34,5 +34,23 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     },
   });
 
+  // Lu / ouvert : appliqué à tous les doublons de la même information, pour
+  // qu'un doublon resté non lu ne refasse pas apparaître la notification.
+  if (parsed.data.read === true || parsed.data.opened === true) {
+    await prisma.notificationEvent.updateMany({
+      where: {
+        userId,
+        id: { not: existing.id },
+        readAt: null,
+        type: existing.type,
+        ticker: existing.ticker,
+        indexCode: existing.indexCode,
+        title: existing.title,
+        body: existing.body,
+      },
+      data: { readAt: updated.readAt ?? now },
+    });
+  }
+
   return apiSuccess({ notification: serializeNotification(updated) });
 }

@@ -8,6 +8,7 @@ import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { apiError, apiSuccess, apiValidationError, privateCacheHeaders } from "@/lib/api/response";
 import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
 import { isFilterType, serializeNotification } from "@/lib/notifications/serialize";
+import { collapseDuplicateNotifications } from "@/lib/notifications/dedupe";
 
 export const dynamic = "force-dynamic";
 
@@ -30,19 +31,25 @@ export async function GET(request: NextRequest) {
       ...(unreadOnly ? { readAt: null } : {}),
     };
 
-    const [events, unreadCount] = await Promise.all([
+    // Doublons déjà en base (même information notifiée plusieurs fois) :
+    // regroupés à l'affichage. On lit un peu plus large pour remplir `take`.
+    const [events, unreadGroups] = await Promise.all([
       prisma.notificationEvent.findMany({
         where,
         orderBy: { createdAt: "desc" },
-        take,
+        take: Math.min(300, take * 3),
       }),
-      prisma.notificationEvent.count({ where: { userId, readAt: null } }),
+      prisma.notificationEvent.groupBy({
+        by: ["type", "ticker", "indexCode", "title", "body"],
+        where: { userId, readAt: null },
+      }),
     ]);
+    const collapsed = collapseDuplicateNotifications(events).slice(0, take);
 
     return apiSuccess(
       {
-        notifications: events.map(serializeNotification),
-        unreadCount,
+        notifications: collapsed.map((ev) => ({ ...serializeNotification(ev), duplicateCount: ev.duplicateCount })),
+        unreadCount: unreadGroups.length,
       },
       { headers: privateCacheHeaders() }
     );
@@ -73,7 +80,12 @@ export async function PATCH(request: NextRequest) {
       where: { userId, readAt: { not: null } },
       data: { readAt: null, openedAt: null },
     });
-    const unreadCount = await prisma.notificationEvent.count({ where: { userId, readAt: null } });
+    const unreadCount = (
+      await prisma.notificationEvent.groupBy({
+        by: ["type", "ticker", "indexCode", "title", "body"],
+        where: { userId, readAt: null },
+      })
+    ).length;
     return apiSuccess({ updated: res.count, unreadCount });
   } catch (err) {
     if (isDatabaseUnavailable(err) || isMissingDatabaseObject(err)) {

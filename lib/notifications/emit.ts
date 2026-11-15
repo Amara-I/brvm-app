@@ -1,6 +1,7 @@
 import type { NotificationType, Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
 import { sendNotificationEmail } from "./email";
+import { isUniqueViolation, SAME_TEXT_WINDOW_DAYS } from "./dedupe";
 import { deepLinkFor, isInQuietHours, type AlertExchange } from "./logic";
 import { getOrCreatePrefs } from "./prefs";
 import { typeEnabled, type NotificationTypeCode, type PrefsSnapshot } from "./types";
@@ -23,6 +24,16 @@ export type EmitNotificationInput = {
   now?: Date;
   /** Si déjà une notif pour ce priceAlertId, ne pas recréer. */
   dedupePriceAlert?: boolean;
+  /**
+   * Clé stable de l'information (cf. ./dedupe) : si un événement de cet
+   * utilisateur porte déjà cette clé, rien n'est recréé — même après lecture.
+   */
+  dedupeKey?: string;
+  /**
+   * Rappels volontairement répétés (ouverture / clôture de séance) : pas de
+   * repli « texte identique ». La clé reste appliquée.
+   */
+  allowSameText?: boolean;
 };
 
 export type EmitResult =
@@ -42,6 +53,34 @@ export async function emitNotification(input: EmitNotificationInput): Promise<Em
     if (existing) return { created: false, reason: "duplicate" };
   }
 
+  if (input.dedupeKey) {
+    const existing = await prisma.notificationEvent.findFirst({
+      where: { userId: input.userId, payload: { path: ["dedupeKey"], equals: input.dedupeKey } },
+      select: { id: true },
+    });
+    if (existing) return { created: false, reason: "duplicate" };
+  }
+
+  if (!input.allowSameText) {
+    // Repli : même texte, même titre/indice, récemment → même information
+    // (couvre aussi les événements créés avant les clés).
+    const now = input.now ?? new Date();
+    const since = new Date(now.getTime() - SAME_TEXT_WINDOW_DAYS * 86_400_000);
+    const sameText = await prisma.notificationEvent.findFirst({
+      where: {
+        userId: input.userId,
+        type: input.type as NotificationType,
+        title: input.title,
+        body: input.body,
+        ticker: input.ticker ?? null,
+        indexCode: input.indexCode ?? null,
+        createdAt: { gte: since },
+      },
+      select: { id: true },
+    });
+    if (sameText) return { created: false, reason: "duplicate" };
+  }
+
   const href =
     input.href ??
     deepLinkFor({
@@ -56,20 +95,39 @@ export async function emitNotification(input: EmitNotificationInput): Promise<Em
     // Canal e-mail seul : on crée quand même l'événement (historique + stats admin).
   }
 
-  const created = await prisma.notificationEvent.create({
-    data: {
-      userId: input.userId,
-      type: input.type as NotificationType,
-      title: input.title,
-      body: input.body,
-      href,
-      ticker: input.ticker ?? null,
-      indexCode: input.indexCode ?? null,
-      alertRuleId: input.alertRuleId ?? null,
-      priceAlertId: input.priceAlertId ?? null,
-      payload: input.payload ?? undefined,
-    },
-  });
+  const payload: Prisma.InputJsonValue | undefined = input.dedupeKey
+    ? {
+        ...(input.payload && typeof input.payload === "object" && !Array.isArray(input.payload)
+          ? (input.payload as Prisma.InputJsonObject)
+          : input.payload !== undefined
+            ? { value: input.payload }
+            : {}),
+        dedupeKey: input.dedupeKey,
+      }
+    : input.payload;
+
+  let created;
+  try {
+    created = await prisma.notificationEvent.create({
+      data: {
+        userId: input.userId,
+        type: input.type as NotificationType,
+        title: input.title,
+        body: input.body,
+        href,
+        ticker: input.ticker ?? null,
+        indexCode: input.indexCode ?? null,
+        alertRuleId: input.alertRuleId ?? null,
+        priceAlertId: input.priceAlertId ?? null,
+        payload: payload ?? undefined,
+      },
+    });
+  } catch (err) {
+    // Index unique (user_id, payload->>'dedupeKey') : évaluation concurrente
+    // (cron + bouton + page) — l'autre passage a déjà créé l'événement.
+    if (isUniqueViolation(err)) return { created: false, reason: "duplicate" };
+    throw err;
+  }
 
   let emailed = false;
   if (prefs.channelEmail) {

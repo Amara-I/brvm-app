@@ -3,16 +3,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import { collapseDuplicateNotifications } from "@/lib/notifications/dedupe";
 import { notificationTypeLabel } from "./type-label";
 import styles from "./NotificationBell.module.css";
 
 type Notif = {
   id: string;
-  type?: string;
+  type: string;
   typeLabel: string;
   title: string;
   body: string;
   href: string | null;
+  ticker: string | null;
+  indexCode: string | null;
   readAt: string | null;
   createdAt: string;
 };
@@ -30,7 +33,8 @@ export default function NotificationBell({ isAuthenticated }: { isAuthenticated:
       const res = await fetch("/api/notifications?take=8", { cache: "no-store" });
       const json = await res.json();
       if (!res.ok || !json.ok) return;
-      setItems((json.data?.notifications ?? []) as Notif[]);
+      // Filet de sécurité : jamais deux cartes pour la même information.
+      setItems(collapseDuplicateNotifications((json.data?.notifications ?? []) as Notif[]));
       setUnread(Number(json.data?.unreadCount ?? 0));
     } catch {
       /* silencieux — le badge reste à 0 */
