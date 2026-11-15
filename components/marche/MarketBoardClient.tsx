@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { calcMetrics } from "@/lib/calc/calc-metrics";
 import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
+import { useThrottledPoll } from "@/lib/ui/use-throttled-poll";
 import type { CompaniesFullDataset, CompanyFullDataset } from "@/lib/api/companies-full-dataset";
 import type { MarketSummarySnapshot } from "@/lib/api/market-summary-snapshot";
 import { DEFAULT_EXCHANGE_CODE, getExchange } from "@/lib/markets/african-exchanges";
@@ -340,20 +341,8 @@ export default function MarketBoardClient({
     });
   }, [format]);
 
-  useEffect(() => {
-    const SOFT_MS = 3 * 60_000;
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") void reloadFromDb();
-    }, SOFT_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void reloadFromDb();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [reloadFromDb]);
+  // Relecture douce : au plus toutes les 10 min, onglet visible uniquement.
+  useThrottledPoll(reloadFromDb);
 
   function toggleRow(ticker: string) {
     setExpanded((cur) => (cur === ticker ? null : ticker));

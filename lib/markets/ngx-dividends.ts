@@ -3,6 +3,7 @@
 // Lecture seule. Une donnée absente reste null (affichée N/D), jamais estimée.
 
 import { prisma } from "@/lib/prisma";
+import { loadLatestCanonicalPrice } from "@/lib/db/latest-canonical";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
 import { presentClose, presentDividend } from "@/lib/corporate-actions/present-quotes";
@@ -133,24 +134,27 @@ export async function loadNgxDividends(): Promise<NgxDividendsData> {
     const companies = await prisma.company.findMany({
       where: { exchange: "NGX", isActive: true, dividends: { some: { amount: { gt: 0 } } } },
       select: {
+        id: true,
         ticker: true,
         name: true,
         sector: { select: { slug: true, name: true } },
-        priceHistory: {
-          where: { isCanonical: true },
-          orderBy: { date: "desc" },
-          take: 1,
-          select: { date: true, closePrice: true },
-        },
         dividends: {
           where: { amount: { gt: 0 } },
           select: { id: true, year: true, amount: true, exDate: true, paymentDate: true, source: true, isCanonical: true },
         },
       },
     });
-    const actions = await actionsByTicker().catch(() => new Map<string, AdjustmentAction[]>());
+    // Dernier cours canonique par PostgreSQL (LATERAL … LIMIT 1) plutôt qu'un `take`
+    // imbriqué Prisma, qui rapatriait tout l'historique de chaque société.
+    const [latestPrices, actions] = await Promise.all([
+      loadLatestCanonicalPrice(
+        prisma,
+        companies.map((c) => c.id)
+      ),
+      actionsByTicker().catch(() => new Map<string, AdjustmentAction[]>()),
+    ]);
     const input: NgxDividendDbRow[] = companies.flatMap((c) => {
-      const last = c.priceHistory[0];
+      const last = latestPrices.get(c.id);
       const close = last ? Number(last.closePrice) : null;
       return c.dividends.map((d) => ({
         id: d.id,

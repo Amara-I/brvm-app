@@ -2,11 +2,11 @@
 
 // Vue d'ensemble NGX : même en-tête et mêmes mécaniques d'actualisation que la BRVM
 // (components/marche/MarketBoardClient.tsx) — bouton « Actualiser les cours »,
-// polling toutes les 3 minutes et au retour sur l'onglet, données relues en base
+// relecture au plus toutes les 10 minutes (onglet visible, y compris au retour), données relues en base
 // sans re-scraper. L'ingestion officielle est déclenchée par le bouton et par
 // le cron quotidien /api/cron/ingest.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import MarketChrome from "@/components/marche/MarketChrome";
 import styles from "@/components/marche/MarketBoard.module.css";
 import ngxStyles from "@/components/ngx/NgxMarket.module.css";
@@ -23,6 +23,7 @@ import {
 } from "@/lib/markets/ngx-overview-board";
 import type { MarketIndexSnapshot } from "@/lib/api/market-summary-snapshot";
 import { preserveScrollDuring } from "@/lib/ui/scroll-restoration";
+import { useThrottledPoll } from "@/lib/ui/use-throttled-poll";
 
 const NUMERIC_DATE: Intl.DateTimeFormatOptions = {
   day: "2-digit",
@@ -64,21 +65,6 @@ export default function NgxOverviewClient({ initial }: NgxOverviewClientProps) {
     [format]
   );
 
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    try {
-      await preserveScrollDuring(async () => {
-        const res = await fetch("/api/market/refresh-ngx-quotes", { method: "POST", cache: "no-store" });
-        const json = await res.json();
-        if (json.ok && json.data) {
-          applyPayload(json.data as NgxOverviewBoardPayload);
-        }
-      });
-    } finally {
-      setRefreshing(false);
-    }
-  }, [applyPayload]);
-
   const reloadFromDb = useCallback(async () => {
     await preserveScrollDuring(async () => {
       try {
@@ -93,20 +79,25 @@ export default function NgxOverviewClient({ initial }: NgxOverviewClientProps) {
     });
   }, [applyPayload]);
 
-  useEffect(() => {
-    const SOFT_MS = 3 * 60_000;
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") void reloadFromDb();
-    }, SOFT_MS);
-    const onVisible = () => {
-      if (document.visibilityState === "visible") void reloadFromDb();
-    };
-    document.addEventListener("visibilitychange", onVisible);
-    return () => {
-      window.clearInterval(id);
-      document.removeEventListener("visibilitychange", onVisible);
-    };
-  }, [reloadFromDb]);
+  // Relecture douce : au plus toutes les 10 min, onglet visible uniquement
+  // (le cron quotidien et « Actualiser les cours » apportent les nouveaux cours).
+  const markFresh = useThrottledPoll(reloadFromDb);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await preserveScrollDuring(async () => {
+        const res = await fetch("/api/market/refresh-ngx-quotes", { method: "POST", cache: "no-store" });
+        const json = await res.json();
+        if (json.ok && json.data) {
+          applyPayload(json.data as NgxOverviewBoardPayload);
+          markFresh();
+        }
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [applyPayload, markFresh]);
 
   return (
     <div className={styles.page} data-testid="ngx-overview">

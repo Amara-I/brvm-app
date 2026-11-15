@@ -2,6 +2,7 @@
 // et niveaux des indices NGX (ASI, NGX30, sectoriels…), lecture seule.
 
 import { prisma } from "@/lib/prisma";
+import { loadLatestCanonicalIndexValues } from "@/lib/db/latest-canonical";
 import { presentCompanyCloses } from "@/lib/corporate-actions/present-series";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { buildNgxChartPayload, type NgxChartPayloadQuery } from "@/lib/charts/ngx-chart-payload";
@@ -91,14 +92,10 @@ export async function loadNgxChartPayload(rawSymbol: string, query: NgxChartPayl
  * Les indices dont les niveaux ne sont plus publiés sont écartés.
  */
 export async function loadNgxChartUniverse(): Promise<ChartUniverseItem[]> {
-  const [indices, companies] = await Promise.all([
+  const [indexRows, companies] = await Promise.all([
     prisma.marketIndex.findMany({
       where: { exchange: "NGX" },
-      select: {
-        code: true,
-        name: true,
-        values: { where: { isCanonical: true }, orderBy: { date: "desc" }, take: 1, select: { date: true } },
-      },
+      select: { id: true, code: true, name: true },
     }),
     prisma.company.findMany({
       where: { exchange: "NGX", isActive: true },
@@ -106,6 +103,18 @@ export async function loadNgxChartUniverse(): Promise<ChartUniverseItem[]> {
       orderBy: { ticker: "asc" },
     }),
   ]);
+
+  // Dernière date canonique par PostgreSQL (LATERAL … LIMIT 1) : un `take` imbriqué
+  // Prisma rapatriait tout l'historique de chaque indice.
+  const lastById = await loadLatestCanonicalIndexValues(
+    prisma,
+    indexRows.map((row) => row.id)
+  );
+  const indices = indexRows.map((row) => ({
+    code: row.code,
+    name: row.name,
+    values: (lastById.get(row.id) ?? []).map((v) => ({ date: v.date })),
+  }));
 
   const newest = indices.reduce((max, row) => {
     const d = row.values[0]?.date.getTime() ?? 0;

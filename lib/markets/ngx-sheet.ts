@@ -4,6 +4,8 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { cachedLoader, NGX_MARKET_REVALIDATE_S, NGX_MARKET_TAG } from "@/lib/cache/market-cache";
+import { loadLatestCanonicalPrice } from "@/lib/db/latest-canonical";
 import {
   buildNgxSheet,
   computeCompanyMetrics,
@@ -80,11 +82,8 @@ export interface NgxSheetData {
   yearPrices: Record<number, number>;
 }
 
-/** Toutes les sociétés NGX actives avec leurs comptes, dividendes et dernier cours (une seule requête). */
-export async function loadNgxUniverse(): Promise<{
-  rows: Array<{ id: string; ticker: string }>;
-  universe: CompanyInput[];
-}> {
+/** Toutes les sociétés NGX actives avec leurs comptes, dividendes et dernier cours. */
+async function loadNgxUniverseUncached(): Promise<NgxUniverse> {
   const universeRows = await prisma.company.findMany({
     where: { exchange: "NGX", isActive: true },
     select: {
@@ -96,12 +95,6 @@ export async function loadNgxUniverse(): Promise<{
       listedSince: true,
       profileMeta: true,
       sector: { select: { slug: true, name: true } },
-      priceHistory: {
-        where: { isCanonical: true },
-        orderBy: { date: "desc" },
-        take: 1,
-        select: { closePrice: true },
-      },
       financialRatios: {
         where: { year: { gte: 2010 } },
         select: {
@@ -128,8 +121,15 @@ export async function loadNgxUniverse(): Promise<{
     },
   });
 
+  // Dernier cours canonique par PostgreSQL (LATERAL … LIMIT 1) : un `take` imbriqué
+  // Prisma rapatriait tout l'historique de chaque société.
+  const latest = await loadLatestCanonicalPrice(
+    prisma,
+    universeRows.map((c) => c.id)
+  );
   const universe: CompanyInput[] = universeRows.map((c) => {
-    const close = c.priceHistory[0] ? Number(c.priceHistory[0].closePrice) : null;
+    const last = latest.get(c.id);
+    const close = last ? Number(last.closePrice) : null;
     return {
       ticker: c.ticker,
       name: c.name,
@@ -145,8 +145,23 @@ export async function loadNgxUniverse(): Promise<{
       dividends: c.dividends.map(toDividend),
     };
   });
-  return { rows: universeRows, universe };
+  return { rows: universeRows.map((c) => ({ id: c.id, ticker: c.ticker })), universe };
 }
+
+export interface NgxUniverse {
+  rows: Array<{ id: string; ticker: string }>;
+  universe: CompanyInput[];
+}
+
+/** Univers NGX relu directement en base (sans cache), juste après une ingestion. */
+export const loadNgxUniverseFresh: () => Promise<NgxUniverse> = loadNgxUniverseUncached;
+
+/** Univers NGX (screener, fiches, vue d'ensemble), mis en cache 10 min et invalidé après chaque ingestion NGX. */
+export const loadNgxUniverse: () => Promise<NgxUniverse> = cachedLoader(
+  loadNgxUniverseUncached,
+  ["ngx-universe-v1"],
+  { revalidate: NGX_MARKET_REVALIDATE_S, tags: [NGX_MARKET_TAG] }
+);
 
 export async function loadNgxSheet(ticker: string): Promise<NgxSheetData | null> {
   const page = await loadNgxCompany(ticker);

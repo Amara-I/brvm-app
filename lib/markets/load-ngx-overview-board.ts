@@ -2,7 +2,7 @@
 
 import { getMarketSummarySnapshot } from "@/lib/api/market-summary-snapshot";
 import type { TFunc } from "@/lib/i18n/create-i18n";
-import { loadNgxOverview } from "@/lib/markets/ngx-browse";
+import { loadNgxOverview, loadNgxOverviewFresh } from "@/lib/markets/ngx-browse";
 import {
   kpisFromBoardRows,
   orderNgxIndices,
@@ -11,10 +11,18 @@ import {
 } from "@/lib/markets/ngx-overview-board";
 import { loadNgxScreener } from "@/lib/markets/ngx-screener";
 
-export async function loadNgxOverviewBoard(t: TFunc): Promise<NgxOverviewBoardPayload> {
+/**
+ * Vue d'ensemble et notes viennent du cache serveur NGX (10 min, invalidé après
+ * chaque ingestion). `fresh: true` relit la base sans cache, juste après une ingestion.
+ */
+export async function loadNgxOverviewBoard(
+  t: TFunc,
+  opts: { fresh?: boolean } = {}
+): Promise<NgxOverviewBoardPayload> {
+  const fresh = opts.fresh === true;
   const [overview, screener, summary] = await Promise.all([
-    loadNgxOverview().catch(() => null),
-    loadNgxScreener({ withSparks: true }).catch(() => null),
+    (fresh ? loadNgxOverviewFresh() : loadNgxOverview()).catch(() => null),
+    loadNgxScreener({ withSparks: true, fresh }).catch(() => null),
     getMarketSummarySnapshot("NGX").catch(() => null),
   ]);
   const shares = overview?.shares ?? [];

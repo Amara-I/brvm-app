@@ -1,6 +1,8 @@
 // Requêtes Prisma partagées : "dernière valeur canonique" par société,
 // utilisées par plusieurs API routes (liste sociétés, détail, market summary).
+import type { PriceHistory } from "@prisma/client";
 import { prisma } from "../prisma";
+import { loadLatestCanonicalPrice } from "../db/latest-canonical";
 
 /**
  * Parmi des lignes de cours (déjà filtrées ou non), retient la plus récente
@@ -17,19 +19,14 @@ export function selectLatestPriceOnOrBefore<T extends { date: Date }>(
 }
 
 /// Dernier cours de clôture CANONIQUE (post-réconciliation) de chaque société
-/// d'une liste donnée. Utilise `distinct` (DISTINCT ON côté PostgreSQL) pour
-/// récupérer en une seule requête la ligne la plus récente par société.
-export async function getLatestCanonicalPrices(companyIds: string[]) {
-  if (companyIds.length === 0) return new Map<string, Awaited<ReturnType<typeof prisma.priceHistory.findMany>>[number]>();
+/// d'une liste donnée. Le `distinct` Prisma est appliqué en mémoire (Prisma 5) :
+/// PostgreSQL renvoyait tout l'historique. On sélectionne donc la ligne la plus
+/// récente par société côté SQL (LATERAL … LIMIT 1), cf. lib/db/latest-canonical.ts.
+export async function getLatestCanonicalPrices(companyIds: string[]): Promise<Map<string, PriceHistory>> {
+  if (companyIds.length === 0) return new Map<string, PriceHistory>();
   // Exclure les proxies futurs (ex. 31/12 de l'année en cours) qui écraseraient
   // un vrai cours du jour — même garde-fou que market-spark-series / companies-full.
-  const now = new Date();
-  const rows = await prisma.priceHistory.findMany({
-    where: { companyId: { in: companyIds }, isCanonical: true, date: { lte: now } },
-    orderBy: [{ companyId: "asc" }, { date: "desc" }],
-    distinct: ["companyId"],
-  });
-  return new Map(rows.map((r) => [r.companyId, r]));
+  return loadLatestCanonicalPrice(prisma, companyIds, { onOrBefore: new Date() });
 }
 
 /// Dernier cours de clôture CANONIQUE strictement antérieur au 1er janvier
@@ -37,15 +34,10 @@ export async function getLatestCanonicalPrices(companyIds: string[]) {
 /// calcul de performance YTD du portefeuille (cf. lib/calc/portfolio-metrics.ts).
 /// En l'absence de cotation quotidienne réelle (avant l'étape 6), cela
 /// correspond au dernier cours de clôture de l'année précédente (31/12).
-export async function getYearStartCanonicalPrices(companyIds: string[], year: number) {
-  if (companyIds.length === 0) return new Map<string, Awaited<ReturnType<typeof prisma.priceHistory.findMany>>[number]>();
+export async function getYearStartCanonicalPrices(companyIds: string[], year: number): Promise<Map<string, PriceHistory>> {
+  if (companyIds.length === 0) return new Map<string, PriceHistory>();
   const yearStart = new Date(Date.UTC(year, 0, 1));
-  const rows = await prisma.priceHistory.findMany({
-    where: { companyId: { in: companyIds }, isCanonical: true, date: { lt: yearStart } },
-    orderBy: [{ companyId: "asc" }, { date: "desc" }],
-    distinct: ["companyId"],
-  });
-  return new Map(rows.map((r) => [r.companyId, r]));
+  return loadLatestCanonicalPrice(prisma, companyIds, { before: yearStart });
 }
 
 /// Ratio financier CANONIQUE le plus récent (PER, capitalisation) par société.
