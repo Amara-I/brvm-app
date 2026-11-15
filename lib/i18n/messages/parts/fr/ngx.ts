@@ -37,6 +37,18 @@ export const ngx = {
     scoreBasis: "Base de la note",
     attribution:
       "Taux EUR→NGN : open.er-api.com. FCFA indicatif = cours ₦ × 655,957 / taux. Ce n'est pas un cours de change officiel.",
+    detail: {
+      pbr: "P/B (cours / val. comptable)",
+      roe: "ROE",
+      eps: "BPA",
+      range52: "Plus bas / haut 52 sem.",
+      pillarsTitle: "Note NGX par pilier",
+      policiesTitle: "Note par type de portefeuille",
+      loading: "Chargement des indicateurs…",
+      error: "Indicateurs détaillés indisponibles pour le moment.",
+      sinceYear: "Depuis {year}",
+      ofYear: "Exercice {year}",
+    },
     sourceLine: "Source : {source}",
   },
   screener: {

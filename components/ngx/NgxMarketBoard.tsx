@@ -7,7 +7,6 @@
 // secteur NGX ; note = note NGX (lib/ngx/score.ts), signal / confiance = analyse technique seule (lib/ngx/technical-signal.ts).
 
 import { Fragment, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import ChangeValue from "@/components/ui/ChangeValue";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import ExpandChevron from "@/components/ui/ExpandChevron";
@@ -19,6 +18,7 @@ import HorizonSelect from "@/components/marche/HorizonSelect";
 import MarketSparkline from "@/components/marche/MarketSparkline";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import CompanyMark from "@/components/ui/CompanyMark";
+import NgxExpandedPanel from "@/components/ngx/NgxExpandedPanel";
 import { trackFeature } from "@/components/analytics/track-client";
 import styles from "@/components/marche/MarketBoard.module.css";
 import { applyColumnSort, type ColumnFilterDef, type ColumnSortState } from "@/lib/ui/column-filters";
@@ -126,8 +126,6 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
           confidence: labels.confidence(r.confidence),
         })
       : undefined;
-  const modeText = (mode: NgxScoreMode | null) =>
-    mode === "FULL" ? t("ngx.market.modeFull") : mode === "PARTIAL" ? t("ngx.screener.tags.partial") : mode === "CHART_ONLY" ? t("ngx.screener.tags.chartOnly") : "N/D";
   const modeTitle = (mode: NgxScoreMode | null) =>
     mode === "CHART_ONLY" ? t("ngx.screener.tags.chartOnlyTitle") : mode === "PARTIAL" ? t("ngx.screener.tags.partialTitle") : undefined;
 
@@ -274,54 +272,7 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                     {open && (
                       <tr className={styles.detailRow}>
                         <td colSpan={COL_COUNT}>
-                          <div className={styles.detail} onClick={(e) => e.stopPropagation()}>
-                            <div className={styles.detailGrid}>
-                              {[
-                                { key: "price", label: t("market.cards.price"), value: naira(r.close) },
-                                { key: "fcfa", label: t("ngx.market.colFcfa"), value: fcfa(r.fcfa) },
-                                { key: "cap", label: t("market.cards.mktCap"), value: cap(r.marketCapBn) },
-                                {
-                                  key: "y1",
-                                  label: t("ngx.market.colChange1y"),
-                                  value: r.return1yPercent == null ? "N/D" : `${r.return1yPercent >= 0 ? "+" : ""}${format.decimal(r.return1yPercent, 1)} %`,
-                                  color: r.return1yPercent == null ? C.textDim : r.return1yPercent >= 0 ? C.green : C.red,
-                                },
-                                {
-                                  key: "score",
-                                  label: t("market.cards.scoreSignal"),
-                                  value: `${r.score == null ? "N/D" : `${Math.round(r.score)}/100`} · ${r.signal ? labels.signal(r.signal.label) : "N/D"}`,
-                                  node: (
-                                    <>
-                                      <ScoreBadge score={r.score} outOf showTier />{" "}
-                                      {r.signal ? <SignalBadge label={r.signal.label} confidence={r.confidence} /> : <span className="ob-nd">N/D</span>}
-                                    </>
-                                  ),
-                                },
-                                {
-                                  key: "conf",
-                                  label: t("market.cards.confidence"),
-                                  value: r.confidence ? labels.confidence(r.confidence) : "N/D",
-                                  node: <ConfidenceDot value={r.confidence} />,
-                                },
-                                { key: "mode", label: t("ngx.market.scoreBasis"), value: modeText(r.scoreMode) },
-                              ].map((c) => (
-                                <div key={c.key} className={styles.detailCard}>
-                                  <div className={styles.detailLabel}>{c.label}</div>
-                                  <div className={styles.detailValue} style={"color" in c && c.color ? { color: c.color } : undefined} title={c.value}>
-                                    {"node" in c && c.node ? c.node : c.value}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                            <div className={styles.detailLinks}>
-                              <Link href={`/marches/ngx/actions/${r.ticker}`} className={styles.primaryBtn}>
-                                {t("market.board.companyDetails")}
-                              </Link>
-                              <Link href="/marches/ngx/screener" className={styles.secondaryBtn}>
-                                {t("ngx.screener.link")}
-                              </Link>
-                            </div>
-                          </div>
+                          <NgxExpandedPanel row={r} />
                         </td>
                       </tr>
                     )}
