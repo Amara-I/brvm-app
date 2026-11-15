@@ -44,11 +44,12 @@ export function createFormat(locale: Locale) {
     percent(value: number, digits = 2, withSign = false): string {
       if (!Number.isFinite(value)) return "N/D";
       const body = withSign ? signed(value, digits) : decimal(value, digits);
-      return locale === "en" ? `${body}%` : `${body} %`;
+      // Espace insécable avant « % » : « +3,6 % » n'est jamais coupé.
+      return locale === "en" ? `${body}%` : `${body}\u00a0%`;
     },
     fcfa(value: number): string {
       if (!Number.isFinite(value)) return "N/D";
-      return `${integer(value)} FCFA`;
+      return `${integer(value)}\u00a0FCFA`;
     },
     /** Montant dans la devise de la place (NGN → ₦, XOF/FCFA → « FCFA »). */
     money(value: number, currency: string): string {

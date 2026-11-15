@@ -359,7 +359,7 @@ export const ngx = {
         ABOVE: "Cours au-dessus de la fourchette",
         UNKNOWN: "Valorisation non évaluable",
       },
-      band: "Une marge de ±{percent} % est appliquée autour de la fourchette.",
+      band: "Une marge de ±{percent} % est appliquée autour de la fourchette.",
       range: "Fourchette indicative",
       mid: "Valeur médiane",
       gapToMid: "Cours vs valeur médiane",
@@ -506,7 +506,7 @@ export const ngx = {
       },
       pillarNd: "Pilier non évalué : données absentes ou non fiables.",
       weight: "Poids {percent}",
-      points: "{points} pts",
+      points: "{points} pts",
       unconfirmed: "chiffre non confirmé",
       component: {
         revenueCagr: "Chiffre d'affaires (croissance annuelle moyenne)",

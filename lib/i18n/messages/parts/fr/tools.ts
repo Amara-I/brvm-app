@@ -130,7 +130,7 @@ export const tools = {
     contributedLegend: "Total versé",
     legendTitle: "Légende des courbes",
     centralLegend:
-      "Central : évolution du capital avec le rendement annuel saisi ({rate} % avant frais, soit {effective} % effectif après frais).",
+      "Central : évolution du capital avec le rendement annuel saisi ({rate} % avant frais, soit {effective} % effectif après frais).",
     optimisticLegend:
       "Optimiste : même simulation avec un rendement plus élevé (+{spread} points de pourcentage par rapport au scénario central).",
     pessimisticLegend:

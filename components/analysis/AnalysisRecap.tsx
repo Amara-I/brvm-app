@@ -6,6 +6,7 @@ import ScoreBadge from "@/components/ui/ScoreBadge";
 import SignalBadge from "@/components/ui/SignalBadge";
 import { isSignalLabel } from "@/lib/ui/score-signal-tokens";
 import styles from "./AnalysisRecap.module.css";
+import { keepNumbersTogether } from "@/lib/text/no-break";
 
 export interface AnalysisRecapProps {
   kind: "fundamental" | "technical";
@@ -68,11 +69,11 @@ export default function AnalysisRecap({
           {shownConfidence ? ` · ${shownConfidence}` : ""}
         </span>
       </div>
-      <p className={styles.summary}>{summary || t("common.nd")}</p>
+      <p className={styles.summary}>{summary ? keepNumbersTogether(summary) : t("common.nd")}</p>
       {lines.length > 0 && (
         <ul className={styles.lines}>
           {lines.map((line) => (
-            <li key={line}>{line}</li>
+            <li key={line}>{keepNumbersTogether(line)}</li>
           ))}
         </ul>
       )}

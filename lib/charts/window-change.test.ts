@@ -68,9 +68,9 @@ describe("computeWindowChangeFromCandles", () => {
 
 describe("formatWindowChangePercent", () => {
   it("formate en français avec 2 décimales", () => {
-    expect(formatWindowChangePercent(2.35)).toBe("+2,35 %");
-    expect(formatWindowChangePercent(-1.1)).toBe("−1,10 %");
-    expect(formatWindowChangePercent(0)).toBe("0,00 %");
+    expect(formatWindowChangePercent(2.35)).toBe("+2,35\u00a0%");
+    expect(formatWindowChangePercent(-1.1)).toBe("−1,10\u00a0%");
+    expect(formatWindowChangePercent(0)).toBe("0,00\u00a0%");
     expect(formatWindowChangePercent(null)).toBe("N/D");
     expect(formatWindowChangePercent(Number.NaN)).toBe("N/D");
   });
@@ -78,7 +78,7 @@ describe("formatWindowChangePercent", () => {
 
 describe("formatWindowChangeAbs / labels", () => {
   it("formate la variation absolue", () => {
-    expect(formatWindowChangeAbs(670)).toBe("+670 FCFA");
+    expect(formatWindowChangeAbs(670)).toBe("+670\u00a0FCFA");
     expect(formatWindowChangeAbs(-1200).replace(/\s/g, " ")).toBe("-1 200 FCFA");
   });
 

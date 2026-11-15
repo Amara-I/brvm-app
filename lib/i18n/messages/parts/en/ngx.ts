@@ -506,7 +506,7 @@ export const ngx = {
       },
       pillarNd: "Pillar not assessed: data missing or unreliable.",
       weight: "Weight {percent}",
-      points: "{points} pts",
+      points: "{points} pts",
       unconfirmed: "unconfirmed figure",
       component: {
         revenueCagr: "Revenue (average annual growth)",

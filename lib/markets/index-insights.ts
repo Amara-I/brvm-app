@@ -182,10 +182,10 @@ export interface IndexReadingInput {
 function pct(value: number, locale: "fr" | "en", signed = true, digits = 1): string {
   const body = Math.abs(value)
     .toLocaleString(locale === "en" ? "en-GB" : "fr-FR", { minimumFractionDigits: digits, maximumFractionDigits: digits })
-    .replace(NBSP, " ");
+    .replace(NBSP, "\u202f");
   const eps = 0.5 * 10 ** -digits;
   const sign = !signed ? "" : value >= eps ? "+" : value <= -eps ? "−" : "";
-  return locale === "en" ? `${sign}${body}%` : `${sign}${body} %`;
+  return locale === "en" ? `${sign}${body}%` : `${sign}${body}\u00a0%`;
 }
 
 function tone(value: number | null | undefined): ReadingSegment["tone"] {
@@ -374,7 +374,7 @@ export function buildIndexReading(input: IndexReadingInput): ReadingLine[] {
     const t: ReadingSegment["tone"] = top.bias === "bullish" ? "pos" : top.bias === "bearish" ? "neg" : "neutral";
     const seg: ReadingSegment[] = [
       s(en ? "Most likely scenario: " : "Scénario le plus probable : "),
-      b(en ? `${name[top.bias][1]} (${top.probability}%)` : `${name[top.bias][0]} (${top.probability} %)`, t),
+      b(en ? `${name[top.bias][1]} (${top.probability}%)` : `${name[top.bias][0]} (${top.probability}\u00a0%)`, t),
     ];
     if (top.invalidation != null) {
       const holds =

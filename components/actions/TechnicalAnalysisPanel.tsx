@@ -25,6 +25,7 @@ import type { ScenarioChartMark } from "@/lib/technical-analysis/scenario-chart"
 import type { ScenarioBias, ScenarioPlan, TechnicalAnalysis } from "@/lib/technical-analysis/types";
 import LevelLegend, { type LevelLegendItem } from "@/components/charts/LevelLegend";
 import styles from "./TechnicalAnalysisPanel.module.css";
+import { keepNumbersTogether } from "@/lib/text/no-break";
 
 function tagClass(kind: ScenarioChartMark["kind"]): string {
   if (kind === "target" || kind === "resistance") return styles.tagTarget;
@@ -496,13 +497,13 @@ function ScenarioCopy({
   return (
     <div className={styles.copy}>
       <h5>{t("company.ta.sections.scenario")}</h5>
-      <p>{locale === "en" ? scenario.headlineEn : scenario.headlineFr}</p>
+      <p>{keepNumbersTogether(locale === "en" ? scenario.headlineEn : scenario.headlineFr)}</p>
       <h5>{t("company.ta.sections.why")}</h5>
-      <p>{locale === "en" ? scenario.explanationEn : scenario.explanationFr}</p>
+      <p>{keepNumbersTogether(locale === "en" ? scenario.explanationEn : scenario.explanationFr)}</p>
       {isIndex ? null : (
         <>
           <h5>{t("company.ta.sections.reward")}</h5>
-          <p>{rewardRiskSentence(scenario.riskReward, locale)}</p>
+          <p>{keepNumbersTogether(rewardRiskSentence(scenario.riskReward, locale))}</p>
         </>
       )}
     </div>

@@ -58,12 +58,12 @@ export function formatWindowChangePercent(
 ): string {
   if (value == null || Number.isNaN(value) || !Number.isFinite(value)) return "N/D";
   const abs = Math.abs(value).toFixed(digits).replace(".", ",");
-  if (value > 0) return `+${abs} %`;
-  if (value < 0) return `−${abs} %`;
-  return `${abs} %`;
+  if (value > 0) return `+${abs}\u00a0%`;
+  if (value < 0) return `−${abs}\u00a0%`;
+  return `${abs}\u00a0%`;
 }
 
-export function formatWindowChangeAbs(value: number | null | undefined, suffix = " FCFA"): string {
+export function formatWindowChangeAbs(value: number | null | undefined, suffix = "\u00a0FCFA"): string {
   if (value == null || Number.isNaN(value) || !Number.isFinite(value)) return "N/D";
   const rounded = Math.round(value);
   const sign = rounded > 0 ? "+" : "";

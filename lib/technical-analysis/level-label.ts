@@ -1,6 +1,10 @@
 // Libellés de prix selon la place : FCFA (BRVM) ou naira ₦ (NGX), groupés à la française,
 // écart en % depuis le cours. Les mots (Objectif, Cours…) sont choisis par l'appelant.
 
+import { NBSP as UNIT_SPACE, NNBSP } from "@/lib/text/no-break";
+
+// Groupement des milliers en espace fine insécable, espace insécable avant l'unité :
+// un prix ou un écart n'est jamais coupé en fin de ligne.
 const NBSP = /[\u202f\u00a0]/g;
 
 /** Devise de cotation : XOF = FCFA (BRVM), NGN = naira (NGX), PTS = points d'indice. */
@@ -19,16 +23,16 @@ export function formatPriceNumber(value: number, currency: PriceCurrency = DEFAU
   if (hasDecimals(currency)) {
     return value
       .toLocaleString(tag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-      .replace(NBSP, " ");
+      .replace(NBSP, NNBSP);
   }
-  return Math.round(value).toLocaleString(tag).replace(NBSP, " ");
+  return Math.round(value).toLocaleString(tag).replace(NBSP, NNBSP);
 }
 
 /** `4 125 FCFA`, `₦1 250,50` ou `515,94 pts`. */
 export function formatPrice(value: number, currency: PriceCurrency = DEFAULT_PRICE_CURRENCY, locale: "fr" | "en" = "fr"): string {
   const body = formatPriceNumber(value, currency, locale);
-  if (currency === "PTS") return `${body} pts`;
-  return currency === "NGN" ? `₦${body}` : `${body} FCFA`;
+  if (currency === "PTS") return `${body}${UNIT_SPACE}pts`;
+  return currency === "NGN" ? `₦${body}` : `${body}${UNIT_SPACE}FCFA`;
 }
 
 /** `4 100 – 4 300 FCFA` ou `₦12,50 – ₦13,10`. */
@@ -42,7 +46,7 @@ export function formatPriceRange(
   const b = Math.max(low, high);
   if (currency === "NGN") return `${formatPrice(a, currency, locale)} – ${formatPrice(b, currency, locale)}`;
   const unit = currency === "PTS" ? "pts" : "FCFA";
-  return `${formatPriceNumber(a, currency, locale)} – ${formatPriceNumber(b, currency, locale)} ${unit}`;
+  return `${formatPriceNumber(a, currency, locale)} – ${formatPriceNumber(b, currency, locale)}${UNIT_SPACE}${unit}`;
 }
 
 export function formatFcfa(value: number): string {
@@ -59,10 +63,10 @@ export function formatDistancePct(last: number, level: number): string | null {
   const pct = ((level - last) / last) * 100;
   const body = Math.abs(pct)
     .toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
-    .replace(NBSP, " ");
-  if (pct > 0.05) return `+${body} %`;
-  if (pct < -0.05) return `−${body} %`;
-  return "0,0 %";
+    .replace(NBSP, NNBSP);
+  if (pct > 0.05) return `+${body}${UNIT_SPACE}%`;
+  if (pct < -0.05) return `−${body}${UNIT_SPACE}%`;
+  return `0,0${UNIT_SPACE}%`;
 }
 
 /** Niveau trop loin du cours : on le liste, on ne l'étire pas sur le graphe. */
