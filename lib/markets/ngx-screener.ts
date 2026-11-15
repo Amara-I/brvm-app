@@ -4,6 +4,7 @@
 // des opérations sur titres) ; à défaut, de la série canonique présentée.
 
 import { prisma } from "@/lib/prisma";
+import { cachedLoader, NGX_MARKET_REVALIDATE_S, NGX_MARKET_TAG } from "@/lib/cache/market-cache";
 import { adjustSeries, adjustmentFingerprint } from "@/lib/corporate-actions/adjust";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
 import { presentCompanyCloses } from "@/lib/corporate-actions/present-series";
@@ -16,7 +17,7 @@ import { NGX_PILLAR_KEYS } from "@/lib/ngx/score";
 import { ngxSectorGroup, cleanNgxName, type NgxSectorGroup } from "@/lib/ngx/sectors";
 import { ngxTechnicalSignal, type NgxTechnicalSignal } from "@/lib/ngx/technical-signal";
 import { packNgxSpark, type NgxSparkPacked } from "./ngx-spark";
-import { loadNgxUniverse } from "./ngx-sheet";
+import { loadNgxUniverse, loadNgxUniverseFresh } from "./ngx-sheet";
 
 export interface NgxScreenerRow {
   ticker: string;
@@ -119,9 +120,9 @@ async function loadSeries(
 }
 
 /** `withSparks` : charge aussi les séries d'aperçu (vue d'ensemble NGX uniquement ; le screener n'en a pas besoin). */
-export async function loadNgxScreener(opts: { withSparks?: boolean } = {}): Promise<NgxScreenerData> {
+async function loadNgxScreenerUncached(opts: { withSparks?: boolean; fresh?: boolean } = {}): Promise<NgxScreenerData> {
   const today = new Date().toISOString().slice(0, 10);
-  const { rows, universe } = await loadNgxUniverse();
+  const { rows, universe } = await (opts.fresh ? loadNgxUniverseFresh() : loadNgxUniverse());
   const closes = new Map(universe.map((c) => [c.ticker, c.close] as const));
   const { series: seriesByTicker, spark: sparkByTicker } = await loadSeries(rows, closes, opts.withSparks === true);
   const universeMetrics = universe.map((c) => ({ c, m: computeCompanyMetrics(c, today) }));
@@ -205,4 +206,18 @@ export function rankedByOverall(rows: NgxScreenerRow[]): NgxScreenerRow[] {
   return rows
     .filter((r) => r.hasFundamentals && r.overall != null)
     .sort((a, b) => (b.overall ?? 0) - (a.overall ?? 0) || (b.marketCapBn ?? 0) - (a.marketCapBn ?? 0));
+}
+
+const loadNgxScreenerCached = cachedLoader(loadNgxScreenerUncached, ["ngx-screener-v1"], {
+  revalidate: NGX_MARKET_REVALIDATE_S,
+  tags: [NGX_MARKET_TAG],
+});
+
+/**
+ * Mis en cache 10 min (une entrée avec aperçus, une sans), invalidé après chaque ingestion NGX.
+ * `fresh: true` relit la base sans cache (juste après une ingestion).
+ */
+export function loadNgxScreener(opts: { withSparks?: boolean; fresh?: boolean } = {}): Promise<NgxScreenerData> {
+  const withSparks = opts.withSparks === true;
+  return opts.fresh ? loadNgxScreenerUncached({ withSparks, fresh: true }) : loadNgxScreenerCached({ withSparks });
 }

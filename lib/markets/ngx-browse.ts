@@ -1,11 +1,14 @@
 // Lecture NGX pour les pages /marches/ngx. Aucun chiffre inventé :
 // une base vide produit des listes vides, affichées N/D côté UI.
 
+import type { MarketIndexValue } from "@prisma/client";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { presentCompanyCloses } from "@/lib/corporate-actions/present-series";
 import { dataSourceLabel } from "@/lib/api/data-source-label";
 import { indicativeFcfa, latestEurNgnRate, type EurNgnRate } from "@/lib/markets/fx";
 import { prisma } from "@/lib/prisma";
+import { cachedLoader, NGX_MARKET_REVALIDATE_S, NGX_MARKET_TAG } from "@/lib/cache/market-cache";
+import { loadLatestCanonicalIndexValues, loadLatestCanonicalPrices } from "@/lib/db/latest-canonical";
 
 export interface NgxShareRow {
   ticker: string;
@@ -56,40 +59,38 @@ function dayChange(
   return Math.round(((close - previous) / previous) * 10000) / 100;
 }
 
-export async function loadNgxOverview(): Promise<NgxOverview> {
-  const [companies, asiRow, fx] = await Promise.all([
+async function loadNgxOverviewUncached(): Promise<NgxOverview> {
+  // Dernier cours + précédent, et dernière valeur de l'ASI, calculés par PostgreSQL
+  // (LATERAL … LIMIT) : un `take` imbriqué Prisma rapatriait tout l'historique.
+  const [companies, asiIndex, fx] = await Promise.all([
     prisma.company.findMany({
       where: { exchange: "NGX", isActive: true },
       orderBy: { ticker: "asc" },
       select: {
+        id: true,
         ticker: true,
         name: true,
         profileMeta: true,
         sector: { select: { slug: true, name: true } },
-        priceHistory: {
-          where: { isCanonical: true },
-          orderBy: { date: "desc" },
-          take: 2,
-          select: { date: true, closePrice: true, changePercent: true, volume: true, source: true },
-        },
       },
     }),
-    prisma.marketIndex.findUnique({
-      where: { code: "NGX_ASI" },
-      include: {
-        values: {
-          where: { isCanonical: true },
-          orderBy: { date: "desc" },
-          take: 1,
-        },
-      },
-    }),
+    prisma.marketIndex.findUnique({ where: { code: "NGX_ASI" }, select: { id: true, exchange: true } }),
     latestEurNgnRate(prisma).catch(() => null),
   ]);
+  const [pricesByCompany, asiValues] = await Promise.all([
+    loadLatestCanonicalPrices(
+      prisma,
+      companies.map((c) => c.id),
+      { limit: 2 }
+    ),
+    asiIndex ? loadLatestCanonicalIndexValues(prisma, [asiIndex.id], { limit: 1 }) : Promise.resolve(new Map<string, MarketIndexValue[]>()),
+  ]);
+  const asiRow = asiIndex ? { exchange: asiIndex.exchange, values: asiValues.get(asiIndex.id) ?? [] } : null;
 
   const shares: NgxShareRow[] = companies.map((company) => {
-    const latest = company.priceHistory[0];
-    const previous = company.priceHistory[1];
+    const history = pricesByCompany.get(company.id) ?? [];
+    const latest = history[0];
+    const previous = history[1];
     const close = latest ? Number(latest.closePrice) : null;
     const prevClose = previous ? Number(previous.closePrice) : null;
     return {
@@ -139,6 +140,16 @@ export async function loadNgxOverview(): Promise<NgxOverview> {
 
   return { shares, sectors, gainers, losers, sessionDate, asi, fx };
 }
+
+/** Vue d'ensemble NGX relue directement en base (sans cache), juste après une ingestion. */
+export const loadNgxOverviewFresh: () => Promise<NgxOverview> = loadNgxOverviewUncached;
+
+/** Vue d'ensemble NGX, mise en cache 10 min et invalidée après chaque ingestion NGX. */
+export const loadNgxOverview: () => Promise<NgxOverview> = cachedLoader(
+  loadNgxOverviewUncached,
+  ["ngx-overview-v1"],
+  { revalidate: NGX_MARKET_REVALIDATE_S, tags: [NGX_MARKET_TAG] }
+);
 
 export interface NgxCompanyPage {
   ticker: string;

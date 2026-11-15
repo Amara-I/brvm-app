@@ -23,6 +23,7 @@ import { dailyIngestBudgetMs, runDailyAfterClose, type DailyFollowUpSummary } fr
 import { runFullIngestion } from "@/lib/ingestion/run-full-ingestion";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
+import { revalidateNgxMarketCache } from "@/lib/cache/market-cache";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -48,6 +49,9 @@ export async function GET(request: NextRequest) {
       console.error(`[daily] suivi après clôture interrompu : ${message}`);
       followUp = { budgetMs: 0, steps: [{ name: "follow-up", durationMs: 0, skipped: false, reason: message }] };
     }
+    // Cours NGX du jour (runNgxDailyIngest) et historique importés : le cache
+    // serveur NGX (vue d'ensemble, screener, fiches) est invalidé.
+    revalidateNgxMarketCache();
     console.log(
       `[ingest] http done durationMs=${summary.durationMs} incomplete=${summary.incomplete} stoppedAt=${summary.stoppedAt ?? "-"} budgetMs=${summary.budgetMs} followUp=${followUp.steps.map((s) => `${s.name}:${s.skipped ? "skip" : s.durationMs}`).join(",")}`
     );

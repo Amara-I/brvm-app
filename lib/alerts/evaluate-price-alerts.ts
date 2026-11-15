@@ -2,6 +2,7 @@
 
 import { PriceAlertDirection, PriceAlertStatus } from "@prisma/client";
 import { prisma } from "../prisma";
+import { loadLatestCanonicalPrice } from "../db/latest-canonical";
 import { alertExchangeOf, priceCrossHits, type AlertExchange } from "../notifications/logic";
 
 export interface FiredPriceAlert {
@@ -59,13 +60,10 @@ export async function evaluateActivePriceAlerts(options?: {
   if (alerts.length === 0) return summary;
 
   const companyIds = [...new Set(alerts.map((a) => a.companyId))];
-  const latest = await prisma.priceHistory.findMany({
-    where: { companyId: { in: companyIds }, isCanonical: true, date: { lte: new Date() } },
-    orderBy: [{ companyId: "asc" }, { date: "desc" }],
-    distinct: ["companyId"],
-    select: { companyId: true, closePrice: true },
-  });
-  const priceByCompany = new Map(latest.map((p) => [p.companyId, Number(p.closePrice)]));
+  // Dernier cours canonique non futur, sélectionné par PostgreSQL (le `distinct`
+  // Prisma est appliqué en mémoire et rapatriait tout l'historique).
+  const latest = await loadLatestCanonicalPrice(prisma, companyIds, { onOrBefore: new Date() });
+  const priceByCompany = new Map([...latest.values()].map((p) => [p.companyId, Number(p.closePrice)]));
 
   for (const alert of alerts) {
     const price = priceByCompany.get(alert.companyId);

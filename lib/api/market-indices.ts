@@ -4,6 +4,7 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable, isMissingDatabaseObject } from "@/lib/db/is-database-unavailable";
+import { loadLatestCanonicalIndexValues } from "@/lib/db/latest-canonical";
 import { dataSourceLabel } from "@/lib/api/data-source-label";
 import { getCompaniesNavIndex } from "@/lib/api/companies-nav-index";
 import { resolveIndexCatalog } from "@/lib/markets/index-catalog";
@@ -27,17 +28,8 @@ export type {
 export { groupIndicesByFamily } from "@/lib/markets/index-view";
 
 async function loadIndexListFromDb(exchange: "BRVM" | "NGX" = "BRVM"): Promise<MarketIndexListItem[]> {
-  const [rows, counts] = await Promise.all([
-    prisma.marketIndex.findMany({
-      where: { exchange },
-      include: {
-        values: {
-          where: { isCanonical: true },
-          orderBy: { date: "desc" },
-          take: 1,
-        },
-      },
-    }),
+  const [indexRows, counts] = await Promise.all([
+    prisma.marketIndex.findMany({ where: { exchange } }),
     prisma.marketIndexValue.groupBy({
       by: ["marketIndexId"],
       where: { isCanonical: true },
@@ -46,6 +38,13 @@ async function loadIndexListFromDb(exchange: "BRVM" | "NGX" = "BRVM"): Promise<M
   ]);
 
   const countById = new Map(counts.map((row) => [row.marketIndexId, row._count._all]));
+  // Dernière valeur canonique par PostgreSQL (LATERAL … LIMIT 1) : un `take` imbriqué
+  // Prisma rapatriait tout l'historique de chaque indice.
+  const lastById = await loadLatestCanonicalIndexValues(
+    prisma,
+    indexRows.map((row) => row.id)
+  );
+  const rows = indexRows.map((row) => ({ ...row, values: lastById.get(row.id) ?? [] }));
 
   const items = rows.map((row) => {
     const lastRow = row.values[0];

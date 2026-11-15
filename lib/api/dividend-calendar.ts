@@ -7,6 +7,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { loadLatestCanonicalPrice } from "@/lib/db/latest-canonical";
+import type { PriceHistory } from "@prisma/client";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
 import type { AdjustmentAction } from "@/lib/corporate-actions/types";
 import {
@@ -73,12 +75,6 @@ async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
           name: true,
           sector: { select: { name: true } },
           country: { select: { name: true, flagEmoji: true } },
-          priceHistory: {
-            where: { isCanonical: true },
-            orderBy: { date: "desc" },
-            take: 1,
-            select: { date: true, closePrice: true },
-          },
         },
       },
     },
@@ -86,13 +82,18 @@ async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
   });
 
   const companyIds = [...new Set(rows.map((r) => r.companyId))];
-  const dateRows =
+  // Dernier cours canonique par PostgreSQL (LATERAL … LIMIT 1) plutôt qu'un `take`
+  // imbriqué Prisma, qui rapatriait tout l'historique de chaque société.
+  const [dateRows, latestPrices] =
     companyIds.length > 0
-      ? await prisma.dividend.findMany({
-          where: { companyId: { in: companyIds }, amount: { gt: 0 } },
-          select: { companyId: true, year: true, exDate: true, paymentDate: true, source: true },
-        })
-      : [];
+      ? await Promise.all([
+          prisma.dividend.findMany({
+            where: { companyId: { in: companyIds }, amount: { gt: 0 } },
+            select: { companyId: true, year: true, exDate: true, paymentDate: true, source: true },
+          }),
+          loadLatestCanonicalPrice(prisma, companyIds),
+        ])
+      : [[], new Map<string, PriceHistory>()];
 
   let actions = new Map<string, AdjustmentAction[]>();
   try {
@@ -103,7 +104,7 @@ async function loadDividendCalendarFromDb(): Promise<DividendCalendarDataset> {
 
   const prices = new Map<string, DividendCalendarPrice>();
   for (const r of rows) {
-    const last = r.company.priceHistory[0];
+    const last = latestPrices.get(r.companyId);
     const close = last ? Number(last.closePrice) : NaN;
     if (last && Number.isFinite(close) && close > 0) {
       prices.set(r.companyId, { close, date: toIsoDate(last.date) });

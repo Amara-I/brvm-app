@@ -7,6 +7,7 @@ import { IngestionStatus } from "@prisma/client";
 import type { PrismaClient } from "@prisma/client";
 import { isMissingDatabaseObject } from "../db/is-database-unavailable";
 import { prisma } from "../prisma";
+import { loadLatestCanonicalIndexValues } from "../db/latest-canonical";
 import { COMPANIES_FULL } from "../../prisma/seed-data/companies-full";
 import { HEADLINE_INDEX_CODES } from "../markets/index-catalog";
 import { sikafinanceConnector, loadSikaIndexSymbols } from "./connectors/sikafinance_connector";
@@ -141,19 +142,19 @@ function sortSymbols(symbols: SikaIndexSymbol[], wanted?: string[]): SikaIndexSy
 async function officialLastByCode(
   db: PrismaClient
 ): Promise<Map<string, { date: string; value: number }>> {
-  const rows = await db.marketIndex.findMany({
+  const indices = await db.marketIndex.findMany({
     where: { exchange: "BRVM" },
-    include: {
-      values: {
-        where: { isCanonical: true },
-        orderBy: { date: "desc" },
-        take: 1,
-      },
-    },
+    select: { id: true, code: true },
   });
+  // Dernière valeur canonique par PostgreSQL (LATERAL … LIMIT 1) : un `take` imbriqué
+  // Prisma rapatriait tout l'historique de chaque indice.
+  const lastById = await loadLatestCanonicalIndexValues(
+    db,
+    indices.map((row) => row.id)
+  );
   const map = new Map<string, { date: string; value: number }>();
-  for (const row of rows) {
-    const last = row.values[0];
+  for (const row of indices) {
+    const last = lastById.get(row.id)?.[0];
     if (!last) continue;
     map.set(row.code, { date: last.date.toISOString().slice(0, 10), value: Number(last.value) });
   }

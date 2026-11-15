@@ -2,9 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), prices: vi.fn(), dividends: vi.fn(), ratios: vi.fn(),
-  levels: vi.fn(), search: vi.fn(), catalog: vi.fn(), actions: vi.fn(),
+  levels: vi.fn(), search: vi.fn(), catalog: vi.fn(), actions: vi.fn(), raw: vi.fn(),
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: { company: { findMany: mocks.findMany, findFirst: mocks.findFirst, count: mocks.count },
+vi.mock("@/lib/prisma", () => ({ prisma: { $queryRaw: mocks.raw, company: { findMany: mocks.findMany, findFirst: mocks.findFirst, count: mocks.count },
   priceHistory: { findMany: mocks.prices }, dividend: { findMany: mocks.dividends }, financialRatio: { findMany: mocks.ratios } } }));
 vi.mock("@/lib/api/market-summary-snapshot", () => ({ loadRecentIndexLevels: mocks.levels }));
 vi.mock("@/lib/api/listing-search-index", () => ({ getListingSearchIndex: mocks.search }));
@@ -24,6 +24,7 @@ beforeEach(() => {
   mocks.findMany.mockResolvedValue([]); mocks.count.mockResolvedValue(0);
   mocks.prices.mockResolvedValue([]); mocks.dividends.mockResolvedValue([]); mocks.ratios.mockResolvedValue([]);
   mocks.levels.mockResolvedValue([]); mocks.search.mockResolvedValue([]); mocks.catalog.mockResolvedValue([]);
+  mocks.raw.mockResolvedValue([]);
 });
 describe("contrats API multi-marchés (Prisma simulé, pas une certification de la base)", () => {
   it.each(["BRVM", "NGX"])("isole résumé, liste/screener et fiche %s", async (exchange) => {
@@ -68,6 +69,7 @@ describe("contrats API multi-marchés (Prisma simulé, pas une certification de 
   });
   it("exporte un univers NGX seul sans le présenter en FCFA", async () => {
     mocks.findMany.mockResolvedValue([{ id: "ngx", ticker: "MTNN", name: "MTN", exchange: "NGX", country: { name: "Nigeria" }, sector: { name: "Telecom" } }]);
+    mocks.raw.mockResolvedValue([{ id: "p1" }]);
     mocks.prices.mockResolvedValue([{ companyId: "ngx", date: new Date("2026-10-30"), closePrice: 200, source: "NGX_OFFICIEL", ingestedAt: new Date("2026-10-30T17:00:00Z") }]);
     const response = await excel(req("/api/export/excel"));
     expect(response.status).toBe(200);

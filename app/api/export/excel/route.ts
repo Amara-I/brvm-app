@@ -22,6 +22,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
 import { appendNgxExport } from "@/lib/calc/append-market-export";
 import { prisma } from "@/lib/prisma";
+import { loadYearEndCanonicalPrices } from "@/lib/db/latest-canonical";
 import { apiError } from "@/lib/api/response";
 import { buildBrvmWorkbook, buildExportFileName, type ExportCompanyRow } from "@/lib/calc/export-workbook";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
@@ -51,10 +52,9 @@ export async function GET(request: NextRequest) {
   const companyIds = companies.map((c) => c.id);
 
   const [priceRows, dividendRows, ratioRows] = await Promise.all([
-    prisma.priceHistory.findMany({
-      where: { companyId: { in: companyIds }, isCanonical: true, date: { lte: new Date() } },
-      select: { companyId: true, date: true, closePrice: true, source: true, ingestedAt: true },
-    }),
+    // Dernière clôture canonique non future de chaque (société, année), choisie
+    // par PostgreSQL (DISTINCT ON) au lieu de rapatrier tout l'historique quotidien.
+    loadYearEndCanonicalPrices(prisma, companyIds, { onOrBefore: new Date() }),
     prisma.dividend.findMany({
       where: { companyId: { in: companyIds }, isCanonical: true },
       select: { companyId: true, year: true, amount: true, exDate: true },
