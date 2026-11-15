@@ -12,6 +12,7 @@ import {
   isGlobalNavPath,
   marketIndicesHref,
   marketDividendsHref,
+  marketListedCompaniesHref,
   marketScreenerHref,
   parseComingSoonMarketPath,
   parseComingSoonMarketSlug,
@@ -105,6 +106,10 @@ describe("coming-soon market routes", () => {
     expect(marketDividendsHref("NGX")).toBe("/marches/ngx/dividendes");
     expect(marketDividendsHref("BRVM")).toBeNull();
     expect(marketDividendsHref("JSE")).toBeNull();
+    expect(marketListedCompaniesHref("NGX")).toBe("/marches/ngx/societes");
+    expect(marketListedCompaniesHref("BRVM")).toBeNull();
+    expect(marketListedCompaniesHref("JSE")).toBeNull();
+    expect(isBrvmNavPath("/marches/ngx/societes")).toBe(false);
     expect(isBrvmNavPath("/marches/ngx/dividendes")).toBe(false);
     expect(isComingSoonMarketPath("/marches/ngx/indices")).toBe(false);
     expect(isComingSoonMarketPath("/marches/jse/indices")).toBe(true);

@@ -28,6 +28,7 @@ export const chrome = {
     screener: "Screener",
     charts: "Charts",
     dividends: "Dividends",
+    companies: "Listed Companies",
     invest: "Invest",
     portfolio: "Portfolio",
     simulation: "Simulation",

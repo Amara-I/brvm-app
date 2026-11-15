@@ -70,6 +70,7 @@ export function featureFromPath(path: string): AnalyticsFeature {
   if (path.startsWith("/simulation")) return "simulation";
   if (path.startsWith("/actions/")) return "company_sheet";
   if (path.startsWith("/societes-cotees")) return "societes_cotees";
+  if (path.startsWith("/marches/ngx/societes")) return "societes_cotees";
   if (path.startsWith("/actualites")) return "actualites";
   if (path.startsWith("/outils")) return "outils";
   if (path.startsWith("/education")) return "education";
