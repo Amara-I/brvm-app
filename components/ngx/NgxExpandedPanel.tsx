@@ -160,14 +160,22 @@ export default function NgxExpandedPanel({ row }: { row: NgxBoardRow }) {
       value: pick((x) => signedPct(x.perf5Percent)),
       color: d ? tone(d.perf5Percent) : C.textDim,
     },
-    {
-      key: "perf10",
-      label: "Perf. 10 ans",
-      text: t("market.cards.perf10"),
-      value: pick((x) => signedPct(x.perf10Percent)),
-      color: d ? tone(d.perf10Percent) : C.textDim,
-      title: d?.perf10Percent != null && d.firstYear != null ? t("ngx.market.detail.sinceYear", { year: d.firstYear }) : undefined,
-    },
+    d && d.perf10Percent == null && d.perfSinceFirstPercent != null && d.firstYear != null
+      ? {
+          key: "perf10",
+          label: "Perf. 10 ans",
+          text: t("ngx.market.detail.perfSince", { year: d.firstYear }),
+          value: signedPct(d.perfSinceFirstPercent),
+          color: tone(d.perfSinceFirstPercent),
+          title: t("ngx.market.detail.perfSinceTitle", { year: d.firstYear }),
+        }
+      : {
+          key: "perf10",
+          label: "Perf. 10 ans",
+          text: t("market.cards.perf10"),
+          value: pick((x) => signedPct(x.perf10Percent)),
+          color: d ? tone(d.perf10Percent) : C.textDim,
+        },
     {
       key: "yield",
       label: "Rendement div.",

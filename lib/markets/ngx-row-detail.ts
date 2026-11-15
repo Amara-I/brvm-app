@@ -33,8 +33,13 @@ export interface NgxRowDetail {
   perf5Percent: number | null;
   /** Performance depuis la première clôture annuelle (≥ 10 années de cours, comme la BRVM), %. */
   perf10Percent: number | null;
-  /** Première année de cours connue (titre de la carte Perf. 10 ans). */
+  /** Première année de cours connue. */
   firstYear: number | null;
+  /**
+   * Performance depuis la première clôture annuelle connue (`firstYear`), %. L'historique NGX en base
+   * ne dépasse pas 8 années civiles : « Perf. 10 ans » reste N/D, cette carte la remplace alors.
+   */
+  perfSinceFirstPercent: number | null;
   yieldPercent: number | null;
   dps: number | null;
   dpsYear: number | null;
@@ -154,6 +159,15 @@ async function loadSeriesBundle(companyId: string, ticker: string): Promise<Seri
   return { series: presented, yearly: toYearly(closes, false) };
 }
 
+/** Variation entre la première et la dernière clôture annuelle (au moins 2 années), arrondie à 0,1 %. */
+function perfSinceFirst(years: number[], yearly: Record<number, number>): number | null {
+  const valid = years.filter((y) => (yearly[y] ?? 0) > 0);
+  if (valid.length < 2) return null;
+  const first = yearly[valid[0]!]!;
+  const last = yearly[valid[valid.length - 1]!]!;
+  return Math.round(((last - first) / first) * 1000) / 10;
+}
+
 async function loadNgxRowDetailUncached(tickerRaw: string): Promise<NgxRowDetail | null> {
   const ticker = String(tickerRaw ?? "").trim().toUpperCase();
   if (!/^[A-Z0-9.&-]{1,20}$/.test(ticker)) return null;
@@ -236,6 +250,7 @@ async function loadNgxRowDetailUncached(tickerRaw: string): Promise<NgxRowDetail
     perf5Percent: parsePct(m.perf5Percent),
     perf10Percent: parsePct(m.perf10Percent),
     firstYear: years[0] ?? null,
+    perfSinceFirstPercent: perfSinceFirst(years, yearly),
     yieldPercent: finiteOrNull(model.dividends.currentYieldPercent),
     dps: finiteOrNull(model.dividends.currentDps),
     dpsYear: model.dividends.currentDpsYear,
@@ -258,7 +273,7 @@ async function loadNgxRowDetailUncached(tickerRaw: string): Promise<NgxRowDetail
   };
 }
 
-const loadNgxRowDetailCached = cachedLoader(loadNgxRowDetailUncached, ["ngx-row-detail-v1"], {
+const loadNgxRowDetailCached = cachedLoader(loadNgxRowDetailUncached, ["ngx-row-detail-v2"], {
   revalidate: NGX_MARKET_REVALIDATE_S,
   tags: [NGX_MARKET_TAG],
 });

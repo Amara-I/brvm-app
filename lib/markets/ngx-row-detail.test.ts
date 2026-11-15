@@ -50,6 +50,7 @@ describe("loadNgxRowDetailUncached", () => {
     expect(d!.perf5Percent).not.toBeNull();
     expect(d!.perf10Percent).not.toBeNull();
     expect(d!.firstYear).toBe(2014);
+    expect(d!.perfSinceFirstPercent).toBeGreaterThan(0);
     expect(d!.per).toBeGreaterThan(0);
     expect(d!.roePercent).not.toBeNull();
     expect(d!.horizons).not.toBeNull();
