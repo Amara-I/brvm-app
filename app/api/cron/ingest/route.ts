@@ -23,7 +23,7 @@ import { dailyIngestBudgetMs, runDailyAfterClose, type DailyFollowUpSummary } fr
 import { runFullIngestion } from "@/lib/ingestion/run-full-ingestion";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
-import { revalidateNgxMarketCache } from "@/lib/cache/market-cache";
+import { revalidateMarketIndicesCache, revalidateNgxMarketCache } from "@/lib/cache/market-cache";
 import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 
 export const dynamic = "force-dynamic";
@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
     // Cours NGX du jour (runNgxDailyIngest) et historique importés : le cache
     // serveur NGX (vue d'ensemble, screener, fiches) est invalidé.
     revalidateNgxMarketCache();
+    revalidateMarketIndicesCache();
     // Clôtures BRVM + NGX du jour : derniers cours et jeu marché BRVM (companies-full)
     // relus dès la requête suivante, au lieu d'attendre l'expiration du cache.
     revalidateQuotesAfterWrite({ markets: ["BRVM", "NGX"] });

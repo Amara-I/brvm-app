@@ -21,19 +21,21 @@ function rr(entry: number, stop: number, target: number, side: "long" | "short")
 function reactionFr(zone: SrZone | null, role: "support" | "resistance", currency: PriceCurrency): string {
   if (!zone || zone.touches < 1) return "Aucun niveau historique proche n'est assez répété pour appuyer ce scénario.";
   const price = formatPrice(zone.mid, currency, "fr");
+  const subject = currency === "PTS" ? "l'indice" : "le cours";
   if (role === "support") {
-    return `Le support vers ${price} a été testé ${zone.touches} fois : le cours a rebondi ${zone.bounces} fois et l'a cassé ${zone.breaks} fois.`;
+    return `Le support vers ${price} a été testé ${zone.touches} fois : ${subject} a rebondi ${zone.bounces} fois et l'a cassé ${zone.breaks} fois.`;
   }
-  return `La résistance vers ${price} a été testée ${zone.touches} fois : le cours a été rejeté ${zone.bounces} fois et l'a dépassée ${zone.breaks} fois.`;
+  return `La résistance vers ${price} a été testée ${zone.touches} fois : ${subject} a été rejeté ${zone.bounces} fois et l'a dépassée ${zone.breaks} fois.`;
 }
 
 function reactionEn(zone: SrZone | null, role: "support" | "resistance", currency: PriceCurrency): string {
   if (!zone || zone.touches < 1) return "No nearby historical level has been retested enough to support this scenario.";
   const price = formatPrice(zone.mid, currency, "en");
+  const subject = currency === "PTS" ? "the index" : "price";
   if (role === "support") {
-    return `Support near ${price} was tested ${zone.touches} times: price bounced ${zone.bounces} times and broke it ${zone.breaks} times.`;
+    return `Support near ${price} was tested ${zone.touches} times: ${subject} bounced ${zone.bounces} times and broke it ${zone.breaks} times.`;
   }
-  return `Resistance near ${price} was tested ${zone.touches} times: price was rejected ${zone.bounces} times and broke it ${zone.breaks} times.`;
+  return `Resistance near ${price} was tested ${zone.touches} times: ${subject} was rejected ${zone.bounces} times and broke it ${zone.breaks} times.`;
 }
 
 function normalizeProbs(raw: Record<ScenarioBias, number>): Record<ScenarioBias, number> {
@@ -79,9 +81,10 @@ export function buildScenarios(
   const last = structure.lastClose;
   const atr = structure.atr14 != null && structure.atr14 > 0 ? structure.atr14 : last != null ? last * 0.015 : null;
   const probs = probabilities(timing, liquidity.illiquid);
+  const isIndex = currency === "PTS";
   if (last == null || atr == null) {
-    const ndFr = "Pas assez de séances pour dire comment le cours a réagi aux anciens niveaux (N/D).";
-    const ndEn = "Not enough sessions to say how price reacted at past levels (N/D).";
+    const ndFr = `Pas assez de séances pour dire comment ${isIndex ? "l'indice" : "le cours"} a réagi aux anciens niveaux (N/D).`;
+    const ndEn = `Not enough sessions to say how ${isIndex ? "the index" : "price"} reacted at past levels (N/D).`;
     return (["bullish", "neutral", "bearish"] as const).map((bias) => ({
       id: bias,
       bias,
@@ -155,16 +158,16 @@ export function buildScenarios(
   const bearEn = `${reactionEn(resistance, "resistance", currency)} ${structureEn}`;
   const neuZone = closerToHigh ? resistance : support;
   const neuRole = closerToHigh ? "resistance" : "support";
-  const neuFr = `${reactionFr(neuZone, neuRole, currency)} Le cours oscille entre ${formatPriceRange(rangeLow, rangeHigh, currency, "fr").replace(" – ", " et ")}.`;
-  const neuEn = `${reactionEn(neuZone, neuRole, currency)} Price is oscillating between ${formatPriceRange(rangeLow, rangeHigh, currency, "en").replace(" – ", " and ")}.`;
+  const neuFr = `${reactionFr(neuZone, neuRole, currency)} ${isIndex ? "L'indice" : "Le cours"} oscille entre ${formatPriceRange(rangeLow, rangeHigh, currency, "fr").replace(" – ", " et ")}.`;
+  const neuEn = `${reactionEn(neuZone, neuRole, currency)} ${isIndex ? "The index is" : "Price is"} oscillating between ${formatPriceRange(rangeLow, rangeHigh, currency, "en").replace(" – ", " and ")}.`;
 
   const plans: ScenarioPlan[] = [
     {
       id: "bullish",
       bias: "bullish",
       probability: probs.bullish,
-      headlineFr: "Hausse tant que le cours reste au-dessus de l'invalidation.",
-      headlineEn: "Upside while price stays above invalidation.",
+      headlineFr: isIndex ? "Hausse tant que l'indice reste au-dessus du seuil d'invalidation." : "Hausse tant que le cours reste au-dessus de l'invalidation.",
+      headlineEn: isIndex ? "Upside while the index holds above the invalidation level." : "Upside while price stays above invalidation.",
       explanationFr: bullFr,
       explanationEn: bullEn,
       entryLow: bullEntry.low,
@@ -191,8 +194,8 @@ export function buildScenarios(
       id: "bearish",
       bias: "bearish",
       probability: probs.bearish,
-      headlineFr: "Baisse tant que le cours ne repasse pas au-dessus de l'invalidation.",
-      headlineEn: "Downside while price stays below invalidation.",
+      headlineFr: isIndex ? "Baisse tant que l'indice ne repasse pas au-dessus du seuil d'invalidation." : "Baisse tant que le cours ne repasse pas au-dessus de l'invalidation.",
+      headlineEn: isIndex ? "Downside while the index stays below the invalidation level." : "Downside while price stays below invalidation.",
       explanationFr: bearFr,
       explanationEn: bearEn,
       entryLow: bearEntry.low,

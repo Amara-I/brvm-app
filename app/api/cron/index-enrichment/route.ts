@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isCronAuthorized } from "@/lib/security/cron-auth";
 import { runIndexEnrichment } from "@/lib/ingestion/run-index-enrichment";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
+import { revalidateMarketIndicesCache } from "@/lib/cache/market-cache";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -43,6 +44,7 @@ async function handle(request: NextRequest) {
       timeBudgetMs: Number.isFinite(budgetMs) && budgetMs > 0 ? budgetMs : 240_000,
       force: params.get("force") === "1",
     });
+    revalidateMarketIndicesCache();
     return NextResponse.json({ ok: true, data: summary });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

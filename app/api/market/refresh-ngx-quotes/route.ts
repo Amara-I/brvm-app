@@ -6,7 +6,7 @@
 
 import { NextRequest } from "next/server";
 import { apiError, apiSuccess, privateCacheHeaders } from "@/lib/api/response";
-import { revalidateNgxMarketCache } from "@/lib/cache/market-cache";
+import { revalidateMarketIndicesCache, revalidateNgxMarketCache } from "@/lib/cache/market-cache";
 import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { getConnectorFeatureFlags } from "@/lib/ingestion/connector-config";
@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
     // Nouveaux cours en base : on invalide le cache serveur NGX et on relit
     // la base directement pour cette réponse.
     revalidateNgxMarketCache();
+    revalidateMarketIndicesCache();
     // Derniers cours NGX (fiches, liste, sondage live) : relus dès la prochaine requête.
     revalidateQuotesAfterWrite({ markets: ["NGX"] });
     // Comme l'actualisation BRVM : alertes NGX (seuils ₦, variations, signaux,

@@ -7,6 +7,7 @@ import SignalBadge from "@/components/ui/SignalBadge";
 import ConfidenceDot from "@/components/ui/ConfidenceDot";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { signalOf } from "@/lib/calc/calc-metrics";
+import { indexReadingLabel } from "@/lib/markets/index-insights";
 import EducationTermLink from "@/components/education/EducationTermLink";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { TFunc } from "@/lib/i18n/create-i18n";
@@ -15,6 +16,7 @@ import {
   formatPrice,
   formatPriceNumber,
   formatPriceRange,
+  hasDecimals,
   rewardRiskSentence,
   type PriceCurrency,
 } from "@/lib/technical-analysis/level-label";
@@ -241,12 +243,16 @@ export function ScenarioFigure({
 export default function TechnicalAnalysisPanel({
   analysis,
   qualityScore,
+  variant = "stock",
 }: {
   analysis: TechnicalAnalysis;
   /** Score qualité /100. null = N/D (titre non noté). */
   qualityScore: number | null;
+  /** `index` : lecture de marché d'un indice (points, pas d'entrée d'achat ni de gain/risque). */
+  variant?: "stock" | "index";
 }) {
   const { t, format, locale } = useI18n();
+  const isIndex = variant === "index";
   const nd = t("common.nd");
   const tone = signalOf(analysis.signal.label).color;
   const currency: PriceCurrency = analysis.currency ?? "XOF";
@@ -254,7 +260,7 @@ export default function TechnicalAnalysisPanel({
   const money = (value: number) => formatPrice(value, currency, lang);
   const range = (low: number, high: number) => formatPriceRange(low, high, currency, lang);
   const price = (value: number | null | undefined) =>
-    value == null ? nd : currency === "NGN" ? format.decimal(value, 2) : format.number(value);
+    value == null ? nd : hasDecimals(currency) ? format.decimal(value, 2) : format.number(value);
   const structure = analysis.structure;
   const topIndex = mostProbableScenarioIndex(analysis.scenarios, structure.bias);
   const figures = useMemo(() => {
@@ -285,15 +291,15 @@ export default function TechnicalAnalysisPanel({
     },
     [currency, lang, tagValue]
   );
-  const shortName = useCallback((mark: ScenarioChartMark) => markShortLabel(mark, t), [t]);
+  const shortName = useCallback((mark: ScenarioChartMark) => markShortLabel(mark, t, isIndex), [t, isIndex]);
   const legendItems = (marks: ScenarioChartMark[]): LevelLegendItem[] =>
     [...marks]
       .sort((a, b) => (b.priceHigh ?? b.price) - (a.priceHigh ?? a.price))
       .map((mark, index) => ({
         key: `${mark.kind}-${index}`,
-        short: markShortLabel(mark, t),
+        short: markShortLabel(mark, t, isIndex),
         color: legendColor(mark.kind),
-        name: markLabel(mark, t),
+        name: markLabel(mark, t, isIndex),
         value: mark.priceHigh != null ? range(mark.price, mark.priceHigh) : money(mark.price),
         distance: mark.showDistance && structure.lastClose != null ? formatDistancePct(structure.lastClose, mark.price) : null,
         distanceTone: mark.kind === "stop" ? ("bad" as const) : ("good" as const),
@@ -304,22 +310,33 @@ export default function TechnicalAnalysisPanel({
       <header className={styles.header}>
         <div>
           <h2 id="ta-title" className={styles.title}>
-            {t("company.ta.title")}
+            {t(isIndex ? "market.indices.ta.title" : "company.ta.title")}
           </h2>
-          <p className={styles.lead}>{t("company.ta.lead")}</p>
+          <p className={styles.lead}>{t(isIndex ? "market.indices.ta.lead" : "company.ta.lead")}</p>
         </div>
         <div className={styles.signalPill} style={{ borderColor: tone }}>
-          <SignalBadge label={analysis.signal.label} />
+          <SignalBadge
+            label={analysis.signal.label}
+            display={isIndex ? indexReadingLabel(analysis.signal.label, lang) : undefined}
+          />
           <span>
             {t("company.ta.confidence")} <ConfidenceDot value={analysis.signal.confidence} />
           </span>
         </div>
       </header>
 
-      <p className={styles.note}>{t("company.ta.scoreVsTiming", { score: qualityScore == null ? nd : Math.round(qualityScore) })}</p>
+      <p className={styles.note}>
+        {isIndex
+          ? t("market.indices.ta.note")
+          : t("company.ta.scoreVsTiming", { score: qualityScore == null ? nd : Math.round(qualityScore) })}
+      </p>
       {analysis.liquidity.warningFr ? (
         <p className={styles.warning} role="status">
-          {locale === "en" ? analysis.liquidity.warningEn : analysis.liquidity.warningFr}
+          {isIndex
+            ? t("market.indices.ta.lowHistory")
+            : locale === "en"
+              ? analysis.liquidity.warningEn
+              : analysis.liquidity.warningFr}
         </p>
       ) : null}
 
@@ -428,52 +445,66 @@ export default function TechnicalAnalysisPanel({
               shortName={shortName}
               fvgLabel={t("company.ta.chart.fvg")}
               futureLabel={t("company.ta.chart.projection")}
-              unitLabel={currency === "NGN" ? "" : "FCFA"}
+              unitLabel={currency === "NGN" ? "" : currency === "PTS" ? "pts" : "FCFA"}
               value={tagValue}
               range={tagRange}
               height={top ? 280 : SCENARIO_CHART.height}
             />
             <div className={styles.below}>
-              <ScenarioCopy scenario={scenario} locale={lang} t={t} />
+              <ScenarioCopy scenario={scenario} locale={lang} t={t} isIndex={isIndex} />
               <LevelLegend title={t("company.ta.levelsLegend")} items={legendItems(marks)} className={styles.belowLegend} />
             </div>
           </article>
         ))}
       </div>
-      <p className={styles.disclaimer}>{t("company.ta.disclaimer")}</p>
+      <p className={styles.disclaimer}>{t(isIndex ? "market.indices.ta.disclaimer" : "company.ta.disclaimer")}</p>
     </section>
   );
 }
 
-function markLabel(mark: ScenarioChartMark, t: TFunc): string {
+function markLabel(mark: ScenarioChartMark, t: TFunc, isIndex = false): string {
   if (mark.kind === "target") return t("company.ta.chart.target", { n: mark.targetIndex ?? 1 });
   if (mark.kind === "stop") return t("company.ta.chart.invalidation");
-  if (mark.kind === "entry") return t("company.ta.entry");
-  if (mark.kind === "last") return t("company.ta.chart.last");
+  if (mark.kind === "entry") return t(isIndex ? "market.indices.ta.chart.entry" : "company.ta.entry");
+  if (mark.kind === "last") return t(isIndex ? "market.indices.ta.chart.last" : "company.ta.chart.last");
   if (mark.kind === "support") return t("company.ta.zone.support");
   if (mark.kind === "resistance") return t("company.ta.zone.resistance");
   return t("company.ta.chart.fvg");
 }
 
-function markShortLabel(mark: ScenarioChartMark, t: TFunc): string {
+function markShortLabel(mark: ScenarioChartMark, t: TFunc, isIndex = false): string {
   if (mark.kind === "target") return t("company.ta.chart.targetShort", { n: mark.targetIndex ?? 1 });
   if (mark.kind === "stop") return t("company.ta.chart.invalidationShort");
-  if (mark.kind === "entry") return t("company.ta.chart.entryShort");
-  if (mark.kind === "last") return t("company.ta.chart.lastShort");
+  if (mark.kind === "entry") return t(isIndex ? "market.indices.ta.chart.entryShort" : "company.ta.chart.entryShort");
+  if (mark.kind === "last") return t(isIndex ? "market.indices.ta.chart.lastShort" : "company.ta.chart.lastShort");
   if (mark.kind === "support") return t("company.ta.chart.supportShort");
   if (mark.kind === "resistance") return t("company.ta.chart.resistanceShort");
   return t("company.ta.chart.fvg");
 }
 
-function ScenarioCopy({ scenario, locale, t }: { scenario: ScenarioPlan; locale: "fr" | "en"; t: TFunc }) {
+function ScenarioCopy({
+  scenario,
+  locale,
+  t,
+  isIndex = false,
+}: {
+  scenario: ScenarioPlan;
+  locale: "fr" | "en";
+  t: TFunc;
+  isIndex?: boolean;
+}) {
   return (
     <div className={styles.copy}>
       <h5>{t("company.ta.sections.scenario")}</h5>
       <p>{locale === "en" ? scenario.headlineEn : scenario.headlineFr}</p>
       <h5>{t("company.ta.sections.why")}</h5>
       <p>{locale === "en" ? scenario.explanationEn : scenario.explanationFr}</p>
-      <h5>{t("company.ta.sections.reward")}</h5>
-      <p>{rewardRiskSentence(scenario.riskReward, locale)}</p>
+      {isIndex ? null : (
+        <>
+          <h5>{t("company.ta.sections.reward")}</h5>
+          <p>{rewardRiskSentence(scenario.riskReward, locale)}</p>
+        </>
+      )}
     </div>
   );
 }

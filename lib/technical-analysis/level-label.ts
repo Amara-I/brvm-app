@@ -3,15 +3,20 @@
 
 const NBSP = /[\u202f\u00a0]/g;
 
-/** Devise de cotation : XOF = FCFA (BRVM), NGN = naira (NGX). */
-export type PriceCurrency = "XOF" | "NGN";
+/** Devise de cotation : XOF = FCFA (BRVM), NGN = naira (NGX), PTS = points d'indice. */
+export type PriceCurrency = "XOF" | "NGN" | "PTS";
+
+/** Unité à 2 décimales (naira, points d'indice) — le FCFA reste entier. */
+export function hasDecimals(currency: PriceCurrency | undefined): boolean {
+  return currency === "NGN" || currency === "PTS";
+}
 
 export const DEFAULT_PRICE_CURRENCY: PriceCurrency = "XOF";
 
 /** Montant sans unité. FCFA : entier. Naira : 2 décimales (beaucoup de titres NGX cotent sous ₦10). */
 export function formatPriceNumber(value: number, currency: PriceCurrency = DEFAULT_PRICE_CURRENCY, locale: "fr" | "en" = "fr"): string {
   const tag = locale === "en" ? "en-GB" : "fr-FR";
-  if (currency === "NGN") {
+  if (hasDecimals(currency)) {
     return value
       .toLocaleString(tag, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
       .replace(NBSP, " ");
@@ -19,9 +24,10 @@ export function formatPriceNumber(value: number, currency: PriceCurrency = DEFAU
   return Math.round(value).toLocaleString(tag).replace(NBSP, " ");
 }
 
-/** `4 125 FCFA` ou `₦1 250,50`. */
+/** `4 125 FCFA`, `₦1 250,50` ou `515,94 pts`. */
 export function formatPrice(value: number, currency: PriceCurrency = DEFAULT_PRICE_CURRENCY, locale: "fr" | "en" = "fr"): string {
   const body = formatPriceNumber(value, currency, locale);
+  if (currency === "PTS") return `${body} pts`;
   return currency === "NGN" ? `₦${body}` : `${body} FCFA`;
 }
 
@@ -35,7 +41,8 @@ export function formatPriceRange(
   const a = Math.min(low, high);
   const b = Math.max(low, high);
   if (currency === "NGN") return `${formatPrice(a, currency, locale)} – ${formatPrice(b, currency, locale)}`;
-  return `${formatPriceNumber(a, currency, locale)} – ${formatPriceNumber(b, currency, locale)} FCFA`;
+  const unit = currency === "PTS" ? "pts" : "FCFA";
+  return `${formatPriceNumber(a, currency, locale)} – ${formatPriceNumber(b, currency, locale)} ${unit}`;
 }
 
 export function formatFcfa(value: number): string {

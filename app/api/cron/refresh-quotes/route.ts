@@ -18,6 +18,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { revalidateMarketDataCache } from "@/lib/api/revalidate-market-cache";
 import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
+import { revalidateMarketIndicesCache } from "@/lib/cache/market-cache";
 import { runBrvmQuotesRefresh, type BrvmQuotesRefreshSummary } from "@/lib/ingestion/run-brvm-quotes-refresh";
 import { runNgxDailyIngest, type NgxIngestSummary } from "@/lib/ingestion/run-ngx-ingest";
 import { sendIngestionAlert } from "@/lib/ingestion/alerts";
@@ -74,6 +75,8 @@ export async function GET(request: NextRequest) {
         // (relue à la lecture, cf. lib/charts/overlay-latest-close.ts).
         const summary = await runNgxDailyIngest({ budgetMs: NGX_BUDGET_MS, refreshCharts: false });
         revalidateQuotesAfterWrite({ markets: ["NGX"] });
+        // Indices NGX du jour aussi écrits : pages et cartes d'indices relues.
+        if (summary.indices > 0) revalidateMarketIndicesCache();
         if (evaluateAlerts && summary.status !== "FAILED" && summary.quotes > 0) {
           try {
             const { evaluateAllAlerts } = await import("@/lib/notifications/evaluate-all");

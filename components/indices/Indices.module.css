@@ -184,3 +184,328 @@
 .constLink:hover {
   color: var(--c-gold);
 }
+
+/* ── Fiche d'indice : courbe, lecture, participation ───────────────────── */
+
+.sheet {
+  min-width: 0;
+}
+
+.unit {
+  font-size: 0.5em;
+  font-weight: 600;
+  letter-spacing: 0;
+  color: var(--c-textdim);
+}
+
+.pos {
+  color: var(--c-up);
+}
+
+.neg {
+  color: var(--c-down);
+}
+
+.hl {
+  color: var(--c-text);
+}
+
+.rangeChange {
+  margin: 4px 0 0;
+  font-size: var(--fs-body-sm);
+  color: var(--c-textdim);
+}
+
+.rangeChange strong {
+  font-family: var(--font-num);
+}
+
+.levelToggleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: -4px 0 10px;
+}
+
+.levelToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--c-text);
+  cursor: pointer;
+}
+
+.levelToggle input {
+  accent-color: var(--c-gold);
+}
+
+.levelHint {
+  font-size: 0.75rem;
+  color: var(--c-textdim);
+}
+
+.chartWrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+}
+
+.chartWrapGutter {
+  padding-right: 40px;
+}
+
+.chartPlot {
+  width: 100%;
+  min-width: 0;
+}
+
+/* Repères discrets sur le tracé (même style que le graphe des actions). */
+.levelTags {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 38px;
+  height: 320px;
+  pointer-events: none;
+}
+
+.levelTag {
+  position: absolute;
+  left: 2px;
+  transform: translateY(-50%);
+  min-width: 24px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 4px;
+  color: #0b0d12;
+  font-size: 10.5px;
+  font-weight: 800;
+  line-height: 16px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Sous le graphe : lecture à gauche, légende des niveaux à droite. */
+.chartBelow {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--c-border-thin, var(--c-border));
+}
+
+.chartBelowSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 1fr);
+  gap: 12px 28px;
+  align-items: start;
+}
+
+.chartBelowMain {
+  min-width: 0;
+}
+
+.chartBelowLevels {
+  min-width: 0;
+}
+
+.chartBelowLevels h5 {
+  margin-top: 0;
+}
+
+.readingHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.readingTitle {
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 10px;
+}
+
+.chartTip {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+  box-shadow: var(--shadow-sm);
+}
+
+.chartTipDate {
+  color: var(--c-textdim);
+  margin-bottom: 2px;
+}
+
+.chartTipValue {
+  font-family: var(--font-num);
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--c-text);
+}
+
+.readingSignal {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.readingSignalLabel {
+  font-size: 0.75rem;
+  color: var(--c-textdim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.reading {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+}
+
+.reading li {
+  position: relative;
+  padding-left: 16px;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: var(--c-textdim);
+}
+
+.reading li::before {
+  content: "";
+  position: absolute;
+  left: 2px;
+  top: 0.62em;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-gold);
+}
+
+.reading strong {
+  font-weight: 700;
+  font-family: var(--font-num);
+}
+
+.breadthBar {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--c-border-thin);
+}
+
+.breadthUp {
+  background: #22c55e;
+}
+
+.breadthFlat {
+  background: #f59e0b;
+}
+
+.breadthDown {
+  background: #ef4444;
+}
+
+.breadthCounts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 10px 0 14px;
+  font-size: var(--fs-body-sm);
+  color: var(--c-textdim);
+}
+
+.breadthCounts strong {
+  font-family: var(--font-num);
+  font-size: 1.05rem;
+}
+
+.movers {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.subTitle {
+  margin: 0 0 8px;
+  font-size: 0.82rem;
+  font-weight: 650;
+  color: var(--c-text);
+}
+
+.moverList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.moverLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  text-decoration: none;
+  color: var(--c-text);
+}
+
+.moverLink:hover {
+  border-color: var(--c-gold);
+}
+
+.moverTicker {
+  font-weight: 700;
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .chartBelowSplit {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .hideMobile {
+    display: none;
+  }
+
+  .card {
+    padding: var(--space-4);
+  }
+
+  .kpiGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .movers {
+    grid-template-columns: 1fr;
+  }
+}

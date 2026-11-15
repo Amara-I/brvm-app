@@ -9,6 +9,7 @@ vi.mock("@/lib/ingestion/run-brvm-quotes-refresh", () => ({ runBrvmQuotesRefresh
 vi.mock("@/lib/ingestion/run-ngx-ingest", () => ({ runNgxDailyIngest: ngx }));
 vi.mock("@/lib/ingestion/alerts", () => ({ sendIngestionAlert: vi.fn(async () => undefined) }));
 vi.mock("@/lib/api/revalidate-market-cache", () => ({ revalidateMarketDataCache: vi.fn() }));
+vi.mock("@/lib/cache/market-cache", () => ({ revalidateMarketIndicesCache: vi.fn() }));
 vi.mock("@/lib/cache/revalidate-quotes", () => ({ revalidateQuotesAfterWrite: revalidateQuotes }));
 vi.mock("@/lib/notifications/evaluate-all", () => ({ evaluateAllAlerts: vi.fn(async () => ({})) }));
 
