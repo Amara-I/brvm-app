@@ -1460,11 +1460,11 @@ export default function TradingChart({
         if (!line.title) return [];
         const y = seriesApi.priceToCoordinate(line.price);
         if (y == null || !Number.isFinite(y) || y < 0 || y > height) return [];
-        return [{ id: line.id, y, title: line.title, color: line.color }];
+        return [{ id: line.id, y, title: line.short || line.title, color: line.color }];
       });
       const tops = stackLabelYs(
         visible.map((row) => row.y),
-        22,
+        17,
         10,
         height - 10
       );
@@ -1623,7 +1623,7 @@ export default function TradingChart({
           <div
             key={tag.id}
             className={styles.levelTag}
-            style={{ top: tag.top, color: tag.color }}
+            style={{ top: tag.top, background: tag.color }}
           >
             {tag.title}
           </div>

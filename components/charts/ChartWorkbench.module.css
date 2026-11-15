@@ -917,6 +917,33 @@
   border-top: 1px solid var(--tv-border);
 }
 
+/* Sous le graphe : autres signaux à gauche, légende des niveaux à droite. */
+.analysisSplit {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 1fr);
+  gap: 8px 24px;
+  align-items: start;
+}
+
+.analysisMain {
+  min-width: 0;
+}
+
+.analysisLevels {
+  grid-column: 2;
+  min-width: 0;
+}
+
+@media (max-width: 760px) {
+  .analysisSplit {
+    grid-template-columns: 1fr;
+  }
+
+  .analysisLevels {
+    grid-column: auto;
+  }
+}
+
 .ficheLink {
   color: #7eb6ff;
   text-decoration: none;

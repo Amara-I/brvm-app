@@ -40,6 +40,7 @@ import ChartAnalysisControls, {
 } from "./ChartAnalysisControls";
 import ChartAlertControls from "./ChartAlertControls";
 import AnalysisRecap from "@/components/analysis/AnalysisRecap";
+import LevelLegend, { type LevelLegendItem } from "./LevelLegend";
 import { trackFeature } from "@/components/analytics/track-client";
 import PortfolioTickerAction from "@/components/portfolio/PortfolioTickerAction";
 import { C } from "@/lib/theme/colors";
@@ -1388,36 +1389,48 @@ export default function ChartWorkbench({
             )}
             <span>{chartSourceNote()}</span>
           </div>
-          {payload?.analysis && !loading && !error && (
-            <div className={styles.analysisRecap}>
-              <AnalysisRecap
-                kind="technical"
-                signalLabel={displaySignalLabel(payload.analysis.signalLabel, labels)}
-                signalColor={payload.analysis.signalColor}
-                signalCode={payload.analysis.signalLabel}
-                score={payload.analysis.technicalScore}
-                confidence={labels.confidence(payload.analysis.confidence)}
-                summary={truncateSummary(
-                  t("charts.recap.reading", {
-                    ticker: payload.ticker,
-                    summary: chartSignalSummary(payload.analysis, locale, labels, t),
-                  })
-                )}
-                lines={chartTechnicalLines(
-                  {
-                    technical: payload.analysis.technical,
-                    technicalScore: payload.analysis.technicalScore,
-                  },
-                  locale,
-                  format,
-                  labels,
-                  t
-                )}
-                href={embedded ? undefined : `/actions/${ticker}`}
-                hrefLabel={t("charts.recap.sheetLink")}
-              />
-            </div>
-          )}
+          {(() => {
+            const showRecap = Boolean(payload?.analysis && !loading && !error);
+            const legendItems = !loading && !error && levelLines && !percentScale ? levelLegendItems(levelLines) : [];
+            if (!showRecap && legendItems.length === 0) return null;
+            return (
+              <div className={`${styles.analysisRecap} ${legendItems.length > 0 ? styles.analysisSplit : ""}`}>
+                {showRecap && payload?.analysis ? (
+                  <div className={styles.analysisMain}>
+                    <AnalysisRecap
+                      kind="technical"
+                      signalLabel={displaySignalLabel(payload.analysis.signalLabel, labels)}
+                      signalColor={payload.analysis.signalColor}
+                      signalCode={payload.analysis.signalLabel}
+                      score={payload.analysis.technicalScore}
+                      confidence={labels.confidence(payload.analysis.confidence)}
+                      summary={truncateSummary(
+                        t("charts.recap.reading", {
+                          ticker: payload.ticker,
+                          summary: chartSignalSummary(payload.analysis, locale, labels, t),
+                        })
+                      )}
+                      lines={chartTechnicalLines(
+                        {
+                          technical: payload.analysis.technical,
+                          technicalScore: payload.analysis.technicalScore,
+                        },
+                        locale,
+                        format,
+                        labels,
+                        t
+                      )}
+                      href={embedded ? undefined : `/actions/${ticker}`}
+                      hrefLabel={t("charts.recap.sheetLink")}
+                    />
+                  </div>
+                ) : null}
+                {legendItems.length > 0 ? (
+                  <LevelLegend tone="chart" title={t("charts.levelsLegend")} items={legendItems} className={styles.analysisLevels} />
+                ) : null}
+              </div>
+            );
+          })()}
         </div>
       </div>
 
@@ -1459,3 +1472,18 @@ function Metric({
   );
 }
 
+/** Lignes avec libellé → légende sous le graphe (même repère court que sur le tracé). */
+function levelLegendItems(lines: ChartLevelLine[]): LevelLegendItem[] {
+  return lines
+    .filter((line) => line.title && line.short && line.name && line.value)
+    .sort((a, b) => b.price - a.price)
+    .map((line) => ({
+      key: line.id,
+      short: line.short!,
+      color: line.color,
+      name: line.name!,
+      value: line.value!,
+      distance: line.distance ?? null,
+      distanceTone: line.id === "invalidation" ? ("bad" as const) : ("good" as const),
+    }));
+}

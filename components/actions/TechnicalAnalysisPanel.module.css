@@ -119,14 +119,60 @@
 }
 
 .scenarios {
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
 }
 
 .scenario {
+  position: relative;
   border: 1px solid var(--c-border);
   border-radius: 12px;
   padding: 10px;
   min-width: 0;
+  background: var(--c-panel);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* Scénario le plus probable : cadre or, halo, un peu plus grand. */
+.scenarioTop {
+  border-color: var(--c-gold);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--c-gold) 45%, transparent),
+    0 8px 28px -10px color-mix(in srgb, var(--c-gold) 55%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c-gold) 7%, var(--c-panel)) 0%, var(--c-panel) 120px);
+  padding-top: 14px;
+}
+
+/* Les deux autres restent lisibles mais en retrait. */
+.scenarioMuted .figureWrap {
+  opacity: 0.8;
+  filter: saturate(0.75);
+  transition: opacity 0.15s ease, filter 0.15s ease;
+}
+
+.scenarioMuted:hover .figureWrap,
+.scenarioMuted:focus-within .figureWrap {
+  opacity: 1;
+  filter: none;
+}
+
+.scenarioMuted .scenarioHead h4 {
+  color: var(--c-textDim);
+}
+
+.topBadge {
+  position: absolute;
+  top: -10px;
+  left: 12px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--c-gold);
+  color: #14110a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px -2px color-mix(in srgb, var(--c-gold) 70%, transparent);
 }
 
 .scenarioHead {
@@ -141,6 +187,22 @@
   font-size: 0.98rem;
 }
 
+.scenarioTop .scenarioHead h4 {
+  font-size: 1.08rem;
+}
+
+.scenarioTop .bias_bullish {
+  color: var(--c-green);
+}
+
+.scenarioTop .bias_bearish {
+  color: var(--c-red);
+}
+
+.scenarioTop .bias_neutral {
+  color: var(--c-gold);
+}
+
 .probBadge {
   color: color-mix(in srgb, var(--c-gold) 72%, var(--c-text));
   background: color-mix(in srgb, var(--c-gold) 18%, transparent);
@@ -149,92 +211,39 @@
   padding: 2px 8px;
   font-size: 0.75rem;
   font-weight: 700;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+.scenarioMuted .probBadge {
+  color: var(--c-textDim);
+  background: transparent;
+  border-color: var(--c-border);
 }
 
 .figureWrap {
   position: relative;
   margin-top: 8px;
-  --label-gutter: 31.58%;
+  width: 100%;
+  overflow: hidden;
 }
 
 .figure {
-  width: 100%;
-  height: auto;
-  min-height: 280px;
   display: block;
-}
-
-.figureLabels {
-  position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: var(--label-gutter);
-  margin: 0;
-  padding: 0 6px 0 4px;
-  list-style: none;
-  pointer-events: none;
-}
-
-.figureLabel {
-  position: absolute;
-  right: 4px;
-  left: 6px;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 1px;
   max-width: 100%;
-  padding: 4px 8px;
-  border-radius: 6px;
-  border: 1px solid currentColor;
-  background: var(--c-panel);
-  font-size: 12px;
-  line-height: 1.25;
-  font-weight: 700;
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--c-text) 18%, transparent);
-}
-
-.markName {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.markValue {
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
 }
 
-.markPct {
-  font-weight: 800;
+/* Sous le graphe : lecture du scénario à gauche, légende des niveaux à droite (empilés si étroit). */
+.below {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0 18px;
+  align-items: start;
 }
 
-.markTarget {
-  color: var(--c-green);
-  background: color-mix(in srgb, var(--c-green-soft) 70%, var(--c-panel));
-  border-color: var(--c-green);
-}
-
-.markStop {
-  color: var(--c-red);
-  background: color-mix(in srgb, var(--c-red-soft) 70%, var(--c-panel));
-  border-color: var(--c-red);
-}
-
-.markEntry {
-  color: color-mix(in srgb, var(--c-gold) 88%, var(--c-text));
-  background: color-mix(in srgb, var(--c-gold-soft) 70%, var(--c-panel));
-  border-color: var(--c-gold);
-}
-
-.markLast {
-  color: var(--c-text);
-  background: var(--c-panel);
-  border-color: var(--c-border);
+.belowLegend {
+  min-width: 0;
 }
 
 .copy h5 {
@@ -281,8 +290,8 @@
 }
 
 .chipEntry {
-  color: color-mix(in srgb, var(--c-gold) 70%, var(--c-text));
-  background: color-mix(in srgb, var(--c-gold) 16%, transparent);
+  color: color-mix(in srgb, var(--c-blue) 70%, var(--c-text));
+  background: color-mix(in srgb, var(--c-blue) 16%, transparent);
 }
 
 .chipLast {
@@ -297,14 +306,22 @@
   cursor: help;
 }
 
-@media (max-width: 640px) {
-  .figure {
-    min-height: 280px;
+/* Tablette : le plus probable sur toute la largeur, les deux autres côte à côte. */
+@media (max-width: 1100px) {
+  .scenarios {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .figureLabel {
-    font-size: 12px;
-    padding: 3px 7px;
+  .scenarioTop {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Mobile : cartes empilées, le plus probable en tête. */
+@media (max-width: 640px) {
+  .scenarios {
+    grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .chip {
@@ -316,57 +333,87 @@
   fill: var(--c-bg);
 }
 
+.futureZone {
+  fill: color-mix(in srgb, var(--c-gold) 6%, transparent);
+}
+
+.axisLine {
+  stroke: var(--c-border);
+  stroke-width: 1;
+}
+
+.futureLabel {
+  fill: color-mix(in srgb, var(--c-gold) 80%, var(--c-textDim));
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.unitLabel {
+  fill: var(--c-textDim);
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.areaStopTop {
+  stop-color: var(--c-gold);
+  stop-opacity: 0.18;
+}
+
+.areaStopBottom {
+  stop-color: var(--c-gold);
+  stop-opacity: 0;
+}
+
 .priceLine {
   fill: none;
   stroke: var(--c-text);
-  stroke-width: 2;
-}
-
-.zoneSupport {
-  fill: color-mix(in srgb, var(--c-green) 28%, transparent);
-  stroke: var(--c-green);
-  stroke-width: 1.2;
-}
-
-.zoneResistance {
-  fill: color-mix(in srgb, var(--c-red) 24%, transparent);
-  stroke: var(--c-red);
-  stroke-width: 1.2;
-}
-
-.zoneEntry,
-.zoneGap {
-  fill: color-mix(in srgb, var(--c-gold) 30%, transparent);
-  stroke: var(--c-gold);
-  stroke-width: 1.2;
-}
-
-.stopLine {
-  stroke: var(--c-red);
-  stroke-dasharray: 5 3;
   stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+
+.zoneEntry {
+  fill: color-mix(in srgb, var(--c-blue) 14%, transparent);
+}
+
+.zoneGap {
+  fill: color-mix(in srgb, var(--c-gold) 12%, transparent);
+}
+
+/* Lignes de niveau : fines, sur toute la largeur. */
+.targetLine,
+.stopLine,
+.entryLine,
+.lastLine {
+  stroke-width: 1;
+  shape-rendering: crispEdges;
 }
 
 .targetLine {
   stroke: var(--c-green);
-  stroke-dasharray: 5 3;
-  stroke-width: 1.6;
+  opacity: 0.85;
+}
+
+.stopLine {
+  stroke: var(--c-red);
+  opacity: 0.85;
 }
 
 .entryLine {
-  stroke: var(--c-gold);
-  stroke-dasharray: 5 3;
-  stroke-width: 1.6;
+  stroke: var(--c-blue);
+  opacity: 0.85;
 }
 
 .lastLine {
   stroke: var(--c-text);
-  stroke-width: 1.25;
+  stroke-dasharray: 2 3;
+  opacity: 0.8;
 }
 
 .leader {
   fill: none;
-  stroke-width: 1.35;
+  stroke-width: 1;
 }
 
 .leaderTarget {
@@ -378,37 +425,116 @@
 }
 
 .leaderEntry {
-  stroke: var(--c-gold);
+  stroke: var(--c-blue);
 }
 
 .leaderLast {
-  stroke: var(--c-textDim);
+  stroke: var(--c-text);
+}
+
+/* Étiquettes de prix pleines sur l'axe de droite. */
+.priceTag rect {
+  stroke: none;
+}
+
+.priceTag text {
+  font-size: 10.5px;
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.tagName {
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.tagValue {
+  font-weight: 800;
+}
+
+.tagTarget rect {
+  fill: var(--c-green);
+}
+
+.tagStop rect {
+  fill: var(--c-red);
+}
+
+.tagEntry rect {
+  fill: var(--c-blue);
+}
+
+.tagLast rect {
+  fill: var(--c-text);
+}
+
+.tagTarget text,
+.tagLast text {
+  fill: var(--c-bg);
+}
+
+.tagStop text,
+.tagEntry text {
+  fill: #ffffff;
+}
+
+:root[data-theme="dark"] .tagTarget text {
+  fill: #04130a;
+}
+
+:root[data-theme="dark"] .tagLast rect {
+  fill: #f3ead6;
+  stroke: var(--c-gold);
+  stroke-width: 1;
+}
+
+:root[data-theme="dark"] .tagLast text {
+  fill: #0b0d12;
 }
 
 .fvgTag rect {
   fill: var(--c-panel);
   stroke: var(--c-gold);
-  stroke-width: 1.2;
+  stroke-width: 1;
 }
 
 .fvgTag text {
   fill: color-mix(in srgb, var(--c-gold) 88%, var(--c-text));
-  font-size: 12px;
+  font-size: 9.5px;
   font-weight: 700;
   font-family: inherit;
 }
 
-.markLabel {
-  fill: var(--c-textDim);
-  font-size: 12px;
-}
-
+/* Flèche de projection : vers la droite, couleur selon la direction. */
 .arrow {
-  stroke: var(--c-gold);
-  stroke-width: 2;
+  stroke-width: 2.6;
+  stroke-linecap: round;
 }
 
-.arrowHead {
+.arrowUp .arrow {
+  stroke: var(--c-green);
+}
+
+.arrowUp .arrowHead,
+.arrowUp .lastDot {
+  fill: var(--c-green);
+}
+
+.arrowDown .arrow {
+  stroke: var(--c-red);
+}
+
+.arrowDown .arrowHead,
+.arrowDown .lastDot {
+  fill: var(--c-red);
+}
+
+.arrowFlat .arrow {
+  stroke: var(--c-gold);
+}
+
+.arrowFlat .arrowHead,
+.arrowFlat .lastDot {
   fill: var(--c-gold);
 }
 
