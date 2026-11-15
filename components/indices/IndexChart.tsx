@@ -2,10 +2,11 @@
 
 // Courbe d'un indice (périodes 1M → MAX) avec, sur 1M–1A, les niveaux techniques
 // tracés sur la courbe : zones de support / résistance, objectif et invalidation du
-// scénario le plus probable, niveau actuel. Libellés dans une gouttière à droite,
-// écartés pour ne pas se chevaucher (même logique que les figures de scénarios).
+// scénario le plus probable, niveau actuel. Comme les graphes des actions : repères
+// discrets sur le tracé (S, R, O1, I, N), lecture à gauche et légende des niveaux à
+// droite sous le graphe.
 
-import { memo, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useState, type ReactNode } from "react";
 import {
   Area,
   AreaChart,
@@ -21,6 +22,7 @@ import { useI18n } from "@/components/i18n/I18nProvider";
 import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
 import type { ChartRange } from "@/lib/charts/indicators";
 import type { FormatApi } from "@/lib/i18n/format";
+import LevelLegend, { type LevelLegendItem } from "@/components/charts/LevelLegend";
 import { formatDistancePct, formatPrice, formatPriceRange, stackLabelBoxes } from "@/lib/technical-analysis/level-label";
 import type { TechnicalAnalysis } from "@/lib/technical-analysis/types";
 import type { IndexSeriesPoint } from "@/lib/markets/index-sheet";
@@ -43,7 +45,23 @@ export interface IndexChartLevel {
   /** Zone : borne haute (le libellé porte la fourchette). */
   priceHigh?: number;
   name: string;
+  /** Repère court affiché sur le tracé (S, R, O1, I, N). */
+  short: string;
 }
+
+type LevelNames = {
+  support: string;
+  resistance: string;
+  target: string;
+  stop: string;
+  last: string;
+  supportShort: string;
+  resistanceShort: string;
+  /** Avec `{n}` : O{n} → O1. */
+  targetShort: string;
+  stopShort: string;
+  lastShort: string;
+};
 
 /**
  * Niveaux à tracer : la zone de support et la zone de résistance les plus proches, le niveau
@@ -52,18 +70,25 @@ export interface IndexChartLevel {
  */
 export function chartLevels(
   analysis: TechnicalAnalysis | null,
-  names: { support: string; resistance: string; target: string; stop: string; last: string }
+  names: LevelNames
 ): IndexChartLevel[] {
   if (!analysis || analysis.structure.lastClose == null) return [];
   const last = analysis.structure.lastClose;
-  const out: IndexChartLevel[] = [{ kind: "last", price: last, name: names.last }];
+  const out: IndexChartLevel[] = [{ kind: "last", price: last, name: names.last, short: names.lastShort }];
   const nearest = (kind: "support" | "resistance") =>
     analysis.zones
       .filter((z) => z.kind === kind && (kind === "support" ? z.mid < last : z.mid > last))
       .sort((a, b) => Math.abs(a.mid - last) - Math.abs(b.mid - last))[0];
   const zones = [nearest("support"), nearest("resistance")].filter((z): z is NonNullable<typeof z> => z != null);
   for (const z of zones) {
-    out.push({ kind: z.kind === "support" ? "support" : "resistance", price: z.low, priceHigh: z.high, name: z.kind === "support" ? names.support : names.resistance });
+    const support = z.kind === "support";
+    out.push({
+      kind: support ? "support" : "resistance",
+      price: z.low,
+      priceHigh: z.high,
+      name: support ? names.support : names.resistance,
+      short: support ? names.supportShort : names.resistanceShort,
+    });
   }
   const covered = (price: number) => zones.some((z) => price >= z.low - last * 0.002 && price <= z.high + last * 0.002);
   const top = [...analysis.scenarios]
@@ -72,10 +97,15 @@ export function chartLevels(
   if (top) {
     const targetIndex = top.targets.findIndex((target) => !covered(target));
     if (targetIndex >= 0) {
-      out.push({ kind: "target", price: top.targets[targetIndex]!, name: `${names.target} ${targetIndex + 1}` });
+      out.push({
+        kind: "target",
+        price: top.targets[targetIndex]!,
+        name: `${names.target} ${targetIndex + 1}`,
+        short: names.targetShort.replace("{n}", String(targetIndex + 1)),
+      });
     }
     if (top.invalidation != null && !covered(top.invalidation)) {
-      out.push({ kind: "stop", price: top.invalidation, name: names.stop });
+      out.push({ kind: "stop", price: top.invalidation, name: names.stop, short: names.stopShort });
     }
   }
   // Un niveau à plus de 25 % du niveau actuel n'aide pas la lecture : on le retire.
@@ -93,25 +123,30 @@ function dateLabel(iso: string, format: FormatApi, withDay = true): string {
   });
 }
 
-/** Espaces de groupement insécables : la ligne se coupe au tiret, jamais dans un nombre. */
-function keepNumbers(text: string): string {
-  return text.replace(/(\d) (?=\d)/g, "$1\u202f").replace(/ pts$/, "\u00a0pts");
-}
-
+/** Même code couleur que les scénarios et le graphe des actions (#120) : au-dessus du niveau
+ *  en vert (résistance, objectif), en dessous en rouge (support, invalidation). */
 function levelColor(kind: LevelKind): string {
-  if (kind === "support" || kind === "target") return "#26a69a";
-  if (kind === "resistance" || kind === "stop") return "#ef5350";
+  if (kind === "resistance" || kind === "target") return "#26a69a";
+  if (kind === "support" || kind === "stop") return "#ef5350";
   return "#d1d4dc";
 }
 
-function IndexChart({ series, analysis }: { series: IndexSeriesPoint[]; analysis: TechnicalAnalysis | null }) {
+const TAG_H = 16;
+
+function IndexChart({
+  series,
+  analysis,
+  aside,
+}: {
+  series: IndexSeriesPoint[];
+  analysis: TechnicalAnalysis | null;
+  /** Lecture affichée à gauche sous le graphe (la légende des niveaux est à droite). */
+  aside?: ReactNode;
+}) {
   const { t, format, locale } = useI18n();
   const lang = locale === "en" ? "en" : "fr";
   const [range, setRange] = useState<ChartRange>("1A");
   const [showLevels, setShowLevels] = useState(true);
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLUListElement>(null);
-  const [tops, setTops] = useState<number[] | null>(null);
 
   const windowed = useMemo(
     () => applyChartSeriesWindow(series, { range, defaultTo1A: false }).series as IndexSeriesPoint[],
@@ -128,6 +163,11 @@ function IndexChart({ series, analysis }: { series: IndexSeriesPoint[]; analysis
             target: t("market.indices.sheet.legendTarget"),
             stop: t("market.indices.sheet.legendInvalidation"),
             last: t("market.indices.sheet.legendLast"),
+            supportShort: t("company.ta.chart.supportShort"),
+            resistanceShort: t("company.ta.chart.resistanceShort"),
+            targetShort: t("company.ta.chart.targetShort", { n: "{n}" }),
+            stopShort: t("company.ta.chart.invalidationShort"),
+            lastShort: t("market.indices.ta.chart.lastShort"),
           })
         : [],
     [analysis, levelsAllowed, showLevels, t]
@@ -161,16 +201,11 @@ function IndexChart({ series, analysis }: { series: IndexSeriesPoint[]; analysis
     });
   }, [levels, domain]);
 
-  useLayoutEffect(() => {
-    const list = listRef.current;
-    if (!list || desiredYs.length === 0) {
-      setTops(null);
-      return;
-    }
-    const items = Array.from(list.children) as HTMLElement[];
-    const sizes = items.map((item) => item.getBoundingClientRect().height);
-    setTops(stackLabelBoxes(desiredYs, sizes, MARGIN_TOP, MARGIN_TOP + PLOT_H, 4));
-  }, [desiredYs]);
+  // Repères de hauteur fixe : écartés sans mesure du DOM.
+  const tops = useMemo(
+    () => stackLabelBoxes(desiredYs, desiredYs.map(() => TAG_H), MARGIN_TOP, MARGIN_TOP + PLOT_H, 2),
+    [desiredYs]
+  );
 
   const pts = (v: number) => formatPrice(v, "PTS", lang);
   const signed = (v: number) => format.percent(v, 2, true);
@@ -179,7 +214,19 @@ function IndexChart({ series, analysis }: { series: IndexSeriesPoint[]; analysis
     windowed.forEach((p, i) => m.set(p.time, i));
     return m;
   }, [windowed]);
-  const last = windowed[windowed.length - 1]?.value ?? null;
+  const last = analysis?.structure.lastClose ?? windowed[windowed.length - 1]?.value ?? null;
+  const legendItems: LevelLegendItem[] = levels.map((l, i) => ({
+    key: `${l.kind}-${i}`,
+    short: l.short,
+    color: levelColor(l.kind),
+    name: l.name,
+    value: l.priceHigh != null ? formatPriceRange(l.price, l.priceHigh, "PTS", lang) : pts(l.price),
+    distance:
+      l.kind !== "last" && last != null
+        ? formatDistancePct(last, l.priceHigh != null ? (l.price + l.priceHigh) / 2 : l.price)
+        : null,
+    distanceTone: l.kind === "stop" || l.kind === "support" ? ("bad" as const) : ("good" as const),
+  }));
   const up = (rangeChange ?? 0) >= 0;
   const stroke = up ? C.green : C.red;
 
@@ -225,7 +272,7 @@ function IndexChart({ series, analysis }: { series: IndexSeriesPoint[]; analysis
         ) : null}
       </div>
       {windowed.length > 1 && domain ? (
-        <div ref={wrapRef} className={`${styles.chartWrap} ${levels.length > 0 ? styles.chartWrapGutter : ""}`}>
+        <div className={`${styles.chartWrap} ${levels.length > 0 ? styles.chartWrapGutter : ""}`}>
           <div className={styles.chartPlot}>
             <ResponsiveContainer width="100%" height={CHART_H}>
               <AreaChart data={windowed} margin={{ top: MARGIN_TOP, right: 4, left: 0, bottom: 0 }}>
@@ -313,29 +360,30 @@ function IndexChart({ series, analysis }: { series: IndexSeriesPoint[]; analysis
             </ResponsiveContainer>
           </div>
           {levels.length > 0 ? (
-            <ul ref={listRef} className={styles.levelLabels} aria-label={t("market.indices.sheet.levels")}>
-              {levels.map((l, i) => {
-                const distance = l.kind !== "last" && last != null ? formatDistancePct(last, l.priceHigh != null ? (l.price + l.priceHigh) / 2 : l.price) : null;
-                return (
-                  <li
-                    key={`${l.kind}-${i}`}
-                    className={`${styles.levelLabel} ${styles[`level_${l.kind}`] ?? ""}`}
-                    style={tops ? { top: `${tops[i]}px` } : { top: `${desiredYs[i] ?? 0}px` }}
-                  >
-                    <span className={styles.levelName}>{l.name}</span>
-                    <span className={styles.levelValue}>
-                      {keepNumbers(l.priceHigh != null ? formatPriceRange(l.price, l.priceHigh, "PTS", lang) : pts(l.price))}
-                      {distance ? <span className={styles.levelPct}> {distance}</span> : null}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <div className={styles.levelTags} aria-hidden="true">
+              {levels.map((l, i) => (
+                <span
+                  key={`${l.kind}-${i}`}
+                  className={styles.levelTag}
+                  style={{ top: `${tops[i] ?? desiredYs[i] ?? 0}px`, background: levelColor(l.kind) }}
+                >
+                  {l.short}
+                </span>
+              ))}
+            </div>
           ) : null}
         </div>
       ) : (
         <p className={styles.empty}>{t("market.indices.historyEmpty")}</p>
       )}
+      {aside || legendItems.length > 0 ? (
+        <div className={`${styles.chartBelow} ${legendItems.length > 0 && aside ? styles.chartBelowSplit : ""}`}>
+          {aside ? <div className={styles.chartBelowMain}>{aside}</div> : null}
+          {legendItems.length > 0 ? (
+            <LevelLegend title={t("charts.levelsLegend")} items={legendItems} className={styles.chartBelowLevels} />
+          ) : null}
+        </div>
+      ) : null}
     </section>
   );
 }

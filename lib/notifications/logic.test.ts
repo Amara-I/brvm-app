@@ -125,3 +125,14 @@ describe("alertes NGX : liens et montants", () => {
     expect(alertExchangeOf(null)).toBe("BRVM");
   });
 });
+
+describe("deepLinkFor — indices NGX", () => {
+  it("renvoie vers la page de l'indice NGX", () => {
+    expect(deepLinkFor({ type: "INDICES", indexCode: "NGX_ASI", exchange: "NGX" })).toBe("/marches/ngx/indices/NGX_ASI");
+    expect(deepLinkFor({ type: "INDICES", exchange: "NGX" })).toBe("/marches/ngx/indices");
+  });
+  it("garde /indices pour la BRVM", () => {
+    expect(deepLinkFor({ type: "INDICES", indexCode: "BRVM_30" })).toBe("/indices/BRVM_30");
+    expect(deepLinkFor({ type: "INDICES", indexCode: "BRVM_30", exchange: "BRVM" })).toBe("/indices/BRVM_30");
+  });
+});

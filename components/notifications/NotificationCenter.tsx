@@ -7,6 +7,7 @@ import EmptyState from "@/components/ui/EmptyState";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { localizeSharedApiMessage } from "@/lib/i18n/localize-api";
 import { NOTIFICATION_TYPES, type NotificationTypeCode } from "@/lib/notifications/types";
+import { collapseDuplicateNotifications } from "@/lib/notifications/dedupe";
 import { notificationTypeLabel } from "./type-label";
 import styles from "./NotificationCenter.module.css";
 
@@ -58,7 +59,8 @@ export default function NotificationCenter() {
         setItems([]);
         return;
       }
-      setItems((json.data?.notifications ?? []) as Notif[]);
+      // Filet de sécurité : jamais deux cartes pour la même information.
+      setItems(collapseDuplicateNotifications((json.data?.notifications ?? []) as Notif[]));
       setUnread(Number(json.data?.unreadCount ?? 0));
     } catch {
       setError(t("notifications.center.loadError"));

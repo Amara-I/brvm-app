@@ -13,30 +13,28 @@
   width: 100%;
 }
 
+/* Repère discret (R1, O2, I…) : le détail est dans la légende sous le graphe. */
 .levelTag {
   position: absolute;
   right: 62px;
   z-index: 3;
   transform: translateY(-50%);
-  max-width: min(48vw, 230px);
-  padding: 2px 6px;
-  border-radius: 6px;
-  border: 1px solid currentColor;
-  background: rgba(19, 23, 34, 0.92);
-  color: #d1d4dc;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.25;
+  min-width: 20px;
+  padding: 0 4px;
+  border-radius: 3px;
+  color: #0b0d12;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 15px;
+  text-align: center;
   white-space: nowrap;
   pointer-events: none;
+  opacity: 0.92;
 }
 
 @media (max-width: 640px) {
   .levelTag {
     right: 48px;
-    max-width: 54vw;
-    font-size: 10.5px;
-    padding: 1px 4px;
   }
 }
 

@@ -13,14 +13,24 @@ export interface ChartLevelLine {
   /** Vide : trait sans pastille (l'autre borne de la zone porte le libellé). */
   title: string;
   dashed?: boolean;
+  /** Repère court affiché sur le graphe (R1, S1, FVG, E, O1, I, C). Vide pour la borne sans libellé. */
+  short?: string;
+  /** Libellé complet pour la légende sous le graphe (Résistance, Objectif 1…). */
+  name?: string;
+  /** Prix ou fourchette formatés, avec devise. */
+  value?: string;
+  /** Écart en % au cours (objectifs, invalidation). */
+  distance?: string | null;
 }
 
+// Même code couleur que les scénarios (style Trading Central) : au-dessus du cours en vert
+// (résistances, objectifs), en dessous en rouge (supports, invalidation), entrée en bleu.
 const COLORS = {
-  support: "#26a69a",
-  resistance: "#ef5350",
+  support: "#ef5350",
+  resistance: "#26a69a",
   target: "#26a69a",
   stop: "#ef5350",
-  entry: "#D4A843",
+  entry: "#3b82f6",
   last: "#d1d4dc",
   fvg: "#D4A843",
 };
@@ -36,6 +46,12 @@ function words(locale: "fr" | "en", index = false) {
       last: index ? "Level" : "Price",
       fvgBull: "Bullish FVG",
       fvgBear: "Bearish FVG",
+      supportShort: "S",
+      resistanceShort: "R",
+      entryShort: index ? "K" : "E",
+      targetShort: "T",
+      invalidationShort: "I",
+      lastShort: index ? "L" : "P",
     };
   }
   return {
@@ -47,6 +63,12 @@ function words(locale: "fr" | "en", index = false) {
     last: index ? "Niveau" : "Cours",
     fvgBull: "FVG haussier",
     fvgBear: "FVG baissier",
+    supportShort: "S",
+    resistanceShort: "R",
+    entryShort: index ? "Z" : "E",
+    targetShort: "O",
+    invalidationShort: "I",
+    lastShort: index ? "N" : "C",
   };
 }
 
@@ -76,7 +98,10 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
     })
     .slice(0, 4);
 
+  const rank = { support: 0, resistance: 0 };
   for (const zone of ranked) {
+    const kind = zone.kind === "support" ? "support" : "resistance";
+    rank[kind] += 1;
     const color = zone.kind === "support" ? COLORS.support : COLORS.resistance;
     const name = zone.kind === "support" ? copy.support : copy.resistance;
     add({
@@ -92,6 +117,9 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       color,
       title: `${name}  ${range(zone.low, zone.high)}`,
       dashed: true,
+      short: `${kind === "support" ? copy.supportShort : copy.resistanceShort}${rank[kind]}`,
+      name,
+      value: range(zone.low, zone.high),
     });
   }
 
@@ -104,6 +132,9 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       color: COLORS.fvg,
       title: `${name}  ${range(gap.low, gap.high)}`,
       dashed: true,
+      short: "FVG",
+      name,
+      value: range(gap.low, gap.high),
     });
   }
 
@@ -115,6 +146,9 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       color: COLORS.last,
       title: `${copy.last}  ${money(plan.lastClose)}`,
       dashed: false,
+      short: copy.lastShort,
+      name: copy.last,
+      value: money(plan.lastClose),
     });
   }
   if (plan.entryLow != null && plan.entryHigh != null) {
@@ -125,6 +159,9 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       color: COLORS.entry,
       title: `${copy.entry}  ${range(plan.entryLow, plan.entryHigh)}`,
       dashed: true,
+      short: copy.entryShort,
+      name: copy.entry,
+      value: range(plan.entryLow, plan.entryHigh),
     });
   }
   plan.targets.forEach((target, index) => {
@@ -135,6 +172,10 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       color: COLORS.target,
       title: `${copy.target} ${index + 1}  ${money(target)}${distance ? `  ${distance}` : ""}`,
       dashed: true,
+      short: `${copy.targetShort}${index + 1}`,
+      name: `${copy.target} ${index + 1}`,
+      value: money(target),
+      distance,
     });
   });
   if (plan.invalidation != null) {
@@ -145,6 +186,10 @@ export function chartLevelLines(analysis: TechnicalAnalysis, locale: "fr" | "en"
       color: COLORS.stop,
       title: `${copy.invalidation}  ${money(plan.invalidation)}${distance ? `  ${distance}` : ""}`,
       dashed: true,
+      short: copy.invalidationShort,
+      name: copy.invalidation,
+      value: money(plan.invalidation),
+      distance,
     });
   }
 

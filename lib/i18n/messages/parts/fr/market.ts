@@ -275,6 +275,8 @@ export const market = {
       chart: {
         last: "Niveau",
         entry: "Zone clé",
+        lastShort: "N",
+        entryShort: "Z",
       },
       disclaimer:
         "Scénarios indicatifs, calculés sur la façon dont l’indice a réagi aux niveaux passés. Ce n’est pas un conseil en investissement.",

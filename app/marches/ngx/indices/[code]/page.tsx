@@ -5,6 +5,7 @@ import SiteFooter from "@/components/layout/SiteFooter";
 import IndexDetailClient from "@/components/indices/IndexDetailClient";
 import NgxChart from "@/components/ngx/NgxChart";
 import styles from "@/components/ngx/NgxMarket.module.css";
+import IndexAlertButton from "@/components/notifications/IndexAlertButton";
 import PageHeader from "@/components/ui/PageHeader";
 import { getCurrentUserId } from "@/lib/auth/get-current-user";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
@@ -63,6 +64,8 @@ export default async function NgxIndexDetailPage({
     );
   }
 
+  const userId = await getCurrentUserId().catch(() => null);
+
   return (
     <AppHeader>
       <div className="ob-page">
@@ -72,11 +75,20 @@ export default async function NgxIndexDetailPage({
           backLabel={`← ${t("ngx.indices.detailBack")}`}
           stockHrefPrefix="/marches/ngx/actions/"
           extraHeader={
-            data.detail.series.length > 1 ? (
-              <Link className={styles.back} href={`/marches/ngx/indices/${code}?vue=graphe`}>
-                {t("market.indices.sheet.detailedChart")} →
-              </Link>
-            ) : null
+            <>
+              <IndexAlertButton
+                isAuthenticated={Boolean(userId)}
+                indexCode={data.detail.code}
+                indexName={data.detail.name}
+                lastValue={data.detail.lastValue}
+                loginCallbackPath={`/marches/ngx/indices/${encodeURIComponent(data.detail.code)}`}
+              />
+              {data.detail.series.length > 1 ? (
+                <Link className={styles.back} href={`/marches/ngx/indices/${code}?vue=graphe`}>
+                  {t("market.indices.sheet.detailedChart")} →
+                </Link>
+              ) : null}
+            </>
           }
         />
       </div>

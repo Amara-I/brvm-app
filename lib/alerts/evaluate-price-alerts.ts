@@ -29,13 +29,19 @@ export interface PriceAlertEvalSummary {
  */
 export async function evaluateActivePriceAlerts(options?: {
   tickers?: string[];
+  /** Places couvertes (ex. ["NGX"] après l'actualisation des cours NGX). Défaut : toutes. */
+  exchanges?: AlertExchange[];
 }): Promise<PriceAlertEvalSummary> {
   const where: {
     status: PriceAlertStatus;
     ticker?: { in: string[] };
+    company?: { exchange: { in: AlertExchange[] } };
   } = { status: PriceAlertStatus.ACTIVE };
   if (options?.tickers?.length) {
     where.ticker = { in: options.tickers.map((t) => t.toUpperCase()) };
+  }
+  if (options?.exchanges?.length) {
+    where.company = { exchange: { in: options.exchanges } };
   }
 
   const alerts = await prisma.priceAlert.findMany({
@@ -71,14 +77,18 @@ export async function evaluateActivePriceAlerts(options?: {
     const target = Number(alert.targetPrice);
     if (!priceCrossHits(alert.direction, price, target)) continue;
 
-    await prisma.priceAlert.update({
-      where: { id: alert.id },
+    // Passage ACTIVE → TRIGGERED conditionnel : si le cron, le bouton
+    // d'actualisation et la page « alertes » évaluent en même temps, un seul
+    // passage obtient la transition et notifie.
+    const claimed = await prisma.priceAlert.updateMany({
+      where: { id: alert.id, status: PriceAlertStatus.ACTIVE },
       data: {
         status: PriceAlertStatus.TRIGGERED,
         triggeredAt: new Date(),
         triggerPrice: price,
       },
     });
+    if (claimed.count === 0) continue;
     summary.triggered += 1;
     summary.alertIds.push(alert.id);
     summary.fired.push({

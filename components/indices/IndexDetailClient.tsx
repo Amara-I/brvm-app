@@ -191,7 +191,7 @@ export default function IndexDetailClient({
         {data.exchange === "BRVM" ? (
           <p className={styles.note}>{translateIndexDescription(detail.code, detail.description, t, sectorName)}</p>
         ) : null}
-        {extraHeader}
+        {extraHeader ? <div className={styles.headerActions}>{extraHeader}</div> : null}
       </header>
 
       <div className={styles.kpiGrid}>
@@ -231,34 +231,35 @@ export default function IndexDetailClient({
         />
       </div>
 
-      <IndexChart series={detail.series} analysis={analysis} />
-
-      <section className={styles.card} aria-labelledby="index-reading-title">
-        <div className={styles.cardHead}>
-          <div>
-            <h2 id="index-reading-title" className={styles.cardTitle}>
-              {t("market.indices.sheet.readingTitle")}
-            </h2>
-            <p className={styles.note}>{t("market.indices.sheet.readingLead")}</p>
-          </div>
-          {analysis ? (
-            <div className={styles.readingSignal}>
-              <span className={styles.readingSignalLabel}>{t("market.indices.sheet.readingSignal")}</span>
-              <SignalBadge label={analysis.signal.label} display={indexReadingLabel(analysis.signal.label, lang)} />
-              <ConfidenceDot value={analysis.signal.confidence} />
+      <IndexChart
+        series={detail.series}
+        analysis={analysis}
+        aside={
+          <section aria-labelledby="index-reading-title">
+            <div className={styles.readingHead}>
+              <h3 id="index-reading-title" className={styles.readingTitle}>
+                {t("market.indices.sheet.readingTitle")}
+              </h3>
+              {analysis ? (
+                <div className={styles.readingSignal}>
+                  <span className={styles.readingSignalLabel}>{t("market.indices.sheet.readingSignal")}</span>
+                  <SignalBadge label={analysis.signal.label} display={indexReadingLabel(analysis.signal.label, lang)} />
+                  <ConfidenceDot value={analysis.signal.confidence} />
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
-        {reading.length ? (
-          <ul className={styles.reading}>
-            {reading.map((line) => (
-              <ReadingText key={line.id} line={line} />
-            ))}
-          </ul>
-        ) : (
-          <p className={styles.empty}>{t("market.indices.historyEmpty")}</p>
-        )}
-      </section>
+            {reading.length ? (
+              <ul className={styles.reading}>
+                {reading.map((line) => (
+                  <ReadingText key={line.id} line={line} />
+                ))}
+              </ul>
+            ) : (
+              <p className={styles.empty}>{t("market.indices.historyEmpty")}</p>
+            )}
+          </section>
+        }
+      />
 
       {breadth ? (
         <BreadthCard breadth={breadth} stockHref={stockHref} />

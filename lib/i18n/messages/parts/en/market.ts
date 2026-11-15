@@ -274,6 +274,8 @@ export const market = {
       chart: {
         last: "Level",
         entry: "Key zone",
+        lastShort: "L",
+        entryShort: "K",
       },
       disclaimer:
         "Indicative scenarios, based on how the index reacted to past levels. This is not investment advice.",

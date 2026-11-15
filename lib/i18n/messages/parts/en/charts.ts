@@ -139,6 +139,7 @@ export const charts = {
     openCharts: "Open in Charts →",
     switchSymbol: "· Click the ticker ({symbol} ▾) to switch company",
   },
+  levelsLegend: "Levels on the chart",
   recap: {
     reading: "Chart read of {ticker} — {summary}",
     sheetLink: "Company sheet & signal →",

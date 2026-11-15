@@ -123,6 +123,11 @@ export function deepLinkFor(input: {
     const base = `/marches/ngx/actions/${encodeURIComponent(input.ticker)}`;
     return input.preferChart ? `${base}#ngx-chart` : base;
   }
+  if (input.exchange === "NGX" && input.type === "INDICES") {
+    // Indices NGX : pages sous /marches/ngx/indices (la page /indices liste la BRVM).
+    if (input.indexCode) return `/marches/ngx/indices/${encodeURIComponent(input.indexCode)}`;
+    return "/marches/ngx/indices";
+  }
   if (input.exchange === "NGX" && input.type === "SIGNAUX") return "/marches/ngx/screener";
   if (input.exchange === "NGX" && input.type === "PRIX") return "/marches/ngx";
   if (input.type === "PORTEFEUILLE") return "/portefeuille";
