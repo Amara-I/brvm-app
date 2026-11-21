@@ -14,6 +14,7 @@
 // si aucune préférence stockée (le thème clair, valeur par défaut de
 // `:root`, s'applique déjà correctement).
 import Script from "next/script";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Suspense } from "react";
 import type { Metadata, Viewport } from "next";
 import { IBM_Plex_Mono, Inter } from "next/font/google";
@@ -27,6 +28,7 @@ import I18nProvider from "@/components/i18n/I18nProvider";
 import { getI18n } from "@/lib/i18n/get-i18n";
 
 import { BRAND_NAME } from "@/lib/theme/brand";
+import { getAppBaseUrl } from "@/lib/auth/app-url";
 
 const inter = Inter({
   subsets: ["latin", "latin-ext"],
@@ -43,9 +45,20 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 export function generateMetadata(): Metadata {
   const { t } = getI18n();
+  const description = t("chrome.meta.description");
   return {
+    metadataBase: new URL(getAppBaseUrl()),
     title: BRAND_NAME,
-    description: t("chrome.meta.description"),
+    description,
+    icons: { icon: "/icon.png", apple: "/icon.png" },
+    openGraph: {
+      type: "website",
+      siteName: BRAND_NAME,
+      title: BRAND_NAME,
+      description,
+      images: [{ url: "/og.png", width: 1200, height: 630, alt: BRAND_NAME }],
+    },
+    twitter: { card: "summary_large_image", title: BRAND_NAME, description, images: ["/og.png"] },
   };
 }
 
@@ -80,6 +93,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
           </main>
         </I18nProvider>
+        <SpeedInsights />
       </body>
     </html>
   );

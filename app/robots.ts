@@ -3,6 +3,7 @@
 // d'authentification (aucun intérêt SEO, évite le crawl inutile de routes
 // dynamiques coûteuses en base de données).
 import type { MetadataRoute } from "next";
+import { getAppBaseUrl } from "@/lib/auth/app-url";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -11,5 +12,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/", "/admin/"],
     },
+    sitemap: `${getAppBaseUrl()}/sitemap.xml`,
   };
 }

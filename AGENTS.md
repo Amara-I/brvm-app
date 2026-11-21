@@ -1060,6 +1060,22 @@ Demandée le 27/10/2026 : `/marches/ngx` consultable (pas le portefeuille).
 
 ---
 
+## 23. Étape 27 — Phase 1 : perf perçue, observabilité, SEO
+
+Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
+
+- `.github/workflows/ci.yml` : `tsc`, `vitest` et `i18n:check` sur chaque PR / push `main`.
+- `@vercel/speed-insights` dans `app/layout.tsx` (Web Vitals réels).
+- `app/loading.tsx` (squelette + streaming), `app/error.tsx`, `app/global-error.tsx`.
+- `app/sitemap.ts`, `app/manifest.ts` (PWA installable), `public/icon.png` et `public/og.png`
+  (provisoires : logo centré sur fond uni), `metadataBase` + Open Graph/Twitter.
+- Panneaux Projection et Comparaison de la fiche société chargés via `next/dynamic`.
+- Limite connue : le layout racine lit `cookies()`/`headers()` pour la langue, donc
+  toutes les pages sont dynamiques ; un ISR page par page exige un routage par
+  langue (`/fr`, `/en`). Les données restent mises en cache via `unstable_cache`.
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,
