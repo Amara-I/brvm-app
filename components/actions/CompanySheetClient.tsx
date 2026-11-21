@@ -47,14 +47,15 @@ import {
   formatWindowChangePercent,
 } from "@/lib/charts/window-change";
 import OverviewPriceChart from "@/components/actions/OverviewPriceChart";
-import CompanyProjectionPanel from "@/components/actions/CompanyProjectionPanel";
-import CompanyComparisonPanel from "@/components/actions/CompanyComparisonPanel";
 import OutlookSynthesisCard from "./OutlookSynthesisCard";
 import FundamentalAnalysisPanel from "./FundamentalAnalysisPanel";
 import FilterableSheetTable from "@/components/actions/FilterableSheetTable";
 import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
 import LazyChartWorkbench, { prefetchChartWorkbench } from "@/components/charts/LazyChartWorkbench";
+import dynamic from "next/dynamic";
+import SkeletonBlock from "@/components/ui/SkeletonBlock";
+
 import TechnicalAnalysisPanel from "@/components/actions/TechnicalAnalysisPanel";
 import { chartLevelLines } from "@/lib/technical-analysis/chart-lines";
 import { analyzePriceHistory } from "@/lib/technical-analysis/analyze";
@@ -84,6 +85,18 @@ import {
   type CompanySheetTabKey,
 } from "@/lib/ui/company-sheet-tabs";
 import styles from "./CompanySheet.module.css";
+
+// Panneaux Recharts affichés seulement dans leur onglet : chargés à la demande
+// pour alléger le bundle initial de la fiche société.
+const CompanyProjectionPanel = dynamic(() => import("@/components/actions/CompanyProjectionPanel"), {
+  ssr: false,
+  loading: () => <SkeletonBlock height={320} />,
+});
+const CompanyComparisonPanel = dynamic(() => import("@/components/actions/CompanyComparisonPanel"), {
+  ssr: false,
+  loading: () => <SkeletonBlock height={320} />,
+});
+
 
 const DATA_SOURCE_KEYS = {
   BRVM_OFFICIEL: "company.sources.BRVM_OFFICIEL",

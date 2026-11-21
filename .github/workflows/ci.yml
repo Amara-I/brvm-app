@@ -1,0 +1,44 @@
+# Intégration continue : typecheck, tests unitaires et cohérence i18n
+# sur chaque pull request et chaque push sur main.
+#
+# Aucun secret requis. `prisma generate` n'a pas besoin de base de données.
+# Node 24 pour rester aligné sur "engines" de package.json.
+
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Typecheck, tests, i18n
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci --no-audit --no-fund
+
+      - name: Générer le client Prisma
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Tests unitaires
+        run: npx vitest run
+
+      - name: Cohérence des clés i18n
+        run: npm run i18n:check

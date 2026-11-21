@@ -14,9 +14,9 @@ export default function SkeletonBlock({ height = 16, width = "100%", radius }: P
   );
 }
 
-export function PageSkeleton() {
+export function PageSkeleton({ label = "Chargement" }: { label?: string }) {
   return (
-    <div className="ob-skel-stack ob-page" aria-busy="true" aria-label="Chargement">
+    <div className="ob-skel-stack ob-page" aria-busy="true" aria-label={label}>
       <SkeletonBlock height={14} width="8rem" />
       <SkeletonBlock height={28} width="16rem" />
       <SkeletonBlock height={16} width="70%" />
