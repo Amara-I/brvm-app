@@ -11,13 +11,13 @@ le script s'exécute à la main, après validation.
 | `ngx_prices.csv` | 35 001 | NGX doclib : *Daily Official List – Equities* (25 617 clôtures hebdo 2016-10 → 2021-10, 525 séances manquantes, 122 séances partielles) et *Daily Summary* (8 737 lignes, rapprochées par raison sociale, seulement les titres échangés) | high 20 030 / medium 14 971 |
 | `brvm_prices.csv` | 13 878 | Sikafinance (`fetchDailyHistoryChunked`), fenêtres où la base est vide (nov.–déc. 2024, nov.–déc. 2022, SDSC, SLBC, ABJC, UNLC, BOAS/CBIBF/ECOC/ORAC/SCRC, PRSC/SICC/SPHC/STAC/NEIC…) | high 8 397 / medium 5 481 |
 | `ngx_indices.csv` | 824 | NGX doclib : pages de couverture quotidiennes (ASI, NGX30, sectoriels) ; 6 valeurs ASI déduites du champ « veille » de la couverture suivante | high 818 / medium 6 |
-| `outliers.csv` | 206 | Comparaison base ↔ Sikafinance ↔ voisins | voir ci-dessous |
+| `outliers.csv` | 205 | Comparaison base ↔ Sikafinance ↔ voisins | voir ci-dessous |
 
 `outliers.csv` : 109 lignes `MANUEL` canoniques (presque toutes au 31/12, souvent un
 week-end, échelle erronée) rétrogradées ; 32 clôtures ABJC `SIKAFINANCE` de début de mois
 corrigées à la clôture quotidienne Sikafinance ; 63 autres débuts de mois ABJC
-(clôtures mensuelles mal datées) rétrogradées ; 2 points NGX isolés (CONHALLPLC
-2023-11-27, MORISON 2020-10-26) rétrogradés.
+(clôtures mensuelles mal datées) rétrogradées ; 1 point NGX isolé (CONHALLPLC 2023-11-27) rétrogradé. MORISON 2020-10-26 (0,54) est
+conservé : la liste officielle hebdomadaire le confirme.
 
 Contrôles faits en lecture seule avant la PR : ratios Sikafinance/base = 1,000 sur
 toutes les fenêtres communes (SNTS : 0,1 = Sikafinance ajusté du fractionnement d'octobre 2026 ;

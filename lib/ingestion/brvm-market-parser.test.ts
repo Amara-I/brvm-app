@@ -103,3 +103,25 @@ describe("parseBrvmIndicesPage", () => {
     expect(parsed.indices.find((i) => i.code === "BRVM_COMPOSITE")?.changePercent).toBeCloseTo(0.18, 2);
   });
 });
+
+describe("alias de symboles BRVM", () => {
+  it("rattache le symbole officiel BBGC au ticker interne BBGCI", () => {
+    const html = `
+<table>
+  <thead><tr><th>Symbole</th><th>Nom</th><th>Volume</th><th>Cours veille (FCFA)</th><th>Cours Clôture (FCFA)</th><th>Variation (%)</th></tr></thead>
+  <tbody>
+    <tr><td>BBGC</td><td>BRIDGE BANK GROUP CI</td><td>9 592</td><td>8 500</td><td>8 145</td><td>-4,18</td></tr>
+    <tr><td>SNTS</td><td>SONATEL SENEGAL</td><td>738 457</td><td>4 090</td><td>4 040</td><td>-1,22</td></tr>
+  </tbody>
+</table>`;
+    const { quotes } = parseBrvmQuotesPage(html, "2026-11-20");
+    expect(quotes.map((q) => q.ticker)).toEqual(["BBGCI", "SNTS"]);
+    expect(quotes[0]).toMatchObject({ ticker: "BBGCI", closePrice: 8145, volume: 9592, prevClose: 8500 });
+  });
+
+  it("laisse inchangés les symboles sans alias", async () => {
+    const { internalTickerForBrvmSymbol } = await import("./brvm-issuer-ticker");
+    expect(internalTickerForBrvmSymbol("bbgc")).toBe("BBGCI");
+    expect(internalTickerForBrvmSymbol("SNTS")).toBe("SNTS");
+  });
+});
