@@ -1090,6 +1090,16 @@ Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
 
 ---
 
+## 26. Étape 30 — Phase 2 (3/3) : fiche société simplifiée
+
+- Bande « L'essentiel » en tête de la vue d'ensemble : rendement du dividende, PER,
+  performance 1 an et depuis janvier (valeurs issues de `keyRows` / `performance`, « N/D » si absentes).
+- Cinq blocs secondaires repliés par défaut (`<details>` natif, sans JS) : détails de la
+  société, termes clés, événements, actualités, résultats intermédiaires. Aucun contenu retiré.
+- Non vérifié visuellement lors de la livraison.
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,
