@@ -4,6 +4,7 @@ import SiteFooter from "@/components/layout/SiteFooter";
 import IndexDetailClient from "@/components/indices/IndexDetailClient";
 import { getMarketIndexDetail } from "@/lib/api/market-indices";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
+import { getViewer, presentIndexPageData } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadIndexPage } from "@/lib/markets/index-page";
 
@@ -27,11 +28,12 @@ export default async function IndexDetailPage({ params }: { params: { code: stri
     throw err;
   });
   if (!data) notFound();
+  const viewer = await getViewer();
 
   return (
     <AppHeader>
       <div className="ob-page">
-        <IndexDetailClient data={data} />
+        <IndexDetailClient data={presentIndexPageData(data, viewer)} gatedVisitor={viewer.gated} />
       </div>
       <SiteFooter />
     </AppHeader>

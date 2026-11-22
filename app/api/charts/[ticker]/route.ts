@@ -7,7 +7,8 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiNotFound, apiValidationError } from "@/lib/api/response";
+import { apiSuccess, apiNotFound, apiValidationError, privateCacheHeaders } from "@/lib/api/response";
+import { capChartQueryForVisitor, getViewer } from "@/lib/entitlements";
 import { chartSeriesQuerySchema } from "@/lib/api/query-schemas";
 import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
 import {
@@ -81,7 +82,15 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
     Object.fromEntries(request.nextUrl.searchParams)
   );
   if (!parsedQuery.success) return apiValidationError(parsedQuery.error);
-  const windowQuery = parsedQuery.data;
+  const parsedWindow = parsedQuery.data;
+  const viewer = await getViewer();
+  const capped = viewer.gated ? capChartQueryForVisitor(parsedWindow) : { ...parsedWindow, capped: false };
+  const windowQuery = {
+    range: capped.range,
+    from: capped.from,
+    to: capped.to,
+    interval: capped.interval ?? parsedWindow.interval,
+  };
 
   const company = await prisma.company.findFirst({
     where: { ticker, exchange: "BRVM" },
@@ -417,9 +426,9 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       countryFlag: company.country.flagEmoji,
       sector: company.sector.name,
       series: windowed.series.map(({ time, value, volume }) => ({ time, value, volume })),
-      lookback: lookback.map(({ time, value, volume }) => ({ time, value, volume })),
+      lookback: (viewer.gated ? [] : lookback).map(({ time, value, volume }) => ({ time, value, volume })),
       fundamentals: {
-        per: ratio?.per != null ? Number(ratio.per) : null,
+        per: viewer.gated ? null : ratio?.per != null ? Number(ratio.per) : null,
         mktCapMds: ratio?.mktCap != null ? Number(ratio.mktCap) : null,
         dividendYieldPercent:
           typeof metrics.dividendYieldPercent === "number"
@@ -433,13 +442,14 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
         lastDate: last?.time ?? null,
         firstDate: windowed.series[0]?.time ?? historyFirstDate,
         points: windowed.series.length,
-        historyPoints,
-        historyFirstDate,
+        historyPoints: viewer.gated ? windowed.series.length : historyPoints,
+        historyFirstDate: viewer.gated ? (windowed.series[0]?.time ?? historyFirstDate) : historyFirstDate,
         historyLastDate,
         range: windowed.range,
         from: windowed.from,
         to: windowed.to,
-        lookbackExhausted,
+        lookbackExhausted: viewer.gated ? true : lookbackExhausted,
+        rangeCapped: Boolean(capped.capped),
         dayChangePercent: dayChange,
         dayChangeAbs,
         change1YPercent: change1Y,
@@ -463,25 +473,27 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       corporateActions: splitActions
         .filter((action) => action.adjustPrices)
         .map((action) => ({ effectiveDate: action.effectiveDate, label: action.label })),
-      analysis: {
-        signalLabel: metrics.signal.label,
-        signalColor: metrics.signal.color,
-        score: metrics.score,
-        technicalScore: metrics.technicalScore,
-        fundamentalScore: metrics.fundamentalScore,
-        confidence: metrics.confidence,
-        signalSummary: metrics.signalSummary,
-        technical: metrics.technical,
-        horizonScores: metrics.horizonScores,
-        riskTier: metrics.riskAnalysis.riskTier,
-        riskScore: metrics.riskAnalysis.riskScore,
-      },
+      ...(viewer.gated
+        ? {}
+        : {
+            analysis: {
+              signalLabel: metrics.signal.label,
+              signalColor: metrics.signal.color,
+              score: metrics.score,
+              technicalScore: metrics.technicalScore,
+              fundamentalScore: metrics.fundamentalScore,
+              confidence: metrics.confidence,
+              signalSummary: metrics.signalSummary,
+              technical: metrics.technical,
+              horizonScores: metrics.horizonScores,
+              riskTier: metrics.riskAnalysis.riskTier,
+              riskScore: metrics.riskAnalysis.riskScore,
+            },
+          }),
     },
     {
-      // max-age : le navigateur réutilise le prefetch de la fiche (premier paint du workbench).
-      headers: {
-        "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=240",
-      },
+      // Corps différent selon la session (fenêtre, analyse) : pas de cache CDN.
+      headers: privateCacheHeaders(),
     }
   );
 }

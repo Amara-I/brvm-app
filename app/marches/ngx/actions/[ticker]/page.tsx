@@ -7,7 +7,8 @@ import styles from "@/components/ngx/NgxMarket.module.css";
 import PageHeader from "@/components/ui/PageHeader";
 import CompanyMark from "@/components/ui/CompanyMark";
 import TickerAlertButton from "@/components/notifications/TickerAlertButton";
-import { getCurrentUserId } from "@/lib/auth/get-current-user";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
+import { getViewer, presentNgxSheetData } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxCompany } from "@/lib/markets/ngx-browse";
 import { loadNgxChartUniverse } from "@/lib/markets/ngx-chart";
@@ -39,17 +40,18 @@ export async function generateMetadata({ params }: { params: { ticker: string } 
 
 export default async function NgxCompanyPage({ params }: { params: { ticker: string } }) {
   const { t, format, labels, locale } = getI18n();
-  const [data, chartUniverse, userId, preference] = await Promise.all([
+  const [raw, chartUniverse, viewer, preference] = await Promise.all([
     loadNgxSheet(params.ticker).catch(() => null),
     loadNgxChartUniverse().catch(() => []),
-    getCurrentUserId().catch(() => null),
+    getViewer(),
     getPreferredPortfolioType().catch(() => null),
   ]);
-  if (!data) notFound();
+  if (!raw) notFound();
+  const data = presentNgxSheetData(raw, viewer);
   const { page: company, model, fundamental, technical, yearPrices } = data;
-  const preferredPortfolioType = userId ? preference ?? null : null;
+  const preferredPortfolioType = viewer.userId ? preference ?? null : null;
   const score = model.score.overall;
-  const signal = technical.barsUsed > 0 ? technical.signal : null;
+  const signal = !viewer.gated && technical.barsUsed > 0 ? technical.signal : null;
   const liquidityWarning = locale === "en" ? technical.liquidity.warningEn : technical.liquidity.warningFr;
   return (
     <AppHeader>
@@ -77,7 +79,7 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
             />
             <div style={{ marginTop: "0.6rem" }}>
               <TickerAlertButton
-                isAuthenticated={Boolean(userId)}
+                isAuthenticated={Boolean(viewer.userId)}
                 ticker={company.ticker}
                 market="NGX"
                 lastClose={company.close}
@@ -97,18 +99,38 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
           <div className={styles.kpi} data-testid="ngx-sheet-score">
             <span>{t("ngx.company.overview.score")}</span>
             <strong style={{ fontSize: "1rem" }}>
-              {score == null ? t("ngx.company.overview.scoreNd") : <ScoreBadge score={score} outOf showTier />}
+              {viewer.gated ? (
+                <LockedTeaser compact callbackUrl={`/marches/ngx/actions/${company.ticker}`} />
+              ) : score == null ? (
+                t("ngx.company.overview.scoreNd")
+              ) : (
+                <ScoreBadge score={score} outOf showTier />
+              )}
             </strong>
           </div>
           <div className={styles.kpi} data-testid="ngx-sheet-signal">
             <span>{t("ngx.company.overview.signal")}</span>
             <strong style={{ fontSize: "1rem" }}>
-              {signal ? <SignalBadge label={signal.label} title={t("ngx.company.overview.signalNote")} confidence={signal.confidence} /> : "N/D"}
+              {viewer.gated ? (
+                <LockedTeaser compact callbackUrl={`/marches/ngx/actions/${company.ticker}`} />
+              ) : signal ? (
+                <SignalBadge label={signal.label} title={t("ngx.company.overview.signalNote")} confidence={signal.confidence} />
+              ) : (
+                "N/D"
+              )}
             </strong>
           </div>
           <div className={styles.kpi}>
             <span>{t("ngx.company.overview.confidence")}</span>
-            <strong style={{ fontSize: "1rem" }}>{signal ? <ConfidenceDot value={signal.confidence} /> : "N/D"}</strong>
+            <strong style={{ fontSize: "1rem" }}>
+              {viewer.gated ? (
+                <LockedTeaser compact callbackUrl={`/marches/ngx/actions/${company.ticker}`} />
+              ) : signal ? (
+                <ConfidenceDot value={signal.confidence} />
+              ) : (
+                "N/D"
+              )}
+            </strong>
           </div>
           <div className={styles.kpi}>
             <span>{t("ngx.company.board")}</span>
@@ -131,11 +153,14 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
                   ticker={company.ticker}
                   series={company.series.map((p) => ({ time: p.time, value: p.value, volume: p.volume ?? null }))}
                   sessionDate={company.sessionDate}
+                  gatedVisitor={viewer.gated}
                 />
-                <NgxSheetView model={model} />
+                <NgxSheetView model={model} gatedVisitor={viewer.gated} />
               </>
             ),
-            fundamental: (
+            fundamental: viewer.gated ? (
+              <LockedTeaser body={t("entitlements.fundamental")} callbackUrl={`/marches/ngx/actions/${company.ticker}`} />
+            ) : (
               <FundamentalAnalysisBody
                 model={fundamental}
                 series={company.series}
@@ -157,7 +182,8 @@ export default async function NgxCompanyPage({ params }: { params: { ticker: str
                 <NgxTechnicalTab
                   symbol={company.ticker}
                   universe={chartUniverse}
-                  isAuthenticated={Boolean(userId)}
+                  isAuthenticated={Boolean(viewer.userId)}
+                  gatedVisitor={viewer.gated}
                   initialAnalysis={technical}
                   qualityScore={score}
                 />

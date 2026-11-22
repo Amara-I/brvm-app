@@ -11,6 +11,7 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
 import ExpandChevron from "@/components/ui/ExpandChevron";
 import SignalBadge from "@/components/ui/SignalBadge";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import ScoreBadge from "@/components/ui/ScoreBadge";
 import ConfidenceDot from "@/components/ui/ConfidenceDot";
 import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
@@ -36,7 +37,7 @@ export type { NgxBoardRow };
 
 type SortBy = "score" | "mktcap" | "price" | "perf";
 
-export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
+export default function NgxMarketBoard({ rows, gatedVisitor = false }: { rows: NgxBoardRow[]; gatedVisitor?: boolean }) {
   const { t, format, labels } = useI18n();
   const pageKey = "ouestbourse:marche:ngx";
   const [query, setQuery] = usePersistedState(`${pageKey}:query`, "");
@@ -255,13 +256,13 @@ export default function NgxMarketBoard({ rows }: { rows: NgxBoardRow[] }) {
                         {fcfa(r.fcfa)}
                       </td>
                       <td data-testid={`ngx-score-${r.ticker}`}>
-                        <ScoreBadge score={r.score} className={styles.score} title={r.score == null ? undefined : modeTitle(r.scoreMode)} />
+                        {gatedVisitor ? <LockedTeaser compact /> : <ScoreBadge score={r.score} className={styles.score} title={r.score == null ? undefined : modeTitle(r.scoreMode)} />}
                       </td>
                       <td data-testid={`ngx-signal-${r.ticker}`}>
-                        {r.signal ? <SignalBadge label={r.signal.label} title={signalTitle(r)} /> : <span className="ob-nd">N/D</span>}
+                        {gatedVisitor ? <LockedTeaser compact /> : r.signal ? <SignalBadge label={r.signal.label} title={signalTitle(r)} /> : <span className="ob-nd">N/D</span>}
                       </td>
                       <td className={styles.meta}>
-                        <ConfidenceDot value={r.confidence} />
+                        {gatedVisitor ? <LockedTeaser compact /> : <ConfidenceDot value={r.confidence} />}
                         {r.illiquid ? (
                           <span title={t("ngx.market.illiquidTitle")} aria-label={t("ngx.market.illiquidTitle")}>
                             {" "}⚠

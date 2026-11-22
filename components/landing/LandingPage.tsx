@@ -18,6 +18,7 @@ import { getI18n } from "@/lib/i18n/get-i18n";
 import LandingSparkline from "./LandingSparkline";
 import MarketHeroCard from "./MarketHeroCard";
 import type { HeroPoint } from "@/lib/landing/hero-chart";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import { HIGH_SCORE_THRESHOLD } from "@/lib/calc/market-summary-stats";
 import {
   IconArrow,
@@ -50,6 +51,7 @@ export interface LandingPageProps {
   heroSeries: HeroPoint[] | null;
   /** Date ISO de la dernière clôture connue (cours en base). */
   closeDate: string | null;
+  gatedVisitor?: boolean;
 }
 
 const LANDING_EXCHANGE_CODES = ["BRVM", "NGX", "GSE", "NSE"] as const;
@@ -67,6 +69,7 @@ export default function LandingPage({
   educationTermsCount,
   heroSeries,
   closeDate,
+  gatedVisitor = false,
 }: LandingPageProps) {
   const { t, format, labels, locale } = getI18n();
   const yearsSpan =
@@ -176,8 +179,11 @@ export default function LandingPage({
         })
       : "";
 
-  const signalCount =
-    stats.companiesCount > 0 ? `${stats.buySignalsCount}/${stats.companiesCount}` : t("common.nd");
+  const signalCount = gatedVisitor
+    ? t("entitlements.lock")
+    : stats.companiesCount > 0
+      ? `${stats.buySignalsCount}/${stats.companiesCount}`
+      : t("common.nd");
 
   return (
     <div className={styles.page}>
@@ -238,6 +244,7 @@ export default function LandingPage({
             locale={locale}
             capitalisation={format.mdsFcfa(stats.totalMarketCapBnFcfa)}
             series={heroSeries ?? []}
+            gatedVisitor={gatedVisitor}
             labels={{
               capLabel: t("landing.card.capLabel"),
               closeOn: closeDate
@@ -374,14 +381,21 @@ export default function LandingPage({
                         ) : (
                           <span className={`${styles.stockSignal} ${styles.stockFlat}`}>{labels.signal(rawSignal)}</span>
                         )}
+                        {gatedVisitor ? null : (
                         <span className={`${styles.stockPerf} ${perfClass(metrics.perf5Percent)}`}>
                           {showPerf(metrics.perf5Percent)}
                         </span>
+                        )}
                       </span>
                     </Link>
                   );
                 })
               )}
+                {gatedVisitor ? (
+                  <div style={{ marginTop: 12 }}>
+                    <LockedTeaser body={t("entitlements.score")} callbackUrl="/screener" />
+                  </div>
+                ) : null}
             </div>
           </div>
         </section>

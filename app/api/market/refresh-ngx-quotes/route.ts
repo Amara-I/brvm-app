@@ -11,6 +11,7 @@ import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { getConnectorFeatureFlags } from "@/lib/ingestion/connector-config";
 import { runNgxDailyIngest } from "@/lib/ingestion/run-ngx-ingest";
+import { getViewer, presentNgxOverviewBoard } from "@/lib/entitlements";
 import { loadNgxOverviewBoard } from "@/lib/markets/load-ngx-overview-board";
 import { checkRateLimit } from "@/lib/security/rate-limit";
 
@@ -51,6 +52,11 @@ async function evaluateNgxAlertsAfterRefresh(): Promise<void> {
   }
 }
 
+async function presentedBoard(t: ReturnType<typeof getI18n>["t"], fresh = false) {
+  const [board, viewer] = await Promise.all([loadNgxOverviewBoard(t, fresh ? { fresh: true } : undefined), getViewer()]);
+  return presentNgxOverviewBoard(board, viewer);
+}
+
 export async function POST(request: NextRequest) {
   const ip = clientIp(request);
   const cooldown = checkRateLimit(`refresh-ngx-quotes:${ip}`, {
@@ -61,7 +67,7 @@ export async function POST(request: NextRequest) {
 
   try {
     if (!cooldown.allowed) {
-      const board = await loadNgxOverviewBoard(t);
+      const board = await presentedBoard(t);
       return apiSuccess(
         {
           ...board,
@@ -80,7 +86,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!getConnectorFeatureFlags().ngx) {
-      const board = await loadNgxOverviewBoard(t);
+      const board = await presentedBoard(t);
       return apiSuccess(
         {
           ...board,
@@ -109,7 +115,7 @@ export async function POST(request: NextRequest) {
     if (ingestion.status !== "FAILED" && ingestion.quotes + ingestion.indices > 0) {
       await evaluateNgxAlertsAfterRefresh();
     }
-    const board = await loadNgxOverviewBoard(t, { fresh: true });
+    const board = await presentedBoard(t, true);
     return apiSuccess(
       {
         ...board,
@@ -126,7 +132,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     try {
-      const board = await loadNgxOverviewBoard(t);
+      const board = await presentedBoard(t);
       return apiSuccess(
         {
           ...board,

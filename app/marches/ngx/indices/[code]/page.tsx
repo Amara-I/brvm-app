@@ -7,7 +7,7 @@ import NgxChart from "@/components/ngx/NgxChart";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import IndexAlertButton from "@/components/notifications/IndexAlertButton";
 import PageHeader from "@/components/ui/PageHeader";
-import { getCurrentUserId } from "@/lib/auth/get-current-user";
+import { getViewer, presentIndexPageData } from "@/lib/entitlements";
 import { isDatabaseUnavailable } from "@/lib/db/is-database-unavailable";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadIndexPage } from "@/lib/markets/index-page";
@@ -44,9 +44,9 @@ export default async function NgxIndexDetailPage({
   // Graphe détaillé (workbench) : seulement à la demande, pour ne pas lire
   // l'univers et la série complète à chaque visite de la fiche.
   if (detailed) {
-    const [chartUniverse, userId] = await Promise.all([
+    const [chartUniverse, viewer] = await Promise.all([
       loadNgxChartUniverse().catch(() => []),
-      getCurrentUserId().catch(() => null),
+      getViewer(),
     ]);
     return (
       <AppHeader>
@@ -57,27 +57,28 @@ export default async function NgxIndexDetailPage({
             </Link>
           </p>
           <PageHeader kicker={`NGX · ${code.replace(/_/g, " ")}`} title={data.detail.name} />
-          <NgxChart symbol={code} universe={chartUniverse} isAuthenticated={Boolean(userId)} />
+          <NgxChart symbol={code} universe={chartUniverse} isAuthenticated={Boolean(viewer.userId)} gatedVisitor={viewer.gated} />
         </div>
         <SiteFooter />
       </AppHeader>
     );
   }
 
-  const userId = await getCurrentUserId().catch(() => null);
+  const viewer = await getViewer();
 
   return (
     <AppHeader>
       <div className="ob-page">
         <IndexDetailClient
-          data={data}
+          data={presentIndexPageData(data, viewer)}
+          gatedVisitor={viewer.gated}
           backHref="/marches/ngx/indices"
           backLabel={`← ${t("ngx.indices.detailBack")}`}
           stockHrefPrefix="/marches/ngx/actions/"
           extraHeader={
             <>
               <IndexAlertButton
-                isAuthenticated={Boolean(userId)}
+                isAuthenticated={Boolean(viewer.userId)}
                 indexCode={data.detail.code}
                 indexName={data.detail.name}
                 lastValue={data.detail.lastValue}

@@ -5,6 +5,7 @@
 
 import { getI18n } from "@/lib/i18n/get-i18n";
 import type { NgxSheetModel } from "@/lib/ngx/sheet-model";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import NgxScoreBlock from "./NgxScoreBlock";
 import styles from "./NgxSheet.module.css";
 
@@ -34,7 +35,7 @@ function Stat({ label, value, note }: { label: string; value: string; note?: str
   );
 }
 
-export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
+export default function NgxSheetView({ model, gatedVisitor = false }: { model: NgxSheetModel; gatedVisitor?: boolean }) {
   const { t, format, locale } = getI18n();
   const na = t("ngx.sheet.na");
   const bn = (v: number | null) =>
@@ -65,7 +66,7 @@ export default function NgxSheetView({ model }: { model: NgxSheetModel }) {
         <Trading model={model} t={t} format={format} na={na} ngn={ngn} bn={bn} pct={pct} day={day} />
       </Section>
       <Section id="score" title={t("ngx.company.overview.scoreTitle")}>
-        <NgxScoreBlock score={model.score} t={t} format={format} locale={locale} />
+        {gatedVisitor ? <LockedTeaser body={t("entitlements.score")} /> : <NgxScoreBlock score={model.score} t={t} format={format} locale={locale} />}
       </Section>
       <Section id="news" title={t("ngx.company.overview.news")}>
         <News model={model} t={t} day={day} />

@@ -4,6 +4,8 @@ import AppHeader from "@/components/AppHeader";
 import { C } from "@/lib/theme/colors";
 import { SECTION_TITLE, PANEL_TEXT } from "@/lib/theme/typography";
 import PageHeader from "@/components/ui/PageHeader";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
+import { getViewer } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 
 export function generateMetadata(): Metadata {
@@ -18,15 +20,16 @@ function panel(): React.CSSProperties {
   return { background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: 20, marginBottom: 16 };
 }
 
-export default function OutilsPage() {
+export default async function OutilsPage() {
   const { t } = getI18n();
+  const viewer = await getViewer();
   const available = t("tools.page.available");
   const capabilities = [
     { label: t("tools.page.quotes"), state: available, href: "/marche" },
     { label: t("tools.page.charts"), state: available, href: "/graphes" },
     { label: t("tools.page.signal"), state: available, href: "/societes-cotees" },
     { label: t("tools.page.dividendCalendar"), state: available, href: "/calendrier-dividendes" },
-    { label: t("common.exportExcel"), state: available, href: "/api/export/excel" },
+    { label: t("common.exportExcel"), state: viewer.gated ? t("entitlements.lock") : available, href: viewer.gated ? "/inscription" : "/api/export/excel" },
     { label: t("tools.page.alerts"), state: available, href: "/graphes" },
     { label: t("tools.page.notifications"), state: available, href: "/notifications" },
     { label: t("tools.page.alertPrefs"), state: available, href: "/profil" },
@@ -135,6 +138,9 @@ export default function OutilsPage() {
         <div style={panel()} data-align-left>
           <h2 style={{ ...SECTION_TITLE, textAlign: "left" }}>{t("tools.page.excelTitle")}</h2>
           <p style={{ ...PANEL_TEXT, marginBottom: 12 }}>{t("tools.page.excelLead")}</p>
+          {viewer.gated ? (
+            <LockedTeaser body={t("entitlements.export")} callbackUrl="/outils" />
+          ) : (
           <a
             href="/api/export/excel"
             style={{
@@ -150,6 +156,7 @@ export default function OutilsPage() {
           >
             {t("tools.page.downloadExcel")}
           </a>
+          )}
         </div>
 
         <div style={panel()} data-align-left>

@@ -57,6 +57,8 @@ import { truncateSummary } from "@/lib/calc/analysis-recap";
 import type { TechnicalSnapshot } from "@/lib/charts/technical-indicators";
 import type { ChartDrawing } from "@/lib/charts/chart-drawings-storage";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
+import { isLockedChartRange } from "@/lib/entitlements/chart-cap";
 import CompanyMark from "@/components/ui/CompanyMark";
 import { localizeSplitLabel } from "@/lib/i18n/split-label";
 import {
@@ -275,6 +277,7 @@ export default function ChartWorkbench({
   initialTicker,
   embedded = false,
   isAuthenticated = false,
+  gatedVisitor = false,
   initialSeries,
   initialSeriesComplete = false,
   market = "BRVM",
@@ -297,6 +300,8 @@ export default function ChartWorkbench({
   embedded?: boolean;
   /** Compte actif — active la sauvegarde cloud des analyses. */
   isAuthenticated?: boolean;
+  /** Visiteur : 5A/MAX et comparaison verrouillés (indépendant de isAuthenticated si le drapeau est off). */
+  gatedVisitor?: boolean;
   /** Série déjà chargée (fiche) — premier paint sans attendre /api/charts. */
   initialSeries?: ChartClosePoint[];
   /** Vrai quand `initialSeries` est le MAX `chart_series` à jour (couvre toutes les plages). */
@@ -546,6 +551,11 @@ export default function ChartWorkbench({
   useEffect(() => {
     void loadTicker(ticker, range, interval);
   }, [ticker, range, interval, loadTicker]);
+
+  useEffect(() => {
+    if (gatedVisitor && isLockedChartRange(range)) setRange("1A");
+    if (gatedVisitor && compare.length > 0) setCompare([]);
+  }, [gatedVisitor, range, compare.length]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1327,6 +1337,9 @@ export default function ChartWorkbench({
             )}
           </div>
           <div className={styles.dropdownWrap}>
+            {gatedVisitor ? (
+              <LockedTeaser compact label={t("charts.compare")} body={t("entitlements.comparison")} />
+            ) : (
             <button
               type="button"
               className={showCompare ? styles.toolPillActive : styles.toolPill}
@@ -1338,6 +1351,7 @@ export default function ChartWorkbench({
             >
               {t("charts.compare")}
             </button>
+            )}
             {showCompare && (
               <div className={styles.dropdown}>
                 {universe
@@ -1365,6 +1379,9 @@ export default function ChartWorkbench({
         <div className={styles.toolGroupRight}>
           {RANGE_KEYS.map((key) => {
             const label = t(`charts.ranges.${key}`);
+            if (gatedVisitor && isLockedChartRange(key)) {
+              return <LockedTeaser key={key} compact label={label} />;
+            }
             return (
             <button
               key={key}

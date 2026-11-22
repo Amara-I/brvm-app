@@ -5,7 +5,8 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiNotFound, apiValidationError, apiError } from "@/lib/api/response";
+import { apiSuccess, apiNotFound, apiValidationError, apiError, privateCacheHeaders } from "@/lib/api/response";
+import { capChartQueryForVisitor, getViewer, redactChartPayloadForVisitor } from "@/lib/entitlements";
 import { chartSeriesQuerySchema } from "@/lib/api/query-schemas";
 import { buildIndexChartPayload } from "@/lib/charts/index-chart-payload";
 import { loadIndexSheetBundle } from "@/lib/markets/index-sheet";
@@ -47,7 +48,10 @@ export async function GET(request: NextRequest, { params }: { params: { code: st
   const bundle = await loadIndexSheetBundle(code, exchange);
   if (!bundle) return apiNotFound(`Indice "${code}"`);
 
-  const payload = buildIndexChartPayload(
+  const viewer = await getViewer();
+  const capped = viewer.gated ? capChartQueryForVisitor(parsed.data) : { ...parsed.data, capped: false };
+  const query = { range: capped.range, from: capped.from, to: capped.to, interval: capped.interval ?? parsed.data.interval };
+  const built = buildIndexChartPayload(
     {
       code: bundle.code,
       name: bundle.name,
@@ -58,10 +62,9 @@ export async function GET(request: NextRequest, { params }: { params: { code: st
       firstDate: bundle.firstDate,
       lastChangePercent: bundle.lastChangePercent,
     },
-    parsed.data
+    query
   );
+  const payload = viewer.gated ? redactChartPayloadForVisitor(built as unknown as Record<string, unknown>) : built;
 
-  return apiSuccess(payload, {
-    headers: { "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=240" },
-  });
+  return apiSuccess(payload, { headers: privateCacheHeaders() });
 }
