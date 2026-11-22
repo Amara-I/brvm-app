@@ -157,6 +157,9 @@ export function ngxFundamentalInput(args: NgxFundamentalArgs): BrvmFundamentalIn
       revenue: convY(y, y.revenueBn),
       netIncome: convY(y, y.netIncomeBn),
       operatingIncome: convY(y, y.operatingIncomeBn),
+      // BPA publié (converti en ₦ si les comptes sont en USD) et titres de l'exercice.
+      eps: convY(y, y.epsNgn),
+      sharesOutstanding: y.eraShares,
     })),
     dividends: model.dividends.lines.map((l) => ({
       year: l.year,

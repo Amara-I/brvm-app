@@ -11,6 +11,7 @@ import {
   dividendYearsPaid,
   dividendYieldPercent,
   earningsPerShare,
+  resolveEarningsPerShare,
   estimateFairValues,
   grahamNumber,
   marketCapBn,
@@ -48,6 +49,24 @@ describe("ratios de base", () => {
     expect(dividendYieldPercent(1, 0)).toBeNull();
     expect(returnOnEquityPercent(10, -3)).toBeNull();
     expect(marketCapBn(null, 1e9)).toBeNull();
+  });
+
+  it("BPA : publié d'abord, puis titres de l'exercice, puis titres actuels", () => {
+    expect(resolveEarningsPerShare({ reportedEps: 0.6475, netIncomeBn: 2.7, currentShares: 8_340_891_440 })).toEqual({
+      eps: 0.6475,
+      source: "reported",
+    });
+    const period = resolveEarningsPerShare({
+      netIncomeBn: 2.7,
+      periodShares: 4_170_445_720,
+      currentShares: 8_340_891_440,
+    });
+    expect(period.source).toBe("period");
+    expect(period.eps).toBeCloseTo(0.6475, 3);
+    const current = resolveEarningsPerShare({ netIncomeBn: 2.7, currentShares: 8_340_891_440 });
+    expect(current.source).toBe("current");
+    expect(current.eps).toBeCloseTo(0.3237, 3);
+    expect(resolveEarningsPerShare({})).toEqual({ eps: null, source: null });
   });
 
   it("CAGR et médiane", () => {
