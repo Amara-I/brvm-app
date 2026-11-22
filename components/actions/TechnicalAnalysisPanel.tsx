@@ -323,6 +323,11 @@ export default function TechnicalAnalysisPanel({
           <span>
             {t("company.ta.confidence")} <ConfidenceDot value={analysis.signal.confidence} />
           </span>
+          {analysis.signal.stage && analysis.signal.stage !== "none" ? (
+            <span className={analysis.signal.stage === "extended" ? styles.stageLate : undefined}>
+              {t("company.ta.stageLine", { stage: t(`company.ta.stage.${analysis.signal.stage}`) })}
+            </span>
+          ) : null}
         </div>
       </header>
 

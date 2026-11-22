@@ -15,7 +15,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { calcMetrics } from "@/lib/calc/calc-metrics";
-import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
+import { applyTechnicalSignal, type TechnicalSignalPatch } from "@/lib/technical-analysis/apply-signal";
 import { pricesSyncedToLatestClose } from "@/lib/calc/sync-prices-to-closes";
 import type { CompaniesFullDataset } from "@/lib/api/companies-full-dataset";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
@@ -85,7 +85,10 @@ export function computeMarketSummaryStats(
 
 export interface CompanyWithMetrics {
   co: CompaniesFullDataset["companies"][number];
-  metrics: ReturnType<typeof calcMetrics>;
+  metrics: ReturnType<typeof calcMetrics> & {
+    /** Stade du timing technique (précoce, confirmé, trop tard). Absent si non calculé. */
+    signalStage?: TechnicalSignalPatch["stage"];
+  };
 }
 
 /// Toutes les sociétés avec leurs métriques `calcMetrics` déjà calculées —

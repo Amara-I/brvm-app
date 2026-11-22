@@ -52,6 +52,10 @@
   font-size: 0.82rem;
 }
 
+.signalPill .stageLate {
+  color: var(--c-gold);
+}
+
 .warning {
   margin: 12px 0 0;
   padding: 10px 12px;

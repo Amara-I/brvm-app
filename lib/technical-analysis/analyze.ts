@@ -9,6 +9,7 @@ import { decideSignal } from "./signal";
 import { detectSupportResistance } from "./support-resistance";
 import { readStructure } from "./structure";
 import { assessTiming, DEFAULT_TIMING_PARAMS, type TimingParams } from "./timing";
+import { DEFAULT_ENTRY_PARAMS, detectEntry, type EntryParams } from "./entry-triggers";
 import type { CloseInput, PriceCurrency, TechnicalAnalysis } from "./types";
 
 export interface AnalyzeOptions {
@@ -16,6 +17,8 @@ export interface AnalyzeOptions {
   currency?: PriceCurrency;
   /** Réglages du timing (backtest uniquement). */
   timingParams?: TimingParams;
+  /** Réglages des déclencheurs d'entrée (backtest uniquement). */
+  entryParams?: EntryParams;
 }
 
 export function analyzePriceHistory(points: CloseInput[], options: AnalyzeOptions = {}): TechnicalAnalysis {
@@ -30,7 +33,8 @@ export function analyzePriceHistory(points: CloseInput[], options: AnalyzeOption
   const zones = detectSupportResistance(bars, indicators.atr14);
   const gaps = detectFairValueGaps(bars, indicators.atr14);
   const timing = assessTiming(signalBars, structure, options.timingParams ?? DEFAULT_TIMING_PARAMS);
-  const signal = decideSignal(timing, structure, signalBars.length, liquidity.illiquid);
+  const entry = detectEntry(signalBars, options.entryParams ?? DEFAULT_ENTRY_PARAMS);
+  const signal = decideSignal(timing, structure, signalBars.length, liquidity.illiquid, entry);
   const scenarios = buildScenarios(structure, zones, timing.score, liquidity, currency);
   return {
     currency,

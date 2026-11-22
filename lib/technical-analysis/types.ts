@@ -113,14 +113,16 @@ export interface TechnicalSignal {
   confidence: ConfidenceLevel;
   /**
    * Stade du mouvement : `early` (retournement, tendance pas encore confirmée),
-   * `confirmed`, `extended` (déjà étiré : trop tard pour entrer), `none`.
+   * `confirmed`, `extended` (déjà étiré : trop tard pour entrer, on attend un repli), `none`.
    * Absent sur d'anciens objets.
    */
   stage?: "early" | "confirmed" | "extended" | "none";
   /** (clôture − EMA20) / ATR14. */
   extensionAtr?: number | null;
-  /** Course depuis l'extrême des 40 dernières séances, en ATR. */
-  runupAtr?: number | null;
+  /** Déclencheur du signal : repli terminé, cassure de base, sortie de survente/surachat. */
+  entryKind?: "pullback" | "breakout" | "reversal" | null;
+  /** Séance du déclencheur. */
+  triggeredAt?: string | null;
 }
 
 export interface TechnicalAnalysis {

@@ -1,19 +1,11 @@
-// Timing du signal technique : tendance (lente) + retournement de momentum (rapide)
-// − pénalité d'extension (« trop tard »).
-//
-// Avant : le score ne réagissait qu'à des confirmations tardives (structure HH + HL
-// confirmée, SMA20 > SMA50, MACD > 0). Le signal tombait souvent après une bonne
-// partie du mouvement. Ici :
-//   - la composante momentum lit des retournements précoces (pente de l'histogramme
-//     MACD, RSI qui repasse 50, cassure du plus haut / plus bas de 20 séances) ;
-//   - une pénalité retire le signal quand le cours est déjà loin de sa moyenne
-//     (écart à l'EMA20 et course depuis l'extrême de 40 séances, en ATR).
+// Score de timing −100…100 : tendance (lente) + retournement de momentum (rapide)
+// − pénalité d'extension. Il ne décide plus seul du libellé : l'entrée vient d'un
+// déclencheur daté (entry-triggers.ts). Le score sert à réserver ACHAT FORT / VENDRE
+// aux déclencheurs confirmés par la tendance, et aux probabilités des scénarios.
 // Aucune donnée inventée : un indicateur absent ne compte pas.
 
 import { computeEmaSeries, computeRsi } from "@/lib/charts/technical-indicators";
 import type { PriceBar, StructureSnapshot } from "./types";
-
-export type SignalStage = "early" | "confirmed" | "extended" | "none";
 
 export interface TimingParams {
   /** Écart à l'EMA20 (en ATR) au-delà duquel le mouvement est jugé étiré. */
@@ -47,7 +39,6 @@ export interface TimingAssessment {
   /** Course depuis l'extrême opposé des 40 dernières séances, en ATR (≥ 0). */
   runupAtr: number | null;
   breakout: "up" | "down" | null;
-  stage: SignalStage;
 }
 
 function lastOf(series: Array<number | null>, back = 0): number | null {
@@ -87,7 +78,6 @@ export function assessTiming(
     extensionAtr: null,
     runupAtr: null,
     breakout: null,
-    stage: "none",
   };
   const last = structure.lastClose;
   if (last == null || bars.length < 8) return empty;
@@ -193,12 +183,5 @@ export function assessTiming(
   if (dir !== 0 && sign(score) !== dir) score = 0;
   score = Math.max(-100, Math.min(100, Math.round(score)));
 
-  let stage: SignalStage = "none";
-  if (dir !== 0) {
-    if (penalty > 0) stage = "extended";
-    else if (sign(trend) === dir && Math.abs(trend) >= 24) stage = "confirmed";
-    else stage = "early";
-  }
-
-  return { score, trend, momentum, penalty: Math.round(penalty), extensionAtr, runupAtr, breakout, stage };
+  return { score, trend, momentum, penalty: Math.round(penalty), extensionAtr, runupAtr, breakout };
 }

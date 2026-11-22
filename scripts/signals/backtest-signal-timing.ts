@@ -9,12 +9,15 @@
  *
  * Pour chaque séance, on recalcule le signal avec l'historique connu ce jour-là
  * (pas de fuite du futur). Un « événement » = entrée en ACHAT/ACHAT FORT (ou
- * ALLÉGER/VENDRE) depuis un autre libellé. Mesures :
- *   - déjà fait : hausse depuis le plus bas des 60 séances précédentes (baisse
- *     depuis le plus haut pour les ventes), en % et en ATR ;
- *   - retards : séances écoulées depuis cet extrême ;
+ * ALLÉGER/VENDRE) depuis un autre libellé, au plus une par titre et par sens sur
+ * 21 séances (comme l'alerte « entre en », qui ne se répète pas sous 30 jours). Mesures :
+ *   - déjà fait : hausse depuis le plus bas des 20 séances précédentes (baisse
+ *     depuis le plus haut pour les ventes), en % et en ATR ; idem sur 60 séances ;
+ *   - part du swing déjà faite : (cours − plus bas 60 s. avant) / (plus haut 60 s.
+ *     après − plus bas 60 s. avant). 0 % = entrée au creux, 100 % = au sommet ;
  *   - rendements futurs 5 / 20 / 60 séances dans le sens du signal ;
- *   - taux de réussite à 20 séances, fréquence par titre et par an.
+ *   - réussite à 20 séances, signal inverse dans les 10 séances (faux départ),
+ *     fréquence par titre et par an, part des séances affichant ce sens.
  */
 import fs from "node:fs";
 import { sliceForCacheRange } from "@/lib/charts/chart-series-cache";
@@ -24,7 +27,7 @@ import { ngxSignalWindow } from "@/lib/ngx/technical-signal";
 import { analyzePriceHistory } from "@/lib/technical-analysis/analyze";
 import { legacySignalLabel } from "./legacy-signal";
 import type { CloseInput } from "@/lib/technical-analysis/types";
-import { DEFAULT_TIMING_PARAMS, type TimingParams } from "@/lib/technical-analysis/timing";
+import { DEFAULT_ENTRY_PARAMS, type EntryParams } from "@/lib/technical-analysis/entry-triggers";
 
 type Label = "ACHAT FORT" | "ACHAT" | "CONSERVER" | "ALLÉGER" | "VENDRE";
 type Engine = (full: CloseInput[], exchange: string) => Label;
@@ -45,17 +48,17 @@ const ENGINES: Record<string, Engine> = {
     analyzePriceHistory(ex === "NGX" ? ngxSignalWindow(full) : sliceForCacheRange(full, "SPARK")).signal.label,
 };
 
-/** `proposed@extensionAtr=3;runupAtr=8` : réglages alternatifs du timing. */
+/** `proposed@holdSessions=10;extensionAtr=3` : réglages alternatifs des déclencheurs. */
 function variant(name: string): Engine | undefined {
   if (!name.startsWith("proposed@")) return undefined;
-  const params: TimingParams = { ...DEFAULT_TIMING_PARAMS };
+  const params: EntryParams = { ...DEFAULT_ENTRY_PARAMS };
   for (const kv of name.slice("proposed@".length).split(";")) {
     const [k, v] = kv.split("=");
     if (k && v && k in params) (params as unknown as Record<string, number>)[k] = Number(v);
   }
   return (full, ex) =>
     analyzePriceHistory(ex === "NGX" ? ngxSignalWindow(full) : sliceForCacheRange(full, "SPARK"), {
-      timingParams: params,
+      entryParams: params,
     }).signal.label;
 }
 
@@ -70,7 +73,9 @@ interface Event {
   strong: boolean;
   doneAtr: number | null;
   donePct: number;
-  lag: number;
+  done60: number;
+  swingShare: number | null;
+  whipsaw: boolean;
   f5: number | null;
   f20: number | null;
   f60: number | null;
@@ -128,6 +133,7 @@ function loadActions(file: string | undefined): Map<string, AdjustmentAction[]> 
 }
 
 const CODE: Record<Label, string> = { "ACHAT FORT": "F", ACHAT: "A", CONSERVER: "C", ALLÉGER: "L", VENDRE: "V" };
+const daysBySide = new Map<string, number>();
 const labelDump: Record<string, { ex: string; start: number; labels: string }> = {};
 
 function runEngine(name: string, engine: Engine, data: ReturnType<typeof loadPrices>, from: string): Event[] {
@@ -135,6 +141,7 @@ function runEngine(name: string, engine: Engine, data: ReturnType<typeof loadPri
   for (const [ticker, { ex, points }] of data) {
     const closes = points.map((p) => p.value);
     let prev: Label | null = null;
+    const pending: Array<{ t: number; side: 1 | -1; strong: boolean }> = [];
     let codes = "";
     let start = -1;
     for (let t = 0; t < points.length; t++) {
@@ -144,29 +151,44 @@ function runEngine(name: string, engine: Engine, data: ReturnType<typeof loadPri
       codes += CODE[label];
       if (prev != null) {
         const side: 1 | -1 | 0 = bull(label) && !bull(prev) ? 1 : bear(label) && !bear(prev) ? -1 : 0;
-        if (side !== 0) {
-          const p = closes[t]!;
-          const look = closes.slice(Math.max(0, t - 60), t + 1);
-          const ext = side === 1 ? Math.min(...look) : Math.max(...look);
-          const extIdx = t - 60 + look.lastIndexOf(ext) + (t < 60 ? 60 - t : 0);
-          const a = atr(closes, t);
-          const fwd = (h: number) => (t + h < closes.length ? (side * (closes[t + h]! - p)) / p : null);
-          events.push({
-            ex,
-            ticker,
-            date: points[t]!.time,
-            side,
-            strong: label === "ACHAT FORT" || label === "VENDRE",
-            donePct: (side * (p - ext)) / ext,
-            doneAtr: a && a > 0 ? (side * (p - ext)) / a : null,
-            lag: t - extIdx,
-            f5: fwd(5),
-            f20: fwd(20),
-            f60: fwd(60),
-          });
-        }
+        if (side !== 0) pending.push({ t, side, strong: label === "ACHAT FORT" || label === "VENDRE" });
       }
       prev = label;
+    }
+    const lastBySide = new Map<number, number>();
+    for (const { t, side, strong } of pending) {
+      const last = lastBySide.get(side);
+      lastBySide.set(side, t);
+      if (last != null && t - last < 21) continue;
+      const p = closes[t]!;
+      const ext = (w: number[]) => (side === 1 ? Math.min(...w) : Math.max(...w));
+      const e20 = ext(closes.slice(Math.max(0, t - 20), t + 1));
+      const e60 = ext(closes.slice(Math.max(0, t - 60), t + 1));
+      const fut = closes.slice(t, t + 61);
+      const best = side === 1 ? Math.max(...fut) : Math.min(...fut);
+      const range = side * (best - e60);
+      const a = atr(closes, t);
+      const fwd = (h: number) => (t + h < closes.length ? (side * (closes[t + h]! - p)) / p : null);
+      const opposite = codes.slice(t - start + 1, t - start + 11);
+      events.push({
+        ex,
+        ticker,
+        date: points[t]!.time,
+        side,
+        strong,
+        donePct: (side * (p - e20)) / e20,
+        doneAtr: a && a > 0 ? (side * (p - e20)) / a : null,
+        done60: (side * (p - e60)) / e60,
+        swingShare: range > 0 ? (side * (p - e60)) / range : null,
+        whipsaw: side === 1 ? /[LV]/.test(opposite) : /[AF]/.test(opposite),
+        f5: fwd(5),
+        f20: fwd(20),
+        f60: fwd(60),
+      });
+    }
+    for (const side of [1, -1]) {
+      const want = side === 1 ? /[AF]/g : /[LV]/g;
+      daysBySide.set(`${ex}|${side}`, (daysBySide.get(`${ex}|${side}`) ?? 0) + (codes.match(want)?.length ?? 0));
     }
     labelDump[ticker] = { ex, start, labels: codes, closes, dates: points.map((p) => p.time) } as never;
     process.stderr.write(`${name} ${ticker} ✓\n`);
@@ -182,7 +204,7 @@ const median = (xs: number[]) => {
 };
 const pct = (x: number) => (Number.isFinite(x) ? `${(x * 100).toFixed(1)} %` : "—");
 
-function summarize(events: Event[], tickerYears: number) {
+function summarize(events: Event[], tickerYears: number, days: number) {
   const nn = (xs: Array<number | null>) => xs.filter((x): x is number => x != null && Number.isFinite(x));
   const f20 = nn(events.map((e) => e.f20));
   return {
@@ -190,11 +212,14 @@ function summarize(events: Event[], tickerYears: number) {
     perTickerYear: events.length / Math.max(tickerYears, 1e-9),
     donePctMedian: median(events.map((e) => e.donePct)),
     doneAtrMedian: median(nn(events.map((e) => e.doneAtr))),
-    lagMedian: median(events.map((e) => e.lag)),
+    done60Median: median(events.map((e) => e.done60)),
+    swingShareMedian: median(nn(events.map((e) => e.swingShare))),
     f5: mean(nn(events.map((e) => e.f5))),
     f20: mean(f20),
     f60: mean(nn(events.map((e) => e.f60))),
     hit20: f20.length ? f20.filter((x) => x > 0).length / f20.length : NaN,
+    whipsaw: events.length ? events.filter((e) => e.whipsaw).length / events.length : NaN,
+    shareOfDays: days / Math.max(tickerYears * 250, 1e-9),
   };
 }
 
@@ -222,14 +247,15 @@ function main() {
   for (const name of names) {
     const engine = ENGINES[name] ?? variant(name);
     if (!engine) throw new Error(`moteur inconnu : ${name}`);
+    daysBySide.clear();
     const events = runEngine(name, engine, data, from);
     for (const ex of ["BRVM", "NGX"]) {
       for (const side of [1, -1] as const) {
         const subset = events.filter((e) => e.ex === ex && e.side === side);
-        const s = summarize(subset, years.get(ex) ?? 0);
+        const s = summarize(subset, years.get(ex) ?? 0, daysBySide.get(`${ex}|${side}`) ?? 0);
         json[`${name}|${ex}|${side}`] = s;
         rows.push(
-          `| ${name} | ${ex} | ${side === 1 ? "achat" : "vente"} | ${s.n} | ${s.perTickerYear.toFixed(1)} | ${pct(s.donePctMedian)} | ${s.doneAtrMedian.toFixed(1)} | ${s.lagMedian} | ${pct(s.f5)} | ${pct(s.f20)} | ${pct(s.f60)} | ${pct(s.hit20)} |`
+          `| ${name} | ${ex} | ${side === 1 ? "achat" : "vente"} | ${s.n} | ${s.perTickerYear.toFixed(1)} | ${pct(s.donePctMedian)} | ${s.doneAtrMedian.toFixed(1)} | ${pct(s.done60Median)} | ${pct(s.swingShareMedian)} | ${pct(s.f5)} | ${pct(s.f20)} | ${pct(s.f60)} | ${pct(s.hit20)} | ${pct(s.whipsaw)} | ${pct(s.shareOfDays)} |`
         );
       }
     }
@@ -252,11 +278,13 @@ function main() {
       }
     }
     rows.push(
-      `| toute séance | ${ex} | — | — | — | — | — | — | ${pct(mean(f[0]!))} | ${pct(mean(f[1]!))} | ${pct(mean(f[2]!))} | ${pct(f[1]!.filter((x) => x > 0).length / f[1]!.length)} |`
+      `| toute séance | ${ex} | — | — | — | — | — | — | — | ${pct(mean(f[0]!))} | ${pct(mean(f[1]!))} | ${pct(mean(f[2]!))} | ${pct(f[1]!.filter((x) => x > 0).length / f[1]!.length)} | — | — |`
     );
   }
-  console.log("| Moteur | Place | Sens | Signaux | /titre/an | Déjà fait (méd.) | En ATR | Séances depuis l'extrême | +5 s. | +20 s. | +60 s. | Réussite 20 s. |");
-  console.log("|---|---|---|---|---|---|---|---|---|---|---|---|");
+  console.log(
+    "| Moteur | Place | Sens | Signaux | /titre/an | Déjà fait (20 s.) | En ATR | Déjà fait (60 s.) | Part du swing faite | +5 s. | +20 s. | +60 s. | Réussite 20 s. | Faux départ ≤ 10 s. | Séances affichées |"
+  );
+  console.log("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
   for (const r of rows) console.log(r);
   const jsonOut = arg("json");
   if (jsonOut) fs.writeFileSync(jsonOut, JSON.stringify(json, null, 2));
