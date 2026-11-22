@@ -54,6 +54,7 @@ import { frameCompanyForPortfolioType, type PortfolioTypeId } from "@/lib/portfo
 import { usePortfolioType } from "@/lib/portfolio-types/use-portfolio-type";
 import PortfolioTypeSelector from "@/components/portfolio-types/PortfolioTypeSelector";
 import PortfolioTypePerspective from "@/components/portfolio-types/PortfolioTypePerspective";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 
 export interface MarketBoardClientProps {
   initialData: CompaniesFullDataset;
@@ -65,6 +66,8 @@ export interface MarketBoardClientProps {
   preferredPortfolioType?: PortfolioTypeId | null;
   /** Tickers suivis par l'utilisateur ; null/absent = visiteur non connecté. */
   watchedTickers?: string[] | null;
+  /** Visiteur soumis aux restrictions (teasers, pas de scores). */
+  gatedVisitor?: boolean;
 }
 
 const COL_COUNT = 11;
@@ -104,6 +107,7 @@ export default function MarketBoardClient({
   initialDayChanges = {},
   preferredPortfolioType = null,
   watchedTickers = null,
+  gatedVisitor = false,
 }: MarketBoardClientProps) {
   const { t, format, labels } = useI18n();
   const pathname = usePathname();
@@ -447,7 +451,8 @@ export default function MarketBoardClient({
         onRefresh={handleRefresh}
         companiesCount={companies.length}
         totalMktCap={totalMktCap}
-        buySignals={buySignals}
+        buySignals={gatedVisitor ? 0 : buySignals}
+        gatedVisitor={gatedVisitor}
         avgYield={avgYield}
         indexPills={indexPills}
         currency={exchange.currency}
@@ -644,34 +649,46 @@ export default function MarketBoardClient({
                           {m.dividendYieldPercent}%
                         </td>
                         <td>
-                          <ScoreBadge score={m.score} className={styles.score} />
+                          {gatedVisitor ? (
+                            <LockedTeaser compact />
+                          ) : (
+                            <ScoreBadge score={m.score} className={styles.score} />
+                          )}
                         </td>
                         <td>
-                          <SignalBadge
-                            label={m.signal.label}
-                            title={labels.signalSummary({
-                              label: m.signal.label,
-                              score: m.score,
-                              confidence: m.confidence,
-                              signalSummary: m.signalSummary,
-                              signalReasons: m.signalReasons,
-                            })}
-                          />
+                          {gatedVisitor ? (
+                            <LockedTeaser compact />
+                          ) : (
+                            <SignalBadge
+                              label={m.signal.label}
+                              title={labels.signalSummary({
+                                label: m.signal.label,
+                                score: m.score,
+                                confidence: m.confidence,
+                                signalSummary: m.signalSummary,
+                                signalReasons: m.signalReasons,
+                              })}
+                            />
+                          )}
                         </td>
                         <td className={styles.meta}>
-                          <ConfidenceDot value={m.confidence} />
+                          {gatedVisitor ? <LockedTeaser compact /> : <ConfidenceDot value={m.confidence} />}
                         </td>
                       </tr>
                       {open && (
                         <tr className={styles.detailRow}>
                           <td colSpan={COL_COUNT}>
-                            <ExpandedPanel
-                              company={co}
-                              metrics={m}
-                              currency={exchange.currency}
-                              portfolioType={portfolioType}
-                              onPrefetch={(href) => router.prefetch(href)}
-                            />
+                            {gatedVisitor ? (
+                              <LockedTeaser body={t("entitlements.score")} callbackUrl={`/actions/${co.ticker}`} />
+                            ) : (
+                              <ExpandedPanel
+                                company={co}
+                                metrics={m}
+                                currency={exchange.currency}
+                                portfolioType={portfolioType}
+                                onPrefetch={(href) => router.prefetch(href)}
+                              />
+                            )}
                           </td>
                         </tr>
                       )}

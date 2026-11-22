@@ -12,7 +12,7 @@ import {
   catalogToUniverse,
   resolveChartInstrument,
 } from "@/lib/charts/chart-selection";
-import { getCurrentUserId } from "@/lib/auth/get-current-user";
+import { getViewer } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
@@ -37,7 +37,7 @@ export default async function GraphesPage({
     { ticker: searchParams?.ticker, indice: searchParams?.indice },
     catalog.entries.filter((entry) => entry.exchange === "BRVM" || entry.exchange === "NGX")
   );
-  const userId = await getCurrentUserId().catch(() => null);
+  const viewer = await getViewer();
 
   return (
     <AppHeader>
@@ -57,7 +57,8 @@ export default async function GraphesPage({
             initialKind={instrument.kind}
             initialExchange={instrument.exchange === "NGX" ? "NGX" : "BRVM"}
             mixedMarkets
-            isAuthenticated={Boolean(userId)}
+            isAuthenticated={Boolean(viewer.userId)}
+            gatedVisitor={viewer.gated}
           />
         )}
       </div>

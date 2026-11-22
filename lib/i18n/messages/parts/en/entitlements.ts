@@ -1,0 +1,16 @@
+export const entitlements = {
+  lock: "Members only",
+  title: "Sign in to unlock",
+  body: "Create a free account to access full history, scores and analysis.",
+  register: "Create an account",
+  login: "Sign in",
+  chartRange: "History beyond one year is reserved for accounts.",
+  score: "Score, signal and confidence are reserved for accounts.",
+  fundamental: "Detailed fundamental analysis is reserved for accounts.",
+  scenarios: "Scenarios, targets and levels are reserved for accounts.",
+  projection: "Projections are reserved for accounts.",
+  comparison: "Detailed comparison is reserved for accounts.",
+  screenerFilters: "Advanced screener filters are reserved for accounts.",
+  dividends: "Dividend history is reserved for accounts.",
+  export: "Excel export is reserved for accounts.",
+};

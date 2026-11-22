@@ -15,6 +15,7 @@ import { revalidateQuotesAfterWrite } from "@/lib/cache/revalidate-quotes";
 import { apiError, apiSuccess, privateCacheHeaders } from "@/lib/api/response";
 import { runBrvmQuotesRefresh } from "@/lib/ingestion/run-brvm-quotes-refresh";
 import { checkRateLimit } from "@/lib/security/rate-limit";
+import { getViewer, presentCompaniesFullDataset } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,12 +33,13 @@ function clientIp(request: NextRequest): string {
 }
 
 async function datasetAndSpark() {
-  const [dataset, sparkSeries, dayChanges] = await Promise.all([
+  const [dataset, sparkSeries, dayChanges, viewer] = await Promise.all([
     getCompaniesFullDataset(),
     getMarketSparkSeriesByTicker(),
     getMarketDayChangeByTicker(),
+    getViewer(),
   ]);
-  return { dataset, sparkSeries, dayChanges };
+  return { dataset: presentCompaniesFullDataset(dataset, viewer), sparkSeries, dayChanges };
 }
 
 export async function POST(request: NextRequest) {

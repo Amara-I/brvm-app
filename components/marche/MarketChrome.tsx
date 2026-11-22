@@ -13,6 +13,7 @@ import ChangeValue from "@/components/ui/ChangeValue";
 import DataFreshness from "@/components/market/DataFreshness";
 import { freshnessExchangeOf } from "@/lib/market/freshness";
 import { translateExchangeName, translateExchangeRegion } from "@/components/marche/market-copy";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 
 export interface MarketChromeProps {
   lastUpdate: string;
@@ -35,6 +36,7 @@ export interface MarketChromeProps {
   capCurrency?: string;
   indexHref?: (code: string) => string;
   indicesFallbackHref?: string;
+  gatedVisitor?: boolean;
 }
 
 export default function MarketChrome(props: MarketChromeProps) {
@@ -123,6 +125,8 @@ export default function MarketChrome(props: MarketChromeProps) {
                   <span className={`${marketStyles.kpiAmount} ob-num`}>{k.v.amount}</span>
                   <span className={marketStyles.kpiUnit}>{k.v.unit}</span>
                 </>
+              ) : k.key === "buy" && props.gatedVisitor ? (
+                <LockedTeaser compact />
               ) : (
                 k.v
               )}

@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 import TechnicalAnalysisPanel from "@/components/actions/TechnicalAnalysisPanel";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import IndexChart from "@/components/indices/IndexChart";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import { translateCompositionNote, translateIndexDescription, translateIndexFamily } from "@/components/indices/index-copy";
 import { translateDataSourceLabel } from "@/components/marche/market-copy";
 import ChangeValue from "@/components/ui/ChangeValue";
@@ -120,6 +121,7 @@ export default function IndexDetailClient({
   backLabel,
   stockHrefPrefix = "/actions/",
   extraHeader,
+  gatedVisitor = false,
 }: {
   data: IndexPageData;
   backHref?: string;
@@ -128,6 +130,7 @@ export default function IndexDetailClient({
   stockHrefPrefix?: string;
   /** Lien supplémentaire sous l'en-tête (ex. graphe détaillé NGX). */
   extraHeader?: ReactNode;
+  gatedVisitor?: boolean;
 }) {
   const { t, format, labels, locale } = useI18n();
   const stockHref = (ticker: string) => `${stockHrefPrefix}${encodeURIComponent(ticker)}`;
@@ -227,14 +230,17 @@ export default function IndexDetailClient({
 
       <IndexChart
         series={detail.series}
-        analysis={analysis}
+        analysis={gatedVisitor ? null : analysis}
+        gatedVisitor={gatedVisitor}
         aside={
           <section aria-labelledby="index-reading-title">
             <div className={styles.readingHead}>
               <h3 id="index-reading-title" className={styles.readingTitle}>
                 {t("market.indices.sheet.readingTitle")}
               </h3>
-              {analysis ? (
+              {gatedVisitor ? (
+                <LockedTeaser compact />
+              ) : analysis ? (
                 <div className={styles.readingSignal}>
                   <span className={styles.readingSignalLabel}>{t("market.indices.sheet.readingSignal")}</span>
                   <SignalBadge label={analysis.signal.label} display={indexReadingLabel(analysis.signal.label, lang)} />

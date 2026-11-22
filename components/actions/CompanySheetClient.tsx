@@ -3,6 +3,7 @@
 // Fiche société premium — alignée captures OuestBourse (étape 20).
 
 import CompanyMark from "@/components/ui/CompanyMark";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import ScoreBadge from "@/components/ui/ScoreBadge";
 import SignalBadge from "@/components/ui/SignalBadge";
 import ConfidenceDot from "@/components/ui/ConfidenceDot";
@@ -210,6 +211,7 @@ export default function CompanySheetClient({
   payload,
   isAuthenticated = false,
   isWatched = false,
+  gatedVisitor = false,
   initialTab,
   preferredPortfolioType = null,
 }: {
@@ -217,6 +219,7 @@ export default function CompanySheetClient({
   isAuthenticated?: boolean;
   /** La société est dans la liste de suivi de l'utilisateur connecté. */
   isWatched?: boolean;
+  gatedVisitor?: boolean;
   /** Onglet initial (ex. ?tab=charts depuis le sélecteur de ticker du graphe). */
   initialTab?: TabKey;
   /**
@@ -488,6 +491,9 @@ export default function CompanySheetClient({
 
   const paidYears = dividendChart.length;
   const lastDiv = dividendChart[dividendChart.length - 1];
+  // Une année à 0 enregistrée = « pas de dividende » confirmé, distinct de l'absence de ligne (N/D).
+  const confirmedNoDividend =
+    Object.values(company.dividends).length > 0 && Object.values(company.dividends).every((amt) => amt === 0);
 
   const sessionLabel = sessionDate
     ? format.date(new Date(`${sessionDate}T12:00:00Z`), {
@@ -643,8 +649,14 @@ export default function CompanySheetClient({
             <DataFreshness exchange="BRVM" asOf={company.lastSyncedAt} />
           </div>
           <div className={styles.heroRating} data-testid="sheet-header-rating">
-            <ScoreBadge score={metrics.score} outOf showTier />
-            <SignalBadge label={metrics.signal.label} confidence={metrics.confidence} />
+            {gatedVisitor ? (
+              <LockedTeaser compact callbackUrl={`/actions/${company.ticker}`} />
+            ) : (
+              <>
+                <ScoreBadge score={metrics.score} outOf showTier />
+                <SignalBadge label={metrics.signal.label} confidence={metrics.confidence} />
+              </>
+            )}
           </div>
         </div>
         <div className={styles.heroActions}>
@@ -707,12 +719,17 @@ export default function CompanySheetClient({
             initialTicker={company.ticker}
             embedded
             isAuthenticated={isAuthenticated}
+            gatedVisitor={gatedVisitor}
             initialSeries={series}
-            initialSeriesComplete={seriesFromChartCache && !seriesCacheStale}
-            levelLines={levelLines}
+            initialSeriesComplete={seriesFromChartCache && !seriesCacheStale && !gatedVisitor}
+            levelLines={gatedVisitor ? undefined : levelLines}
             onActiveSeries={onActiveSeries}
           />
-          <TechnicalAnalysisPanel analysis={chartAnalysis} qualityScore={metrics.score} />
+          {gatedVisitor ? (
+            <LockedTeaser body={t("entitlements.scenarios")} callbackUrl={`/actions/${company.ticker}`} />
+          ) : (
+            <TechnicalAnalysisPanel analysis={chartAnalysis} qualityScore={metrics.score} />
+          )}
         </div>
       )}
 
@@ -753,6 +770,9 @@ export default function CompanySheetClient({
                   </div>
                   <div className={styles.rangeRow}>
                     {RANGES.map((r) => (
+                      gatedVisitor && (r.key === "5A" || r.key === "MAX") ? (
+                        <LockedTeaser key={r.key} compact label={t(r.labelKey)} callbackUrl={`/actions/${company.ticker}`} />
+                      ) : (
                       <button
                         key={r.key}
                         type="button"
@@ -764,6 +784,7 @@ export default function CompanySheetClient({
                       >
                         {t(r.labelKey)}
                       </button>
+                      )
                     ))}
                   </div>
                 </div>
@@ -960,7 +981,11 @@ export default function CompanySheetClient({
                                   : styles.scoreNeutral
                           }
                         >
-                          {scorecardValue(cell.k, cell.v)}
+                          {gatedVisitor && cell.k !== "Rend. div." ? (
+                            <LockedTeaser compact callbackUrl={`/actions/${company.ticker}`} />
+                          ) : (
+                            scorecardValue(cell.k, cell.v)
+                          )}
                         </span>
                       </div>
                     ))}
@@ -1145,7 +1170,9 @@ export default function CompanySheetClient({
                         </div>
                       </>
                     ) : (
-                      <p className={styles.empty}>{t("company.dividends.empty")}</p>
+                      <p className={styles.empty}>
+                        {t(confirmedNoDividend ? "company.dividends.none" : "company.dividends.empty")}
+                      </p>
                     )}
                     <Link href="/calendrier-dividendes" className={styles.inlineLink}>
                       {t("company.dividends.calendar")}
@@ -1285,6 +1312,10 @@ export default function CompanySheetClient({
               <h3 className={styles.sideTitle}>
                 <EducationTermLink slug="sante-financiere">{t("company.health.title")}</EducationTermLink>
               </h3>
+              {gatedVisitor ? (
+                <LockedTeaser body={t("entitlements.score")} callbackUrl={`/actions/${company.ticker}`} />
+              ) : (
+              <>
               <div className={styles.healthScore}>
                 <span className={styles.healthBig}>{format.decimal(health.overall, 1)} / 10</span>
                 <span className={styles.healthPill} style={{ color: C.green }}>
@@ -1307,12 +1338,18 @@ export default function CompanySheetClient({
               <p className={styles.sideNote}>
                 {labels.healthNote(health, { score: metrics.score, confidence: qualityConfidence })}
               </p>
+              </>
+              )}
             </section>
 
             <section className={styles.sideCard}>
               <h3 className={styles.sideTitle}>
                 <EducationTermLink slug="gestion-du-risque">{t("company.risk.title")}</EducationTermLink>
               </h3>
+              {gatedVisitor ? (
+                <LockedTeaser body={t("entitlements.score")} callbackUrl={`/actions/${company.ticker}`} />
+              ) : (
+              <>
               <div className={styles.healthScore}>
                 <span className={styles.healthBig}>{metrics.riskAnalysis.riskScore}/100</span>
                 <span
@@ -1406,6 +1443,8 @@ export default function CompanySheetClient({
                 ) : null}
               </p>
               )}
+              </>
+              )}
             </section>
 
             <section className={styles.sideCard}>
@@ -1433,6 +1472,10 @@ export default function CompanySheetClient({
               <h3 className={styles.sideTitle}>
                 <EducationTermLink slug="signal-ouestbourse">{t("company.signal.title")}</EducationTermLink>
               </h3>
+              {gatedVisitor ? (
+                <LockedTeaser body={t("entitlements.score")} callbackUrl={`/actions/${company.ticker}`} />
+              ) : (
+              <>
               <div className={styles.signalBox} style={{ borderColor: metrics.signal.color }}>
                 <div>
                   <SignalBadge label={metrics.signal.label} />
@@ -1539,6 +1582,8 @@ export default function CompanySheetClient({
               <button type="button" className={styles.inlineLinkBtn} onClick={() => setTab("charts")}>
                 {t("company.signal.chartAnalysis")}
               </button>
+              </>
+              )}
             </section>
 
             <section className={styles.sideCard}>
@@ -1582,6 +1627,8 @@ export default function CompanySheetClient({
       )}
 
       {resolvedTab === "fundamental" && (
+        <>
+        {gatedVisitor ? <LockedTeaser body={t("entitlements.fundamental")} callbackUrl={`/actions/${company.ticker}`} /> : null}
         <FundamentalAnalysisPanel
           slice={{
             company,
@@ -1599,19 +1646,27 @@ export default function CompanySheetClient({
           }}
           close={price > 0 ? price : null}
           preferredPortfolioType={isAuthenticated ? preferredPortfolioType ?? null : null}
-          rating={{ score: metrics.score, signal: metrics.signal.label, confidence: metrics.confidence }}
+          rating={gatedVisitor ? undefined : { score: metrics.score, signal: metrics.signal.label, confidence: metrics.confidence }}
         />
+        </>
       )}
 
       {resolvedTab === "projection" && (
+        gatedVisitor ? (
+          <LockedTeaser body={t("entitlements.projection")} callbackUrl={`/actions/${company.ticker}`} />
+        ) : (
         <>
           <PortfolioTypePerspective perspective={analysisPerspective} compact />
           <CompanyProjectionPanel company={company} years={payload.years} metrics={metrics} />
           <OutlookSynthesisCard synthesis={outlook} />
         </>
+        )
       )}
 
       {resolvedTab === "comparison" && (
+        gatedVisitor ? (
+          <LockedTeaser body={t("entitlements.comparison")} callbackUrl={`/actions/${company.ticker}`} />
+        ) : (
         <>
           <PortfolioTypePerspective perspective={analysisPerspective} compact />
           <CompanyComparisonPanel
@@ -1621,6 +1676,7 @@ export default function CompanySheetClient({
             signalPatches={signalPatches}
           />
         </>
+        )
       )}
 
     </div>

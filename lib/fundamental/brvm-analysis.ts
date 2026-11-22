@@ -19,7 +19,8 @@ import {
   currentDividend,
   dividendYearsPaid,
   dividendYieldPercent,
-  earningsPerShare,
+  resolveEarningsPerShare,
+  type EpsSource,
   growthPercent,
   marginPercent,
   marketCapBn,
@@ -155,6 +156,10 @@ export interface BrvmIncomeYear {
   revenue: number | null;
   netIncome: number | null;
   operatingIncome: number | null;
+  /** BPA publié de l'exercice, s'il est connu. Prioritaire sur tout recalcul. */
+  eps?: number | null;
+  /** Titres en circulation pendant l'exercice (pas le nombre actuel). */
+  sharesOutstanding?: number | null;
 }
 
 export interface BrvmDividendInput {
@@ -342,9 +347,11 @@ export interface BrvmFundamentalAnalysis {
     fcfBn: number | null;
     /** Exercice du FCF affiché (le plus récent disponible). */
     fcfYear: number | null;
-    /** BPA = résultat net ÷ titres actuels. null si l'un des deux manque, ou si les comptes sont trop anciens. */
+    /** BPA retenu (publié, sinon ÷ titres de l'exercice, sinon ÷ titres actuels). Null si indéterminable ou comptes trop anciens. */
     impliedEps: number | null;
     impliedEpsYear: number | null;
+    /** Origine du BPA affiché. Null si le BPA est N/D. */
+    epsSource: EpsSource | null;
     /** Cours / BPA. null si l'un des deux manque. Peut dépasser 100 : voir epsBlocked. */
     impliedPer: number | null;
     /** outlier / negative : le BPA ne pilote pas la valorisation. */
@@ -549,8 +556,14 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       netIncome,
       operatingMargin: marginPercent(finite(y.operatingIncome) ? y.operatingIncome : null, finite(y.revenue) ? y.revenue : null),
       netMargin: marginPercent(netIncome, finite(y.revenue) ? y.revenue : null),
+      // BPA : publié d'abord, sinon résultat ÷ titres de l'exercice, sinon titres actuels.
       // BPA négatif affiché (exercice déficitaire) ; le taux de distribution reste N/D (payoutPercent exige BPA > 0).
-      eps: netIncome != null && netIncome !== 0 ? earningsPerShare(netIncome, shares) : null,
+      eps: resolveEarningsPerShare({
+        reportedEps: y.eps,
+        netIncomeBn: netIncome,
+        periodShares: y.sharesOutstanding,
+        currentShares: shares,
+      }).eps,
       dps: null,
       payoutPercent: null,
       roe: finite(ratio?.roe) ? ratio.roe : null,
@@ -574,9 +587,29 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
   const pbr = publishedMultiple(input.pbRatio, stale, "pbr");
   const roeStatus: MultipleStatus = !finite(input.roe) ? "unavailable" : stale ? "stale" : "ok";
   const roe = roeStatus === "ok" ? input.roe : null;
-  const rawEps = !stale && latestNet && latestNet.value > 0 ? earningsPerShare(latestNet.value, shares) : null;
-  const impliedEps = rawEps;
-  const impliedEpsYear = impliedEps != null && latestNet ? latestNet.year : null;
+  // Reprendre les champs d'origine (BPA publié, titres de l'exercice), pas le BPA déjà résolu de la ligne.
+  let resolvedLatest: { eps: number | null; source: EpsSource | null } = { eps: null, source: null };
+  let resolvedLatestYear: number | null = null;
+  for (let i = income.length - 1; i >= 0; i -= 1) {
+    const row = income[i]!;
+    const netIncome = finite(row.netIncome) ? row.netIncome : null;
+    const resolved = resolveEarningsPerShare({
+      reportedEps: row.eps,
+      netIncomeBn: netIncome,
+      periodShares: row.sharesOutstanding,
+      currentShares: shares,
+    });
+    if (resolved.eps != null) {
+      resolvedLatest = resolved;
+      resolvedLatestYear = row.year;
+      break;
+    }
+  }
+  // Affiché dès qu'un BPA est déterminable ; la valorisation ignore les comptes trop anciens ou un BPA ≤ 0.
+  const impliedEps = stale ? null : resolvedLatest.eps;
+  const impliedEpsYear = impliedEps != null ? resolvedLatestYear : null;
+  const epsSource: EpsSource | null = impliedEps != null ? resolvedLatest.source : null;
+  const rawEps = impliedEps != null && impliedEps > 0 ? impliedEps : null;
   const epsBlocked = epsBlockForValuation(close, rawEps, !stale && latestNet ? latestNet.value : null);
   const valuationEps = epsBlocked == null ? rawEps : null;
   const impliedPer = close != null && rawEps != null && rawEps > 0 ? close / rawEps : null;
@@ -919,6 +952,7 @@ export function buildBrvmFundamentalAnalysis(input: BrvmFundamentalInput): BrvmF
       fcfYear: latestFcf?.year ?? null,
       impliedEps,
       impliedEpsYear,
+      epsSource,
       impliedPer,
       epsBlocked,
     },

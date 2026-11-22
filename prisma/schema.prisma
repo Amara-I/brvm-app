@@ -129,6 +129,18 @@ enum UserRole {
   @@map("user_role")
 }
 
+/// Offre d'abonnement (préparation de la version payante).
+/// Étape 1 : le champ est persisté (défaut FREE) mais non appliqué —
+/// tout utilisateur connecté a encore un accès complet. Le visiteur
+/// (pas de session) est restreint côté applicatif (lib/entitlements).
+enum UserPlan {
+  FREE
+  LIGHT
+  PREMIUM
+
+  @@map("user_plan")
+}
+
 /// Opération sur titre. SPLIT = plus de titres, cours plus bas.
 /// REVERSE_SPLIT = regroupement. BONUS = attribution (même mathématique qu'un split).
 enum CorporateActionType {
@@ -768,6 +780,8 @@ model User {
   passwordHash  String?   @map("password_hash")
   image         String?
   role          UserRole  @default(USER)
+  /// Palier d'offre. Non lu pour le gating de l'étape 1 (compte = accès complet).
+  plan          UserPlan  @default(FREE)
   emailVerified DateTime? @map("email_verified")
   /// Type de portefeuille préféré (Profil). Surmontable à tout moment sur les fiches d'analyse.
   preferredPortfolioType PortfolioType? @map("preferred_portfolio_type")

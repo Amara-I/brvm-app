@@ -75,6 +75,34 @@ export interface NamedListing {
   name: string;
 }
 
+/**
+ * Noms d'appariement d'une société NGX : nom affiché ET raison sociale
+ * officielle (`profileMeta.legalName`), quand ils diffèrent. Le Daily Summary
+ * imprime la raison sociale ; ne garder que `name` laissait ~30 % des titres
+ * sans cours les jours de repli.
+ */
+export function ngxNamedListings(
+  rows: ReadonlyArray<{ ticker: string; name: string | null; profileMeta?: unknown }>
+): NamedListing[] {
+  const out: NamedListing[] = [];
+  for (const row of rows) {
+    const meta =
+      row.profileMeta && typeof row.profileMeta === "object" && !Array.isArray(row.profileMeta)
+        ? (row.profileMeta as Record<string, unknown>)
+        : {};
+    const names = [row.name, typeof meta.legalName === "string" ? meta.legalName : null];
+    const seen = new Set<string>();
+    for (const name of names) {
+      if (!name || !name.trim()) continue;
+      const key = normalizeLegalName(name);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push({ ticker: row.ticker, name });
+    }
+  }
+  return out;
+}
+
 /** Apparie le résumé (nom légal) au référentiel déjà connu. Ambigu → ignoré. */
 export function matchSummaryToListings(
   rows: DailySummaryRow[],
@@ -85,7 +113,9 @@ export function matchSummaryToListings(
     const key = normalizeLegalName(listing.name);
     if (!key) continue;
     const list = byName.get(key) ?? [];
-    list.push(listing.ticker.toUpperCase());
+    const ticker = listing.ticker.toUpperCase();
+    // Deux libellés d'une même société ne la rendent pas ambiguë.
+    if (!list.includes(ticker)) list.push(ticker);
     byName.set(key, list);
   }
   const matched: Array<DailySummaryRow & { ticker: string }> = [];

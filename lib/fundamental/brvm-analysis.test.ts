@@ -127,6 +127,7 @@ describe("analyse fondamentale BRVM", () => {
     ]);
     expect(model.presentation.marketCapBn).toBe(2000);
     expect(model.price.impliedEps).toBeCloseTo((28 * 1e9) / 100_000_000);
+    expect(model.price.epsSource).toBe("current");
     expect(model.price.per.value).toBe(12);
     expect(model.outlook.synthesis?.items[0]?.sourceName).toBe("Rapport annuel");
     expect(model.dividends.currentStatus).toBe("CONFIRMED");
@@ -410,5 +411,36 @@ describe("analyse fondamentale BRVM", () => {
     expect(extreme.excludeReason).toBe("outlier");
     expect(extreme.name).toBe("Pair extrême");
     expect(extreme.value).toBe(250);
+  });
+
+  it("BPA publié prioritaire sur le résultat net ÷ titres actuels", () => {
+    const model = buildBrvmFundamentalAnalysis(
+      input({
+        sharesOutstanding: 8_340_891_440,
+        income: [{ year: 2025, revenue: 6.79, netIncome: 2.7, operatingIncome: 3, eps: 0.6475 }],
+      }),
+    );
+    expect(model.price.impliedEps).toBeCloseTo(0.6475);
+    expect(model.price.epsSource).toBe("reported");
+    expect(model.performance.years.find((y) => y.year === 2025)?.eps).toBeCloseTo(0.6475);
+  });
+
+  it("sans BPA publié, utilise les titres de l'exercice plutôt que les titres actuels", () => {
+    const model = buildBrvmFundamentalAnalysis(
+      input({
+        sharesOutstanding: 8_340_891_440,
+        income: [
+          {
+            year: 2025,
+            revenue: 6.79,
+            netIncome: 2.7,
+            operatingIncome: 3,
+            sharesOutstanding: 4_170_445_720,
+          },
+        ],
+      }),
+    );
+    expect(model.price.epsSource).toBe("period");
+    expect(model.price.impliedEps).toBeCloseTo(0.6475, 3);
   });
 });

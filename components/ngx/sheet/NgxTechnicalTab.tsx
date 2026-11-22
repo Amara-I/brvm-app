@@ -7,6 +7,7 @@ import { useCallback, useMemo, useState } from "react";
 import LazyChartWorkbench from "@/components/charts/LazyChartWorkbench";
 import type { ChartUniverseItem } from "@/components/charts/ChartWorkbench";
 import TechnicalAnalysisPanel from "@/components/actions/TechnicalAnalysisPanel";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { analyzePriceHistory } from "@/lib/technical-analysis/analyze";
@@ -18,17 +19,19 @@ export default function NgxTechnicalTab({
   symbol,
   universe,
   isAuthenticated,
+  gatedVisitor = false,
   initialAnalysis,
   qualityScore,
 }: {
   symbol: string;
   universe: ChartUniverseItem[];
   isAuthenticated: boolean;
+  gatedVisitor?: boolean;
   initialAnalysis: TechnicalAnalysis;
   /** Note NGX /100 (inchangée). null = N/D. */
   qualityScore: number | null;
 }) {
-  const { locale } = useI18n();
+  const { t, locale } = useI18n();
   const [analysis, setAnalysis] = useState<TechnicalAnalysis>(initialAnalysis);
   const levelLines = useMemo(() => chartLevelLines(analysis, locale === "en" ? "en" : "fr"), [analysis, locale]);
   const onActiveSeries = useCallback(
@@ -56,10 +59,15 @@ export default function NgxTechnicalTab({
         initialTicker={symbol}
         embedded
         isAuthenticated={isAuthenticated}
-        levelLines={levelLines}
+        gatedVisitor={gatedVisitor}
+        levelLines={gatedVisitor ? undefined : levelLines}
         onActiveSeries={onActiveSeries}
       />
-      <TechnicalAnalysisPanel analysis={analysis} qualityScore={qualityScore} />
+      {gatedVisitor ? (
+        <LockedTeaser body={t("entitlements.scenarios")} />
+      ) : (
+        <TechnicalAnalysisPanel analysis={analysis} qualityScore={qualityScore} />
+      )}
     </div>
   );
 }

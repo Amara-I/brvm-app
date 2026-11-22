@@ -17,6 +17,7 @@ import { portfolio } from "./parts/en/portfolio";
 import { screener } from "./parts/en/screener";
 import { tools } from "./parts/en/tools";
 import { scoreSignal } from "./parts/en/score-signal";
+import { entitlements } from "./parts/en/entitlements";
 
 export const en = {
   common,
@@ -36,4 +37,5 @@ export const en = {
   notifications,
   ngx,
   scoreSignal,
+  entitlements,
 } as const satisfies DeepStringTree<Messages>;

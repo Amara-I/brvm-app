@@ -19,6 +19,8 @@ import {
   YAxis,
 } from "recharts";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
+import { isLockedChartRange } from "@/lib/entitlements/chart-cap";
 import { applyChartSeriesWindow } from "@/lib/charts/chart-window";
 import type { ChartRange } from "@/lib/charts/indicators";
 import type { FormatApi } from "@/lib/i18n/format";
@@ -137,11 +139,13 @@ function IndexChart({
   series,
   analysis,
   aside,
+  gatedVisitor = false,
 }: {
   series: IndexSeriesPoint[];
   analysis: TechnicalAnalysis | null;
   /** Lecture affichée à gauche sous le graphe (la légende des niveaux est à droite). */
   aside?: ReactNode;
+  gatedVisitor?: boolean;
 }) {
   const { t, format, locale } = useI18n();
   const lang = locale === "en" ? "en" : "fr";
@@ -153,7 +157,7 @@ function IndexChart({
     [series, range]
   );
   const shortRange = range === "1M" || range === "3M" || range === "6M";
-  const levelsAllowed = LEVEL_RANGES.has(range);
+  const levelsAllowed = !gatedVisitor && LEVEL_RANGES.has(range);
   const levels = useMemo(
     () =>
       levelsAllowed && showLevels
@@ -246,6 +250,9 @@ function IndexChart({
         </div>
         <div className={styles.rangeRow} role="group" aria-label={t("market.indices.period")}>
           {RANGES.map((key) => (
+            gatedVisitor && isLockedChartRange(key) ? (
+              <LockedTeaser key={key} compact label={key === "1A" ? t("market.indices.range1A") : key === "5A" ? t("market.indices.range5A") : key === "MAX" ? "MAX" : key} />
+            ) : (
             <button
               key={key}
               type="button"
@@ -255,6 +262,7 @@ function IndexChart({
             >
               {key === "1A" ? t("market.indices.range1A") : key === "5A" ? t("market.indices.range5A") : key === "MAX" ? "MAX" : key}
             </button>
+            )
           ))}
         </div>
       </div>

@@ -1,0 +1,206 @@
+id,exchange,ticker,date,source,old_close,action,new_close,confidence,reason
+cmu3skhlq000qfr0m8ivuwt5y,BRVM,ABJC,2016-10-03,SIKAFINANCE,7105.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 7680.0 / 6085.0)"
+cmu3skhzg000sfr0mpvd34sl3,BRVM,ABJC,2016-10-04,SIKAFINANCE,6575.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 7680.0 / 6085.0)"
+cmu3skqgo0020fr0mqxi5s6kl,BRVM,ABJC,2016-11-03,SIKAFINANCE,5100.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 5000.0 / 5600.0)"
+cmu3skque0022fr0m4ycy2qzq,BRVM,ABJC,2016-11-04,SIKAFINANCE,5400.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 5000.0 / 5600.0)"
+cmu3sky6g0034fr0m1ftk4ct3,BRVM,ABJC,2016-12-01,SIKAFINANCE,5000.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 5305.0 / 5400.0)"
+cmu3sml1t004efr0mz94bz6gg,BRVM,ABJC,2017-01-03,SIKAFINANCE,5250.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 5375.0 / 5000.0)"
+cmu3smt3a005kfr0m5lur265j,BRVM,ABJC,2017-02-01,SIKAFINANCE,4895.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 4560.0 / 4600.0)"
+cmu3smth0005mfr0mh4q88imr,BRVM,ABJC,2017-02-02,SIKAFINANCE,4895.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 4560.0 / 4600.0)"
+cmu3smtuq005ofr0mrm8n01zd,BRVM,ABJC,2017-02-03,SIKAFINANCE,4805.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 4560.0 / 4600.0)"
+cmu3sono5007yfr0mge5kb4oz,BRVM,ABJC,2017-04-03,SIKAFINANCE,3205.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3300.0 / 3395.0)"
+cmu3t0kdv000wfyr88kohlv33,BRVM,ABJC,2017-07-04,SIKAFINANCE,2405.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 2600.0 / 2305.0)"
+cmu3t0s6u0022fyr8mqts25h1,BRVM,ABJC,2017-08-02,SIKAFINANCE,2395.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 2500.0 / 2300.0)"
+cmu3t2sky005ofyr8anz8oo3f,BRVM,ABJC,2017-11-02,SIKAFINANCE,1845.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1755.0 / 1755.0)"
+cmu3t2sy8005qfyr815klscur,BRVM,ABJC,2017-11-03,SIKAFINANCE,1825.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1755.0 / 1755.0)"
+cmu3t4kjx0080fyr8459oxxaz,BRVM,ABJC,2018-01-02,SIKAFINANCE,1850.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 2000.0 / 1985.0)"
+cmu3t4sbv0096fyr8gc9tcref,BRVM,ABJC,2018-02-01,SIKAFINANCE,1580.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1505.0 / 1500.0)"
+cmu3t4sp60098fyr8ilw8v5l9,BRVM,ABJC,2018-02-02,SIKAFINANCE,1465.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1505.0 / 1500.0)"
+cmu3t7lp90010lps94oiv4a2o,BRVM,ABJC,2018-04-03,SIKAFINANCE,1875.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1745.0 / 1945.0)"
+cmu3t7m600012lps9grk7kro4,BRVM,ABJC,2018-04-04,SIKAFINANCE,1985.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1745.0 / 1945.0)"
+cmu3tbotq009alps9a0rffd0z,BRVM,ABJC,2018-12-03,SIKAFINANCE,900.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 940.0 / 950.0)"
+cmu3tfvo90036rij1lr6qntck,BRVM,ABJC,2019-03-04,SIKAFINANCE,1250.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1200.0 / 1200.0)"
+cmu3tgcjq005mrij1wbikkpbk,BRVM,ABJC,2019-05-03,SIKAFINANCE,1800.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1750.0 / 1700.0)"
+cmu3thza9006srij1mfb4xolx,BRVM,ABJC,2019-06-03,SIKAFINANCE,1490.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1400.0 / 1450.0)"
+cmu3ti5rt007qrij1wyf0izkj,BRVM,ABJC,2019-07-03,SIKAFINANCE,1200.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1235.0 / 1150.0)"
+cmu3tl4ry0014yk4dctrfwxpj,BRVM,ABJC,2019-10-01,SIKAFINANCE,1125.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1060.0 / 1180.0)"
+cmu3tl57t0016yk4dwy3omd4k,BRVM,ABJC,2019-10-02,SIKAFINANCE,1125.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1060.0 / 1180.0)"
+cmu3tl5l10018yk4dn9gt54xc,BRVM,ABJC,2019-10-03,SIKAFINANCE,1125.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1060.0 / 1180.0)"
+cmu3tonny006syk4dnzt89ygt,BRVM,ABJC,2020-03-03,SIKAFINANCE,1400.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1355.0 / 1455.0)"
+cmu3too18006uyk4ddknil4aq,BRVM,ABJC,2020-03-04,SIKAFINANCE,1405.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1355.0 / 1455.0)"
+cmu3tqetj00a0yk4dtfpe3l0j,BRVM,ABJC,2020-06-04,SIKAFINANCE,980.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1000.0 / 960.0)"
+cmu3tqltr00b2yk4derm3s1bl,BRVM,ABJC,2020-07-01,SIKAFINANCE,1150.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1100.0 / 1180.0)"
+cmu3tqm7000b4yk4dcmtgcaya,BRVM,ABJC,2020-07-02,SIKAFINANCE,1140.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1100.0 / 1180.0)"
+cmu3tqmk900b6yk4di9xu2a2t,BRVM,ABJC,2020-07-03,SIKAFINANCE,1150.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1100.0 / 1180.0)"
+cmu3tvpxe004yo1k7ztkt3fds,BRVM,ABJC,2021-01-04,SIKAFINANCE,1150.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1240.0 / 1065.0)"
+cmu3txfjb0076o1k7vxpxm9ff,BRVM,ABJC,2021-03-02,SIKAFINANCE,995.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 935.0 / 955.0)"
+cmu3txfx00078o1k7opgh9gcr,BRVM,ABJC,2021-03-03,SIKAFINANCE,985.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 935.0 / 955.0)"
+cmu3txw1m009ko1k7b3s8q9wl,BRVM,ABJC,2021-05-03,SIKAFINANCE,1025.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 960.0 / 1000.0)"
+cmu3u0mac000ipo7mzvwmdovr,BRVM,ABJC,2021-06-03,SIKAFINANCE,1000.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1040.0 / 1035.0)"
+cmu3u12nm002upo7md0czjtvb,BRVM,ABJC,2021-08-02,SIKAFINANCE,1385.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1290.0 / 1500.0)"
+cmu3u131i002wpo7maibofyow,BRVM,ABJC,2021-08-03,SIKAFINANCE,1390.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1290.0 / 1500.0)"
+cmu3u13fd002ypo7my4s1l5rz,BRVM,ABJC,2021-08-04,SIKAFINANCE,1405.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1290.0 / 1500.0)"
+cmu3u2oh90040po7mi4hr7sas,BRVM,ABJC,2021-09-01,SIKAFINANCE,1295.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1400.0 / 1350.0)"
+cmu3u35l3006gpo7mspgjv1q7,BRVM,ABJC,2021-11-02,SIKAFINANCE,2050.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1935.0 / 2000.0)"
+cmu3u4shn007mpo7mcu7vswmm,BRVM,ABJC,2021-12-01,SIKAFINANCE,1750.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1995.0 / 2015.0)"
+cmu3u59iz00a2po7mnwaju2iw,BRVM,ABJC,2022-02-01,SIKAFINANCE,1615.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1675.0 / 1700.0)"
+cmu3u59wu00a4po7m2bvlekco,BRVM,ABJC,2022-02-02,SIKAFINANCE,1600.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1675.0 / 1700.0)"
+cmu3u7z1i000kwo0ggc3slpxk,BRVM,ABJC,2022-03-01,SIKAFINANCE,1810.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1615.0 / 1695.0)"
+cmu3u87zu001uwo0g92pn6bim,BRVM,ABJC,2022-04-01,SIKAFINANCE,1850.0,fix,1810,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1810
+cmu3u8fsc002ywo0gw7edwyfz,BRVM,ABJC,2022-05-02,SIKAFINANCE,1590.0,fix,1850,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1850
+cmu3uaanc005ewo0g2mjvhm36,BRVM,ABJC,2022-07-01,SIKAFINANCE,1650.0,fix,1475,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1475
+cmu3uaitq006kwo0g7f6p8guj,BRVM,ABJC,2022-08-01,SIKAFINANCE,1500.0,fix,1615,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1615
+cmu3uc55r0084wo0gizz0e9do,BRVM,ABJC,2022-09-01,SIKAFINANCE,1600.0,fix,1495,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1495
+cmu3ucluw00aiwo0g58admude,BRVM,ABJC,2022-11-02,SIKAFINANCE,1565.0,fix,1600,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1600
+cmu3ufag6000oxnqnt0ttsc6u,BRVM,ABJC,2022-12-02,SIKAFINANCE,1295.0,fix,1365,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1365
+cmu3ufhy6001sxnqn2m39jslt,BRVM,ABJC,2023-01-02,SIKAFINANCE,1310.0,fix,1390,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1390
+cmu3ufq8i0030xnqnwhyvnzp4,BRVM,ABJC,2023-02-01,SIKAFINANCE,1155.0,fix,1320,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1320
+cmu3uh7oo0048xnqntckg2hkn,BRVM,ABJC,2023-03-01,SIKAFINANCE,1280.0,fix,1200,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1200
+cmu3uhgao005ixnqnumexe46e,BRVM,ABJC,2023-04-03,SIKAFINANCE,1140.0,fix,1280,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1280
+cmu3uj8wk007wxnqnwoukejws,BRVM,ABJC,2023-06-01,SIKAFINANCE,1465.0,fix,1145,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1145
+cmu3ujp0400aaxnqnk5sz0nvu,BRVM,ABJC,2023-08-01,SIKAFINANCE,1320.0,fix,1390,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1390
+cmu3umdc8000yxwbs4668up49,BRVM,ABJC,2023-09-01,SIKAFINANCE,1250.0,fix,1300,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1300
+cmu3uml790024xwbs15ixwxxk,BRVM,ABJC,2023-10-02,SIKAFINANCE,1120.0,fix,1290,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1290
+cmu3umtfh003cxwbsgmmqlsu5,BRVM,ABJC,2023-11-01,SIKAFINANCE,1230.0,fix,1120,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1120
+cmu3uoe91004kxwbsitmhc5fp,BRVM,ABJC,2023-12-01,SIKAFINANCE,1330.0,fix,1210,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1210
+cmu3uom1m005qxwbsydqowtvw,BRVM,ABJC,2024-01-01,SIKAFINANCE,1390.0,fix,1330,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1330
+cmu3uoun30070xwbs0l7isw10,BRVM,ABJC,2024-02-01,SIKAFINANCE,1300.0,fix,1395,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1395
+cmu3uqn0s009cxwbsjxxwd8fk,BRVM,ABJC,2024-04-01,SIKAFINANCE,1600.0,fix,1280,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1280
+cmu3uqv9h00akxwbsw7c8ghg4,BRVM,ABJC,2024-05-01,SIKAFINANCE,1835.0,fix,1600,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1600
+cmu3utkkp0016u0izq90cktfw,BRVM,ABJC,2024-06-03,SIKAFINANCE,2000.0,fix,1835,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1835
+cmu3utrwu0028u0iz6cms44p9,BRVM,ABJC,2024-07-01,SIKAFINANCE,2250.0,fix,2020,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 2020
+cmu3uu0uo003iu0izirgujuvq,BRVM,ABJC,2024-08-01,SIKAFINANCE,2795.0,fix,2230,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 2230
+cmu3uvnta004qu0iz4u9ybsj2,BRVM,ABJC,2024-09-02,SIKAFINANCE,2300.0,fix,2790,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 2790
+cmu3uvvyj005wu0izeeue2cyj,BRVM,ABJC,2024-10-01,SIKAFINANCE,2200.0,fix,2300,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 2300
+cmu3uw4tf0076u0iz41pme5it,BRVM,ABJC,2024-11-01,SIKAFINANCE,1990.0,fix,2200,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 2200
+4f80e3f3-54df-4db8-8f9a-fdbe5397fbf6,BRVM,ABJC,2024-12-02,SIKAFINANCE,1900.0,fix,1980,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1980
+cmu334a2n0002s9j08mkdf8eu,BRVM,ABJC,2025-01-01,SIKAFINANCE,1835.0,fix,1900,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1900
+cmu334igs001as9j0ezfa3qqk,BRVM,ABJC,2025-02-03,SIKAFINANCE,1880.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1835.0 / 1835.0)"
+cmu336i6i004qs9j0e4sxx7p7,BRVM,ABJC,2025-05-01,SIKAFINANCE,1600.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1750.0 / 1635.0)"
+cmu336ik8004ss9j0506bau2s,BRVM,ABJC,2025-05-02,SIKAFINANCE,1700.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1750.0 / 1635.0)"
+cmu336qmq005ys9j0l9cskayh,BRVM,ABJC,2025-06-02,SIKAFINANCE,1720.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 1600.0 / 1660.0)"
+cmu338iq5008as9j0ybkhefx1,BRVM,ABJC,2025-08-01,SIKAFINANCE,1750.0,fix,1700,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1700
+cmu338wmv0006loqesuxx1yge,BRVM,ABJC,2025-10-01,SIKAFINANCE,2300.0,fix,1820,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 1820
+cmu3395fq001gloqerbt8unep,BRVM,ABJC,2025-11-03,SIKAFINANCE,2500.0,fix,2130,high,clôture mensuelle mal datée (début de mois) ; clôture Sika quotidienne du jour = 2130
+cmu339d55002kloqesmpcqy2n,BRVM,ABJC,2025-12-01,SIKAFINANCE,2900.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 2500.0 / 2545.0)"
+cmu33b0e6003uloqeob5cj6d5,BRVM,ABJC,2026-01-01,SIKAFINANCE,3000.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 2900.0 / 2800.0)"
+cmu33b8va0052loqepoedneb7,BRVM,ABJC,2026-02-02,SIKAFINANCE,3705.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3000.0 / 3095.0)"
+cmu33bhcr006aloqetsod03nz,BRVM,ABJC,2026-03-04,SIKAFINANCE,3150.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3705.0 / 3300.0)"
+cmu33d2mr007eloqekaw0ds0p,BRVM,ABJC,2026-04-01,SIKAFINANCE,3215.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3700.0 / 3600.0)"
+cmu33dbhd008oloqet6pqasjw,BRVM,ABJC,2026-05-04,SIKAFINANCE,2975.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3215.0 / 3095.0)"
+cmu33dj6q009sloqepi52ttep,BRVM,ABJC,2026-06-01,SIKAFINANCE,3280.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3185.0 / 2900.0)"
+cmu33djy5009wloqeey5z0q4t,BRVM,ABJC,2026-06-03,SIKAFINANCE,3055.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3185.0 / 2900.0)"
+cmu33dkbv009yloqethvop6cw,BRVM,ABJC,2026-06-04,SIKAFINANCE,3050.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3185.0 / 2900.0)"
+cmu33g8f6000ai4wkfj9pbbi3,BRVM,ABJC,2026-07-01,SIKAFINANCE,3000.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3280.0 / 3150.0)"
+cmu33gh9w001ki4wkxqxgpjvn,BRVM,ABJC,2026-08-03,SIKAFINANCE,3800.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3000.0 / 2800.0)"
+cmu33gpb6002qi4wkon5jwoo0,BRVM,ABJC,2026-09-01,SIKAFINANCE,3640.0,demote,,medium,"clôture mensuelle probablement mal datée (début de mois, voisins non-MANUEL ±45 j : 3800.0 / 3975.0)"
+cmu2zdru000qoavkkgta3v9pu,BRVM,BBGCI,2026-09-15,MANUEL,6750.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 9000.0)
+cmu2z9uyu005iavkk3z1ui1e6,BRVM,BOAB,2015-12-31,MANUEL,2000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 3250.0)
+cmu2z9vc2005kavkkhfyeonvm,BRVM,BOAB,2016-12-31,MANUEL,2500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 4200.0 / 4250.0)
+cmu2z9vpa005mavkkf77uxim2,BRVM,BOAB,2017-12-31,MANUEL,3000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3725.0 / 3575.0)
+cmu2z9xje005wavkke3oazp7e,BRVM,BOAB,2022-12-31,MANUEL,6000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 2975.0 / 2950.0)
+cmu2z9xwn005yavkk6aih5opi,BRVM,BOAB,2023-12-31,MANUEL,7200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3180.0 / 3200.0)
+cmu2z9y9u0060avkksgkbilll,BRVM,BOAB,2024-12-31,MANUEL,8500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 3670.0; Sika 3685)
+cmu2zbleb00ewavkkw8gmo6ac,BRVM,BOABF,2015-12-31,MANUEL,1500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 2950.0)
+cmu2zblrj00eyavkklpnlfolo,BRVM,BOABF,2016-12-31,MANUEL,1800.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3487.5 / 3500.0)
+cmu2zbm4r00f0avkkji6775p6,BRVM,BOABF,2017-12-31,MANUEL,2200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3575.0 / 3502.5)
+cmu2zbnyw00faavkkwynn16nn,BRVM,BOABF,2022-12-31,MANUEL,4400.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 2600.0 / 2505.0)
+cmu2zboc400fcavkkgnrmkp73,BRVM,BOABF,2023-12-31,MANUEL,5000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3490.0 / 3425.0)
+cmu2zbopb00feavkku7hp82rl,BRVM,BOABF,2024-12-31,MANUEL,5300.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 3005.0; Sika 3035)
+cmu2zcntw00koavkkylroiltr,BRVM,BOAN,2015-12-31,MANUEL,1200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 3798.13)
+cmu2zco7500kqavkkaldgg9x1,BRVM,BOAN,2016-12-31,MANUEL,1400.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 4326.88 / 4230.63)
+cmu2zcokc00ksavkkydh24e9j,BRVM,BOAN,2017-12-31,MANUEL,1700.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3093.75 / 2687.5)
+cmu2zcqed00l2avkk4qfzji48,BRVM,BOAN,2022-12-31,MANUEL,3200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3615.63 / 3593.75)
+cmu2zcr4v00l6avkkeco3em5z,BRVM,BOAN,2024-12-31,MANUEL,3600.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 2590.0; Sika 2575)
+cmu2zdgpu00p0avkkr2ydop9a,BRVM,BOAS,2015-12-31,MANUEL,2800.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 2366.67)
+cmu2zdh3200p2avkkmufgvt92,BRVM,BOAS,2016-12-31,MANUEL,3200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 1566.67 / 1600.0)
+cmu2zdhga00p4avkkhayho7sl,BRVM,BOAS,2017-12-31,MANUEL,3800.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 1666.67 / 1666.67)
+cmu2zdjak00peavkkw2ljzt0f,BRVM,BOAS,2022-12-31,MANUEL,6500.0,demote,,high,ligne annuelle MANUEL du 31/12 contredite par les clôtures Sika de la semaine (cf. audit)
+cmu2zdjns00pgavkkv6jdj684,BRVM,BOAS,2023-12-31,MANUEL,7000.0,demote,,high,ligne annuelle MANUEL du 31/12 contredite par les clôtures Sika de la semaine (cf. audit)
+cmu2zdk1200piavkk9bnxp2d6,BRVM,BOAS,2024-12-31,MANUEL,7500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 3100.0; Sika 3150)
+cmu2z9lan0042avkktb6rv34y,BRVM,CBIBF,2015-12-31,MANUEL,4000.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2z9lo10044avkknh8x7khc,BRVM,CBIBF,2016-12-31,MANUEL,5000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 8408.0 / 8789.0)
+cmu2z9m1f0046avkkiy8p19nr,BRVM,CBIBF,2017-12-31,MANUEL,6500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 10000.0 / 9490.0)
+cmu2z9nwb004gavkkl7pm4591,BRVM,CBIBF,2022-12-31,MANUEL,14500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 8390.0 / 8200.0)
+cmu2z9o9p004iavkkcy1kvul0,BRVM,CBIBF,2023-12-31,MANUEL,17000.0,demote,,high,ligne annuelle MANUEL du 31/12 contredite par les clôtures Sika de la semaine (cf. audit)
+cmu2z9on3004kavkk28ljkvnn,BRVM,CBIBF,2024-12-31,MANUEL,19500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 9885.0; Sika 9885)
+cmu2zaslq00akavkk4zsvugvf,BRVM,ECOC,2015-12-31,MANUEL,5500.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2zasyy00amavkkz5co3nnx,BRVM,ECOC,2016-12-31,MANUEL,7000.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2zatc600aoavkkffbvs4cw,BRVM,ECOC,2017-12-31,MANUEL,8500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5936.0 / 5098.0)
+cmu2zav6900ayavkks8vfbdc1,BRVM,ECOC,2022-12-31,MANUEL,14500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 4945.0 / 4855.0)
+cmu2zavjh00b0avkkfnmm7f9k,BRVM,ECOC,2023-12-31,MANUEL,15500.0,demote,,high,ligne annuelle MANUEL du 31/12 contredite par les clôtures Sika de la semaine (cf. audit)
+cmu2zavwp00b2avkki8utzbtn,BRVM,ECOC,2024-12-31,MANUEL,16200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 8600.0; Sika 8795)
+cmu2za4ig006yavkkwuszyujs,BRVM,LNBB,2024-12-31,MANUEL,3700.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 4845.0; Sika 4730)
+cmu2zaizg0094avkk7grpafhh,BRVM,NSBC,2015-12-31,MANUEL,6000.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2zajco0096avkkvo4aj1aw,BRVM,NSBC,2016-12-31,MANUEL,7500.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2zak33009aavkk5pbwo2rl,BRVM,NSBC,2018-12-31,MANUEL,10500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 6000.0 / 6000.0)
+cmu2zalk0009iavkknf3iu2cz,BRVM,NSBC,2022-12-31,MANUEL,15500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5975.0 / 5495.0)
+cmu2zalx8009kavkkno6hz3g5,BRVM,NSBC,2023-12-31,MANUEL,17000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 6000.0 / 5795.0)
+cmu2zamaf009mavkkivma8o3d,BRVM,NSBC,2024-12-31,MANUEL,18000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 7200.0; Sika 7090)
+cmu2zd73000nkavkkfuk6ovh3,BRVM,NTLC,2015-12-31,MANUEL,5000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 2500.0)
+cmu2zd7g900nmavkku2d8d0ec,BRVM,NTLC,2016-12-31,MANUEL,6000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 2650.0 / 2945.0)
+cmu2zd7tg00noavkkuldrr5jp,BRVM,NTLC,2017-12-31,MANUEL,7000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 1900.0 / 2000.0)
+cmu2zd8jz00nsavkk6jviwm1o,BRVM,NTLC,2019-12-31,MANUEL,8800.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 395.0 / 395.0)
+cmu2zd9np00nyavkkdku30fst,BRVM,NTLC,2022-12-31,MANUEL,11000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 8245.0 / 7950.0)
+cmu2zda0x00o0avkkgnq6of0l,BRVM,NTLC,2023-12-31,MANUEL,12000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 7385.0 / 7385.0)
+cmu2zdae600o2avkkp8dlfilm,BRVM,NTLC,2024-12-31,MANUEL,13000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 7950.0; Sika 7960)
+cmu2z9b5o002mavkk605ebyqn,BRVM,ONTBF,2015-12-31,MANUEL,1800.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2z9bj4002oavkkn2296n2b,BRVM,ONTBF,2016-12-31,MANUEL,1900.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 12000.0 / 10900.0)
+cmu2z9bwj002qavkksofydoe3,BRVM,ONTBF,2017-12-31,MANUEL,2000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 9560.0 / 8200.0)
+cmu2z9drl0030avkke5lo4arl,BRVM,ONTBF,2022-12-31,MANUEL,2700.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3200.0 / 3200.0)
+cmu2z9e550032avkk8adpq7nd,BRVM,ONTBF,2023-12-31,MANUEL,2750.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 2280.0 / 2210.0)
+cmu2z9eij0034avkkp18dlvan,BRVM,ONTBF,2024-12-31,MANUEL,2800.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 2290.0; Sika 2295)
+cmu2z96op001yavkknc9l5yyk,BRVM,ORAC,2022-12-31,MANUEL,12000.0,demote,,high,ligne annuelle MANUEL du 31/12 contredite par les clôtures Sika de la semaine (cf. audit)
+cmu2z97230020avkkx6rfched,BRVM,ORAC,2023-12-31,MANUEL,14500.0,demote,,high,ligne annuelle MANUEL du 31/12 contredite par les clôtures Sika de la semaine (cf. audit)
+cmu2z97fj0022avkklwex1yux,BRVM,ORAC,2024-12-31,MANUEL,15200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 17550.0; Sika 17500)
+cmu2zce7p00j8avkktvtai6uq,BRVM,PALC,2015-12-31,MANUEL,2200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 11200.0)
+cmu2zcekw00jaavkkpvbpscl0,BRVM,PALC,2016-12-31,MANUEL,2600.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 14000.0 / 13000.0)
+cmu2zcey500jcavkkpji70jc8,BRVM,PALC,2017-12-31,MANUEL,3200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5500.0 / 5600.0)
+cmu2zcgut00jmavkkus58h0ws,BRVM,PALC,2022-12-31,MANUEL,6500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 10385.0 / 9995.0)
+cmu2zchl900jqavkkog94djq6,BRVM,PALC,2024-12-31,MANUEL,7500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 5265.0; Sika 5000)
+cmu2zbv0r00gcavkk84dinzc5,BRVM,SDCC,2015-12-31,MANUEL,3000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 9850.0)
+cmu2zbve000geavkkb414mfi3,BRVM,SDCC,2016-12-31,MANUEL,3500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 8450.0 / 7300.0)
+cmu2zbvr800ggavkkikuscxsy,BRVM,SDCC,2017-12-31,MANUEL,4200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5910.0 / 5900.0)
+cmu2zbxld00gqavkkexa1scet,BRVM,SDCC,2022-12-31,MANUEL,8500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5465.0 / 5350.0)
+cmu2zbxyl00gsavkkaqwz1ioz,BRVM,SDCC,2023-12-31,MANUEL,9500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 4770.0 / 4700.0)
+cmu2zbybt00guavkkpfo99zmf,BRVM,SDCC,2024-12-31,MANUEL,10500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 5700.0; Sika 5685)
+cmu2zc4nh00hsavkk1behj7mn,BRVM,SDSC,2015-12-31,MANUEL,600.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 5837.0)
+cmu2zc50o00huavkkyecarlev,BRVM,SDSC,2016-12-31,MANUEL,650.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5940.0 / 5494.5)
+cmu2zc5dw00hwavkkfrwbu6ph,BRVM,SDSC,2017-12-31,MANUEL,700.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 4990.0 / 4800.0)
+cmu2zc77y00i6avkkovhdhwo1,BRVM,SDSC,2022-12-31,MANUEL,1200.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 1395.0 / 1375.0)
+cmu2zc7ye00iaavkk9ahm3hfg,BRVM,SDSC,2024-12-31,MANUEL,1550.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 1335.0; Sika 1340)
+cmu2za9cv007oavkkvhdwvefl,BRVM,SGBC,2015-12-31,MANUEL,15000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 13000.0)
+cmu2za9q3007qavkk5tl44ihr,BRVM,SGBC,2016-12-31,MANUEL,18000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 14600.0 / 13800.0)
+cmu2zaa3b007savkk0r5hxfmm,BRVM,SGBC,2017-12-31,MANUEL,21000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 11550.0 / 11600.0)
+cmu2zabxd0082avkki0y6wf4k,BRVM,SGBC,2022-12-31,MANUEL,34000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 11605.0 / 11500.0)
+cmu2zacan0084avkknzlfhe77,BRVM,SGBC,2023-12-31,MANUEL,35000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 16050.0 / 15800.0)
+cmu2zacnv0086avkk1n61acsg,BRVM,SGBC,2024-12-31,MANUEL,36500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 20485.0; Sika 21000)
+cmu2zbbs100dgavkkim3c2tp1,BRVM,SLBC,2015-12-31,MANUEL,18000.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2zbc5900diavkkc2rck6t5,BRVM,SLBC,2016-12-31,MANUEL,20000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 17737.5 / 16500.0)
+cmu2zbcii00dkavkkqt8h217k,BRVM,SLBC,2017-12-31,MANUEL,23000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 12500.0 / 12300.0)
+cmu2zbcvq00dmavkkmqf4vkes,BRVM,SLBC,2018-12-31,MANUEL,25000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5600.0 / 5880.0)
+cmu2zbd8y00doavkkhxytrif6,BRVM,SLBC,2019-12-31,MANUEL,27000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 4500.0 / 4300.0)
+cmu2zbdm600dqavkkfmkq1kxv,BRVM,SLBC,2020-12-31,MANUEL,30000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5090.0 / 5100.0)
+cmu2zbdzd00dsavkkvky2nhmo,BRVM,SLBC,2021-12-31,MANUEL,34000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 15600.0 / 14500.0)
+cmu2zbecl00duavkkwku2x5xp,BRVM,SLBC,2022-12-31,MANUEL,36000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 8325.0 / 8400.0)
+cmu2zbept00dwavkk2o0fzsyu,BRVM,SLBC,2023-12-31,MANUEL,37000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 8700.0 / 8800.0)
+cmu2zbf3000dyavkkxlq8xjod,BRVM,SLBC,2024-12-31,MANUEL,38000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 13900.0; Sika 12950)
+cmu2z8wx7000iavkkb24xh8ig,BRVM,SNTS,2015-12-31,MANUEL,14000.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2z8xan000kavkkanuzfsti,BRVM,SNTS,2016-12-31,MANUEL,16000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 25000.0 / 24300.0)
+cmu2z8xo1000mavkkmah8sgfp,BRVM,SNTS,2017-12-31,MANUEL,18500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 23500.0 / 22400.0)
+cmu2z8zj4000wavkkf7xga20f,BRVM,SNTS,2022-12-31,MANUEL,25500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 15200.0 / 15160.0)
+cmu2z8zwj000yavkkgw2tgm8e,BRVM,SNTS,2023-12-31,MANUEL,27000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 17980.0 / 17995.0)
+cmu2z909x0010avkk2kbizqzz,BRVM,SNTS,2024-12-31,MANUEL,27500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 23900.0; Sika 24000)
+cmu2zb25e00c0avkk56ebn8c5,BRVM,STBC,2015-12-31,MANUEL,6000.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2zb2vt00c4avkk9jx426hk,BRVM,STBC,2017-12-31,MANUEL,8500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 3600.0 / 3350.0)
+cmu2zb3m900c8avkkr54tlm1r,BRVM,STBC,2019-12-31,MANUEL,10500.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 605.0 / 600.0)
+cmu2zb3zh00caavkkfk88tkp6,BRVM,STBC,2020-12-31,MANUEL,12000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 530.0 / 530.0)
+cmu2zb4sj00ceavkkt6v94jy2,BRVM,STBC,2022-12-31,MANUEL,18000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 6850.0 / 6900.0)
+cmu2zb55p00cgavkk78yelvjx,BRVM,STBC,2023-12-31,MANUEL,19000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 5945.0 / 5650.0)
+cmu2zb5j100ciavkkcn4mook9,BRVM,STBC,2024-12-31,MANUEL,20000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 7295.0; Sika 7300)
+cmu2zcxg700m4avkk780runtv,BRVM,TTLS,2015-12-31,MANUEL,1400.0,demote,,medium,point d'ancrage MANUEL isolé (aucune séance à ±45 j) ; même source que 93 lignes fausses
+cmu2zcxte00m6avkk3metqwnn,BRVM,TTLS,2016-12-31,MANUEL,1600.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 2139.0 / 1950.0)
+cmu2zd00t00miavkkbfaelr32,BRVM,TTLS,2022-12-31,MANUEL,2800.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 2535.0 / 2350.0)
+cmu2zd0e300mkavkkp8u6ki0f,BRVM,TTLS,2023-12-31,MANUEL,3000.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : 2500.0 / 2400.0)
+cmu2zd0rd00mmavkk5gugr1l8,BRVM,TTLS,2024-12-31,MANUEL,3100.0,demote,,high,ligne annuelle MANUEL du 31/12 incohérente (voisins non-MANUEL ±45 j : — / 2300.0; Sika 2300)
+68077a70-ed74-4d95-a303-671a6c484a71,NGX,CONHALLPLC,2023-11-27,NGX_OFFICIEL,0.5,demote,,medium,"pic isolé 1,09 → 0,50 → 1,19"

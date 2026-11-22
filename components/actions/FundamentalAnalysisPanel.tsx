@@ -715,7 +715,7 @@ function Price({
         <Stat label={withYear(t("company.fundamental.field.debt"), price.debtRatioYear, null)} value={pct(price.debtRatio, 1)} />
         <Stat label={withYear(t("company.fundamental.field.fcf"), price.fcfYear, null)} value={bn(price.fcfBn)} />
         <Stat
-          label={t("company.fundamental.field.eps")}
+          label={t(price.epsSource === "reported" ? "company.fundamental.field.epsReported" : "company.fundamental.field.eps")}
           value={price.impliedEps == null ? nd : `${fcfa(price.impliedEps)}${price.impliedEpsYear ? ` · ${price.impliedEpsYear}` : ""}`}
         />
         <Stat label={t("company.fundamental.field.avgValue")} value={liq.avgDailyValueFcfa == null ? nd : format.integer(liq.avgDailyValueFcfa)} />
@@ -756,7 +756,14 @@ function Price({
       {price.epsBlocked === "negative" ? <p className={styles.note}>{t("company.fundamental.negativeEpsNote")}</p> : null}
       <p className={styles.note}>{marketCopy(t, market, "ratiosNote")}</p>
       <p className={styles.note}>
-        {t("company.fundamental.epsNote", { year: price.impliedEpsYear ?? "" })} {marketCopy(t, market, "noEquity")}
+        {t(
+          price.epsSource === "reported"
+            ? "company.fundamental.epsNoteReported"
+            : price.epsSource === "period"
+              ? "company.fundamental.epsNotePeriod"
+              : "company.fundamental.epsNote",
+          { year: price.impliedEpsYear ?? "" },
+        )} {marketCopy(t, market, "noEquity")}
       </p>
     </>
   );
@@ -1026,7 +1033,10 @@ function Dividends({
   return (
     <>
       <div className={styles.grid}>
-        <Stat label={t("company.fundamental.field.dps")} value={fcfa(d.currentDps)} />
+        <Stat
+          label={t("company.fundamental.field.dps")}
+          value={d.currentDps === 0 ? t("company.fundamental.table.noDividend") : fcfa(d.currentDps)}
+        />
         <Stat label={t("company.fundamental.field.yield")} value={pct(d.currentYieldPercent, 2)} />
         <Stat
           label={t("company.fundamental.field.yearsPaid")}
@@ -1063,7 +1073,7 @@ function Dividends({
             {d.lines.map((l) => (
               <tr key={l.year}>
                 <td>{l.year}</td>
-                <td>{format.decimal(l.dps, 2)}</td>
+                <td>{l.dps === 0 ? t("company.fundamental.table.noDividend") : format.decimal(l.dps, 2)}</td>
                 <td>{pct(l.payoutPercent, 0)}</td>
                 <td>{day(l.exDate)}</td>
                 <td>{day(l.paymentDate)}</td>

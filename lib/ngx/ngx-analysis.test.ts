@@ -11,6 +11,7 @@ import {
   dividendYearsPaid,
   dividendYieldPercent,
   earningsPerShare,
+  resolveEarningsPerShare,
   estimateFairValues,
   grahamNumber,
   marketCapBn,
@@ -48,6 +49,24 @@ describe("ratios de base", () => {
     expect(dividendYieldPercent(1, 0)).toBeNull();
     expect(returnOnEquityPercent(10, -3)).toBeNull();
     expect(marketCapBn(null, 1e9)).toBeNull();
+  });
+
+  it("BPA : publié d'abord, puis titres de l'exercice, puis titres actuels", () => {
+    expect(resolveEarningsPerShare({ reportedEps: 0.6475, netIncomeBn: 2.7, currentShares: 8_340_891_440 })).toEqual({
+      eps: 0.6475,
+      source: "reported",
+    });
+    const period = resolveEarningsPerShare({
+      netIncomeBn: 2.7,
+      periodShares: 4_170_445_720,
+      currentShares: 8_340_891_440,
+    });
+    expect(period.source).toBe("period");
+    expect(period.eps).toBeCloseTo(0.6475, 3);
+    const current = resolveEarningsPerShare({ netIncomeBn: 2.7, currentShares: 8_340_891_440 });
+    expect(current.source).toBe("current");
+    expect(current.eps).toBeCloseTo(0.3237, 3);
+    expect(resolveEarningsPerShare({})).toEqual({ eps: null, source: null });
   });
 
   it("CAGR et médiane", () => {
@@ -393,6 +412,8 @@ describe("dividende non confirmé (N/D, jamais 0)", () => {
   it("currentDividend : ligne récente = valeur, ligne ancienne = null, aucune ligne = NONE", () => {
     expect(currentDividend([], 2025)).toEqual({ dps: null, year: null, status: "NONE" });
     expect(currentDividend([{ year: 2025, dps: 3 }], 2025)).toEqual({ dps: 3, year: 2025, status: "CONFIRMED" });
+    expect(currentDividend([{ year: 2025, dps: 0 }], 2025)).toEqual({ dps: 0, year: 2025, status: "CONFIRMED" });
+
     expect(currentDividend([{ year: 2024, dps: 3 }], 2025)).toEqual({ dps: 3, year: 2024, status: "CONFIRMED" });
     expect(currentDividend([{ year: 2022, dps: 3 }], 2025)).toEqual({ dps: null, year: 2022, status: "UNCONFIRMED" });
   });

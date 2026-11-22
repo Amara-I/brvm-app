@@ -15,11 +15,13 @@ export default function NgxChart({
   symbol,
   universe,
   isAuthenticated = false,
+  gatedVisitor = false,
 }: {
   symbol: string;
   universe: ChartUniverseItem[];
   /** Connecté : analyses sauvegardées et alertes de cours (comme sur la BRVM). */
   isAuthenticated?: boolean;
+  gatedVisitor?: boolean;
 }) {
   return (
     <LazyChartWorkbench
@@ -28,6 +30,7 @@ export default function NgxChart({
       initialTicker={symbol}
       embedded
       isAuthenticated={isAuthenticated}
+      gatedVisitor={gatedVisitor}
     />
   );
 }

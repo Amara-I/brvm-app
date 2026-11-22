@@ -496,6 +496,7 @@ export const ngx = {
       exDate: "Ex-date",
       paymentDate: "Payment",
       empty: "No dividend listed for this company.",
+      none: "No dividend",
       note: "Payout ratio = dividend ÷ EPS of the year, when EPS is known.",
     },
     chartAnalysis: {

@@ -1,0 +1,94 @@
+# Veille de la taille de la base Supabase (plan Free : 500 Mo).
+#
+# Appelle /api/cron/db-size en production, chaque jour ouvré à 08:15 UTC
+# (≈ 09:15 Europe/Paris en hiver, 10:15 en été). L'endpoint mesure la taille
+# et, au-dessus de 350 Mo (DB_SIZE_ALERT_MB), envoie un e-mail via le
+# transporteur déjà configuré sur Vercel (SMTP_* + EMAIL_FROM).
+#
+# Secret : CRON_SECRET (secret du dépôt), envoyé dans l'en-tête
+# « Authorization: Bearer … » attendu par lib/security/cron-auth.ts.
+# Aucun changement de vercel.json (plan Hobby : crons quotidiens seulement).
+# Ne jamais afficher CRON_SECRET, DATABASE_URL ni SMTP_PASS.
+
+name: Veille taille base Supabase
+
+on:
+  schedule:
+    - cron: "15 8 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: db-size-watch
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      PROD_URL: ${{ vars.PROD_URL || 'https://brwm-app.vercel.app' }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+    steps:
+      - name: Vérifier le secret
+        run: |
+          if [ -z "$CRON_SECRET" ]; then
+            echo "::error::Secret CRON_SECRET absent du dépôt."
+            exit 1
+          fi
+
+      - name: Mesurer la taille de la base
+        run: |
+          body="$(mktemp)"
+          if ! curl --fail-with-body --silent --show-error \
+              --retry 2 --retry-delay 20 --retry-all-errors \
+              --connect-timeout 15 --max-time 60 \
+              -H "Authorization: Bearer ${CRON_SECRET}" \
+              -H "Accept: application/json" \
+              -o "$body" \
+              "${PROD_URL}/api/cron/db-size"; then
+            echo "::error::Échec de la veille taille base (réponse HTTP non 200)."
+            if command -v jq >/dev/null && jq -e . "$body" >/dev/null 2>&1; then
+              jq -c '{ok,error}' "$body" || true
+            fi
+            exit 1
+          fi
+
+          if ! jq -e '.ok == true and (.data.sizeMb | type == "number")' "$body" >/dev/null; then
+            echo "::error::Réponse illisible ou incomplète."
+            exit 1
+          fi
+
+          size_mb="$(jq -r '.data.sizeMb' "$body")"
+          threshold="$(jq -r '.data.thresholdMb' "$body")"
+          plan="$(jq -r '.data.planLimitMb' "$body")"
+          pct="$(jq -r '.data.usagePercent' "$body")"
+          over="$(jq -r '.data.overThreshold' "$body")"
+          alert="$(jq -r '.data.alert | {needed,sent,recipientCount,skipped} | tostring' "$body")"
+
+          echo "Taille : ${size_mb} Mo / ${plan} Mo (${pct} %)"
+          echo "Seuil d'alerte : ${threshold} Mo"
+          echo "Au-dessus du seuil : ${over}"
+          echo "Alerte : ${alert}"
+          echo
+          echo "Tables les plus volumineuses :"
+          jq -r '.data.tables[]? | "- \(.name) : \(.sizeMb) Mo, ~\(.rowCount) lignes"' "$body"
+
+          {
+            echo "### Veille taille base Supabase"
+            echo
+            echo "- Taille : **${size_mb} Mo** / ${plan} Mo (${pct} %)"
+            echo "- Seuil d'alerte : ${threshold} Mo"
+            echo "- Au-dessus du seuil : \`${over}\`"
+            echo "- Alerte : \`${alert}\`"
+            echo
+            echo "| Table | Mo | Lignes (estim.) |"
+            echo "| --- | ---: | ---: |"
+            jq -r '.data.tables[]? | "| \(.name) | \(.sizeMb) | \(.rowCount) |"' "$body"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$over" = "true" ]; then
+            echo "::warning::Base à ${size_mb} Mo, au-dessus du seuil de ${threshold} Mo (plafond ${plan} Mo)."
+          fi

@@ -23,6 +23,29 @@ export function earningsPerShare(netIncomeBn: number | null, shares: number | nu
   return (netIncomeBn * BN) / shares;
 }
 
+/** Origine du BPA retenu : publié, titres de l'exercice, ou titres actuels (dernier recours). */
+export type EpsSource = "reported" | "period" | "current";
+
+/**
+ * BPA à afficher et à utiliser en valorisation.
+ * 1. BPA publié de l'exercice, s'il est connu (jamais recalculé avec les titres d'aujourd'hui).
+ * 2. Sinon résultat net ÷ titres de l'exercice.
+ * 3. Sinon seulement, résultat net ÷ titres actuellement en circulation (BRVM, ou exercice sans titres historiques).
+ */
+export function resolveEarningsPerShare(input: {
+  reportedEps?: number | null;
+  netIncomeBn?: number | null;
+  periodShares?: number | null;
+  currentShares?: number | null;
+}): { eps: number | null; source: EpsSource | null } {
+  if (finite(input.reportedEps)) return { eps: input.reportedEps, source: "reported" };
+  const fromPeriod = earningsPerShare(input.netIncomeBn ?? null, input.periodShares ?? null);
+  if (fromPeriod != null) return { eps: fromPeriod, source: "period" };
+  const fromCurrent = earningsPerShare(input.netIncomeBn ?? null, input.currentShares ?? null);
+  if (fromCurrent != null) return { eps: fromCurrent, source: "current" };
+  return { eps: null, source: null };
+}
+
 /** Actif net par action en ₦ à partir des capitaux propres (milliards de ₦). */
 export function bookValuePerShare(equityBn: number | null, shares: number | null): number | null {
   if (!finite(equityBn) || !finite(shares) || shares <= 0) return null;

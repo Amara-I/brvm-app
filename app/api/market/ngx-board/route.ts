@@ -4,6 +4,7 @@
 
 import { apiError, apiSuccess, privateCacheHeaders } from "@/lib/api/response";
 import { getI18n } from "@/lib/i18n/get-i18n";
+import { getViewer, presentNgxOverviewBoard } from "@/lib/entitlements";
 import { loadNgxOverviewBoard } from "@/lib/markets/load-ngx-overview-board";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +13,8 @@ export const runtime = "nodejs";
 export async function GET() {
   try {
     const { t } = getI18n();
-    const board = await loadNgxOverviewBoard(t);
-    return apiSuccess(board, { headers: privateCacheHeaders() });
+    const [board, viewer] = await Promise.all([loadNgxOverviewBoard(t), getViewer()]);
+    return apiSuccess(presentNgxOverviewBoard(board, viewer), { headers: privateCacheHeaders() });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return apiError("Échec du chargement de la vue d'ensemble NGX", 500, message);

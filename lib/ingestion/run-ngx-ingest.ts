@@ -14,6 +14,11 @@ import { persistIndexQuotes, persistPriceQuotes } from "./persist";
 import { reconcileIndexBatch, reconcilePriceBatch } from "./reconciliation";
 import type { NgxListingQuote } from "./ngx/listing-quote";
 import { loadNgxCover, loadNgxEquities } from "./ngx/load-session";
+import { ngxNamedListings, type NamedListing } from "./ngx/daily-summary";
+import { recentWeekdays, shiftIsoDate } from "./ngx/dates";
+import { ngxCanonicalCountsByDate } from "./ngx/session-counts";
+import { NGX_SESSION_WINDOW_DAYS, sessionCompleteIn } from "./ngx/session-completeness";
+import { applyNgxTickerAliases } from "./ngx/ticker-aliases";
 import { chooseCompanyName, colorForTicker, sectorSlug } from "./ngx/names";
 import type { RawIndexQuote, RawPriceQuote } from "./types";
 
@@ -34,8 +39,17 @@ export interface NgxIngestSummary {
   fxStored: boolean;
   chartsUpdated: number;
   kind: string | null;
+  /** Séances récentes manquantes ou partielles rattrapées par ce run. */
+  caughtUp: string[];
   errors: string[];
 }
+
+/** Jours de semaine relus derrière la séance du jour. */
+export const NGX_CATCH_UP_WEEKDAYS = 7;
+/** Séances tentées au plus par run (le budget NGX quotidien est ~25 s). */
+export const NGX_CATCH_UP_MAX = 2;
+/** Temps minimal restant pour tenter une séance (2 PDF doclib + délai 2 s). */
+const CATCH_UP_MIN_MS = 9_000;
 
 const UNCLASSIFIED = "UNCLASSIFIED";
 
@@ -210,6 +224,7 @@ export async function runNgxDailyIngest(options: NgxIngestOptions = {}): Promise
     fxStored: false,
     chartsUpdated: 0,
     kind: null,
+    caughtUp: [],
     errors: [],
   };
 
@@ -226,12 +241,13 @@ export async function runNgxDailyIngest(options: NgxIngestOptions = {}): Promise
   try {
     const existing = await db.company.findMany({
       where: { exchange: "NGX" },
-      select: { ticker: true, name: true },
+      select: { id: true, ticker: true, name: true, profileMeta: true },
     });
+    const named = ngxNamedListings(existing);
     const loaded = await loadNgxEquities({
       now: options.now,
       deadlineMs: deadline,
-      listings: existing.map((row) => ({ ticker: row.ticker, name: row.name })),
+      listings: named,
       walkbackDays: 6,
     });
     if (!loaded.ok) {
@@ -287,6 +303,23 @@ export async function runNgxDailyIngest(options: NgxIngestOptions = {}): Promise
       }
     }
 
+    // Rattrapage : une séance ratée (cron hors délai, JSON resté sur la veille,
+    // PDF publié tard) n'était jamais reprise — le run suivant ne lit que la
+    // dernière séance. On relit les séances récentes absentes ou partielles.
+    if (loaded.ok) {
+      try {
+        summary.caughtUp = await catchUpRecentNgxSessions(db, {
+          latestIso: loaded.date,
+          deadline,
+          listings: named,
+          companyIdByTicker: new Map(existing.map((row) => [row.ticker.toUpperCase(), row.id])),
+          logger: options.logger,
+        });
+      } catch (err) {
+        summary.errors.push(`rattrapage : ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
     if (options.refreshCharts !== false && (deadline == null || Date.now() < deadline - 3_000)) {
       const left = deadline != null ? deadline - Date.now() : 12_000;
       const charts = await refreshChartSeries(
@@ -326,4 +359,56 @@ export async function runNgxDailyIngest(options: NgxIngestOptions = {}): Promise
 
   log(options, `fin status=${summary.status} quotes=${summary.quotes} indices=${summary.indices}`);
   return summary;
+}
+
+/**
+ * Relit, derrière `latestIso`, les séances de semaine sans cours ou partielles
+ * (< 90 % du volume des séances voisines) et les complète depuis les PDF
+ * officiels. Additif : persistNgxQuotes ne fait qu'upserter des clôtures du
+ * jour lu. Borné par `maxSessions` et le temps restant ; un jour férié (404)
+ * est simplement passé.
+ */
+export async function catchUpRecentNgxSessions(
+  db: PrismaClient,
+  opts: {
+    latestIso: string;
+    deadline?: number;
+    listings: NamedListing[];
+    companyIdByTicker: Map<string, string>;
+    lookbackWeekdays?: number;
+    maxSessions?: number;
+    logger?: (msg: string) => void;
+  }
+): Promise<string[]> {
+  const lookback = opts.lookbackWeekdays ?? NGX_CATCH_UP_WEEKDAYS;
+  const maxSessions = opts.maxSessions ?? NGX_CATCH_UP_MAX;
+  const latest = opts.latestIso.slice(0, 10);
+  const days = recentWeekdays(shiftIsoDate(latest, -1), lookback);
+  if (days.length === 0 || maxSessions <= 0) return [];
+  const oldest = days[days.length - 1]!;
+  const counts = await ngxCanonicalCountsByDate(db, shiftIsoDate(oldest, -NGX_SESSION_WINDOW_DAYS), latest);
+  const todo = days.filter((iso) => !sessionCompleteIn(counts, iso));
+  const knownTickers = new Set(opts.companyIdByTicker.keys());
+  const caughtUp: string[] = [];
+  let attempts = 0;
+  for (const iso of todo) {
+    if (attempts >= maxSessions) break;
+    if (opts.deadline != null && Date.now() > opts.deadline - CATCH_UP_MIN_MS) break;
+    attempts++;
+    const loaded = await loadNgxEquities({
+      onlyDate: iso,
+      allowJson: false,
+      listings: opts.listings,
+      deadlineMs: opts.deadline,
+    });
+    if (!loaded.ok) {
+      (opts.logger ?? console.log)(`[ngx] rattrapage ${iso} : ${loaded.absent ? "absent (férié ?)" : loaded.warnings.join(" | ")}`);
+      continue;
+    }
+    const aliased = applyNgxTickerAliases(loaded.quotes, knownTickers);
+    const n = await persistNgxQuotes(db, aliased.quotes, opts.companyIdByTicker, new Date().toISOString());
+    if (n > 0) caughtUp.push(iso);
+    (opts.logger ?? console.log)(`[ngx] rattrapage ${iso} ${loaded.kind} ${n} cours`);
+  }
+  return caughtUp;
 }

@@ -1,5 +1,6 @@
 // Backfill NGX sur 5 ans : PDF « Daily Official List » (repli Daily Summary).
-// Idempotent (une date avec ≥ 80 clôtures canoniques est sautée) et reprenable.
+// Idempotent (une séance déjà complète est sautée : ≥ 90 % du volume des
+// séances voisines, cf. ngx/session-completeness.ts) et reprenable.
 // Le CLI écrit `.cache/ngx-backfill.json`. Le cron Vercel n'a pas de disque
 // durable : la reprise est le champ `next` + `absentDates` du dernier
 // `ingestion_logs` (errors.kind = NGX_HISTORY), ou le query `cursor`.
@@ -12,8 +13,11 @@ import { IngestionStatus } from "@prisma/client";
 import { refreshChartSeries } from "@/lib/charts/refresh-chart-series";
 import { fetchEurNgnRate, upsertEurNgnRate } from "@/lib/markets/fx";
 import { prisma } from "@/lib/prisma";
-import { calendarDaysBetween, isoDate, weekdaysBetween } from "./ngx/dates";
+import { calendarDaysBetween, isoDate, shiftIsoDate, weekdaysBetween } from "./ngx/dates";
 import { loadNgxCover, loadNgxEquities, loadNgxSummaryQuotes } from "./ngx/load-session";
+import { ngxNamedListings } from "./ngx/daily-summary";
+import { ngxCanonicalCountsByDate } from "./ngx/session-counts";
+import { expectedSessionCount, isNgxSessionComplete, NGX_SESSION_WINDOW_DAYS } from "./ngx/session-completeness";
 import { applyNgxTickerAliases, NGX_SUMMARY_ONLY, NGX_TICKER_ALIASES } from "./ngx/ticker-aliases";
 import { persistNgxIndices, persistNgxQuotes, upsertNgxListings } from "./run-ngx-ingest";
 
@@ -21,7 +25,6 @@ const LOG_KIND = "NGX_HISTORY";
 const LOG_KIND_REFILL = "NGX_HISTORY_REFILL";
 /** Tickers longs : le parseur de la liste officielle les perdait quand le PDF les collait au nom. */
 const LONG_TICKER_MIN = 10;
-const DONE_COUNT = 80;
 /** Plancher : ne pas lancer une séance s'il reste moins que ça (timeout doclib = 25 s). */
 const MIN_SLICE_MS = 25_000;
 /** Marge sur la séance la plus longue déjà vue dans ce chunk. */
@@ -50,7 +53,7 @@ export interface NgxHistoryOptions {
   tryJson?: boolean;
   resume?: boolean;
   /**
-   * Rattrapage ciblé : retraite aussi les séances déjà complètes (≥ 80 clôtures)
+   * Rattrapage ciblé : retraite aussi les séances déjà complètes
    * mais n'écrit QUE les cours manquants des tickers visés (anciens codes
    * rattachés, tickers longs, titres du Daily Summary seul). Ne touche à aucune
    * ligne existante. Ignore le checkpoint fichier ; enchaîner avec `cursor`.
@@ -253,7 +256,7 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
       // L'historique n'en crée ni n'en renomme : il n'écrit que des cours.
       const companyRows = await db.company.findMany({
         where: { exchange: "NGX" },
-        select: { id: true, ticker: true, name: true },
+        select: { id: true, ticker: true, name: true, profileMeta: true },
       });
       const companyIdByTicker = new Map(companyRows.map((row) => [row.ticker.toUpperCase(), row.id]));
       const knownTickers = new Set(companyIdByTicker.keys());
@@ -278,7 +281,17 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
         }
         log(options, `rattrapage : ${refillTargets.size} tickers visés (${[...refillTargets].sort().join(", ")})`);
       }
-      const named = companyRows.map((row) => ({ ticker: row.ticker, name: row.name }));
+      // Nom affiché + raison sociale officielle : le Daily Summary porte la
+      // raison sociale, l'appariement sur le seul nom en perdait ~30 %.
+      const named = ngxNamedListings(companyRows);
+      // Comptes par séance (une requête) : une séance partielle est retraitée.
+      const sessionCounts = refill
+        ? new Map<string, number>()
+        : await ngxCanonicalCountsByDate(
+            db,
+            shiftIsoDate(days[cursor] ?? from, -NGX_SESSION_WINDOW_DAYS),
+            shiftIsoDate(to, NGX_SESSION_WINDOW_DAYS)
+          ).catch(() => new Map<string, number>());
       const wantIndices = options.indices !== false && !refill;
       const asiDates = wantIndices ? await datesWithAsi(db, days[cursor] ?? from, to).catch(() => new Set<string>()) : new Set<string>();
       let longestSliceMs = 0;
@@ -307,8 +320,10 @@ export async function runNgxHistoryBackfill(options: NgxHistoryOptions = {}): Pr
           break;
         }
         const sliceStart = Date.now();
-        const count = refill ? 0 : done.has(iso) ? DONE_COUNT : await canonicalCount(db, iso);
-        if (count >= DONE_COUNT) {
+        const count = refill ? 0 : done.has(iso) ? Number.POSITIVE_INFINITY : sessionCounts.size > 0
+              ? sessionCounts.get(iso) ?? 0
+              : await canonicalCount(db, iso);
+        if (count > 0 && isNgxSessionComplete(count, expectedSessionCount(sessionCounts, iso))) {
           done.add(iso);
           skippedCanonical++;
           // Cours déjà en base : il ne manque peut-être que le niveau d'indice.

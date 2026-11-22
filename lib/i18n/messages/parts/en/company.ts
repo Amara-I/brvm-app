@@ -109,6 +109,7 @@ export const company = {
     seriesYield: "Yield",
     fiscalYear: "Fiscal year {year}",
     empty: "No dividend on record (N/D).",
+    none: "No dividend",
     calendar: "Dividend calendar →",
   },
   income: {
@@ -436,7 +437,11 @@ export const company = {
     year: "Fiscal year {year}",
     stale: "Latest accounts: {year}. They are too old to value multiples on the current price — those ratios stay N/D.",
     epsNote:
-      "Indicative EPS {year} = net income ÷ shares outstanding. This is not a published EPS. If either figure is missing, EPS stays N/D.",
+      "Indicative EPS {year} = net income ÷ shares currently outstanding. This is not a published EPS. If either figure is missing, EPS stays N/D.",
+    epsNotePeriod:
+      "Indicative EPS {year} = net income ÷ shares outstanding during the fiscal year. If either figure is missing, EPS stays N/D.",
+    epsNoteReported:
+      "Published EPS for fiscal year {year}, as recorded in the accounts. It is not recalculated with the current share count.",
     noEquity: "Book value per share: N/D (equity is not stored). Graham number and a recomputed P/B are not estimated.",
     accountsNote: "Accounts in billions of FCFA, as stored. A missing value stays N/D.",
     ratiosNote: "P/E, P/B, ROE, margin, debt and cash flow: latest canonical value. Zero or missing → N/D.",
@@ -557,6 +562,7 @@ export const company = {
       debt: "Leverage",
       fcf: "Free cash flow",
       eps: "Indicative EPS",
+      epsReported: "Published EPS",
       avgValue: "Value traded / session",
       avgVolume: "Average volume (shares)",
       traded: "Sessions with a trade",
@@ -605,6 +611,7 @@ export const company = {
       exDate: "Ex-date",
       payment: "Payment",
       unconfirmed: "Dividend not confirmed for this year",
+      noDividend: "No dividend",
     },
     verdict: {
       presentation: {
