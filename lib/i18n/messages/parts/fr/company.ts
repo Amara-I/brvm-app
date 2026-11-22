@@ -71,6 +71,9 @@ export const company = {
     oneYear: "1 an",
     fiveYears: "5 ans",
   },
+  essentials: {
+    title: "L'essentiel",
+  },
   keyData: {
     title: "Données financières clés",
     meta: "indicateurs disponibles en base — pas de chiffres inventés",

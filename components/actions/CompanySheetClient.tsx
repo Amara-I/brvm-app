@@ -736,6 +736,24 @@ export default function CompanySheetClient({
       {resolvedTab === "overview" && (
         <div className={styles.layout}>
           <div className={styles.mainCol}>
+            <section className={styles.essentials} aria-label={t("company.essentials.title")} data-testid="sheet-essentials">
+              {[
+                { l: t("company.keys.divYield"), v: displayKeyValue(keyRows.find((r) => r.label === "Rendement dividende")?.current ?? nd), tone: null },
+                { l: t("company.keys.per"), v: displayKeyValue(keyRows.find((r) => r.label === "PER")?.current ?? nd), tone: null },
+                { l: t("company.performance.oneYear"), v: fmtPct(performance.oneYear, format), tone: performance.oneYear },
+                { l: t("company.performance.ytd"), v: fmtPct(performance.ytd, format), tone: performance.ytd },
+              ].map((tile) => (
+                <div key={tile.l} className={styles.essentialTile}>
+                  <div className={styles.perfLabel}>{tile.l}</div>
+                  <div
+                    className={styles.essentialValue}
+                    style={tile.tone == null ? undefined : { color: tile.tone >= 0 ? C.green : C.red }}
+                  >
+                    {tile.v}
+                  </div>
+                </div>
+              ))}
+            </section>
             {/* Cours, puis fiche société, puis le reste de la vue d'ensemble.
                 Graphes détaillés = onglet Analyse Graphique. */}
             <section className={styles.card}>
@@ -870,8 +888,10 @@ export default function CompanySheetClient({
               )}
             </section>
 
-            <section className={styles.card}>
+            <details className={`${styles.card} ${styles.fold}`}>
+              <summary className={styles.foldSummary}>
               <h2 className={styles.cardTitle}>{t("company.profile.details")}</h2>
+              </summary>
               <dl className={styles.profileMeta}>
                 <div>
                   <dt>{t("company.profile.sector")}</dt>
@@ -917,7 +937,7 @@ export default function CompanySheetClient({
                   </dd>
                 </div>
               </dl>
-            </section>
+            </details>
 
             <div className={styles.societeSplit}>
               <ShareholdingPanel profileMeta={profileMeta} />
@@ -992,13 +1012,15 @@ export default function CompanySheetClient({
                   </div>
                 </section>
 
-                <section className={styles.card} aria-labelledby="key-terms-title">
+                <details className={`${styles.card} ${styles.fold}`}>
+                  <summary className={styles.foldSummary}>
                   <div className={styles.cardHead}>
                     <h2 id="key-terms-title" className={styles.cardTitle}>
                       {t("company.keyTerms.title")}
                     </h2>
                     <span className={styles.cardMeta}>{t("company.keyTerms.meta")}</span>
                   </div>
+                  </summary>
                   <ul className={styles.keyTerms}>
                     {(keyTermSlugs.length > 0 ? keyTermSlugs : OVERVIEW_KEY_TERM_SLUGS).map((slug) => (
                       <li key={slug}>
@@ -1006,7 +1028,7 @@ export default function CompanySheetClient({
                       </li>
                     ))}
                   </ul>
-                </section>
+                </details>
 
                 <section className={styles.card}>
                   <div className={styles.cardHead}>
@@ -1282,29 +1304,35 @@ export default function CompanySheetClient({
                 <OutlookSynthesisCard synthesis={outlook} />
 
                 <div className={styles.eventsNewsSplit}>
-                  <section className={styles.card}>
+                  <details className={`${styles.card} ${styles.fold}`}>
+                    <summary className={styles.foldSummary}>
                     <div className={styles.cardHead}>
                       <h2 className={styles.cardTitle}>{t("company.events.title")}</h2>
                       <span className={styles.cardMeta}>{t("company.events.meta")}</span>
                     </div>
+                    </summary>
                     <EventsFeed events={events} />
-                  </section>
-                  <section className={styles.card}>
+                  </details>
+                  <details className={`${styles.card} ${styles.fold}`}>
+                    <summary className={styles.foldSummary}>
                     <div className={styles.cardHead}>
                       <h2 className={styles.cardTitle}>{t("company.news.title")}</h2>
                       <span className={styles.cardMeta}>{t("company.news.meta")}</span>
                     </div>
+                    </summary>
                     <NewsFeed news={news} />
-                  </section>
+                  </details>
                 </div>
 
-                <section className={styles.card}>
+                <details className={`${styles.card} ${styles.fold}`}>
+                  <summary className={styles.foldSummary}>
                   <div className={styles.cardHead}>
                     <h2 className={styles.cardTitle}>{t("company.interims.title")}</h2>
                     <span className={styles.cardMeta}>{t("company.interims.meta")}</span>
                   </div>
+                  </summary>
                   <p className={styles.empty}>{t("company.interims.empty", { ticker: company.ticker })}</p>
-                </section>
+                </details>
           </div>
 
           <aside className={styles.sideCol}>

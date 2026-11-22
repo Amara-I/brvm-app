@@ -1100,6 +1100,13 @@ Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
   masquées (visibles dans le détail). En-têtes de colonnes masqués : le tri passe par la liste.
 - Manifest : `id`, icône 192, orientation, raccourcis. Icônes toujours provisoires.
 - Non vérifié visuellement lors de la livraison : à contrôler sur appareil/aperçu Vercel.
+## 26. Étape 30 — Phase 2 (3/3) : fiche société simplifiée
+
+- Bande « L'essentiel » en tête de la vue d'ensemble : rendement du dividende, PER,
+  performance 1 an et depuis janvier (valeurs issues de `keyRows` / `performance`, « N/D » si absentes).
+- Cinq blocs secondaires repliés par défaut (`<details>` natif, sans JS) : détails de la
+  société, termes clés, événements, actualités, résultats intermédiaires. Aucun contenu retiré.
+- Non vérifié visuellement lors de la livraison.
 
 ---
 
