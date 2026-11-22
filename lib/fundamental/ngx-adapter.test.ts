@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fixtureSheetInput } from "@/lib/ngx/__fixtures__";
+import { fixtureCompany, fixtureSeries, fixtureSheetInput } from "@/lib/ngx/__fixtures__";
 import { buildNgxSheet } from "@/lib/ngx/sheet-model";
 import { LIQUIDITY_BANDS, readBrvmLiquidity } from "./brvm-analysis";
 import { buildNgxFundamentalAnalysis, latestNgxDividend, ngxFundamentalInput, yearEndPrices } from "./ngx-adapter";
@@ -72,6 +72,42 @@ describe("analyse fondamentale NGX (composant partagé avec la BRVM)", () => {
     const analysis = buildNgxFundamentalAnalysis(args);
     expect(analysis.valuation.estimates.length).toBeGreaterThan(0);
     if (analysis.valuation.estimates.length >= 2) expect(analysis.valuation.rangeMode).toBe("range");
+  });
+
+  it("BPA : le BPA publié prime sur le résultat net ÷ titres actuels (cas type INFINITY)", () => {
+    const company = fixtureCompany("INFINITY", 8, {
+      netIncome: [2.7],
+      revenue: [6.79],
+      equity: 12.37,
+      shares: 8_340_891_440,
+      epsByYear: { 2025: 0.6475 },
+    });
+    const model = buildNgxSheet({
+      company,
+      previousClose: 8,
+      changePercent: 0,
+      volume: 100_000,
+      sessionDate: "2026-10-28",
+      indicativeFcfa: null,
+      series: fixtureSeries(),
+      events: [],
+      documents: [],
+      universe: [company],
+      today: "2026-10-28",
+    });
+    const analysis = buildNgxFundamentalAnalysis({
+      company,
+      model,
+      universe: [company],
+      series: fixtureSeries(),
+      today: "2026-10-28",
+    });
+    const impliedCurrent = (2.7 * 1e9) / 8_340_891_440;
+    expect(impliedCurrent).toBeCloseTo(0.3237, 3);
+    expect(analysis.price.impliedEps).toBeCloseTo(0.6475);
+    expect(analysis.price.epsSource).toBe("reported");
+    expect(analysis.performance.years.find((y) => y.year === 2025)?.eps).toBeCloseTo(0.6475);
+    expect(model.price.metrics.eps).toBeCloseTo(0.6475);
   });
 });
 

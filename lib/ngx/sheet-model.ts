@@ -488,7 +488,9 @@ export function buildNgxSheet(input: SheetInput): NgxSheetModel {
 
   const estimates = estimateFairValues({
     price: close,
-    eps: metrics.impliedEps,
+    // BPA publié (ou, à défaut, le BPA implicite). Ignoré si les comptes sont trop anciens.
+    // Jamais un BPA publié remplacé par résultat ÷ titres actuels.
+    eps: metrics.staleAccountsYear == null ? (metrics.eps ?? metrics.impliedEps) : null,
     bvps: metrics.impliedBvps,
     sectorPer: perStat,
     sectorPbr: pbrStat,

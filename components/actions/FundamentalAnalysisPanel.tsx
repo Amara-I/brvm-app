@@ -715,7 +715,7 @@ function Price({
         <Stat label={withYear(t("company.fundamental.field.debt"), price.debtRatioYear, null)} value={pct(price.debtRatio, 1)} />
         <Stat label={withYear(t("company.fundamental.field.fcf"), price.fcfYear, null)} value={bn(price.fcfBn)} />
         <Stat
-          label={t("company.fundamental.field.eps")}
+          label={t(price.epsSource === "reported" ? "company.fundamental.field.epsReported" : "company.fundamental.field.eps")}
           value={price.impliedEps == null ? nd : `${fcfa(price.impliedEps)}${price.impliedEpsYear ? ` · ${price.impliedEpsYear}` : ""}`}
         />
         <Stat label={t("company.fundamental.field.avgValue")} value={liq.avgDailyValueFcfa == null ? nd : format.integer(liq.avgDailyValueFcfa)} />
@@ -756,7 +756,14 @@ function Price({
       {price.epsBlocked === "negative" ? <p className={styles.note}>{t("company.fundamental.negativeEpsNote")}</p> : null}
       <p className={styles.note}>{marketCopy(t, market, "ratiosNote")}</p>
       <p className={styles.note}>
-        {t("company.fundamental.epsNote", { year: price.impliedEpsYear ?? "" })} {marketCopy(t, market, "noEquity")}
+        {t(
+          price.epsSource === "reported"
+            ? "company.fundamental.epsNoteReported"
+            : price.epsSource === "period"
+              ? "company.fundamental.epsNotePeriod"
+              : "company.fundamental.epsNote",
+          { year: price.impliedEpsYear ?? "" },
+        )} {marketCopy(t, market, "noEquity")}
       </p>
     </>
   );

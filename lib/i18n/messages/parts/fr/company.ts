@@ -439,7 +439,11 @@ export const company = {
     year: "Exercice {year}",
     stale: "Derniers comptes : {year}. Ils sont trop anciens pour calculer des multiples au cours actuel — ces ratios restent N/D.",
     epsNote:
-      "BPA indicatif {year} = résultat net ÷ titres en circulation. Ce n'est pas un BPA publié. Si l'un des deux manque, le BPA reste N/D.",
+      "BPA indicatif {year} = résultat net ÷ titres actuellement en circulation. Ce n'est pas un BPA publié. Si l'un des deux manque, le BPA reste N/D.",
+    epsNotePeriod:
+      "BPA indicatif {year} = résultat net ÷ titres en circulation durant l'exercice. Si l'un des deux manque, le BPA reste N/D.",
+    epsNoteReported:
+      "BPA publié de l'exercice {year}, tel qu'enregistré dans les comptes. Il n'est pas recalculé avec le nombre de titres actuel.",
     noEquity: "Actif net par action : N/D (capitaux propres non enregistrés). Le nombre de Graham et le PBR recalculé ne sont pas estimés.",
     accountsNote: "Comptes en milliards de FCFA, tels qu'enregistrés. Une valeur absente reste N/D.",
     ratiosNote: "PER, PBR, ROE, marge, dette et cash-flow : dernière valeur canonique. Zéro ou absent → N/D.",
@@ -561,6 +565,7 @@ export const company = {
       debt: "Endettement",
       fcf: "Free cash-flow",
       eps: "BPA indicatif",
+      epsReported: "BPA publié",
       avgValue: "Valeur échangée / séance",
       avgVolume: "Volume moyen (titres)",
       traded: "Séances avec échange",
