@@ -160,6 +160,20 @@ describe("slimCompanyForVisitor", () => {
     expect(presentCompaniesFullDataset(dataset, visitor).companies[0]!.per).toBe(0);
     expect(presentCompaniesFullDataset(dataset, visitor).companies[0]!.prices).toEqual({ 2025: 16000 });
   });
+
+  it("conserve le dernier dividende même à 0, pour afficher « Pas de dividende »", () => {
+    const none = slimCompanyForVisitor(
+      sampleCompany({ ticker: "SAFC", dividends: { 2016: 0, 2020: 0, 2025: 0 } })
+    );
+    expect(none.dividends).toEqual({ 2025: 0 });
+    expect(Object.values(none.dividends).every((amt) => amt === 0)).toBe(true);
+
+    const lastIsNil = slimCompanyForVisitor(sampleCompany({ dividends: { 2023: 400, 2024: 450, 2025: 0 } }));
+    expect(lastIsNil.dividends).toEqual({ 2025: 0 });
+
+    const empty = slimCompanyForVisitor(sampleCompany({ dividends: {} }));
+    expect(empty.dividends).toEqual({});
+  });
 });
 
 describe("presentNgxBoardRows", () => {

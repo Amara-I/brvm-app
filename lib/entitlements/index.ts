@@ -19,6 +19,7 @@ export {
 export { capChartQueryForVisitor, capSeriesToAnonWindow, isLockedChartRange, redactChartPayloadForVisitor } from "./chart-cap";
 export {
   lastPositiveYear,
+  lastRecordedYear,
   presentCompaniesFullDataset,
   presentScoredCompanies,
   redactMetrics,

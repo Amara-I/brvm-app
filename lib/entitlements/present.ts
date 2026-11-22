@@ -25,9 +25,22 @@ export function lastPositiveYear(series: Record<number, number>): number | null 
   return years.length ? years[years.length - 1]! : null;
 }
 
+/**
+ * Dernier millésime enregistré, y compris un montant à 0
+ * (absence de dividende confirmée). Distinct de l'absence de ligne.
+ */
+export function lastRecordedYear(series: Record<number, number>): number | null {
+  const years = Object.keys(series)
+    .map(Number)
+    .filter((y) => Number.isFinite(y) && series[y] != null && Number.isFinite(series[y]))
+    .sort((a, b) => a - b);
+  return years.length ? years[years.length - 1]! : null;
+}
+
 export function slimCompanyForVisitor(company: CompanyFullDataset): CompanyFullDataset {
   const lastPriceYear = lastPositiveYear(company.prices);
-  const lastDivYear = lastPositiveYear(company.dividends);
+  // Le visiteur ne voit que le dernier dividende, même s'il est à 0 (« Pas de dividende »).
+  const lastDivYear = lastRecordedYear(company.dividends);
   return {
     ...company,
     per: 0,
