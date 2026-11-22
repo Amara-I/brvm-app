@@ -266,4 +266,37 @@ describe("runNgxHistoryBackfill", () => {
     const [, sent] = persistNgxQuotes.mock.calls[0] as unknown as [unknown, { symbol: string }[]];
     expect(sent.map((q) => q.symbol)).toEqual(["ZICHIS"]);
   });
+
+  it("retraite une séance partielle (87 clôtures pour ~124 aux séances voisines)", async () => {
+    loadNgxEquities.mockResolvedValue({
+      ok: true,
+      kind: "daily-summary",
+      date: "2026-04-10",
+      warnings: [],
+      quotes: [quote("DANGCEM", "2026-04-10"), quote("UBA", "2026-04-10")],
+    });
+    const base = fakeDb({ canonical: 87, asiDates: ["2026-04-09", "2026-04-10", "2026-04-13"] });
+    const counts: Record<string, number> = { "2026-04-08": 124, "2026-04-09": 125, "2026-04-10": 87, "2026-04-13": 124 };
+    const db = {
+      ...base,
+      priceHistory: {
+        ...(base as unknown as { priceHistory: object }).priceHistory,
+        groupBy: vi.fn(async () =>
+          Object.entries(counts).map(([d, n]) => ({ date: new Date(`${d}T00:00:00.000Z`), _count: { _all: n } }))
+        ),
+      },
+    } as unknown as PrismaClient;
+    const summary = await runNgxHistoryBackfill({
+      db,
+      from: "2026-04-09",
+      to: "2026-04-13",
+      charts: false,
+      resume: false,
+      logger: () => undefined,
+    });
+    const asked = loadNgxEquities.mock.calls.map((c) => (c[0] as { onlyDate?: string }).onlyDate);
+    expect(asked).toEqual(["2026-04-10"]);
+    expect(summary.quotes).toBe(2);
+  });
 });
+
