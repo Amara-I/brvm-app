@@ -255,7 +255,7 @@
 
   .mainInner {
     padding: 14px max(12px, env(safe-area-inset-right, 0px))
-      calc(28px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+      calc(28px + 56px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
   }
 
   .topActions {

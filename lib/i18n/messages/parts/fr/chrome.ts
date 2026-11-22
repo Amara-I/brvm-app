@@ -15,6 +15,14 @@ export const chrome = {
     open: "Ouvrir le menu",
     close: "Fermer le menu",
   },
+  bottomNav: {
+    aria: "Navigation mobile",
+    market: "Marché",
+    screener: "Screener",
+    charts: "Graphes",
+    portfolio: "Portefeuille",
+    menu: "Menu",
+  },
   homeAria: "{brand} — accueil",
   auth: {
     login: "Connexion",

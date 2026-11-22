@@ -1090,6 +1090,16 @@ Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
 
 ---
 
+## 25. Étape 29 — Phase 2 (2/3) : mobile-first
+
+- `components/nav/MobileBottomNav.tsx` (+ test) : barre basse ≤ 860 px (Marché, Screener,
+  Graphes, Portefeuille, Menu → ouvre le tiroir existant), montée dans `SidebarLayout`.
+  `mainInner` réserve 56 px en bas ; le toast du portefeuille passe au-dessus de la barre.
+- `MarketBoard.module.css` : ≤ 720 px, chaque ligne devient une carte (ticker/cours,
+  nom/variation, signal/score) ; colonnes activité, aperçu, cap., rendement, confiance
+  masquées (visibles dans le détail). En-têtes de colonnes masqués : le tri passe par la liste.
+- Manifest : `id`, icône 192, orientation, raccourcis. Icônes toujours provisoires.
+- Non vérifié visuellement lors de la livraison : à contrôler sur appareil/aperçu Vercel.
 ## 26. Étape 30 — Phase 2 (3/3) : fiche société simplifiée
 
 - Bande « L'essentiel » en tête de la vue d'ensemble : rendement du dividende, PER,
