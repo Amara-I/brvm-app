@@ -22,6 +22,8 @@ export interface NgxTechnicalSignal {
   liquidityWarningEn: string | null;
   /** Clôtures lues. */
   bars: number;
+  /** Stade du timing (précoce, confirmé, trop tard). */
+  stage: NonNullable<TechnicalAnalysis["signal"]["stage"]>;
 }
 
 /** Clôtures valides, triées, limitées à la fenêtre partagée. */
@@ -55,5 +57,6 @@ export function ngxTechnicalSignal(points: readonly CloseInput[] | null | undefi
     liquidityWarningFr: analysis.liquidity.warningFr,
     liquidityWarningEn: analysis.liquidity.warningEn,
     bars: analysis.barsUsed,
+    stage: analysis.signal.stage ?? "none",
   };
 }

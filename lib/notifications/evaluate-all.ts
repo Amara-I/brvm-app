@@ -530,14 +530,14 @@ async function evaluateSignalAlerts(opts: {
   if (watchers.size === 0) return result;
   const watchedExchanges = new Set([...watchers.keys()].map((t) => exchangeByTicker.get(t) ?? "BRVM"));
 
-  const byTicker = new Map<string, { label: string; score: number }>();
+  const byTicker = new Map<string, { label: string; score: number; stage?: string }>();
   if (watchedExchanges.has("BRVM")) {
     const [dataset, spark] = await Promise.all([
       loadCompaniesFullDataset(),
       getMarketSparkSeriesByTicker().catch(() => ({})),
     ]);
     for (const { co, metrics: m } of allCompaniesWithMetrics(dataset, spark)) {
-      byTicker.set(co.ticker, { label: m.signal.label, score: m.score });
+      byTicker.set(co.ticker, { label: m.signal.label, score: m.score, stage: m.signalStage });
     }
   }
   if (watchedExchanges.has("NGX")) {
@@ -545,7 +545,8 @@ async function evaluateSignalAlerts(opts: {
     for (const row of screener?.rows ?? []) {
       // Signal technique (comme la BRVM) ; la note NGX reste affichée à côté, inchangée.
       const signal = row.technical?.signal;
-      if (signal && row.overall != null) byTicker.set(row.ticker, { label: signal.label, score: row.overall });
+      if (signal && row.overall != null)
+        byTicker.set(row.ticker, { label: signal.label, score: row.overall, stage: row.technical?.stage });
     }
   }
   const prefsByUser = await getPrefsMap([...new Set([...watchers.values()].flatMap((s) => [...s]))]);
@@ -590,13 +591,13 @@ async function evaluateSignalAlerts(opts: {
         userId,
         type: "SIGNAUX",
         title: `${ticker} entre en ${label}`,
-        body: `Signal technique ${label}. Score qualité ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`,
+        body: `Signal technique ${label}${m.stage === "early" ? " précoce (tendance de fond pas encore confirmée)" : ""}. Score qualité ${score}/100. Une seule alerte signal par titre et par jour. Ce n'est pas un conseil personnalisé.`,
         ticker,
         exchange,
         alertRuleId: rule?.id ?? null,
         prefs,
         now: opts.now,
-        payload: { signal: label, score },
+        payload: { signal: label, score, stage: m.stage ?? null },
         dedupeKey: dedupeKey("SIGNAL", ticker, label, opts.today),
       });
       if (emitted.created) {

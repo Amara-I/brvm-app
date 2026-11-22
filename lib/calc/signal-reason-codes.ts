@@ -38,6 +38,9 @@ export const SIGNAL_REASON_CODES = [
   "ta.resistanceReaction",
   "ta.liquidity",
   "ta.history",
+  "ta.early",
+  "ta.extended",
+  "ta.entry",
 ] as const;
 
 export type SignalReasonCode = (typeof SIGNAL_REASON_CODES)[number];

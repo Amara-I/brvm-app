@@ -227,6 +227,12 @@ export const company = {
     title: "Analyse technique",
     lead: "Zones, déséquilibres et scénarios calculés sur l'historique des clôtures de ce titre. Ils se mettent à jour avec les nouveaux cours.",
     confidence: "Confiance",
+    stageLine: "Timing : {stage}",
+    stage: {
+      early: "précoce",
+      confirmed: "confirmé",
+      extended: "trop tard, attendre un repli",
+    },
     scoreVsTiming:
       "Score qualité {score}/100 : qualité de la société. Le signal ci-dessus est le timing de court terme du cours, pas une reprise du score.",
     structure: "Structure",

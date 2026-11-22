@@ -14,6 +14,8 @@ export interface TechnicalSignalPatch {
   signalReasons: SignalReason[];
   liquidityWarningFr: string | null;
   liquidityWarningEn: string | null;
+  /** Stade du timing (précoce, confirmé, trop tard). */
+  stage: NonNullable<TechnicalAnalysis["signal"]["stage"]>;
 }
 
 type SignalCarrier = {
@@ -37,6 +39,7 @@ export function patchFromAnalysis(analysis: TechnicalAnalysis, qualityScore: num
     signalReasons: signalReasons(analysis),
     liquidityWarningFr: analysis.liquidity.warningFr,
     liquidityWarningEn: analysis.liquidity.warningEn,
+    stage: analysis.signal.stage ?? "none",
   };
 }
 
@@ -48,7 +51,10 @@ export function technicalSignalPatch(
   return patchFromAnalysis(analyzePriceHistoryCached(closes ?? [], options), qualityScore);
 }
 
-export function applyTechnicalSignal<T extends SignalCarrier>(metrics: T, closes: CloseInput[] | null | undefined): T {
+export function applyTechnicalSignal<T extends SignalCarrier>(
+  metrics: T,
+  closes: CloseInput[] | null | undefined
+): T & { signalStage: TechnicalSignalPatch["stage"] } {
   const patch = technicalSignalPatch(metrics.score, closes);
   return {
     ...metrics,
@@ -56,5 +62,6 @@ export function applyTechnicalSignal<T extends SignalCarrier>(metrics: T, closes
     confidence: patch.confidence,
     signalSummary: patch.signalSummary,
     signalReasons: patch.signalReasons,
+    signalStage: patch.stage,
   };
 }

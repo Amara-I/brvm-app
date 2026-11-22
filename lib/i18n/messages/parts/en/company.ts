@@ -226,6 +226,12 @@ export const company = {
     title: "Technical analysis",
     lead: "Zones, imbalances and scenarios computed from this stock's closing history. They update when new prices arrive.",
     confidence: "Confidence",
+    stageLine: "Timing: {stage}",
+    stage: {
+      early: "early",
+      confirmed: "confirmed",
+      extended: "too late, wait for a pullback",
+    },
     scoreVsTiming:
       "Quality score {score}/100 rates the company. The signal above is short-term price timing, not a restatement of the score.",
     structure: "Structure",

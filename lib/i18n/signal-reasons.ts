@@ -42,6 +42,9 @@ export const SIGNAL_REASON_EN: Record<SignalReasonCode, string> = {
   "ta.resistanceReaction": "Resistance near {price}: {touches} tests, {bounces} rejections, {breaks} breaks.",
   "ta.liquidity": "{warning}",
   "ta.history": "Only {bars} daily closes: confidence stays low.",
+  "ta.early": "Early signal: the move is starting; the underlying trend is not confirmed yet.",
+  "ta.extended": "Too late to enter: the price has already moved {atr} ATR away from its 20-session average. Waiting for a pullback.",
+  "ta.entry": "Trigger: {trigger}, on {date}.",
 };
 
 void SIGNAL_REASON_CODES;

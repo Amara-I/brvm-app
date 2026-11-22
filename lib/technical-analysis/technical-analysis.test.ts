@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { applyTechnicalSignal } from "./apply-signal";
 import { analyzePriceHistory } from "./analyze";
+import { signalReasons } from "./signal";
+import { sliceForCacheRange } from "@/lib/charts/chart-series-cache";
 import { detectFairValueGaps } from "./fvg";
 import { technicalLevels } from "./levels";
 import { chartLevelLines } from "./chart-lines";
@@ -33,6 +35,28 @@ function trend(count: number, start: number, step: number): CloseInput[] {
     values.push(Math.round(price));
   }
   return closes(values);
+}
+
+/** Générateur déterministe (Mulberry32) : vol = amplitude quotidienne, drift = tendance. */
+function mulberry(seed: number): () => number {
+  let a = seed;
+  return () => {
+    let t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function noiseSeries(seed: number, n: number, vol: number, drift: (i: number, n: number) => number): CloseInput[] {
+  const rng = mulberry(seed);
+  const values: number[] = [];
+  let price = 1000;
+  for (let i = 0; i < n; i++) {
+    price = Math.max(10, price * (1 + drift(i, n) + (rng() - 0.5) * vol));
+    values.push(Math.round(price * 100) / 100);
+  }
+  return values.map((value, index) => ({ time: day(index), value, volume: 20000 }));
 }
 
 describe("supports et résistances", () => {
@@ -96,16 +120,67 @@ describe("fair value gaps", () => {
 });
 
 describe("signal technique", () => {
-  it("lit un ACHAT sur une tendance haussière liquide", () => {
-    const analysis = analyzePriceHistory(trend(180, 1000, 8));
+  it("achète la fin d'un repli dans une tendance haussière, avec le déclencheur daté", () => {
+    const up = trend(160, 1000, 8).map((p) => p.value);
+    let price = up[up.length - 1]!;
+    for (let i = 0; i < 7; i++) up.push((price -= 14));
+    up.push(price + 10);
+    const analysis = analyzePriceHistory(closes(up));
     expect(["ACHAT FORT", "ACHAT"]).toContain(analysis.signal.label);
-    expect(analysis.signal.confidence === "Faible").toBe(false);
-    expect(analysis.liquidity.illiquid).toBe(false);
+    expect(analysis.signal.entryKind).toBe("pullback");
+    expect(analysis.signal.stage).toBe("confirmed");
+    expect(analysis.signal.triggeredAt).toBe(day(up.length - 1));
+    const reasons = signalReasons(analysis);
+    expect(reasons[0]!.code).toBe("ta.entry");
+    expect(reasons[0]!.text).toContain("fin d'un repli");
   });
 
-  it("lit un ALLÉGER ou VENDRE sur une tendance baissière liquide", () => {
-    const analysis = analyzePriceHistory(trend(180, 5000, -8));
-    expect(["ALLÉGER", "VENDRE"]).toContain(analysis.signal.label);
+  it("n'entre pas dans une course déjà étirée : CONSERVER, « trop tard »", () => {
+    const stretched = analyzePriceHistory(trend(180, 1000, 8));
+    expect(stretched.signal.label).toBe("CONSERVER");
+    expect(stretched.signal.stage).toBe("extended");
+    expect(signalReasons(stretched).some((r) => r.code === "ta.extended")).toBe(true);
+    const falling = analyzePriceHistory(trend(180, 5000, -8));
+    expect(falling.signal.label).toBe("CONSERVER");
+    expect(falling.signal.stage).toBe("extended");
+  });
+
+  it("lit la cassure d'une base serrée dans les deux sens", () => {
+    const base: number[] = [];
+    for (let i = 0; i < 200; i++) base.push(1000 + ((i * 7) % 13) - 6);
+    const up = analyzePriceHistory(closes([...base, 1012]));
+    expect(["ACHAT FORT", "ACHAT"]).toContain(up.signal.label);
+    expect(up.signal.entryKind).toBe("breakout");
+    const down = analyzePriceHistory(closes([...base, 987]));
+    expect(["ALLÉGER", "VENDRE"]).toContain(down.signal.label);
+    expect(down.signal.entryKind).toBe("breakout");
+  });
+
+  it("retire l'achat quand le cours repasse sous le niveau du déclencheur", () => {
+    const base: number[] = [];
+    for (let i = 0; i < 200; i++) base.push(1000 + ((i * 7) % 13) - 6);
+    const failed = analyzePriceHistory(closes([...base, 1012, 1008, 990]));
+    expect(failed.signal.label === "ACHAT" || failed.signal.label === "ACHAT FORT").toBe(false);
+  });
+
+  it("le déclencheur expire après la période de validité", () => {
+    const base: number[] = [];
+    for (let i = 0; i < 200; i++) base.push(1000 + ((i * 7) % 13) - 6);
+    const after = [...base, 1012];
+    for (let i = 0; i < 16; i++) after.push(1010 - (i % 2));
+    const analysis = analyzePriceHistory(closes(after));
+    expect(analysis.signal.entryKind ?? null).toBe(null);
+  });
+
+  it("même signal depuis l'aperçu SPARK et depuis l'historique complet", () => {
+    const full = noiseSeries(7, 900, 0.025, (i) => 0.0006 * Math.sin(i / 40));
+    const spark = sliceForCacheRange(full, "SPARK");
+    expect(spark.length).toBeLessThan(full.length / 2);
+    const a = analyzePriceHistory(full).signal;
+    const b = analyzePriceHistory(spark).signal;
+    expect(b.label).toBe(a.label);
+    expect(b.stage).toBe(a.stage);
+    expect(b.timingScore).toBe(a.timingScore);
   });
 
   it("refuse un signal fort et baisse la confiance si le titre est illiquide", () => {
