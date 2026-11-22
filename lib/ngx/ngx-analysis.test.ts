@@ -393,6 +393,8 @@ describe("dividende non confirmé (N/D, jamais 0)", () => {
   it("currentDividend : ligne récente = valeur, ligne ancienne = null, aucune ligne = NONE", () => {
     expect(currentDividend([], 2025)).toEqual({ dps: null, year: null, status: "NONE" });
     expect(currentDividend([{ year: 2025, dps: 3 }], 2025)).toEqual({ dps: 3, year: 2025, status: "CONFIRMED" });
+    expect(currentDividend([{ year: 2025, dps: 0 }], 2025)).toEqual({ dps: 0, year: 2025, status: "CONFIRMED" });
+
     expect(currentDividend([{ year: 2024, dps: 3 }], 2025)).toEqual({ dps: 3, year: 2024, status: "CONFIRMED" });
     expect(currentDividend([{ year: 2022, dps: 3 }], 2025)).toEqual({ dps: null, year: 2022, status: "UNCONFIRMED" });
   });
