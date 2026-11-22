@@ -48,10 +48,15 @@ describe("chart-series-cache", () => {
     expect(sliceForCacheRange(full, "MAX")).toHaveLength(full.length);
   });
 
-  it("SPARK reste compact", () => {
-    const spark = sliceForCacheRange(pts(500), "SPARK");
-    expect(spark.length).toBeLessThan(200);
-    expect(spark.length).toBeGreaterThan(10);
+  it("SPARK garde 260 séances journalières et compresse le reste", () => {
+    const full = pts(500);
+    const spark = sliceForCacheRange(full, "SPARK");
+    // Forme LTTB + 260 journées (fenêtre du signal) : plus de 200 points, toujours loin des 500.
+    expect(spark.length).toBeGreaterThanOrEqual(260);
+    expect(spark.length).toBeLessThan(360);
+    const daily = full.slice(-260);
+    expect(spark.slice(-260).map((p) => p.time)).toEqual(daily.map((p) => p.time));
+    expect(spark[spark.length - 1]!.time).toBe(full[full.length - 1]!.time);
   });
 
   it("périme le cache seulement si une clôture canonique est plus récente", () => {

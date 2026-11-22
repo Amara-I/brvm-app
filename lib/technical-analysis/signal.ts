@@ -5,6 +5,7 @@ import type { SignalReason, TradeSignal } from "@/lib/calc/calc-metrics";
 import { signalOf } from "@/lib/calc/calc-metrics";
 import type { SignalReasonCode } from "@/lib/calc/signal-reason-codes";
 import { formatPrice } from "./level-label";
+import type { TimingAssessment } from "./timing";
 import type { ConfidenceLevel, StructureSnapshot, TechnicalAnalysis, TechnicalSignal } from "./types";
 
 const SIGNAL_RANK: Record<TradeSignal["label"], number> = {
@@ -34,7 +35,15 @@ function confidenceFor(bars: number, label: TradeSignal["label"], structure: Str
   return "Faible";
 }
 
-export function decideSignal(timing: number, structure: StructureSnapshot, bars: number, illiquid: boolean): TechnicalSignal {
+export function decideSignal(
+  assessment: TimingAssessment | number,
+  structure: StructureSnapshot,
+  bars: number,
+  illiquid: boolean
+): TechnicalSignal {
+  const timingInfo = typeof assessment === "number" ? null : assessment;
+  const timing = typeof assessment === "number" ? assessment : assessment.score;
+  const stage = timingInfo?.stage ?? "none";
   const rsi = structure.rsi14;
   let label: TradeSignal["label"] = "CONSERVER";
   if (timing >= 58 && structure.bias === "bullish" && (rsi == null || rsi < 72)) label = "ACHAT FORT";
@@ -56,7 +65,16 @@ export function decideSignal(timing: number, structure: StructureSnapshot, bars:
   if (confidence === "Faible" && !illiquid && (label === "ACHAT FORT" || label === "VENDRE")) {
     label = downgrade(label);
   }
-  return { label, timingScore: timing, confidence };
+  // Mouvement déjà étiré : pas de nouvelle entrée, on attend un repli vers la moyenne.
+  if (stage === "extended" && SIGNAL_RANK[label] !== 0) label = "CONSERVER";
+  return {
+    label,
+    timingScore: timing,
+    confidence,
+    stage: label === "CONSERVER" && stage !== "extended" ? "none" : stage,
+    extensionAtr: timingInfo?.extensionAtr ?? null,
+    runupAtr: timingInfo?.runupAtr ?? null,
+  };
 }
 
 function reason(
@@ -78,6 +96,24 @@ export function signalReasons(analysis: TechnicalAnalysis): SignalReason[] {
     reasons.push(reason("negatif", "ta.structureBear", "Structure baissière : plus hauts et plus bas descendants."));
   } else {
     reasons.push(reason("neutre", "ta.structureRange", "Structure mixte : pas de séquence claire de plus hauts et plus bas."));
+  }
+
+  if (signal.stage === "extended") {
+    reasons.push(
+      reason(
+        "neutre",
+        "ta.extended",
+        "Le cours a déjà bien avancé dans ce sens : on n'ouvre pas de nouvelle position, on attend un repli vers la moyenne."
+      )
+    );
+  } else if (signal.stage === "early") {
+    reasons.push(
+      reason(
+        "neutre",
+        "ta.early",
+        "Retournement de momentum : le mouvement démarre, la tendance longue n'est pas encore pleinement confirmée."
+      )
+    );
   }
 
   const rsi = structure.rsi14 == null ? "N/D" : String(structure.rsi14);

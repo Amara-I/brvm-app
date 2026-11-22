@@ -111,6 +111,16 @@ export interface TechnicalSignal {
   /** Score de timing −100…100 (pas le score qualité société). */
   timingScore: number;
   confidence: ConfidenceLevel;
+  /**
+   * Stade du mouvement : `early` (retournement, tendance pas encore confirmée),
+   * `confirmed`, `extended` (déjà étiré : trop tard pour entrer), `none`.
+   * Absent sur d'anciens objets.
+   */
+  stage?: "early" | "confirmed" | "extended" | "none";
+  /** (clôture − EMA20) / ATR14. */
+  extensionAtr?: number | null;
+  /** Course depuis l'extrême des 40 dernières séances, en ATR. */
+  runupAtr?: number | null;
 }
 
 export interface TechnicalAnalysis {

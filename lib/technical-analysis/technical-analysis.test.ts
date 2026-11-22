@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyTechnicalSignal } from "./apply-signal";
 import { analyzePriceHistory } from "./analyze";
+import { signalReasons } from "./signal";
 import { detectFairValueGaps } from "./fvg";
 import { technicalLevels } from "./levels";
 import { chartLevelLines } from "./chart-lines";
@@ -33,6 +34,28 @@ function trend(count: number, start: number, step: number): CloseInput[] {
     values.push(Math.round(price));
   }
   return closes(values);
+}
+
+/** Générateur déterministe (Mulberry32) : vol = amplitude quotidienne, drift = tendance. */
+function mulberry(seed: number): () => number {
+  let a = seed;
+  return () => {
+    let t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function noiseSeries(seed: number, n: number, vol: number, drift: (i: number, n: number) => number): CloseInput[] {
+  const rng = mulberry(seed);
+  const values: number[] = [];
+  let price = 1000;
+  for (let i = 0; i < n; i++) {
+    price = Math.max(10, price * (1 + drift(i, n) + (rng() - 0.5) * vol));
+    values.push(Math.round(price * 100) / 100);
+  }
+  return values.map((value, index) => ({ time: day(index), value, volume: 20000 }));
 }
 
 describe("supports et résistances", () => {
@@ -96,16 +119,24 @@ describe("fair value gaps", () => {
 });
 
 describe("signal technique", () => {
-  it("lit un ACHAT sur une tendance haussière liquide", () => {
-    const analysis = analyzePriceHistory(trend(180, 1000, 8));
-    expect(["ACHAT FORT", "ACHAT"]).toContain(analysis.signal.label);
-    expect(analysis.signal.confidence === "Faible").toBe(false);
-    expect(analysis.liquidity.illiquid).toBe(false);
+  it("lit un ACHAT au début d'une hausse liquide, pas après une course déjà étirée", () => {
+    const early = analyzePriceHistory(noiseSeries(15, 220, 0.02, (i, n) => (i < n - 8 ? 0 : 0.004)));
+    expect(["ACHAT FORT", "ACHAT"]).toContain(early.signal.label);
+    expect(early.signal.stage === "early" || early.signal.stage === "confirmed").toBe(true);
+    expect(early.signal.confidence === "Faible").toBe(false);
+    expect(early.liquidity.illiquid).toBe(false);
+    expect(signalReasons(early).some((r) => r.code === "ta.extended")).toBe(false);
+
+    const stretched = analyzePriceHistory(trend(180, 1000, 8));
+    expect(stretched.signal.label).toBe("CONSERVER");
+    expect(stretched.signal.stage).toBe("extended");
+    expect(signalReasons(stretched).some((r) => r.code === "ta.extended")).toBe(true);
   });
 
-  it("lit un ALLÉGER ou VENDRE sur une tendance baissière liquide", () => {
-    const analysis = analyzePriceHistory(trend(180, 5000, -8));
+  it("lit un ALLÉGER ou VENDRE au début d'une baisse liquide", () => {
+    const analysis = analyzePriceHistory(noiseSeries(4, 260, 0.02, () => -0.0015));
     expect(["ALLÉGER", "VENDRE"]).toContain(analysis.signal.label);
+    expect(analysis.signal.stage === "early" || analysis.signal.stage === "confirmed").toBe(true);
   });
 
   it("refuse un signal fort et baisse la confiance si le titre est illiquide", () => {

@@ -20,6 +20,9 @@ export type ChartSeriesRangeKey = (typeof CHART_SERIES_RANGE_KEYS)[number];
 /** Padding lookback (SMA 200 j) stocké avec les fenêtres ≤ 5A. */
 export const CHART_CACHE_LOOKBACK_PAD_DAYS = 420;
 
+/** Séances journalières conservées en fin d'aperçu SPARK (= fenêtre du signal technique). */
+export const SPARK_DAILY_SESSIONS = 260;
+
 export type ChartSeriesKindCode = "COMPANY" | "INDEX";
 
 export interface ChartSeriesMetaPayload {
@@ -94,10 +97,11 @@ export function sliceForCacheRange(
   if (full.length === 0) return [];
   if (rangeKey === "MAX") return full;
   if (rangeKey === "SPARK") {
-    const year = applyChartSeriesWindow(full, { range: "1A" }).series;
     const shape = downsampleLttb(full, 64);
     const recent = applyChartSeriesWindow(full, { range: "3M" }).series;
-    return dedupeChartPointsByDay([...shape, ...year.slice(-80), ...recent]);
+    // Les SPARK_DAILY_SESSIONS dernières séances restent journalières : le signal
+    // technique des listes et des alertes lit alors les mêmes séances que la fiche.
+    return dedupeChartPointsByDay([...shape, ...full.slice(-SPARK_DAILY_SESSIONS), ...recent]);
   }
   const asOf = lastPointAsOf(full);
   const cutoff = chartRangeCutoffIso(rangeKey, asOf);
