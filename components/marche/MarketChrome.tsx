@@ -10,11 +10,15 @@ import marketStyles from "@/components/marche/MarketChrome.module.css";
 import styles from "@/components/marche/MarketBoard.module.css";
 import { C } from "@/lib/theme/colors";
 import ChangeValue from "@/components/ui/ChangeValue";
+import DataFreshness from "@/components/market/DataFreshness";
+import { freshnessExchangeOf } from "@/lib/market/freshness";
 import { translateExchangeName, translateExchangeRegion } from "@/components/marche/market-copy";
 import LockedTeaser from "@/components/entitlements/LockedTeaser";
 
 export interface MarketChromeProps {
   lastUpdate: string;
+  /** Date ISO de la dernière synchro des cours (état de fraîcheur BRVM/NGX). */
+  lastSyncedAt?: string | null;
   refreshing: boolean;
   onRefresh: () => void;
   companiesCount: number;
@@ -80,8 +84,14 @@ export default function MarketChrome(props: MarketChromeProps) {
           </div>
           <div className={marketStyles.actions}>
             <div style={{ fontSize: "0.72rem", color: C.textDim }}>
-              <span className="ob-live-dot ob-pulse" aria-hidden="true" />
-              {t("market.lastUpdate")} <span style={{ color: C.gold }}>{props.lastUpdate}</span>
+              {freshnessExchangeOf(props.exchangeCode) && props.lastSyncedAt ? (
+                <DataFreshness exchange={props.exchangeCode} asOf={props.lastSyncedAt} />
+              ) : (
+                <>
+                  <span className="ob-live-dot ob-pulse" aria-hidden="true" />
+                  {t("market.lastUpdate")} <span style={{ color: C.gold }}>{props.lastUpdate}</span>
+                </>
+              )}
             </div>
             <button
               type="button"

@@ -11,6 +11,7 @@ import MarketBoardClient from "@/components/marche/MarketBoardClient";
 import { getPreferredPortfolioType } from "@/lib/auth/preferred-portfolio-type";
 import { getViewer, presentCompaniesFullDataset } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
+import { getWatchedTickersForCurrentUser } from "@/lib/watchlist/load-watched-tickers";
 
 export const dynamic = "force-dynamic";
 
@@ -23,13 +24,16 @@ export function generateMetadata() {
 }
 
 export default async function MarchePage() {
-  const [dataset, marketSummary, sparkSeries, dayChanges, preferredPortfolioType, viewer] = await Promise.all([
+  const [dataset, marketSummary, sparkSeries, dayChanges, preferredPortfolioType, viewer, watchedTickers] =
+    await Promise.all([
     getCompaniesFullDataset(),
     getMarketSummarySnapshot().catch(() => null),
     getMarketSparkSeriesByTicker().catch(() => ({})),
     getMarketDayChangeByTicker().catch(() => ({})),
     getPreferredPortfolioType().catch(() => null),
     getViewer(),
+    // null = visiteur ; si la migration n'est pas encore appliquée, on dégrade en visiteur.
+    getWatchedTickersForCurrentUser().catch(() => null),
   ]);
   return (
     <AppHeader>
@@ -39,6 +43,7 @@ export default async function MarchePage() {
         initialSparkSeries={sparkSeries}
         initialDayChanges={dayChanges}
         preferredPortfolioType={preferredPortfolioType}
+        watchedTickers={watchedTickers}
         gatedVisitor={viewer.gated}
       />
       <SiteFooter />

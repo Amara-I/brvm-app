@@ -55,6 +55,8 @@ import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
 import LazyChartWorkbench, { prefetchChartWorkbench } from "@/components/charts/LazyChartWorkbench";
 import dynamic from "next/dynamic";
+import DataFreshness from "@/components/market/DataFreshness";
+import WatchStar from "@/components/watchlist/WatchStar";
 import SkeletonBlock from "@/components/ui/SkeletonBlock";
 
 import TechnicalAnalysisPanel from "@/components/actions/TechnicalAnalysisPanel";
@@ -208,12 +210,15 @@ function websiteLabel(raw: string | null | undefined): string {
 export default function CompanySheetClient({
   payload,
   isAuthenticated = false,
+  isWatched = false,
   gatedVisitor = false,
   initialTab,
   preferredPortfolioType = null,
 }: {
   payload: CompanySheetPayload;
   isAuthenticated?: boolean;
+  /** La société est dans la liste de suivi de l'utilisateur connecté. */
+  isWatched?: boolean;
   gatedVisitor?: boolean;
   /** Onglet initial (ex. ?tab=charts depuis le sélecteur de ticker du graphe). */
   initialTab?: TabKey;
@@ -640,6 +645,9 @@ export default function CompanySheetClient({
               </span>
             ) : null}
           </div>
+          <div style={{ fontSize: "0.72rem", color: "var(--c-textdim)", marginTop: 4 }}>
+            <DataFreshness exchange="BRVM" asOf={company.lastSyncedAt} />
+          </div>
           <div className={styles.heroRating} data-testid="sheet-header-rating">
             {gatedVisitor ? (
               <LockedTeaser compact callbackUrl={`/actions/${company.ticker}`} />
@@ -652,6 +660,13 @@ export default function CompanySheetClient({
           </div>
         </div>
         <div className={styles.heroActions}>
+          <WatchStar
+            ticker={company.ticker}
+            initialWatched={isWatched}
+            isAuthenticated={isAuthenticated}
+            loginCallbackPath={`/actions/${company.ticker}`}
+            withLabel
+          />
           <TickerAlertButton
             isAuthenticated={isAuthenticated}
             ticker={company.ticker}

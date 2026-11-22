@@ -190,6 +190,12 @@
   color-scheme: dark;
 }
 
+.select[data-active] {
+  border-color: var(--c-gold);
+  color: var(--c-gold);
+  font-weight: 700;
+}
+
 .select option {
   background-color: var(--c-bg);
   color: var(--c-text);

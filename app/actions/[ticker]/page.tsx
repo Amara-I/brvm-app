@@ -4,6 +4,7 @@ import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import CompanySheetClient from "@/components/actions/CompanySheetClient";
 import { getCompanySheetPayload } from "@/lib/api/company-sheet-dataset";
+import { getWatchedTickersForCurrentUser } from "@/lib/watchlist/load-watched-tickers";
 import { getPreferredPortfolioType } from "@/lib/auth/preferred-portfolio-type";
 import { getViewer, presentCompanySheetPayload } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
@@ -29,10 +30,11 @@ export default async function CompanyActionPage({
   searchParams,
 }: PageProps & { searchParams?: { tab?: string } }) {
   const ticker = params.ticker.toUpperCase();
-  const [rawPayload, viewer, preferredPortfolioType] = await Promise.all([
+  const [rawPayload, viewer, preferredPortfolioType, watchedTickers] = await Promise.all([
     getCompanySheetPayload(ticker),
     getViewer(),
     getPreferredPortfolioType().catch(() => null),
+    getWatchedTickersForCurrentUser().catch(() => null),
   ]);
   if (!rawPayload) notFound();
   const payload = presentCompanySheetPayload(rawPayload, viewer);
@@ -44,6 +46,7 @@ export default async function CompanyActionPage({
       <CompanySheetClient
         payload={payload}
         isAuthenticated={Boolean(viewer.userId)}
+        isWatched={watchedTickers?.includes(ticker) ?? false}
         gatedVisitor={viewer.gated}
         initialTab={initialTab}
         preferredPortfolioType={preferredPortfolioType}
