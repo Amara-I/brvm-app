@@ -13,6 +13,7 @@ import { getLandingMarkets } from "@/lib/api/landing-markets";
 import LandingPage from "@/components/landing/LandingPage";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { getI18n } from "@/lib/i18n/get-i18n";
+import { getViewer } from "@/lib/entitlements";
 import { BROWSER_CHROME_BG } from "@/lib/theme/browser-chrome";
 
 export const dynamic = "force-dynamic";
@@ -31,14 +32,23 @@ export function generateMetadata() {
 }
 
 export default async function LandingRoute() {
-  const [dataset, heroIndex, markets, sparkSeries] = await Promise.all([
+  const [dataset, heroIndex, markets, sparkSeries, viewer] = await Promise.all([
     getCompaniesFullDataset(),
     loadHeroIndexSeries(),
     getLandingMarkets().catch(() => ([{ exchange: "BRVM" as const, count: null, index: null }, { exchange: "NGX" as const, count: null, index: null }])),
     getMarketSparkSeriesByTicker().catch(() => ({})),
+    getViewer(),
   ]);
   const stats = computeMarketSummaryStats(dataset);
-  const topCompanies = topScoredCompanies(dataset, 4, sparkSeries);
+  const topCompanies = topScoredCompanies(dataset, viewer.gated ? 2 : 4, sparkSeries);
+  let heroPoints = heroIndex?.points ?? null;
+  if (viewer.gated && heroPoints && heroPoints.length > 0) {
+    const last = heroPoints[heroPoints.length - 1]!.time;
+    const cutoff = new Date(`${last}T00:00:00.000Z`);
+    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 1);
+    const cutoffIso = cutoff.toISOString().slice(0, 10);
+    heroPoints = heroPoints.filter((p) => p.time >= cutoffIso);
+  }
   const sectorsCount = new Set(dataset.companies.map((c) => c.sector).filter(Boolean)).size;
 
   // Date de la dernière clôture = séance la plus récente des cours en base
@@ -52,12 +62,13 @@ export default async function LandingRoute() {
     <LandingChrome>
       <LandingPage
         markets={markets}
-        stats={stats}
+        stats={viewer.gated ? { ...stats, buySignalsCount: 0 } : stats}
         topCompanies={topCompanies}
         sectorsCount={sectorsCount}
         educationTermsCount={EDUCATION_TERMS.length}
-        heroSeries={heroIndex?.points ?? null}
+        heroSeries={heroPoints}
         closeDate={closeDate}
+        gatedVisitor={viewer.gated}
       />
     </LandingChrome>
   );

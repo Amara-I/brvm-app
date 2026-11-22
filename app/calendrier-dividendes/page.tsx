@@ -4,6 +4,7 @@ import DividendCalendarClient from "@/components/dividendes/DividendCalendarClie
 import SiteFooter from "@/components/layout/SiteFooter";
 import PageHeader from "@/components/ui/PageHeader";
 import { getDividendCalendarDataset } from "@/lib/api/dividend-calendar";
+import { getViewer, presentDividendCalendar } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +19,8 @@ export function generateMetadata() {
 
 export default async function CalendrierDividendesPage() {
   const { t } = getI18n();
-  const data = await getDividendCalendarDataset();
+  const [raw, viewer] = await Promise.all([getDividendCalendarDataset(), getViewer()]);
+  const data = presentDividendCalendar(raw, viewer);
 
   return (
     <AppHeader>

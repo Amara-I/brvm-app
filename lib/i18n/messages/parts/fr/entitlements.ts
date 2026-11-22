@@ -1,0 +1,16 @@
+export const entitlements = {
+  lock: "Réservé aux membres",
+  title: "Réservé aux comptes",
+  body: "Créez un compte gratuit pour accéder à l’historique complet, aux scores et à l’analyse.",
+  register: "Créer un compte",
+  login: "Se connecter",
+  chartRange: "Historique au-delà d’un an réservé aux comptes.",
+  score: "Score, signal et confiance réservés aux comptes.",
+  fundamental: "L’analyse fondamentale détaillée est réservée aux comptes.",
+  scenarios: "Scénarios, cibles et niveaux réservés aux comptes.",
+  projection: "Les projections sont réservées aux comptes.",
+  comparison: "La comparaison détaillée est réservée aux comptes.",
+  screenerFilters: "Les filtres avancés du screener sont réservés aux comptes.",
+  dividends: "L’historique des dividendes est réservé aux comptes.",
+  export: "L’export Excel est réservé aux comptes.",
+};

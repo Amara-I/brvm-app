@@ -6,6 +6,7 @@ import NgxScreenerTable, { type NgxScreenerTableRow } from "@/components/ngx/Ngx
 import local from "@/components/ngx/NgxScreener.module.css";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
+import { getViewer } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { localizedTypeDef } from "@/lib/i18n/portfolio-type-copy";
 import { loadNgxScreener } from "@/lib/markets/ngx-screener";
@@ -21,11 +22,17 @@ export function generateMetadata() {
 
 export default async function NgxScreenerPage() {
   const { t, locale, format } = getI18n();
-  const data = await loadNgxScreener().catch(() => null);
-  const rows: NgxScreenerTableRow[] = (data?.rows ?? []).map((r) => ({
-    ...r,
-    sectorLabel: ngxSectorLabel(r.sectorSlug, r.sectorName, t),
-  }));
+  const [data, viewer] = await Promise.all([loadNgxScreener().catch(() => null), getViewer()]);
+  const rows: NgxScreenerTableRow[] = (data?.rows ?? []).map((r) => {
+    const row = { ...r, sectorLabel: ngxSectorLabel(r.sectorSlug, r.sectorName, t) };
+    if (!viewer.gated) return row;
+    return {
+      ...row,
+      overall: null,
+      confidence: "LOW",
+      policies: Object.fromEntries(Object.keys(r.policies ?? {}).map((id) => [id, null])) as typeof r.policies,
+    };
+  });
   const policyLabels = Object.fromEntries(
     PORTFOLIO_TYPE_IDS.map((id) => [id, localizedTypeDef(getPortfolioTypeDef(id), locale).label]),
   ) as Record<PortfolioTypeId, string>;
@@ -59,7 +66,7 @@ export default async function NgxScreenerPage() {
                 none: format.integer(cov.unscored),
               })}
             </p>
-            <NgxScreenerTable rows={rows} policyLabels={policyLabels} />
+            <NgxScreenerTable rows={rows} policyLabels={policyLabels} gatedVisitor={viewer.gated} />
             <p className={local.note}>{t("ngx.screener.method")}</p>
             <p className={local.disclaimer}>{t("ngx.screener.disclaimer")}</p>
           </>

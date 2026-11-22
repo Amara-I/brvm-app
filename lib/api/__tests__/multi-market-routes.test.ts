@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+const auth = vi.hoisted(() => ({ user: { id: "test-user" } as { id: string } | null }));
+vi.mock("@/lib/auth/get-current-user", () => ({
+  getCurrentUser: async () => auth.user,
+  getCurrentUserId: async () => auth.user?.id ?? null,
+}));
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(), findFirst: vi.fn(), count: vi.fn(), prices: vi.fn(), dividends: vi.fn(), ratios: vi.fn(),
   levels: vi.fn(), search: vi.fn(), catalog: vi.fn(), actions: vi.fn(), raw: vi.fn(),
@@ -20,6 +25,7 @@ import { GET as excel } from "@/app/api/export/excel/route";
 import * as XLSX from "xlsx";
 const req = (path: string) => new NextRequest(`https://example.org${path}`);
 beforeEach(() => {
+  auth.user = { id: "test-user" };
   vi.resetAllMocks();
   mocks.findMany.mockResolvedValue([]); mocks.count.mockResolvedValue(0);
   mocks.prices.mockResolvedValue([]); mocks.dividends.mockResolvedValue([]); mocks.ratios.mockResolvedValue([]);
@@ -77,5 +83,56 @@ describe("contrats API multi-marchés (Prisma simulé, pas une certification de 
     const ngx = XLSX.utils.sheet_to_json<Record<string, unknown>>(book.Sheets["Données NGX"]);
     expect(ngx[0].Devise).toBe("NGN");
     expect(XLSX.utils.sheet_to_json(book.Sheets["Données BRVM"])).toHaveLength(0);
+  });
+
+  it("refuse l'export Excel au visiteur sans compte", async () => {
+    auth.user = null;
+    const response = await excel(req("/api/export/excel"));
+    expect(response.status).toBe(401);
+  });
+
+  it("limite l'historique du visiteur à un an, au dernier dividende et au dernier exercice", async () => {
+    auth.user = null;
+    mocks.findFirst.mockResolvedValue({
+      id: "c1", ticker: "SNTS", name: "Sonatel", exchange: "BRVM", currency: "XOF",
+      isin: null, color: null, logoUrl: null, description: null, listedSince: null, isActive: true,
+      country: { code: "SN", name: "Sénégal", flagEmoji: "🇸🇳" }, sector: { name: "Télécoms", slug: "telecoms" },
+    });
+    mocks.prices.mockResolvedValue([
+      { date: new Date("2018-01-02T00:00:00Z"), closePrice: 100, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2018-01-02T17:00:00Z") },
+      { date: new Date("2026-06-01T00:00:00Z"), closePrice: 200, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2026-06-01T17:00:00Z") },
+      { date: new Date("2026-11-20T00:00:00Z"), closePrice: 210, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2026-11-20T17:00:00Z") },
+    ]);
+    mocks.dividends.mockResolvedValue([
+      { year: 2020, amount: 100, exDate: new Date("2020-07-01"), paymentDate: null, source: "BRVM_OFFICIEL", createdAt: new Date() },
+      { year: 2025, amount: 200, exDate: new Date("2025-07-01"), paymentDate: null, source: "BRVM_OFFICIEL", createdAt: new Date() },
+    ]);
+    mocks.ratios.mockResolvedValue([
+      { year: 2020, per: 8, mktCap: 1, roe: 1, netMargin: 1, debtRatio: 1, pbRatio: 1, revenueGrowth: 1, fcf: 1, revenue: 1, operatingIncome: 1, netIncome: 1, createdAt: new Date(), source: "BRVM_OFFICIEL" },
+      { year: 2025, per: 10, mktCap: 2, roe: 2, netMargin: 2, debtRatio: 2, pbRatio: 2, revenueGrowth: 2, fcf: 2, revenue: 2, operatingIncome: 2, netIncome: 2, createdAt: new Date(), source: "BRVM_OFFICIEL" },
+    ]);
+    const response = await company(req("/api/companies/SNTS?exchange=BRVM"), { params: { ticker: "SNTS" } });
+    const body = await response.json();
+    expect(body.data.priceHistory.map((row: { date: string }) => row.date)).toEqual(["2026-06-01", "2026-11-20"]);
+    expect(body.data.dividends).toHaveLength(1);
+    expect(body.data.dividends[0].year).toBe(2025);
+    expect(body.data.financialRatios).toHaveLength(1);
+    expect(body.data.financialRatios[0].year).toBe(2025);
+    expect(response.headers.get("cache-control")).toMatch(/private/);
+  });
+
+  it("laisse l'historique complet à un compte connecté", async () => {
+    mocks.findFirst.mockResolvedValue({
+      id: "c1", ticker: "SNTS", name: "Sonatel", exchange: "BRVM", currency: "XOF",
+      isin: null, color: null, logoUrl: null, description: null, listedSince: null, isActive: true,
+      country: { code: "SN", name: "Sénégal", flagEmoji: "🇸🇳" }, sector: { name: "Télécoms", slug: "telecoms" },
+    });
+    mocks.prices.mockResolvedValue([
+      { date: new Date("2018-01-02T00:00:00Z"), closePrice: 100, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2018-01-02T17:00:00Z") },
+      { date: new Date("2026-11-20T00:00:00Z"), closePrice: 210, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2026-11-20T17:00:00Z") },
+    ]);
+    const body = await (await company(req("/api/companies/SNTS?exchange=BRVM"), { params: { ticker: "SNTS" } })).json();
+    expect(body.data.priceHistory).toHaveLength(2);
+    expect(body.data.priceHistory[0].date).toBe("2018-01-02");
   });
 });

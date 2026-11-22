@@ -3,6 +3,7 @@
 // Screener premium — filtres thématiques + tri par colonne.
 
 import { useMemo, useState } from "react";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -31,7 +32,7 @@ function num(v: string | number): number {
   return Number.isNaN(n) ? -Infinity : n;
 }
 
-export default function ScreenerTable({ companies }: { companies: CompanyWithMetrics[] }) {
+export default function ScreenerTable({ companies, gatedVisitor = false }: { companies: CompanyWithMetrics[]; gatedVisitor?: boolean }) {
   const { t, labels, locale } = useI18n();
   const pathname = usePathname();
   const pageKey = `ouestbourse:screener:${pathname}`;
@@ -112,7 +113,7 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
       if (!q) return true;
       return co.ticker.toLowerCase().includes(q) || co.name.toLowerCase().includes(q);
     });
-    if (!colSort) {
+    if (!colSort && !gatedVisitor) {
       switch (active) {
         case "rentabilite":
           list = [...list].sort((a, b) => b.metrics.score - a.metrics.score);
@@ -139,30 +140,34 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
       }
       return list;
     }
-    if (active === "valorisation") {
+    if (active === "valorisation" && !gatedVisitor) {
       list = list.filter((c) => c.co.per > 0);
     }
     return applyColumnSort(list, colDefs, colSort);
-  }, [companies, active, sector, country, query, colSort, colDefs]);
+  }, [companies, active, sector, country, query, colSort, colDefs, gatedVisitor]);
 
   return (
     <div className={styles.shell} data-align-left>
       <div className={styles.toolbar}>
         <div className={styles.chips}>
-          {filters.map((f) => (
-            <button
-              key={f.key}
-              type="button"
-              onClick={() => {
-                setActive(f.key);
-                setColSort(null);
-              }}
-              aria-pressed={active === f.key}
-              className={active === f.key ? styles.chipActive : styles.chip}
-            >
-              {f.label}
-            </button>
-          ))}
+          {gatedVisitor ? (
+            <LockedTeaser body={t("entitlements.screenerFilters")} />
+          ) : (
+            filters.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => {
+                  setActive(f.key);
+                  setColSort(null);
+                }}
+                aria-pressed={active === f.key}
+                className={active === f.key ? styles.chipActive : styles.chip}
+              >
+                {f.label}
+              </button>
+            ))
+          )}
         </div>
         <div className={styles.filters}>
           <label className={styles.filterLabel}>
@@ -229,10 +234,12 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                   <td className={styles.dim}>{labels.sector(co.sector)}</td>
                   <td className={styles.dim}>{labels.country(co.country)}</td>
                   <td>
-                    <ScoreBadge score={metrics.score} />
+                    {gatedVisitor ? <LockedTeaser compact /> : <ScoreBadge score={metrics.score} />}
                   </td>
                   <td>
-                    {metrics.perf5Percent !== "N/D" ? (
+                    {gatedVisitor ? (
+                      <LockedTeaser compact />
+                    ) : metrics.perf5Percent !== "N/D" ? (
                       <ChangeValue value={num(metrics.perf5Percent)} digits={1} />
                     ) : (
                       <span className="ob-nd">N/D</span>
@@ -241,37 +248,41 @@ export default function ScreenerTable({ companies }: { companies: CompanyWithMet
                   <td className="ob-num" style={{ color: C.teal }}>
                     {metrics.dividendYieldPercent}%
                   </td>
-                  <td className="ob-num">{co.per > 0 ? co.per.toFixed(1) : <span className="ob-nd">N/D</span>}</td>
+                  <td className="ob-num">{gatedVisitor ? <LockedTeaser compact /> : co.per > 0 ? co.per.toFixed(1) : <span className="ob-nd">N/D</span>}</td>
                   <td>
-                    <SignalBadge
-                      label={metrics.signal.label}
-                      title={labels.signalSummary({
-                        label: metrics.signal.label,
-                        score: metrics.score,
-                        confidence: metrics.confidence,
-                        signalSummary: metrics.signalSummary,
-                        signalReasons: metrics.signalReasons,
-                      })}
-                    />
+                    {gatedVisitor ? (
+                      <LockedTeaser compact />
+                    ) : (
+                      <SignalBadge
+                        label={metrics.signal.label}
+                        title={labels.signalSummary({
+                          label: metrics.signal.label,
+                          score: metrics.score,
+                          confidence: metrics.confidence,
+                          signalSummary: metrics.signalSummary,
+                          signalReasons: metrics.signalReasons,
+                        })}
+                      />
+                    )}
                   </td>
                   <td
-                    title={displayRiskSummary(metrics.riskAnalysis, locale, labels)}
+                    title={gatedVisitor ? undefined : displayRiskSummary(metrics.riskAnalysis, locale, labels)}
                     style={{
                       color:
-                        metrics.riskAnalysis.riskScore < 40
+                        gatedVisitor || metrics.riskAnalysis.riskScore < 40
                           ? C.green
                           : metrics.riskAnalysis.riskScore > 65
                             ? C.red
                             : C.gold,
                       fontWeight: 600,
                       fontSize: "0.72rem",
-                      cursor: "help",
+                      cursor: gatedVisitor ? "default" : "help",
                     }}
                   >
-                    {labels.riskTier(metrics.riskAnalysis.riskTier)}
+                    {gatedVisitor ? <LockedTeaser compact /> : labels.riskTier(metrics.riskAnalysis.riskTier)}
                   </td>
                   <td className={styles.dim}>
-                    <ConfidenceDot value={metrics.confidence} />
+                    {gatedVisitor ? <LockedTeaser compact /> : <ConfidenceDot value={metrics.confidence} />}
                   </td>
                 </tr>
               ))

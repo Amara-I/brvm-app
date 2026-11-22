@@ -44,9 +44,10 @@ function formatSessionDate(
 
 export interface NgxOverviewClientProps {
   initial: NgxOverviewBoardPayload;
+  gatedVisitor?: boolean;
 }
 
-export default function NgxOverviewClient({ initial }: NgxOverviewClientProps) {
+export default function NgxOverviewClient({ initial, gatedVisitor = false }: NgxOverviewClientProps) {
   const { t, format } = useI18n();
   const exchange = getExchange("NGX");
   const [rows, setRows] = useState<NgxBoardRow[]>(initial.rows);
@@ -137,7 +138,8 @@ export default function NgxOverviewClient({ initial }: NgxOverviewClientProps) {
         onRefresh={handleRefresh}
         companiesCount={kpis.listed}
         totalMktCap={kpis.totalCapBn ?? 0}
-        buySignals={kpis.buySignals}
+        buySignals={gatedVisitor ? 0 : kpis.buySignals}
+        gatedVisitor={gatedVisitor}
         avgYield={formatNgxAvgYield(kpis.avgYieldPercent)}
         indexPills={indices}
         currency={exchange.currency}
@@ -153,7 +155,7 @@ export default function NgxOverviewClient({ initial }: NgxOverviewClientProps) {
       {rows.length === 0 ? (
         <EmptyState title={t("ngx.market.emptyTitle")} body={t("ngx.market.emptyBody")} />
       ) : (
-        <NgxMarketBoard rows={rows} />
+        <NgxMarketBoard rows={rows} gatedVisitor={gatedVisitor} />
       )}
 
       <p className={ngxStyles.attribution}>

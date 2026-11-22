@@ -12,7 +12,8 @@
 
 import { NextRequest } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { apiSuccess, apiNotFound, apiValidationError, cacheHeaders } from "@/lib/api/response";
+import { apiSuccess, apiNotFound, apiValidationError, privateCacheHeaders } from "@/lib/api/response";
+import { capSeriesToAnonWindow, getViewer } from "@/lib/entitlements";
 import { marketScopeQuerySchema } from "@/lib/api/query-schemas";
 import { actionsForTicker } from "@/lib/corporate-actions/load";
 import { presentClose, presentDividend } from "@/lib/corporate-actions/present-quotes";
@@ -69,6 +70,53 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
   }, null);
 
   const actions = await actionsForTicker(ticker, company.id).catch(() => []);
+  const viewer = await getViewer();
+
+  let pricePayload = priceHistory.map((p) => {
+        const date = p.date.toISOString().slice(0, 10);
+        const shown = presentClose(Number(p.closePrice), p.volume !== null ? Number(p.volume) : null, date, actions);
+        return {
+          date,
+          closePrice: shown.closePrice,
+          volume: shown.volume,
+          source: p.source,
+          ingestedAt: p.ingestedAt.toISOString(),
+        };
+      });
+  let dividendPayload = dividends.map((d) => ({
+        year: d.year,
+        amount: presentDividend(Number(d.amount), d.year, d.exDate?.toISOString().slice(0, 10) ?? null, actions),
+        exDate: d.exDate?.toISOString().slice(0, 10) ?? null,
+        paymentDate: d.paymentDate?.toISOString().slice(0, 10) ?? null,
+        source: d.source,
+        collectedAt: d.createdAt.toISOString(),
+      }));
+  let ratioPayload = financialRatios.map((r) => ({
+        year: r.year,
+        per: r.per !== null ? Number(r.per) : "N/D",
+        mktCap: r.mktCap !== null ? Number(r.mktCap) : "N/D",
+        roe: r.roe !== null ? Number(r.roe) : "N/D",
+        netMargin: r.netMargin !== null ? Number(r.netMargin) : "N/D",
+        debtRatio: r.debtRatio !== null ? Number(r.debtRatio) : "N/D",
+        pbRatio: r.pbRatio !== null ? Number(r.pbRatio) : "N/D",
+        revenueGrowth: r.revenueGrowth !== null ? Number(r.revenueGrowth) : "N/D",
+        fcf: r.fcf !== null ? Number(r.fcf) : "N/D",
+        revenue: r.revenue != null ? Number(r.revenue) : "N/D",
+        operatingIncome: r.operatingIncome != null ? Number(r.operatingIncome) : "N/D",
+        netIncome: r.netIncome != null ? Number(r.netIncome) : "N/D",
+        monetaryUnit: company.currency === "NGN" ? "Md NGN" : "Md XOF",
+        collectedAt: r.createdAt.toISOString(),
+        source: r.source,
+      }));
+  if (viewer.gated) {
+    const capped = capSeriesToAnonWindow(
+      pricePayload.map((p) => ({ time: p.date, value: p.closePrice }))
+    );
+    const allowed = new Set(capped.map((p) => p.time));
+    pricePayload = pricePayload.filter((p) => allowed.has(p.date));
+    dividendPayload = dividendPayload.slice(-1);
+    ratioPayload = ratioPayload.slice(-1);
+  }
 
   return apiSuccess(
     {
@@ -88,44 +136,12 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       },
       // Donnée manquante → tableau vide (le front affiche déjà "N/D" pour
       // les années sans cours, cf. contrainte non négociable du JSX).
-      priceHistory: priceHistory.map((p) => {
-        const date = p.date.toISOString().slice(0, 10);
-        const shown = presentClose(Number(p.closePrice), p.volume !== null ? Number(p.volume) : null, date, actions);
-        return {
-          date,
-          closePrice: shown.closePrice,
-          volume: shown.volume,
-          source: p.source,
-          ingestedAt: p.ingestedAt.toISOString(),
-        };
-      }),
-      dividends: dividends.map((d) => ({
-        year: d.year,
-        amount: presentDividend(Number(d.amount), d.year, d.exDate?.toISOString().slice(0, 10) ?? null, actions),
-        exDate: d.exDate?.toISOString().slice(0, 10) ?? null,
-        paymentDate: d.paymentDate?.toISOString().slice(0, 10) ?? null,
-        source: d.source,
-        collectedAt: d.createdAt.toISOString(),
-      })),
-      financialRatios: financialRatios.map((r) => ({
-        year: r.year,
-        per: r.per !== null ? Number(r.per) : "N/D",
-        mktCap: r.mktCap !== null ? Number(r.mktCap) : "N/D",
-        roe: r.roe !== null ? Number(r.roe) : "N/D",
-        netMargin: r.netMargin !== null ? Number(r.netMargin) : "N/D",
-        debtRatio: r.debtRatio !== null ? Number(r.debtRatio) : "N/D",
-        pbRatio: r.pbRatio !== null ? Number(r.pbRatio) : "N/D",
-        revenueGrowth: r.revenueGrowth !== null ? Number(r.revenueGrowth) : "N/D",
-        fcf: r.fcf !== null ? Number(r.fcf) : "N/D",
-        revenue: r.revenue != null ? Number(r.revenue) : "N/D",
-        operatingIncome: r.operatingIncome != null ? Number(r.operatingIncome) : "N/D",
-        netIncome: r.netIncome != null ? Number(r.netIncome) : "N/D",
-        monetaryUnit: company.currency === "NGN" ? "Md NGN" : "Md XOF",
-        collectedAt: r.createdAt.toISOString(),
-        source: r.source,
-      })),
+      // Visiteur : 1 an de cours, dernier dividende, dernier exercice de ratios.
+      priceHistory: pricePayload,
+      dividends: dividendPayload,
+      financialRatios: ratioPayload,
       lastSyncedAt,
     },
-    { headers: cacheHeaders(60) }
+    { headers: privateCacheHeaders() }
   );
 }

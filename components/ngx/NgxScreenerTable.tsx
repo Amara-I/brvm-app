@@ -6,6 +6,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import CompanyMark from "@/components/ui/CompanyMark";
 import ChangeValue from "@/components/ui/ChangeValue";
 import ColumnFilterRow from "@/components/ui/ColumnFilterRow";
@@ -42,9 +43,11 @@ function chipScore(row: NgxScreenerRow, key: ChipKey): number | null {
 export default function NgxScreenerTable({
   rows,
   policyLabels,
+  gatedVisitor = false,
 }: {
   rows: NgxScreenerTableRow[];
   policyLabels: Record<PortfolioTypeId, string>;
+  gatedVisitor?: boolean;
 }) {
   const { t, format } = useI18n();
   const pageKey = "ouestbourse:ngx-screener";
@@ -209,7 +212,7 @@ export default function NgxScreenerTable({
                   <td className={styles.dim}>{r.sectorLabel}</td>
                   <td>
                     <span className={local.scoreCell}>
-                      <ScorePill value={r.overall} />
+                      {gatedVisitor ? <LockedTeaser compact /> : <ScorePill value={r.overall} />}
                       {r.mode === "CHART_ONLY" ? (
                         <span className={local.tag} title={t("ngx.screener.tags.chartOnlyTitle")}>
                           {t("ngx.screener.tags.chartOnly")}
@@ -233,17 +236,17 @@ export default function NgxScreenerTable({
                   </td>
                   {PORTFOLIO_TYPE_IDS.map((id) => (
                     <td key={id}>
-                      <ScorePill value={r.policies[id]} />
+                      {gatedVisitor ? <LockedTeaser compact /> : <ScorePill value={r.policies[id]} />}
                     </td>
                   ))}
                   <td>
                     {r.return1yPercent != null ? <ChangeValue value={r.return1yPercent} digits={1} /> : <span className="ob-nd">N/D</span>}
                   </td>
-                  <td className="ob-num">{r.per != null ? format.decimal(r.per, 1) : <span className="ob-nd">N/D</span>}</td>
+                  <td className="ob-num">{gatedVisitor ? <LockedTeaser compact /> : r.per != null ? format.decimal(r.per, 1) : <span className="ob-nd">N/D</span>}</td>
                   <td className="ob-num">
                     {r.yieldPercent != null ? format.percent(r.yieldPercent, 1) : <span className="ob-nd">N/D</span>}
                   </td>
-                  <td className={styles.dim}>{r.overall != null ? t(`ngx.sheet.score.confidence.${r.confidence}`) : <span className="ob-nd">N/D</span>}</td>
+                  <td className={styles.dim}>{gatedVisitor ? <LockedTeaser compact /> : r.overall != null ? t(`ngx.sheet.score.confidence.${r.confidence}`) : <span className="ob-nd">N/D</span>}</td>
                 </tr>
               ))
             )}

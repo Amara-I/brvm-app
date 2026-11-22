@@ -19,6 +19,7 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest, NextResponse } from "next/server";
+import { getViewer } from "@/lib/entitlements";
 import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
 import { appendNgxExport } from "@/lib/calc/append-market-export";
 import { prisma } from "@/lib/prisma";
@@ -32,6 +33,11 @@ import type { Prisma } from "@prisma/client";
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
+  const viewer = await getViewer();
+  if (viewer.gated) {
+    return apiError("Authentification requise pour l'export Excel", 401);
+  }
+
   const sector = request.nextUrl.searchParams.get("sector");
   const country = request.nextUrl.searchParams.get("country");
 

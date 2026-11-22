@@ -53,6 +53,16 @@ const providers: AuthOptions["providers"] = [
 
       const user = await prisma.user.findUnique({
         where: { email: parsed.data.email.toLowerCase() },
+        // select explicite : ne pas lire `plan` tant que la migration peut manquer.
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          image: true,
+          passwordHash: true,
+          role: true,
+          emailVerified: true,
+        },
       });
       // `passwordHash` null = compte créé uniquement via OAuth →
       // pas de mot de passe à vérifier, connexion par Credentials refusée.

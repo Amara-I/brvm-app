@@ -7,6 +7,7 @@ import local from "@/components/ngx/NgxDividends.module.css";
 import styles from "@/components/ngx/NgxMarket.module.css";
 import EmptyState from "@/components/ui/EmptyState";
 import PageHeader from "@/components/ui/PageHeader";
+import { getViewer, presentNgxDividends } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import { loadNgxDividends, topYieldByCompany } from "@/lib/markets/ngx-dividends";
 
@@ -19,7 +20,8 @@ export function generateMetadata() {
 
 export default async function NgxDividendsPage() {
   const { t, format } = getI18n();
-  const data = await loadNgxDividends();
+  const [raw, viewer] = await Promise.all([loadNgxDividends(), getViewer()]);
+  const data = presentNgxDividends(raw, viewer);
   const sectorLabels = Object.fromEntries(data.sectors.map((s) => [s.slug, ngxSectorLabel(s.slug, s.name, t)]));
   const top = topYieldByCompany(data.rows);
 

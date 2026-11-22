@@ -15,6 +15,7 @@ import { portfolio } from "./parts/fr/portfolio";
 import { screener } from "./parts/fr/screener";
 import { tools } from "./parts/fr/tools";
 import { scoreSignal } from "./parts/fr/score-signal";
+import { entitlements } from "./parts/fr/entitlements";
 
 export const fr = {
   common,
@@ -34,6 +35,7 @@ export const fr = {
   notifications,
   ngx,
   scoreSignal,
+  entitlements,
 } as const;
 
 export type Messages = typeof fr;

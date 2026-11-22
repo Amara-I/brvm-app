@@ -1,13 +1,18 @@
 // GET /api/companies/:ticker/analyse — analyse complète (technique + fondamental + risque)
 
 import { NextRequest } from "next/server";
-import { apiSuccess, apiNotFound, cacheHeaders } from "@/lib/api/response";
+import { apiSuccess, apiNotFound, apiError, privateCacheHeaders } from "@/lib/api/response";
 import { getCompanySheetPayload } from "@/lib/api/company-sheet-dataset";
+import { getViewer } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: NextRequest, { params }: { params: { ticker: string } }) {
   const ticker = params.ticker.toUpperCase();
+  const viewer = await getViewer();
+  if (viewer.gated) {
+    return apiError("Authentification requise pour l'analyse complète", 401);
+  }
   const payload = await getCompanySheetPayload(ticker);
   if (!payload) return apiNotFound(`Société "${ticker}"`);
 
@@ -46,6 +51,6 @@ export async function GET(_request: NextRequest, { params }: { params: { ticker:
         mktcap: company.mktcap,
       },
     },
-    { headers: cacheHeaders(60, 120) }
+    { headers: privateCacheHeaders() }
   );
 }

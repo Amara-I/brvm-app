@@ -11,6 +11,7 @@ import OverviewPriceChart from "@/components/actions/OverviewPriceChart";
 import styles from "@/components/actions/CompanySheet.module.css";
 import { trackFeature } from "@/components/analytics/track-client";
 import { useI18n } from "@/components/i18n/I18nProvider";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import { lastPointAsOf } from "@/lib/charts/chart-window";
 import { downsampleLttb } from "@/lib/charts/downsample";
 import { rangeFilter, type ChartClosePoint, type ChartRange } from "@/lib/charts/indicators";
@@ -31,10 +32,12 @@ export default function NgxOverviewPriceCard({
   ticker,
   series,
   sessionDate,
+  gatedVisitor = false,
 }: {
   ticker: string;
   series: ChartClosePoint[];
   sessionDate: string | null;
+  gatedVisitor?: boolean;
 }) {
   const { t, format, locale } = useI18n();
   const nd = "N/D";
@@ -107,6 +110,9 @@ export default function NgxOverviewPriceCard({
           </div>
           <div className={styles.rangeRow}>
             {RANGES.map((r) => (
+              gatedVisitor && (r.key === "5A" || r.key === "MAX") ? (
+                <LockedTeaser key={r.key} compact label={t(r.labelKey)} />
+              ) : (
               <button
                 key={r.key}
                 type="button"
@@ -118,6 +124,7 @@ export default function NgxOverviewPriceCard({
               >
                 {t(r.labelKey)}
               </button>
+              )
             ))}
           </div>
         </div>

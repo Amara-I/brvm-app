@@ -78,7 +78,7 @@ export async function PATCH(request: NextRequest) {
     const emailChanged = Boolean(nextEmail && nextEmail !== current.email);
 
     if (emailChanged && nextEmail) {
-      const taken = await prisma.user.findUnique({ where: { email: nextEmail } });
+      const taken = await prisma.user.findUnique({ where: { email: nextEmail }, select: { id: true } });
       if (taken) return apiError(t("common.api.emailTaken"), 409);
     }
 

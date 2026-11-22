@@ -18,6 +18,7 @@ import {
   type HeroRange,
 } from "@/lib/landing/hero-chart";
 import styles from "./Landing.module.css";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 
 export interface MarketHeroCardLabels {
   /** « Capitalisation BRVM » */
@@ -45,16 +46,17 @@ export interface MarketHeroCardProps {
   capitalisation: string;
   series: HeroPoint[];
   labels: MarketHeroCardLabels;
+  gatedVisitor?: boolean;
 }
 
 const VIEW_W = 560;
 const VIEW_H = 220;
 const MAX_DRAW_POINTS = 360;
 
-export default function MarketHeroCard({ locale, capitalisation, series, labels }: MarketHeroCardProps) {
+export default function MarketHeroCard({ locale, capitalisation, series, labels, gatedVisitor = false }: MarketHeroCardProps) {
   const format = useMemo(() => createFormat(locale), [locale]);
   const ranges = useMemo(() => availableHeroRanges(series), [series]);
-  const [range, setRange] = useState<HeroRange>(() => ranges[ranges.length - 1] ?? "MAX");
+  const [range, setRange] = useState<HeroRange>(() => (gatedVisitor ? "1Y" : ranges[ranges.length - 1] ?? "MAX"));
   const [hover, setHover] = useState<number | null>(null);
   const plotRef = useRef<HTMLDivElement>(null);
   const gradId = useId().replace(/:/g, "");
@@ -101,24 +103,28 @@ export default function MarketHeroCard({ locale, capitalisation, series, labels 
         <section className={styles.hcChart} aria-label={labels.chartTitle}>
           <div className={styles.hcChartHead}>
             <h3 className={styles.hcChartTitle}>{labels.chartTitle}</h3>
-            {ranges.length > 1 ? (
-              <div className={styles.hcRanges} role="group" aria-label={labels.rangeAria}>
-                {ranges.map((key) => (
-                  <button
-                    key={key}
-                    type="button"
-                    className={`${styles.hcRange} ${key === range ? styles.hcRangeOn : ""}`}
-                    aria-pressed={key === range}
-                    onClick={() => {
-                      setRange(key);
-                      setHover(null);
-                    }}
-                  >
-                    {labels.ranges[key]}
-                  </button>
-                ))}
+            <div className={styles.hcRanges} role="group" aria-label={labels.rangeAria}>
+                {(["1Y", "3Y", "5Y", "MAX"] as HeroRange[]).map((key) => {
+                  if (gatedVisitor && key !== "1Y") {
+                    return <LockedTeaser key={key} compact label={labels.ranges[key]} callbackUrl="/" />;
+                  }
+                  if (!ranges.includes(key) && !(gatedVisitor && key === "1Y")) return null;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      className={`${styles.hcRange} ${key === range ? styles.hcRangeOn : ""}`}
+                      aria-pressed={key === range}
+                      onClick={() => {
+                        setRange(key);
+                        setHover(null);
+                      }}
+                    >
+                      {labels.ranges[key]}
+                    </button>
+                  );
+                })}
               </div>
-            ) : null}
           </div>
 
           <div className={styles.hcDeltaRow}>

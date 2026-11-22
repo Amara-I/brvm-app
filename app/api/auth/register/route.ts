@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
   const email = parsed.data.email.toLowerCase();
   let existing;
   try {
-    existing = await prisma.user.findUnique({ where: { email } });
+    existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   } catch (error) {
     if (isDatabaseUnavailable(error)) {
       return apiError(t("common.unavailable"), 503);

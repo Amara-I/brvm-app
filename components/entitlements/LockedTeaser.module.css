@@ -1,0 +1,121 @@
+.wrap {
+  position: relative;
+  isolation: isolate;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--c-border);
+  background: var(--c-panel);
+}
+
+.blur {
+  filter: blur(7px);
+  opacity: 0.45;
+  pointer-events: none;
+  user-select: none;
+  transform: scale(1.02);
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 14px;
+  text-align: center;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c-bg) 55%, transparent), color-mix(in srgb, var(--c-bg) 82%, transparent));
+  z-index: 1;
+}
+
+.lock {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--c-gold);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lock svg {
+  flex: 0 0 auto;
+}
+
+.title {
+  margin: 0;
+  color: var(--c-text);
+  font-size: var(--fs-body-sm, 0.92rem);
+  font-weight: 700;
+}
+
+.body {
+  margin: 0;
+  max-width: 28rem;
+  color: var(--c-textdim);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Cellule / bouton compact (tableaux, 5A/MAX). */
+.compact {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 32px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px dashed color-mix(in srgb, var(--c-gold) 55%, var(--c-border));
+  background: color-mix(in srgb, var(--c-gold) 8%, var(--c-panel));
+  color: var(--c-gold);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.compact:hover,
+.compact:focus-visible {
+  background: color-mix(in srgb, var(--c-gold) 16%, var(--c-panel));
+  outline: 2px solid color-mix(in srgb, var(--c-gold) 50%, transparent);
+  outline-offset: 1px;
+}
+
+.ghost {
+  display: inline-block;
+  width: 2.6rem;
+  height: 0.85rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c-gold) 25%, var(--c-border));
+  filter: blur(1px);
+}
+
+@media (max-width: 420px) {
+  .overlay {
+    padding: 10px 8px;
+    gap: 6px;
+  }
+  .body {
+    font-size: 0.74rem;
+  }
+  .actions {
+    width: 100%;
+  }
+  .actions :global(.ob-btn-gold),
+  .actions :global(.ob-btn-secondary) {
+    flex: 1 1 auto;
+    text-align: center;
+  }
+}

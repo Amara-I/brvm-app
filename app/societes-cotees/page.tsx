@@ -4,6 +4,7 @@ import AppHeader from "@/components/AppHeader";
 import SiteFooter from "@/components/layout/SiteFooter";
 import AnalysisRecap from "@/components/analysis/AnalysisRecap";
 import CompanyMark from "@/components/ui/CompanyMark";
+import LockedTeaser from "@/components/entitlements/LockedTeaser";
 import ScoreBadge from "@/components/ui/ScoreBadge";
 import SignalBadge from "@/components/ui/SignalBadge";
 import ScoreSignalLegend from "@/components/ui/ScoreSignalLegend";
@@ -14,6 +15,7 @@ import { applyTechnicalSignal } from "@/lib/technical-analysis/apply-signal";
 import { getMarketSparkSeriesByTicker } from "@/lib/api/market-spark-series";
 import type { ChartClosePoint } from "@/lib/charts/indicators";
 import { fundamentalRecapLines, truncateSummary } from "@/lib/calc/analysis-recap";
+import { getViewer } from "@/lib/entitlements";
 import { getI18n } from "@/lib/i18n/get-i18n";
 import type { LabelsApi } from "@/lib/i18n/labels";
 import type { FormatApi } from "@/lib/i18n/format";
@@ -100,9 +102,10 @@ function recapLines(
 
 export default async function SocietesCoteesPage() {
   const { t, format, labels, locale } = getI18n();
-  const [dataset, sparkSeries] = await Promise.all([
+  const [dataset, sparkSeries, viewer] = await Promise.all([
     getCompaniesFullDataset(),
     getMarketSparkSeriesByTicker().catch(() => ({}) as Record<string, ChartClosePoint[]>),
+    getViewer(),
   ]);
   const { companies, years } = dataset;
   const yearSpan =
@@ -252,15 +255,18 @@ export default async function SocietesCoteesPage() {
                           <div className={styles.metric}>
                             <span className={styles.metricLabel}>{t("directory.companies.score")}</span>
                             <span className={styles.metricValue}>
-                              <ScoreBadge score={m.score} outOf showTier />
+                              {viewer.gated ? <LockedTeaser compact callbackUrl={`/actions/${co.ticker}`} /> : <ScoreBadge score={m.score} outOf showTier />}
                             </span>
                           </div>
                         </div>
                         <div className={styles.cardFooter}>
-                          <SignalBadge label={m.signal.label} confidence={m.confidence} />
+                          {viewer.gated ? <LockedTeaser compact callbackUrl={`/actions/${co.ticker}`} /> : <SignalBadge label={m.signal.label} confidence={m.confidence} />}
                           <span className={styles.more}>{t("directory.companies.sheet")}</span>
                         </div>
                       </Link>
+                      {viewer.gated ? (
+                        <LockedTeaser body={t("entitlements.fundamental")} callbackUrl={`/actions/${co.ticker}?tab=fundamental`} />
+                      ) : (
                       <AnalysisRecap
                         kind="fundamental"
                         signalLabel={labels.signal(m.signal.label)}
@@ -273,6 +279,7 @@ export default async function SocietesCoteesPage() {
                         href={`/actions/${co.ticker}?tab=fundamental`}
                         hrefLabel={t("directory.companies.fullSheet")}
                       />
+                      )}
                     </article>
                   );
                 })}

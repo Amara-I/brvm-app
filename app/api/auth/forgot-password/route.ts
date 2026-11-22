@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   let devResetUrl: string | undefined;
 
   try {
-    const user = await prisma.user.findUnique({ where: { email } });
+    const user = await prisma.user.findUnique({ where: { email }, select: { id: true, email: true, passwordHash: true } });
     if (user?.passwordHash) {
       const rawToken = await issueAuthToken(user.id, "PASSWORD_RESET");
       if (!rawToken) {
