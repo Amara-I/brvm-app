@@ -2,6 +2,7 @@
 
 // Tableau Marché : liste + aperçus sparklines + lignes expansibles (perf / liens).
 
+import WatchStar from "@/components/watchlist/WatchStar";
 import { useCallback, useEffect, useMemo, useRef, useState, Fragment, type ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -62,6 +63,8 @@ export interface MarketBoardClientProps {
   /** Variation journalière officielle (BRVM) par ticker. */
   initialDayChanges?: Record<string, number | null>;
   preferredPortfolioType?: PortfolioTypeId | null;
+  /** Tickers suivis par l'utilisateur ; null/absent = visiteur non connecté. */
+  watchedTickers?: string[] | null;
 }
 
 const COL_COUNT = 11;
@@ -100,6 +103,7 @@ export default function MarketBoardClient({
   initialSparkSeries = {},
   initialDayChanges = {},
   preferredPortfolioType = null,
+  watchedTickers = null,
 }: MarketBoardClientProps) {
   const { t, format, labels } = useI18n();
   const pathname = usePathname();
@@ -130,6 +134,17 @@ export default function MarketBoardClient({
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [lastUpdate, setLastUpdate] = useState(() => format.date(initialData.generatedAt, NUMERIC_DATE));
   const [freshAsOf, setFreshAsOf] = useState(() => latestSyncIso(initialData));
+  const isAuthenticated = watchedTickers !== null;
+  const [watched, setWatched] = useState<Set<string>>(() => new Set(watchedTickers ?? []));
+  const [onlyWatched, setOnlyWatched] = useState(false);
+  const handleWatchChange = useCallback((ticker: string, next: boolean) => {
+    setWatched((prev) => {
+      const copy = new Set(prev);
+      if (next) copy.add(ticker);
+      else copy.delete(ticker);
+      return copy;
+    });
+  }, []);
 
   const exchange = getExchange(DEFAULT_EXCHANGE_CODE);
   const companies = dataset.companies;
@@ -186,6 +201,7 @@ export default function MarketBoardClient({
     const q = query.trim().toLowerCase();
     let list = companies.filter((c) => {
       if (sectorFilter !== "Tous" && c.sector !== sectorFilter) return false;
+      if (onlyWatched && !watched.has(c.ticker)) return false;
       if (!q) return true;
       return c.ticker.toLowerCase().includes(q) || c.name.toLowerCase().includes(q);
     });
@@ -205,7 +221,7 @@ export default function MarketBoardClient({
       return (mb.currentPrice || 0) - (ma.currentPrice || 0);
     });
     return list;
-  }, [companies, query, sectorFilter, sortBy, metricsByTicker]);
+  }, [companies, query, sectorFilter, sortBy, metricsByTicker, onlyWatched, watched]);
 
   const marketColDefs = useMemo<ColumnFilterDef<MarketRow>[]>(
     () => [
@@ -285,7 +301,7 @@ export default function MarketBoardClient({
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
-  }, [query, sectorFilter, sortBy, colSort]);
+  }, [query, sectorFilter, sortBy, colSort, onlyWatched]);
 
   const pagedRows = useMemo(
     () => displayRows.slice(0, visibleCount),
@@ -452,6 +468,18 @@ export default function MarketBoardClient({
             <p className={styles.boardSub}>{t("market.board.subtitle")}</p>
           </div>
           <div className={styles.filters}>
+            {isAuthenticated ? (
+              <button
+                type="button"
+                className={styles.select}
+                aria-pressed={onlyWatched}
+                aria-label={t("market.watchlist.filterAria")}
+                onClick={() => setOnlyWatched((v) => !v)}
+                data-active={onlyWatched || undefined}
+              >
+                {t("market.watchlist.filter", { count: watched.size })}
+              </button>
+            ) : null}
             <input
               type="search"
               value={query}
@@ -526,6 +554,8 @@ export default function MarketBoardClient({
                   <td colSpan={COL_COUNT} className={styles.empty}>
                     {companies.length === 0 ? (
                       <span className={styles.skeletonHint}>{t("market.board.loading")}</span>
+                    ) : onlyWatched && watched.size === 0 ? (
+                      t("market.watchlist.empty")
                     ) : (
                       t("market.board.empty")
                     )}
@@ -573,6 +603,13 @@ export default function MarketBoardClient({
                             </span>
                             <span aria-hidden="true">{co.countryFlag}</span>
                           </span>
+                          <WatchStar
+                            ticker={co.ticker}
+                            initialWatched={watched.has(co.ticker)}
+                            isAuthenticated={isAuthenticated}
+                            loginCallbackPath="/marche"
+                            onChange={handleWatchChange}
+                          />
                         </td>
                         <td>
                           <div className={styles.name}>{co.name}</div>

@@ -1,0 +1,54 @@
+.star {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0 0.25rem;
+  min-width: 28px;
+  min-height: 28px;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--c-textdim);
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  border-radius: 6px;
+}
+
+.star:hover {
+  color: var(--c-gold);
+}
+
+.star[data-watched="true"] {
+  color: var(--c-gold);
+}
+
+.star[data-failed] {
+  color: var(--c-red);
+}
+
+.star:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+.star:focus-visible {
+  outline: 2px solid var(--c-green);
+  outline-offset: 2px;
+}
+
+/* Variante avec texte (fiche société) : même gabarit que les boutons voisins. */
+.withLabel {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 9px 14px;
+  border: 1px solid var(--c-border);
+  color: var(--c-text);
+}
+
+.withLabel[data-watched="true"] {
+  color: var(--c-text);
+  border-color: var(--c-gold);
+}

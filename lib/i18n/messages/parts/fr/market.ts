@@ -16,6 +16,17 @@ export const market = {
   },
   overview: "Vue d'ensemble",
   lastUpdate: "Dernière MAJ :",
+  watchlist: {
+    add: "Suivre {ticker}",
+    remove: "Ne plus suivre {ticker}",
+    follow: "Suivre",
+    following: "Suivie",
+    filter: "★ Ma liste ({count})",
+    filterAria: "N'afficher que les sociétés que je suis",
+    loginHint: "Connectez-vous pour suivre cette société",
+    error: "Impossible de mettre à jour votre liste. Réessayez.",
+    empty: "Votre liste est vide. Cliquez sur l'étoile ☆ d'une société pour la suivre.",
+  },
   freshness: {
     live: "Séance en cours · MAJ {time}",
     closed: "Séance clôturée · MAJ {time}",

@@ -1076,6 +1076,20 @@ Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
 
 ---
 
+## 24. Étape 28 — Phase 2 (1/2) : fraîcheur des cours + watchlist
+
+- `lib/market/freshness.ts` (+ tests) : état LIVE / CLOSED / STALE dérivé de la dernière
+  synchro et des horaires de séance (UTC) ; `components/market/DataFreshness.tsx` calcule
+  l'état après hydratation. Remplace la pastille verte toujours « live » de `MarketChrome`.
+- Watchlist : modèle `WatchlistItem` + migration `20261122120000_watchlist` (appliquée au
+  build Vercel par `scripts/try-migrate-deploy.cjs`), `GET/POST/DELETE /api/watchlist`
+  (plafond 100), `components/watchlist/WatchStar.tsx` (optimiste), bouton « Ma liste » sur
+  `/marche`, étoile sur les lignes et la fiche société.
+- Si la table n'existe pas encore, `/marche` et les fiches dégradent en mode visiteur
+  (le chargement de la liste est en `.catch(() => null)`).
+
+---
+
 ## 6. Conventions de dépôt
 
 - `reference/` — fichiers sources figés fournis par l'utilisateur (lecture seule,

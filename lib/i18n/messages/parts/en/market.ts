@@ -16,6 +16,17 @@ export const market = {
   },
   overview: "Overview",
   lastUpdate: "Last update:",
+  watchlist: {
+    add: "Follow {ticker}",
+    remove: "Unfollow {ticker}",
+    follow: "Follow",
+    following: "Following",
+    filter: "★ My list ({count})",
+    filterAria: "Show only the companies I follow",
+    loginHint: "Sign in to follow this company",
+    error: "Could not update your list. Please try again.",
+    empty: "Your list is empty. Click the ☆ star on a company to follow it.",
+  },
   freshness: {
     live: "Session open · updated {time}",
     closed: "Session closed · updated {time}",

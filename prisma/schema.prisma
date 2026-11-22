@@ -363,6 +363,7 @@ model Company {
   portfolioTrades   PortfolioTrade[]
   newsArticles      NewsArticle[]
   priceAlerts       PriceAlert[]
+  watchlistItems    WatchlistItem[]
   alertRules        AlertRule[]
   documents         CompanyDocument[]
   events            CompanyEvent[]
@@ -779,6 +780,7 @@ model User {
   portfolios Portfolio[]
   chartAnalyses ChartAnalysis[]
   priceAlerts   PriceAlert[]
+  watchlistItems WatchlistItem[]
   alertRules    AlertRule[]
   notifications NotificationEvent[]
   notificationPreference NotificationPreference?
@@ -1003,6 +1005,22 @@ model ChartAnalysis {
   @@index([userId, ticker])
   @@index([userId, updatedAt])
   @@map("chart_analyses")
+}
+
+/// Liste de suivi (« étoile ») d'un utilisateur : sociétés BRVM/NGX qu'il veut
+/// retrouver vite sur /marche. Une ligne par (utilisateur, société).
+model WatchlistItem {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId String   @map("company_id")
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticker    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, companyId])
+  @@index([userId, createdAt])
+  @@map("watchlist_items")
 }
 
 /// Alerte de seuil de cours (compte connecté) — surveillée après chaque
