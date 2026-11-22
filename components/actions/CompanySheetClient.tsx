@@ -486,6 +486,9 @@ export default function CompanySheetClient({
 
   const paidYears = dividendChart.length;
   const lastDiv = dividendChart[dividendChart.length - 1];
+  // Une année à 0 enregistrée = « pas de dividende » confirmé, distinct de l'absence de ligne (N/D).
+  const confirmedNoDividend =
+    Object.values(company.dividends).length > 0 && Object.values(company.dividends).every((amt) => amt === 0);
 
   const sessionLabel = sessionDate
     ? format.date(new Date(`${sessionDate}T12:00:00Z`), {
@@ -1152,7 +1155,9 @@ export default function CompanySheetClient({
                         </div>
                       </>
                     ) : (
-                      <p className={styles.empty}>{t("company.dividends.empty")}</p>
+                      <p className={styles.empty}>
+                        {t(confirmedNoDividend ? "company.dividends.none" : "company.dividends.empty")}
+                      </p>
                     )}
                     <Link href="/calendrier-dividendes" className={styles.inlineLink}>
                       {t("company.dividends.calendar")}

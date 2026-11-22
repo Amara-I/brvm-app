@@ -1033,7 +1033,10 @@ function Dividends({
   return (
     <>
       <div className={styles.grid}>
-        <Stat label={t("company.fundamental.field.dps")} value={fcfa(d.currentDps)} />
+        <Stat
+          label={t("company.fundamental.field.dps")}
+          value={d.currentDps === 0 ? t("company.fundamental.table.noDividend") : fcfa(d.currentDps)}
+        />
         <Stat label={t("company.fundamental.field.yield")} value={pct(d.currentYieldPercent, 2)} />
         <Stat
           label={t("company.fundamental.field.yearsPaid")}
@@ -1070,7 +1073,7 @@ function Dividends({
             {d.lines.map((l) => (
               <tr key={l.year}>
                 <td>{l.year}</td>
-                <td>{format.decimal(l.dps, 2)}</td>
+                <td>{l.dps === 0 ? t("company.fundamental.table.noDividend") : format.decimal(l.dps, 2)}</td>
                 <td>{pct(l.payoutPercent, 0)}</td>
                 <td>{day(l.exDate)}</td>
                 <td>{day(l.paymentDate)}</td>

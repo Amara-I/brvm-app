@@ -109,6 +109,7 @@ export const company = {
     seriesYield: "Yield",
     fiscalYear: "Fiscal year {year}",
     empty: "No dividend on record (N/D).",
+    none: "No dividend",
     calendar: "Dividend calendar →",
   },
   income: {
@@ -610,6 +611,7 @@ export const company = {
       exDate: "Ex-date",
       payment: "Payment",
       unconfirmed: "Dividend not confirmed for this year",
+      noDividend: "No dividend",
     },
     verdict: {
       presentation: {

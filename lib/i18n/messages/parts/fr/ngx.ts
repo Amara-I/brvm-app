@@ -496,6 +496,7 @@ export const ngx = {
       exDate: "Détachement",
       paymentDate: "Paiement",
       empty: "Aucun dividende référencé pour cette société.",
+      none: "Pas de dividende",
       note: "Taux de distribution = dividende ÷ BPA de l'exercice, lorsque le BPA est connu.",
     },
     chartAnalysis: {
