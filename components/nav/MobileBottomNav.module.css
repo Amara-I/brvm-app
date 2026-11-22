@@ -1,0 +1,56 @@
+/* Masquée sur desktop : la barre latérale suffit. */
+.bar {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .bar {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 80; /* sous le tiroir et son fond (85+) */
+    padding: 0 env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
+      env(safe-area-inset-left, 0px);
+    background: var(--c-panel, var(--c-bg));
+    border-top: 1px solid var(--c-border);
+    box-shadow: 0 -4px 18px rgba(0, 0, 0, 0.06);
+  }
+
+  .item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    min-height: 56px; /* cible tactile ≥ 44 px */
+    padding: 6px 2px;
+    border: none;
+    background: transparent;
+    color: var(--c-textdim);
+    font: inherit;
+    font-size: 0.66rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .item span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .item[data-active] {
+    color: var(--c-green);
+  }
+
+  .item:focus-visible {
+    outline: 2px solid var(--c-green);
+    outline-offset: -2px;
+  }
+}

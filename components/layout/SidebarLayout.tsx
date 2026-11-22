@@ -6,6 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import HeaderNav from "@/components/nav/HeaderNav";
 import HeaderSearch from "@/components/nav/HeaderSearch";
+import MobileBottomNav from "@/components/nav/MobileBottomNav";
 import ThemeToggle from "@/components/theme/ThemeToggle";
 import LanguageSwitcher from "@/components/i18n/LanguageSwitcher";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -157,6 +158,8 @@ export default function SidebarLayout({
           </div>
         </div>
       </div>
+
+      <MobileBottomNav menuOpen={mobileOpen} onToggleMenu={() => setMobileOpen((v) => !v)} />
     </div>
   );
 }
