@@ -14,15 +14,9 @@ export const charts = {
       "Les graphes s’afficheront dès que des séries de cours seront chargées. En l’absence de série, l’interface indique N/D.",
   },
   catalog: {
-    searchPlaceholder: "Rechercher un titre, un indice ou une place…",
-    searchAria: "Rechercher un graphe",
     groupActions: "{exchange} — Actions",
     groupIndices: "{exchange} — Indices",
-    jump: "Aller à une section",
-    hiddenOne: "{count} valeur sans historique de cours est masquée.",
-    hiddenMany: "{count} valeurs sans historique de cours sont masquées.",
     emptyFilter: "Aucun graphe ne correspond à la recherche.",
-    backToAll: "Tous les graphes",
   },
   loadingChart: "Chargement du graphique…",
   ranges: {
