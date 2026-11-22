@@ -14,15 +14,9 @@ export const charts = {
       "Charts will appear once price series are loaded. If a series is missing, the interface shows N/D.",
   },
   catalog: {
-    searchPlaceholder: "Search a stock, an index, or a market…",
-    searchAria: "Search a chart",
     groupActions: "{exchange} — Stocks",
     groupIndices: "{exchange} — Indices",
-    jump: "Jump to a section",
-    hiddenOne: "{count} listing without price history is hidden.",
-    hiddenMany: "{count} listings without price history are hidden.",
     emptyFilter: "No chart matches this search.",
-    backToAll: "All charts",
   },
   loadingChart: "Loading chart…",
   ranges: {
