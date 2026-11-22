@@ -1666,7 +1666,7 @@ function WatchlistItem({
       onClick={onSelect}
     >
       <span className={styles.itemTicker}>
-        <span className="ob-ticker-with-mark">
+        <span className={`ob-ticker-with-mark ${styles.itemTickerSymbol}`}>
           {isIndex ? (
             <IndexMark exchange={exchange} size={20} />
           ) : (
