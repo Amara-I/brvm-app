@@ -28,6 +28,8 @@ const patchSchema = z.object({
   sessionReminders: z.boolean().optional(),
   portfolioMovePct: z.coerce.number().positive().max(10).optional(),
   indexMovePct: z.coerce.number().positive().max(10).optional(),
+  watchlistEnabled: z.boolean().optional(),
+  watchlistMovePct: z.coerce.number().positive().max(10).optional(),
 });
 
 export async function GET() {
@@ -61,6 +63,8 @@ export async function PATCH(request: NextRequest) {
       portfolioMovePct:
         parsed.data.portfolioMovePct != null ? clampDailyMovePct(parsed.data.portfolioMovePct) : undefined,
       indexMovePct: parsed.data.indexMovePct != null ? clampDailyMovePct(parsed.data.indexMovePct) : undefined,
+      watchlistMovePct:
+        parsed.data.watchlistMovePct != null ? clampDailyMovePct(parsed.data.watchlistMovePct) : undefined,
     });
     return apiSuccess({ prefs, emailAvailable: isEmailConfigured() });
   } catch (err) {

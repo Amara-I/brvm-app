@@ -1137,6 +1137,10 @@ model NotificationPreference {
   portfolioMovePct Decimal                  @default(5) @map("portfolio_move_pct") @db.Decimal(6, 2)
   /// Seuil de variation journalière (%) pour BRVM Composite / BRVM 30.
   indexMovePct     Decimal                  @default(1.5) @map("index_move_pct") @db.Decimal(6, 2)
+  /// Alertes automatiques sur les titres de la watchlist (gros mouvement, dividende proche).
+  watchlistEnabled Boolean                  @default(true) @map("watchlist_enabled")
+  /// Seuil de variation journalière (%) pour un titre de la watchlist.
+  watchlistMovePct Decimal                  @default(5) @map("watchlist_move_pct") @db.Decimal(6, 2)
   createdAt        DateTime                 @default(now()) @map("created_at")
   updatedAt        DateTime                 @updatedAt @map("updated_at")
 

@@ -69,6 +69,7 @@ export default function NotificationPrefsForm() {
     ["portfolioEnabled", t("notifications.types.portfolio"), t("notifications.prefs.portfolioHint")],
     ["indexEnabled", t("notifications.types.indices"), t("notifications.prefs.indexHint")],
     ["systemEnabled", t("notifications.types.system"), t("notifications.prefs.systemHint")],
+    ["watchlistEnabled", t("notifications.prefs.watchlist"), t("notifications.prefs.watchlistHint")],
   ] as const;
 
   return (
@@ -197,6 +198,18 @@ export default function NotificationPrefsForm() {
               step="0.1"
               value={prefs.portfolioMovePct}
               onChange={(e) => toggle("portfolioMovePct", Number(e.target.value))}
+            />
+          </label>
+          <label className={styles.field}>
+            {t("notifications.prefs.watchlistMove")}
+            <input
+              className={styles.input}
+              type="number"
+              min={0.5}
+              max={10}
+              step="0.1"
+              value={prefs.watchlistMovePct}
+              onChange={(e) => toggle("watchlistMovePct", Number(e.target.value))}
             />
           </label>
           <label className={styles.field}>
