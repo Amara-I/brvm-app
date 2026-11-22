@@ -606,3 +606,25 @@
   margin: 0;
   line-height: 1.5;
 }
+
+/* Pastille de fraîcheur des cours (components/market/DataFreshness.tsx) */
+.ob-fresh-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 0.4rem;
+  vertical-align: middle;
+  background: var(--c-textdim);
+}
+.ob-fresh-dot[data-state="LIVE"] {
+  background: var(--c-green);
+  box-shadow: 0 0 0 3px var(--c-green-soft);
+}
+.ob-fresh-dot[data-state="CLOSED"] {
+  background: var(--c-textdim);
+}
+.ob-fresh-dot[data-state="STALE"] {
+  background: var(--c-red);
+  box-shadow: 0 0 0 3px var(--c-red-soft);
+}

@@ -54,6 +54,7 @@ import ShareholdingPanel from "@/components/actions/ShareholdingPanel";
 import { trackFeature } from "@/components/analytics/track-client";
 import LazyChartWorkbench, { prefetchChartWorkbench } from "@/components/charts/LazyChartWorkbench";
 import dynamic from "next/dynamic";
+import DataFreshness from "@/components/market/DataFreshness";
 import SkeletonBlock from "@/components/ui/SkeletonBlock";
 
 import TechnicalAnalysisPanel from "@/components/actions/TechnicalAnalysisPanel";
@@ -633,6 +634,9 @@ export default function CompanySheetClient({
                 {fmtNum(chgAbs, format)})
               </span>
             ) : null}
+          </div>
+          <div style={{ fontSize: "0.72rem", color: "var(--c-textdim)", marginTop: 4 }}>
+            <DataFreshness exchange="BRVM" asOf={company.lastSyncedAt} />
           </div>
           <div className={styles.heroRating} data-testid="sheet-header-rating">
             <ScoreBadge score={metrics.score} outOf showTier />

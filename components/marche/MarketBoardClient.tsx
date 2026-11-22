@@ -85,6 +85,15 @@ function AnalysisLabel({ french, text }: { french: string; text: string }) {
   return <EducationTermLink slug={slug}>{text}</EducationTermLink>;
 }
 
+/** Dernière synchronisation des cours du jeu de données (repli : date de génération). */
+function latestSyncIso(dataset: CompaniesFullDataset): string {
+  let newest = "";
+  for (const c of dataset.companies) {
+    if (c.lastSyncedAt && c.lastSyncedAt > newest) newest = c.lastSyncedAt;
+  }
+  return newest || dataset.generatedAt;
+}
+
 export default function MarketBoardClient({
   initialData,
   initialMarketSummary = null,
@@ -120,6 +129,7 @@ export default function MarketBoardClient({
   const [refreshing, setRefreshing] = useState(false);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [lastUpdate, setLastUpdate] = useState(() => format.date(initialData.generatedAt, NUMERIC_DATE));
+  const [freshAsOf, setFreshAsOf] = useState(() => latestSyncIso(initialData));
 
   const exchange = getExchange(DEFAULT_EXCHANGE_CODE);
   const companies = dataset.companies;
@@ -297,6 +307,7 @@ export default function MarketBoardClient({
         if (json.ok && json.data?.dataset) {
           setDataset(json.data.dataset as CompaniesFullDataset);
           setLastUpdate(format.date(json.data.dataset.generatedAt, NUMERIC_DATE));
+          setFreshAsOf(latestSyncIso(json.data.dataset as CompaniesFullDataset));
         }
         if (json.ok && json.data?.sparkSeries) {
           setSparkSeriesByTicker(json.data.sparkSeries as Record<string, ChartClosePoint[]>);
@@ -332,6 +343,7 @@ export default function MarketBoardClient({
         if (fullJson.ok && fullJson.data) {
           setDataset(fullJson.data as CompaniesFullDataset);
           setLastUpdate(format.date(fullJson.data.generatedAt, NUMERIC_DATE));
+          setFreshAsOf(latestSyncIso(fullJson.data as CompaniesFullDataset));
         }
         if (sparkJson.ok && sparkJson.data?.sparkSeries) {
           setSparkSeriesByTicker(sparkJson.data.sparkSeries as Record<string, ChartClosePoint[]>);
@@ -382,6 +394,7 @@ export default function MarketBoardClient({
       if (newest && newest > lastUpdateIsoRef.current) {
         lastUpdateIsoRef.current = newest;
         setLastUpdate(format.date(newest, NUMERIC_DATE));
+        setFreshAsOf(newest);
       }
     },
     [format]
@@ -413,6 +426,7 @@ export default function MarketBoardClient({
     <div className={styles.page}>
       <MarketChrome
         lastUpdate={lastUpdate}
+        lastSyncedAt={freshAsOf}
         refreshing={refreshing}
         onRefresh={handleRefresh}
         companiesCount={companies.length}

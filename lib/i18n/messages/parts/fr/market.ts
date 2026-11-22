@@ -16,6 +16,13 @@ export const market = {
   },
   overview: "Vue d'ensemble",
   lastUpdate: "Dernière MAJ :",
+  freshness: {
+    live: "Séance en cours · MAJ {time}",
+    closed: "Séance clôturée · MAJ {time}",
+    stale: "Données non à jour · dernière MAJ {time}",
+    unknown: "Heure de MAJ : N/D",
+    hint: "Heure UTC. BRVM : séance 09:00–15:30 ; NGX : 08:30–13:30 (jours ouvrés).",
+  },
   refresh: "⟳ Actualiser les cours",
   refreshing: "⟳ Actualisation...",
   refreshAria: "Actualiser les cours {market}",

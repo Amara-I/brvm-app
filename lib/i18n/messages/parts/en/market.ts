@@ -16,6 +16,13 @@ export const market = {
   },
   overview: "Overview",
   lastUpdate: "Last update:",
+  freshness: {
+    live: "Session open · updated {time}",
+    closed: "Session closed · updated {time}",
+    stale: "Data not up to date · last update {time}",
+    unknown: "Update time: N/A",
+    hint: "UTC time. BRVM: session 09:00–15:30; NGX: 08:30–13:30 (business days).",
+  },
   refresh: "⟳ Refresh quotes",
   refreshing: "⟳ Refreshing...",
   refreshAria: "Refresh {market} quotes",
