@@ -37,6 +37,22 @@ const BRVM_ISSUER_ALIASES: Record<string, string> = {
   "EVIOSYS PACKAGING CI": "SEMC",
 };
 
+/**
+ * Symboles du flux officiel BRVM.org (colonne « Symbole » des cours / BOC)
+ * qui diffèrent du ticker en base. Sans alias, le cours est ignoré
+ * (ticker inconnu) et le titre n'est plus alimenté que par Sikafinance.
+ * Bridge Bank Group CI : cotée `BBGC` depuis le 24/09/2026, `BBGCI` en base.
+ */
+export const BRVM_SYMBOL_ALIASES: Record<string, string> = {
+  BBGC: "BBGCI",
+};
+
+/** Ticker interne pour un symbole du flux officiel BRVM (`BBGC` → `BBGCI`). */
+export function internalTickerForBrvmSymbol(symbol: string): string {
+  const raw = symbol.trim().toUpperCase();
+  return BRVM_SYMBOL_ALIASES[raw] ?? raw;
+}
+
 export function buildBrvmIssuerResolver(
   companies: Array<{ ticker: string; name: string }>
 ): (issuerLabel: string) => string | null {

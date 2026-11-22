@@ -5,6 +5,7 @@
 import * as cheerio from "cheerio";
 import type { Cheerio, CheerioAPI } from "cheerio";
 import type { AnyNode } from "domhandler";
+import { internalTickerForBrvmSymbol } from "./brvm-issuer-ticker";
 import { findHeaderIndex } from "./html-table";
 import { normalizeIndexCode, parseFrenchNumber } from "./parse-utils";
 import type { RawIndexQuote, RawPriceQuote } from "./types";
@@ -71,8 +72,9 @@ export function parseBrvmQuotesPage(html: string, date: string): ParsedBrvmQuote
   const quotes: ParsedBrvmQuotesPage["quotes"] = [];
   quotesTable.find("tbody tr").each((_, row) => {
     const cells = cellTexts($, row);
-    const ticker = (cells[tickerCol] ?? "").toUpperCase();
-    if (!/^[A-Z0-9]{3,8}$/.test(ticker)) return;
+    const symbol = (cells[tickerCol] ?? "").toUpperCase();
+    if (!/^[A-Z0-9]{3,8}$/.test(symbol)) return;
+    const ticker = internalTickerForBrvmSymbol(symbol);
     const closePrice = parseFrenchNumber(cells[closeCol] ?? "");
     if (closePrice === null || closePrice <= 0) return;
     quotes.push({
