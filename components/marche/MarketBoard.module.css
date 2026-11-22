@@ -587,3 +587,105 @@
     min-width: 14rem;
   }
 }
+
+/*
+ * Téléphone : chaque position devient une carte compacte (ticker + cours,
+ * nom + variation, signal + score) au lieu d'un tableau de 11 colonnes qui
+ * oblige à défiler horizontalement. Le tri reste disponible via la liste
+ * déroulante au-dessus du tableau. Colonnes masquées : activité (3), aperçu
+ * (5), capitalisation (7), rendement (8), confiance (11) — toujours visibles
+ * dans le panneau de détail qui s'ouvre au clic.
+ */
+@media (max-width: 720px) {
+  .tableWrap {
+    overflow-x: visible;
+  }
+
+  .table,
+  .table tbody {
+    display: block;
+    width: 100%;
+  }
+
+  .table thead {
+    display: none;
+  }
+
+  .table tbody tr:not(.detailRow) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "tick price"
+      "name chg"
+      "signal score";
+    column-gap: 0.75rem;
+    row-gap: 0.2rem;
+    align-items: center;
+    padding: 0.75rem 0.35rem;
+    border-bottom: 1px solid var(--c-border-thin);
+  }
+
+  .table tbody tr:not(.detailRow) > td {
+    padding: 0;
+    border-bottom: none;
+    min-width: 0;
+    width: auto;
+  }
+
+  .table tbody tr:not(.detailRow) > td:nth-child(1) {
+    grid-area: tick;
+  }
+
+  .table tbody tr:not(.detailRow) > td:nth-child(2) {
+    grid-area: name;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--c-text-dim);
+    font-size: 0.78rem;
+  }
+
+  .table tbody tr:not(.detailRow) > td:nth-child(4) {
+    grid-area: chg;
+    text-align: right;
+  }
+
+  .table tbody tr:not(.detailRow) > td:nth-child(6) {
+    grid-area: price;
+    text-align: right;
+    font-weight: 700;
+  }
+
+  .table tbody tr:not(.detailRow) > td:nth-child(9) {
+    grid-area: score;
+    justify-self: end;
+  }
+
+  .table tbody tr:not(.detailRow) > td:nth-child(10) {
+    grid-area: signal;
+  }
+
+  .table tbody tr:not(.detailRow) > td:nth-child(3),
+  .table tbody tr:not(.detailRow) > td:nth-child(5),
+  .table tbody tr:not(.detailRow) > td:nth-child(7),
+  .table tbody tr:not(.detailRow) > td:nth-child(8),
+  .table tbody tr:not(.detailRow) > td:nth-child(11) {
+    display: none;
+  }
+
+  /* Message « aucun résultat / liste vide » : toute la largeur de la carte. */
+  .table tbody tr:not(.detailRow) > td.empty {
+    grid-area: auto;
+    grid-column: 1 / -1;
+    display: block;
+    text-align: center;
+    padding: 1rem 0.5rem;
+  }
+
+  /* Ligne de détail : pleine largeur, hors grille. */
+  .table tbody tr.detailRow,
+  .table tbody tr.detailRow > td {
+    display: block;
+    width: 100%;
+  }
+}

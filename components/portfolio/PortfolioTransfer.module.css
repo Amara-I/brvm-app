@@ -137,3 +137,10 @@
     opacity: 1;
   }
 }
+
+/* Sur téléphone, le toast passe au-dessus de la barre de navigation basse. */
+@media (max-width: 860px) {
+  .toast {
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+  }
+}
