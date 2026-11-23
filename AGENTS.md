@@ -1155,6 +1155,19 @@ portefeuille et alertes objectif/stop NGX ; (3) import Excel / relevé SGI.
 - Abandonné à la demande de l'utilisateur : relevés de courtiers nigérians (aucun exemple réel disponible).
 - Non fait : import de relevé SGI NGX, courbe de valeur ₦ (la courbe reste BRVM), totaux consolidés.
 
+## 31. Étape 35 — Ingestion des actualités
+
+- `lib/ingestion/run-news-refresh.ts` : pour chaque société BRVM active, `sikafinanceConnector.fetchCompanyNews`
+  (robots.txt respecté, cache 1 h) → `news_articles` via `createMany({ skipDuplicates })`.
+- Éditorial : **titre + lien + source uniquement**, jamais le contenu des articles (le lien ouvre la source).
+  La source n'expose pas la date de publication : `publishedAt` = date de première collecte
+  (`lib/news/normalize.ts`, slug stable `ticker-sha1(url)` pour le dédoublonnage).
+- Route `GET /api/cron/refresh-news` (`CRON_SECRET`, params `after`, `maxTickers`, `tickers`, `budgetMs`),
+  workflow `.github/workflows/news.yml` (jours ouvrés 18h15 UTC, lots de 12, reprise via `after`).
+  Pas de vercel.json (quota Hobby).
+- BRVM seulement : pas de source NGX validée. Première collecte : lancer le workflow « Actualités » à la main.
+- Non vérifié contre le site réel ni la base lors de la livraison.
+
 ---
 
 ## 6. Conventions de dépôt
