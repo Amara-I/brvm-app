@@ -1139,6 +1139,15 @@ portefeuille et alertes objectif/stop NGX ; (3) import Excel / relevé SGI.
   ignore pour l'instant les lignes NGX), import Excel/relevé (BRVM seul), totaux consolidés.
 - Non vérifié visuellement ni contre une base lors de la livraison.
 
+## 29. Étape 33 — NGX phase 2 (2/3) : alertes portefeuille NGX
+
+- Constat : l'analyse du portefeuille (`lib/portfolio-analysis/`) gérait déjà les lignes NGX (marché,
+  devise, conversion FCFA indicative, régime par place) ; rien à changer de ce côté.
+- `evaluatePortfolioAlerts` (cron quotidien) évalue désormais aussi les lignes NGX : mouvement du jour,
+  objectif, stop, montants dans la devise de la place (`fmtMoneyFor`). Les passages « NGX seul » du
+  cron ne touchent toujours pas au portefeuille. Clés de dédoublonnage inchangées (ticker unique).
+- Reste (lot 3) : import Excel / relevé SGI NGX, courbe de valeur ₦, totaux consolidés.
+
 ---
 
 ## 6. Conventions de dépôt

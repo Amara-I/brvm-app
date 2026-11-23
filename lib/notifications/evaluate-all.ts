@@ -113,7 +113,7 @@ export async function evaluateAllAlerts(options?: {
   }
 
   if (withBrvm) {
-    // Portefeuilles : lignes BRVM uniquement (l'ajout de ligne n'accepte que la BRVM).
+    // Portefeuilles : lignes BRVM (FCFA) et NGX (₦), évaluées au cron quotidien.
     try {
       const port = await evaluatePortfolioAlerts({ now, today });
       summary.portfolio = port;
@@ -423,7 +423,8 @@ async function evaluatePortfolioAlerts(opts: {
 
   const userIds = [...new Set(holdings.map((h) => h.portfolio.userId))];
   const prefsByUser = await getPrefsMap(userIds);
-  const quotes = await loadLatestQuotes();
+  // BRVM (FCFA) et NGX (₦) : chaque ligne est notifiée dans la devise de sa place.
+  const quotes = await loadLatestQuotes(undefined, ALL_EXCHANGES);
   const quoteByCompany = new Map(quotes.map((q) => [q.companyId, q]));
 
   for (const h of holdings) {
@@ -444,7 +445,7 @@ async function evaluatePortfolioAlerts(opts: {
         userId,
         type: "PORTEFEUILLE",
         title: `${h.company.ticker} (ligne) : ${fmtSignedPct(change)} aujourd'hui`,
-        body: `Variation ≥ ${fmtSignedPct(threshold)} sur une position. Cours ${fmtFcfa(move.close)}.`,
+        body: `Variation ≥ ${fmtSignedPct(threshold)} sur une position. Cours ${fmtMoneyFor(quote.exchange, move.close)}.`,
         ticker: h.company.ticker,
         href: "/portefeuille",
         prefs,
@@ -470,8 +471,8 @@ async function evaluatePortfolioAlerts(opts: {
       const emitted = await emitNotification({
         userId,
         type: "PORTEFEUILLE",
-        title: `${h.company.ticker} : objectif ${fmtFcfa(target)} atteint`,
-        body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
+        title: `${h.company.ticker} : objectif ${fmtMoneyFor(quote.exchange, target)} atteint`,
+        body: `Cours ${fmtMoneyFor(quote.exchange, comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
         ticker: h.company.ticker,
         href: "/portefeuille",
         prefs,
@@ -485,8 +486,8 @@ async function evaluatePortfolioAlerts(opts: {
       const emitted = await emitNotification({
         userId,
         type: "PORTEFEUILLE",
-        title: `${h.company.ticker} : stop ${fmtFcfa(stop)} atteint`,
-        body: `Cours ${fmtFcfa(comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
+        title: `${h.company.ticker} : stop ${fmtMoneyFor(quote.exchange, stop)} atteint`,
+        body: `Cours ${fmtMoneyFor(quote.exchange, comparableClose)}. Ce n'est pas un ordre de vente automatique.`,
         ticker: h.company.ticker,
         href: "/portefeuille",
         prefs,

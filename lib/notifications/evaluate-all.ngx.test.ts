@@ -332,3 +332,27 @@ describe("evaluateAllAlerts — watchlist", () => {
     expect(div[0].dedupeKey).toBe("WL_DIV:SNTS:2025:2026-11-16");
   });
 });
+
+describe("evaluateAllAlerts — portefeuille NGX", () => {
+  it("ligne NGX : variation et objectif notifiés en naira au cron quotidien", async () => {
+    m.holdings.mockResolvedValue([
+      { companyId: "c-mtnn", company: { ticker: "MTNN" }, portfolio: { userId: "u1" }, buyDate: null, createdAt: new Date("2026-01-01"), notes: null, targetPrice: 300, stopPrice: null },
+    ]);
+    await evaluateAllAlerts({ now: NOW, skipEmailFlush: true });
+    const pf = m.emit.mock.calls.map((c) => c[0]).filter((i) => i.type === "PORTEFEUILLE");
+    expect(pf.map((i) => i.dedupeKey).sort()).toEqual(["PF_MOVE:MTNN:2026-11-13", "PF_TARGET:MTNN:300"]);
+    for (const input of pf) {
+      expect(input.body).toContain("₦");
+      expect(input.body).not.toContain("FCFA");
+    }
+    expect(pf.find((i) => i.dedupeKey.startsWith("PF_TARGET"))!.title).toBe("MTNN : objectif ₦300,00 atteint");
+  });
+
+  it("passage NGX seul : le portefeuille reste au cron quotidien", async () => {
+    m.holdings.mockResolvedValue([
+      { companyId: "c-mtnn", company: { ticker: "MTNN" }, portfolio: { userId: "u1" }, buyDate: null, createdAt: new Date("2026-01-01"), notes: null, targetPrice: 300, stopPrice: null },
+    ]);
+    await evaluateAllAlerts({ exchanges: ["NGX"], now: NOW, skipEmailFlush: true });
+    expect(m.emit.mock.calls.some((c) => c[0].type === "PORTEFEUILLE")).toBe(false);
+  });
+});
