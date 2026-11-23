@@ -1118,8 +1118,7 @@ Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
   clé `WL_DIV:<ticker>:<exercice>:<date>`. Pas de dividende NGX (montants en FCFA uniquement).
 - Préférences : `NotificationPreference.watchlistEnabled` (défaut activé) et `watchlistMovePct`,
   migration `20261123100000_watchlist_alerts`, API `/api/notifications/preferences`, formulaire de réglages.
-- Logique pure dans `lib/watchlist/alerts.ts` (+ tests). Le changement de signal n'est pas encore couvert
-  (les alertes de signal restent des règles explicites).
+- Logique pure dans `lib/watchlist/alerts.ts` (+ tests). Le signal est couvert à l'étape 36 (§ 32).
 - Un titre à la fois en watchlist ET en portefeuille peut produire deux notifications (« suivi » et « ligne »).
 
 ## 28. Étape 32 — NGX phase 2 (1/3) : portefeuille en ₦
@@ -1167,6 +1166,15 @@ portefeuille et alertes objectif/stop NGX ; (3) import Excel / relevé SGI.
   Pas de vercel.json (quota Hobby).
 - BRVM seulement : pas de source NGX validée. Première collecte : lancer le workflow « Actualités » à la main.
 - Non vérifié contre le site réel ni la base lors de la livraison.
+
+## 32. Étape 36 — Alertes de signal sur la watchlist
+
+- `evaluateSignalAlerts` traite aussi les titres de la watchlist (BRVM et NGX) comme suivis implicites :
+  entrée en ACHAT FORT (défaut des règles) notifiée sans règle explicite. Mêmes garde-fous que les règles :
+  une alerte par titre et par jour, pas de renotification d'un signal inchangé sous 30 jours.
+- Conditions : `signalEnabled` (préférence Signaux) ET `watchlistEnabled` (« Ma liste ») pour les titres suivis
+  uniquement via la watchlist ; une règle explicite ou une ligne de portefeuille garde son comportement.
+- Seule l'entrée en achat est notifiée (pas de signal de vente).
 
 ---
 

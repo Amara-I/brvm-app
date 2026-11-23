@@ -356,3 +356,29 @@ describe("evaluateAllAlerts — portefeuille NGX", () => {
     expect(m.emit.mock.calls.some((c) => c[0].type === "PORTEFEUILLE")).toBe(false);
   });
 });
+
+describe("evaluateAllAlerts — signal d'un titre de la watchlist", () => {
+  const setup = () => {
+    m.watchlist.mockResolvedValue([{ userId: "u1", companyId: "c-mtnn", ticker: "MTNN" }]);
+    m.screener.mockResolvedValue({
+      rows: [{ ticker: "MTNN", overall: 72, technical: { signal: { label: "ACHAT FORT" } } }],
+    });
+  };
+
+  it("notifie l'entrée en ACHAT FORT sans règle explicite", async () => {
+    setup();
+    await evaluateAllAlerts({ exchanges: ["NGX"], now: NOW, skipEmailFlush: true });
+    expect(m.emit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "SIGNAUX", ticker: "MTNN", exchange: "NGX", alertRuleId: null })
+    );
+  });
+
+  it("respecte l'interrupteur « Ma liste »", async () => {
+    setup();
+    m.prefs.mockImplementation(async (ids: string[]) =>
+      new Map(ids.map((id) => [id, { ...DEFAULT_PREFS, signalEnabled: true, watchlistEnabled: false }]))
+    );
+    await evaluateAllAlerts({ exchanges: ["NGX"], now: NOW, skipEmailFlush: true });
+    expect(m.emit.mock.calls.some((c) => c[0].type === "SIGNAUX")).toBe(false);
+  });
+});

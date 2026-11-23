@@ -614,10 +614,25 @@ async function evaluateSignalAlerts(opts: {
     if (!watchers.has(r.ticker)) watchers.set(r.ticker, new Set());
     watchers.get(r.ticker)!.add(r.userId);
   }
+  const explicit = new Set<string>(); // userId|ticker suivis par règle ou ligne de portefeuille
+  for (const r of rules) if (r.ticker) explicit.add(`${r.userId}|${r.ticker}`);
   for (const h of holdings) {
     if (!watchers.has(h.company.ticker)) watchers.set(h.company.ticker, new Set());
     watchers.get(h.company.ticker)!.add(h.portfolio.userId);
+    explicit.add(`${h.portfolio.userId}|${h.company.ticker}`);
   }
+  // Watchlist (★) : entrée en ACHAT / ACHAT FORT notifiée sans règle explicite
+  // (réglage « Ma liste » activé ; signal par défaut = ACHAT FORT).
+  const watchlistRows = await prisma.watchlistItem
+    .findMany({ select: { userId: true, ticker: true } })
+    .catch(() => [] as Array<{ userId: string; ticker: string }>);
+  for (const w of watchlistRows) {
+    if (!watchers.has(w.ticker)) watchers.set(w.ticker, new Set());
+    watchers.get(w.ticker)!.add(w.userId);
+  }
+  const watchlistOnly = new Set(
+    watchlistRows.map((w) => `${w.userId}|${w.ticker}`).filter((k) => !explicit.has(k))
+  );
 
   const result = { checked: watchers.size, triggered: 0 };
   if (watchers.size === 0) return result;
@@ -669,6 +684,7 @@ async function evaluateSignalAlerts(opts: {
     for (const userId of userIds) {
       const prefs = prefsByUser.get(userId);
       if (!prefs?.signalEnabled) continue;
+      if (watchlistOnly.has(`${userId}|${ticker}`) && !prefs.watchlistEnabled) continue;
       const rule = rules.find((r) => r.userId === userId && r.ticker === ticker);
       const params = rule ? (asRecord(rule.params) as SignalEntryParams) : { signal: "ACHAT FORT" as const };
       const wanted = params.signal ?? "ACHAT FORT";
