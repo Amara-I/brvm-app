@@ -2,10 +2,7 @@
 // GET /api/market/news — Actualités de marché agrégées (pagination)
 // ═══════════════════════════════════════════════════════════════════════════
 // Étape 4 du plan de migration.
-// ⚠️ Table `news_articles` non encore alimentée par un connecteur dédié —
-// l'ingestion des actualités (Sikafinance en particulier, cf. AGENTS.md)
-// sera traitée avec le cron d'industrialisation (étape 6). Cette route est
-// néanmoins fonctionnelle dès maintenant et retournera `items: []` jusque-là.
+// Alimentée par /api/cron/refresh-news (Sikafinance : titre + lien + source).
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { NextRequest } from "next/server";
