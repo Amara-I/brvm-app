@@ -18,6 +18,8 @@ const m = vi.hoisted(() => ({
   prefs: vi.fn(),
   screener: vi.fn(),
   brvmDataset: vi.fn(),
+  watchlist: vi.fn(),
+  dividends: vi.fn(),
 }));
 
 vi.mock("@/lib/prisma", () => ({
@@ -30,6 +32,8 @@ vi.mock("@/lib/prisma", () => ({
     marketIndex: { findUnique: m.indexFind },
     marketIndexValue: { findFirst: m.indexValue },
     notificationEvent: { findFirst: m.eventFind },
+    watchlistItem: { findMany: m.watchlist },
+    dividend: { findMany: m.dividends },
   },
 }));
 vi.mock("@/lib/alerts/evaluate-price-alerts", () => ({ evaluateActivePriceAlerts: m.priceEval }));
@@ -91,6 +95,8 @@ beforeEach(() => {
       : { closePrice: 24300, date: new Date("2026-11-12T00:00:00Z") }
   );
   m.holdings.mockResolvedValue([]);
+  m.watchlist.mockResolvedValue([]);
+  m.dividends.mockResolvedValue([]);
   m.prefRows.mockResolvedValue([]);
   m.eventFind.mockResolvedValue(null);
   m.prefs.mockImplementation(async (ids: string[]) => new Map(ids.map((id) => [id, { ...DEFAULT_PREFS, signalEnabled: true, indexEnabled: true }])));
@@ -280,5 +286,49 @@ describe("evaluateAllAlerts — pas de renotification d'une même séance", () =
     m.eventFind.mockResolvedValue({ payload: { signal: "ACHAT", score: 60 } });
     await evaluateAllAlerts({ exchanges: ["NGX"], now: SUNDAY, skipEmailFlush: true });
     expect(m.emit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("evaluateAllAlerts — watchlist", () => {
+  const item = (ticker: string, companyId: string) => ({ userId: "u1", companyId, ticker });
+
+  it("gros mouvement d'un titre suivi : une notification par séance, dans la devise de la place", async () => {
+    m.watchlist.mockResolvedValue([item("MTNN", "c-mtnn")]);
+    const summary = await evaluateAllAlerts({ exchanges: ["NGX"], now: NOW, skipEmailFlush: true });
+    const calls = m.emit.mock.calls.map((c) => c[0]).filter((i) => i.payload?.kind === "watchlist_move");
+    expect(calls).toHaveLength(1);
+    expect(calls[0]).toMatchObject({ type: "PRIX", ticker: "MTNN", exchange: "NGX", dedupeKey: "WL_MOVE:MTNN:2026-11-13" });
+    expect(calls[0].title).toBe("MTNN (suivi) : +6,2 % aujourd'hui");
+    expect(calls[0].body).toContain("₦330,50");
+    expect(summary.watchlist).toEqual({ checked: 1, triggered: 1 });
+  });
+
+  it("respecte l'interrupteur et le seuil des préférences", async () => {
+    m.watchlist.mockResolvedValue([item("MTNN", "c-mtnn")]);
+    m.prefs.mockImplementation(async (ids: string[]) =>
+      new Map(ids.map((id) => [id, { ...DEFAULT_PREFS, watchlistEnabled: false }]))
+    );
+    await evaluateAllAlerts({ exchanges: ["NGX"], now: NOW, skipEmailFlush: true });
+    expect(m.emit.mock.calls.some((c) => c[0].payload?.kind === "watchlist_move")).toBe(false);
+
+    m.emit.mockClear();
+    m.prefs.mockImplementation(async (ids: string[]) =>
+      new Map(ids.map((id) => [id, { ...DEFAULT_PREFS, watchlistMovePct: 8 }]))
+    );
+    await evaluateAllAlerts({ exchanges: ["NGX"], now: NOW, skipEmailFlush: true });
+    expect(m.emit.mock.calls.some((c) => c[0].payload?.kind === "watchlist_move")).toBe(false);
+  });
+
+  it("dividende BRVM dont le détachement approche", async () => {
+    m.watchlist.mockResolvedValue([item("SNTS", "c-snts")]);
+    m.dividends.mockResolvedValue([
+      { companyId: "c-snts", year: 2025, amount: 1840, exDate: new Date("2026-11-16T00:00:00Z") },
+      { companyId: "c-snts", year: 2024, amount: 1500, exDate: new Date("2026-12-30T00:00:00Z") },
+    ]);
+    await evaluateAllAlerts({ exchanges: ["BRVM"], now: NOW, skipEmailFlush: true });
+    const div = m.emit.mock.calls.map((c) => c[0]).filter((i) => i.payload?.kind === "watchlist_dividend");
+    expect(div).toHaveLength(1);
+    expect(div[0].title).toBe("SNTS (suivi) : détachement du dividende dans 3 jours");
+    expect(div[0].dedupeKey).toBe("WL_DIV:SNTS:2025:2026-11-16");
   });
 });

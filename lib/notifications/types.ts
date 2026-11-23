@@ -42,6 +42,9 @@ export const BRVM_DAILY_MOVE_MIN_PCT = 0.5;
 
 export const DEFAULT_PORTFOLIO_MOVE_PCT = 5;
 export const DEFAULT_INDEX_MOVE_PCT = 1.5;
+export const DEFAULT_WATCHLIST_MOVE_PCT = 5;
+/** Un dividende est signalé à l'approche du détachement : fenêtre en jours. */
+export const WATCHLIST_DIVIDEND_WINDOW_DAYS = 7;
 
 export const BRVM_TZ = "Africa/Abidjan";
 export const HEADLINE_INDEX_ALERT_CODES = ["BRVM_COMPOSITE", "BRVM_30"] as const;
@@ -67,6 +70,8 @@ export type PrefsSnapshot = {
   sessionReminders: boolean;
   portfolioMovePct: number;
   indexMovePct: number;
+  watchlistEnabled: boolean;
+  watchlistMovePct: number;
 };
 
 export const DEFAULT_PREFS: PrefsSnapshot = {
@@ -83,6 +88,8 @@ export const DEFAULT_PREFS: PrefsSnapshot = {
   sessionReminders: false,
   portfolioMovePct: DEFAULT_PORTFOLIO_MOVE_PCT,
   indexMovePct: DEFAULT_INDEX_MOVE_PCT,
+  watchlistEnabled: true,
+  watchlistMovePct: DEFAULT_WATCHLIST_MOVE_PCT,
 };
 
 export function isNotificationType(value: string): value is NotificationType {

@@ -16,6 +16,8 @@ function rowToPrefs(row: {
   sessionReminders: boolean;
   portfolioMovePct: { toString(): string } | number;
   indexMovePct: { toString(): string } | number;
+  watchlistEnabled: boolean;
+  watchlistMovePct: { toString(): string } | number;
 }): PrefsSnapshot {
   return {
     priceEnabled: row.priceEnabled,
@@ -31,6 +33,8 @@ function rowToPrefs(row: {
     sessionReminders: row.sessionReminders,
     portfolioMovePct: Number(row.portfolioMovePct),
     indexMovePct: Number(row.indexMovePct),
+    watchlistEnabled: row.watchlistEnabled,
+    watchlistMovePct: Number(row.watchlistMovePct),
   };
 }
 
@@ -80,6 +84,8 @@ export async function updatePrefs(userId: string, patch: PrefsPatch): Promise<Pr
       ...(patch.sessionReminders != null ? { sessionReminders: patch.sessionReminders } : {}),
       ...(patch.portfolioMovePct != null ? { portfolioMovePct: patch.portfolioMovePct } : {}),
       ...(patch.indexMovePct != null ? { indexMovePct: patch.indexMovePct } : {}),
+      ...(patch.watchlistEnabled != null ? { watchlistEnabled: patch.watchlistEnabled } : {}),
+      ...(patch.watchlistMovePct != null ? { watchlistMovePct: patch.watchlistMovePct } : {}),
     },
   });
   return rowToPrefs(updated);

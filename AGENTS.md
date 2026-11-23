@@ -1108,6 +1108,20 @@ Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
   société, termes clés, événements, actualités, résultats intermédiaires. Aucun contenu retiré.
 - Non vérifié visuellement lors de la livraison.
 
+## 27. Étape 31 — Alertes automatiques sur la watchlist
+
+- Branchées sur le système de notifications existant (`evaluateAllAlerts`, passe `evaluateWatchlistAlerts`
+  dans `lib/notifications/evaluate-all.ts`) : pas de second système. Type `PRIX`.
+- Gros mouvement du jour d'un titre suivi (BRVM et NGX), seuil `watchlistMovePct` (défaut 5 %, borné
+  par `clampDailyMovePct`) ; clé `WL_MOVE:<ticker>:<séance>` (une notification par séance).
+- Dividende BRVM canonique dont le détachement tombe dans les 7 jours (`WATCHLIST_DIVIDEND_WINDOW_DAYS`) ;
+  clé `WL_DIV:<ticker>:<exercice>:<date>`. Pas de dividende NGX (montants en FCFA uniquement).
+- Préférences : `NotificationPreference.watchlistEnabled` (défaut activé) et `watchlistMovePct`,
+  migration `20261123100000_watchlist_alerts`, API `/api/notifications/preferences`, formulaire de réglages.
+- Logique pure dans `lib/watchlist/alerts.ts` (+ tests). Le changement de signal n'est pas encore couvert
+  (les alertes de signal restent des règles explicites).
+- Un titre à la fois en watchlist ET en portefeuille peut produire deux notifications (« suivi » et « ligne »).
+
 ---
 
 ## 6. Conventions de dépôt

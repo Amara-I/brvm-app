@@ -34,16 +34,19 @@ import {
   type AlertHorizonCode,
   type PrefsSnapshot,
   type SignalEntryParams,
+  WATCHLIST_DIVIDEND_WINDOW_DAYS,
 } from "./types";
 import { priceDivisor, sessionChangePercent } from "@/lib/corporate-actions/adjust";
 import { actionsForTicker } from "@/lib/corporate-actions/load";
 import { operationDateFromTrade } from "@/lib/corporate-actions/positions";
+import { daysUntilExDate, exDateDelayLabel } from "@/lib/watchlist/alerts";
 
 export type AlertEvalSummary = {
   price: { checked: number; triggered: number };
   rules: { checked: number; triggered: number };
   portfolio: { checked: number; triggered: number };
   signals: { checked: number; triggered: number };
+  watchlist: { checked: number; triggered: number };
   indices: { checked: number; triggered: number };
   sessions: { triggered: number };
   emailsFlushed: { sent: number; skipped: number };
@@ -81,6 +84,7 @@ export async function evaluateAllAlerts(options?: {
     rules: { checked: 0, triggered: 0 },
     portfolio: { checked: 0, triggered: 0 },
     signals: { checked: 0, triggered: 0 },
+    watchlist: { checked: 0, triggered: 0 },
     indices: { checked: 0, triggered: 0 },
     sessions: { triggered: 0 },
     emailsFlushed: { sent: 0, skipped: 0 },
@@ -123,6 +127,12 @@ export async function evaluateAllAlerts(options?: {
     summary.signals = sig;
   } catch (err) {
     console.error("[alerts] signal eval:", err instanceof Error ? err.message : err);
+  }
+
+  try {
+    summary.watchlist = await evaluateWatchlistAlerts({ tickers: options?.tickers, now, exchanges });
+  } catch (err) {
+    console.error("[alerts] watchlist eval:", err instanceof Error ? err.message : err);
   }
 
   if (withBrvm) {
@@ -483,6 +493,101 @@ async function evaluatePortfolioAlerts(opts: {
         now: opts.now,
         payload: { kind: "stop", stop, close: comparableClose, session },
         dedupeKey: dedupeKey("PF_STOP", h.company.ticker, amountKey(stop)),
+      });
+      if (emitted.created) result.triggered += 1;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Titres suivis (★) : gros mouvement du jour et détachement de dividende proche.
+ * Pilotées par les préférences `watchlistEnabled` / `watchlistMovePct`. Une
+ * notification par titre et par séance (mouvement) ou par dividende.
+ */
+async function evaluateWatchlistAlerts(opts: {
+  tickers?: string[];
+  now: Date;
+  exchanges: AlertExchange[];
+}): Promise<{ checked: number; triggered: number }> {
+  const items = await prisma.watchlistItem.findMany({
+    where: opts.tickers?.length ? { ticker: { in: opts.tickers.map((t) => t.toUpperCase()) } } : {},
+    select: { userId: true, companyId: true, ticker: true },
+  });
+  const result = { checked: items.length, triggered: 0 };
+  if (items.length === 0) return result;
+
+  const prefsByUser = await getPrefsMap([...new Set(items.map((i) => i.userId))]);
+  const watched = [...new Set(items.map((i) => i.ticker))];
+  const quotes = await loadLatestQuotes(watched, opts.exchanges);
+  const quoteByTicker = new Map(quotes.map((q) => [q.ticker, q]));
+
+  const moveByTicker = new Map<string, { change: number | null; close: number }>();
+  for (const q of quotes) moveByTicker.set(q.ticker, await dailyMove(q));
+
+  // Dividendes canoniques BRVM dont le détachement approche.
+  const brvmCompanyIds = quotes.filter((q) => q.exchange === "BRVM").map((q) => q.companyId);
+  const horizon = new Date(opts.now.getTime() + (WATCHLIST_DIVIDEND_WINDOW_DAYS + 1) * 86_400_000);
+  const dividends = brvmCompanyIds.length
+    ? await prisma.dividend.findMany({
+        where: {
+          companyId: { in: brvmCompanyIds },
+          isCanonical: true,
+          exDate: { gte: utcDateDaysAgo(opts.now, 1), lte: horizon },
+        },
+        select: { companyId: true, year: true, amount: true, exDate: true },
+      })
+    : [];
+  const dividendsByCompany = new Map<string, typeof dividends>();
+  for (const d of dividends) {
+    const list = dividendsByCompany.get(d.companyId) ?? [];
+    list.push(d);
+    dividendsByCompany.set(d.companyId, list);
+  }
+
+  for (const item of items) {
+    const prefs = prefsByUser.get(item.userId);
+    if (!prefs?.watchlistEnabled) continue;
+    const quote = quoteByTicker.get(item.ticker);
+    if (!quote) continue;
+
+    const move = moveByTicker.get(item.ticker);
+    const threshold = clampDailyMovePct(prefs.watchlistMovePct);
+    if (move?.change != null && dailyMoveHits(move.change, threshold)) {
+      const session = sessionDateOf(quote.date);
+      const emitted = await emitNotification({
+        userId: item.userId,
+        type: "PRIX",
+        title: `${item.ticker} (suivi) : ${fmtSignedPct(move.change)} aujourd'hui`,
+        body: `Titre de votre liste, variation ≥ ${fmtSignedPct(threshold)}. Cours ${fmtMoneyFor(quote.exchange, move.close)}.`,
+        ticker: item.ticker,
+        exchange: quote.exchange,
+        prefs,
+        now: opts.now,
+        payload: { kind: "watchlist_move", change: move.change, threshold, close: move.close, session },
+        dedupeKey: dedupeKey("WL_MOVE", item.ticker, session),
+      });
+      if (emitted.created) result.triggered += 1;
+    }
+
+    for (const d of dividendsByCompany.get(quote.companyId) ?? []) {
+      const days = daysUntilExDate(d.exDate, opts.now);
+      if (days == null || !d.exDate) continue;
+      const amount = Number(d.amount);
+      const exDay = d.exDate.toISOString().slice(0, 10);
+      const emitted = await emitNotification({
+        userId: item.userId,
+        type: "PRIX",
+        title: `${item.ticker} (suivi) : détachement du dividende ${exDateDelayLabel(days)}`,
+        body: `Dividende exercice ${d.year} : ${fmtFcfa(amount)} par action, détachement le ${exDay}.`,
+        ticker: item.ticker,
+        exchange: quote.exchange,
+        prefs,
+        now: opts.now,
+        allowSameText: true,
+        payload: { kind: "watchlist_dividend", year: d.year, amount, exDate: exDay },
+        dedupeKey: dedupeKey("WL_DIV", item.ticker, d.year, exDay),
       });
       if (emitted.created) result.triggered += 1;
     }
