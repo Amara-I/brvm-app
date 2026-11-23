@@ -1148,6 +1148,13 @@ portefeuille et alertes objectif/stop NGX ; (3) import Excel / relevé SGI.
   cron ne touchent toujours pas au portefeuille. Clés de dédoublonnage inchangées (ticker unique).
 - Reste (lot 3) : import Excel / relevé SGI NGX, courbe de valeur ₦, totaux consolidés.
 
+## 30. Étape 34 — NGX phase 2 (3/3, partiel) : import Excel NGX
+
+- L'import Excel (`POST …/import`) accepte les tickers NGX ; leur « PRU (FCFA) » est lu comme un prix en ₦
+  (précisé dans la feuille Notes du modèle). L'en-tête n'est pas renommé pour ne pas casser les fichiers existants.
+- Abandonné à la demande de l'utilisateur : relevés de courtiers nigérians (aucun exemple réel disponible).
+- Non fait : import de relevé SGI NGX, courbe de valeur ₦ (la courbe reste BRVM), totaux consolidés.
+
 ---
 
 ## 6. Conventions de dépôt
