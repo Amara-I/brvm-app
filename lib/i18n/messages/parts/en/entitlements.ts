@@ -4,7 +4,7 @@ export const entitlements = {
   body: "Create a free account to access full history, scores and analysis.",
   register: "Create an account",
   login: "Sign in",
-  chartRange: "History beyond one year is reserved for accounts.",
+  chartRange: "History beyond five years is reserved for accounts.",
   score: "Score, signal and confidence are reserved for accounts.",
   fundamental: "Detailed fundamental analysis is reserved for accounts.",
   scenarios: "Scenarios, targets and levels are reserved for accounts.",

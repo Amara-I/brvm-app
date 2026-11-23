@@ -28,7 +28,7 @@ export const FEATURES = [
 export type Feature = (typeof FEATURES)[number];
 
 export const FEATURE_MIN_PLAN: Record<Feature, ViewerPlan> = {
-  "chart.range.5A": "FREE",
+  "chart.range.5A": "ANON",
   "chart.range.MAX": "PREMIUM",
   "chart.indicators.advanced": "LIGHT",
   "chart.drawings": "PREMIUM",

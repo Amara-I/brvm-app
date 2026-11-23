@@ -4,7 +4,7 @@ export const entitlements = {
   body: "Créez un compte gratuit pour accéder à l’historique complet, aux scores et à l’analyse.",
   register: "Créer un compte",
   login: "Se connecter",
-  chartRange: "Historique au-delà d’un an réservé aux comptes.",
+  chartRange: "Historique au-delà de cinq ans réservé aux comptes.",
   score: "Score, signal et confiance réservés aux comptes.",
   fundamental: "L’analyse fondamentale détaillée est réservée aux comptes.",
   scenarios: "Scénarios, cibles et niveaux réservés aux comptes.",

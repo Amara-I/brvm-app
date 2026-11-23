@@ -1,10 +1,10 @@
 import { applyChartSeriesWindow, parseChartRangeParam, parseIsoDateParam } from "@/lib/charts/chart-window";
 import type { ChartClosePoint, ChartRange } from "@/lib/charts/indicators";
 import type { ChartSeriesQuery } from "@/lib/api/query-schemas";
-import { ANON_MAX_CHART_RANGE, isAnonChartRangeAllowed } from "./plans";
+import { ANON_MAX_CHART_RANGE, ANON_MAX_CHART_YEARS, isAnonChartRangeAllowed } from "./plans";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const MAX_ANON_SPAN_DAYS = 366;
+const MAX_ANON_SPAN_DAYS = ANON_MAX_CHART_YEARS * 366;
 
 export type CappedChartQuery = {
   range?: string;
@@ -28,10 +28,10 @@ function addUtcDays(iso: string, days: number): string {
 }
 
 /**
- * Plafonne une requête de graphe à 1 an pour un visiteur.
- * Les fenêtres courtes (1M, 3M, 1A, YTD…) sont conservées.
- * `from`/`to` trop larges sont ramenés à 1A (les bornes custom sont retirées
- * pour éviter de servir plus d'un an).
+ * Plafonne une requête de graphe à 5 ans pour un visiteur.
+ * Les fenêtres courtes et intermédiaires (1M, 3M, 1A, 3A, 5A, YTD…) sont conservées.
+ * `from`/`to` trop larges sont ramenés à 5A (les bornes custom sont retirées
+ * pour éviter de servir plus de cinq ans).
  */
 export function capChartQueryForVisitor(query: ChartSeriesQuery): CappedChartQuery {
   const interval = query.interval;
@@ -46,7 +46,8 @@ export function capChartQueryForVisitor(query: ChartSeriesQuery): CappedChartQue
     return { range: ANON_MAX_CHART_RANGE, interval, capped: true };
   }
 
-  if (parsed && !isAnonChartRangeAllowed(parsed)) {
+  const rangeKey = parsed ?? query.range?.trim().toUpperCase();
+  if (rangeKey && !isAnonChartRangeAllowed(rangeKey)) {
     return { range: ANON_MAX_CHART_RANGE, interval, capped: true };
   }
 
@@ -58,8 +59,10 @@ export function capSeriesToAnonWindow<T extends ChartClosePoint>(points: T[]): T
 }
 
 export function isLockedChartRange(range: ChartRange | string): boolean {
-  const parsed = parseChartRangeParam(String(range)) ?? String(range).toUpperCase();
-  return parsed === "5A" || parsed === "MAX";
+  const raw = String(range).trim().toUpperCase();
+  const parsed = parseChartRangeParam(raw);
+  if (parsed) return !isAnonChartRangeAllowed(parsed);
+  return !isAnonChartRangeAllowed(raw);
 }
 
 /** Retire lookback, profondeur d'historique et analyse d'un payload graphe visiteur. */

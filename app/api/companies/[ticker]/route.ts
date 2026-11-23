@@ -136,7 +136,7 @@ export async function GET(request: NextRequest, { params }: { params: { ticker: 
       },
       // Donnée manquante → tableau vide (le front affiche déjà "N/D" pour
       // les années sans cours, cf. contrainte non négociable du JSX).
-      // Visiteur : 1 an de cours, dernier dividende, dernier exercice de ratios.
+      // Visiteur : 5 ans de cours, dernier dividende, dernier exercice de ratios.
       priceHistory: pricePayload,
       dividends: dividendPayload,
       financialRatios: ratioPayload,

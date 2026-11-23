@@ -19,6 +19,7 @@ import {
 } from "@/lib/landing/hero-chart";
 import styles from "./Landing.module.css";
 import LockedTeaser from "@/components/entitlements/LockedTeaser";
+import { isLockedChartRange } from "@/lib/entitlements/chart-cap";
 
 export interface MarketHeroCardLabels {
   /** « Capitalisation BRVM » */
@@ -105,7 +106,7 @@ export default function MarketHeroCard({ locale, capitalisation, series, labels,
             <h3 className={styles.hcChartTitle}>{labels.chartTitle}</h3>
             <div className={styles.hcRanges} role="group" aria-label={labels.rangeAria}>
                 {(["1Y", "3Y", "5Y", "MAX"] as HeroRange[]).map((key) => {
-                  if (gatedVisitor && key !== "1Y") {
+                  if (gatedVisitor && isLockedChartRange(key)) {
                     return <LockedTeaser key={key} compact label={labels.ranges[key]} callbackUrl="/" />;
                   }
                   if (!ranges.includes(key) && !(gatedVisitor && key === "1Y")) return null;

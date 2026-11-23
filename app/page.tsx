@@ -13,7 +13,7 @@ import { getLandingMarkets } from "@/lib/api/landing-markets";
 import LandingPage from "@/components/landing/LandingPage";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { getI18n } from "@/lib/i18n/get-i18n";
-import { getViewer } from "@/lib/entitlements";
+import { ANON_MAX_CHART_YEARS, getViewer } from "@/lib/entitlements";
 import { BROWSER_CHROME_BG } from "@/lib/theme/browser-chrome";
 
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ export default async function LandingRoute() {
   if (viewer.gated && heroPoints && heroPoints.length > 0) {
     const last = heroPoints[heroPoints.length - 1]!.time;
     const cutoff = new Date(`${last}T00:00:00.000Z`);
-    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 1);
+    cutoff.setUTCFullYear(cutoff.getUTCFullYear() - ANON_MAX_CHART_YEARS);
     const cutoffIso = cutoff.toISOString().slice(0, 10);
     heroPoints = heroPoints.filter((p) => p.time >= cutoffIso);
   }

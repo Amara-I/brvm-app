@@ -34,6 +34,7 @@ describe("viewerFromSession", () => {
     expect(v.accessPlan).toBe("ANON");
     expect(can(v, "export.marketExcel")).toBe(false);
     expect(can(v, "chart.range.MAX")).toBe(false);
+    expect(can(v, "chart.range.5A")).toBe(true);
     expect(can(v, "fundamental.teaser")).toBe(true);
   });
 
@@ -58,6 +59,8 @@ describe("FEATURE_MIN_PLAN", () => {
   it("réserve les scénarios et l'export au palier premium (contrat futur)", () => {
     expect(FEATURE_MIN_PLAN["signal.scenarios"]).toBe("PREMIUM");
     expect(FEATURE_MIN_PLAN["export.marketExcel"]).toBe("PREMIUM");
+    expect(FEATURE_MIN_PLAN["chart.range.5A"]).toBe("ANON");
+    expect(FEATURE_MIN_PLAN["chart.range.MAX"]).toBe("PREMIUM");
     expect(planAllows("FREE", "signal.scenarios")).toBe(false);
     expect(planAllows("PREMIUM", "signal.scenarios")).toBe(true);
   });
@@ -72,34 +75,49 @@ describe("capChartQueryForVisitor", () => {
     });
     expect(capChartQueryForVisitor({ range: "1A" }).capped).toBe(false);
     expect(capChartQueryForVisitor({ range: "1Y" }).capped).toBe(false);
+    expect(capChartQueryForVisitor({ range: "3A" }).capped).toBe(false);
+    expect(capChartQueryForVisitor({ range: "3Y" }).capped).toBe(false);
+    expect(capChartQueryForVisitor({ range: "5A" }).capped).toBe(false);
+    expect(capChartQueryForVisitor({ range: "5Y" }).capped).toBe(false);
   });
 
-  it("ramène 5A et MAX à 1A", () => {
-    expect(capChartQueryForVisitor({ range: "5A" })).toMatchObject({ range: "1A", capped: true });
-    expect(capChartQueryForVisitor({ range: "MAX" })).toMatchObject({ range: "1A", capped: true });
-    expect(capChartQueryForVisitor({ range: "5Y" })).toMatchObject({ range: "1A", capped: true });
+  it("ramène MAX et les fenêtres plus longues que 5 ans à 5A", () => {
+    expect(capChartQueryForVisitor({ range: "MAX" })).toMatchObject({ range: "5A", capped: true });
+    expect(capChartQueryForVisitor({ range: "10A" })).toMatchObject({ range: "5A", capped: true });
+    expect(capChartQueryForVisitor({ range: "10Y" })).toMatchObject({ range: "5A", capped: true });
+    expect(capChartQueryForVisitor({ range: "ALL" })).toMatchObject({ range: "5A", capped: true });
   });
 
-  it("conserve un from/to d'au plus un an", () => {
-    const q = capChartQueryForVisitor({ from: "2025-01-01", to: "2025-12-31" });
-    expect(q.capped).toBe(false);
-    expect(q.from).toBe("2025-01-01");
+  it("conserve un from/to d'au plus cinq ans", () => {
+    const oneYear = capChartQueryForVisitor({ from: "2025-01-01", to: "2025-12-31" });
+    expect(oneYear.capped).toBe(false);
+    expect(oneYear.from).toBe("2025-01-01");
+    const fiveYears = capChartQueryForVisitor({ from: "2020-11-23", to: "2025-11-23" });
+    expect(fiveYears.capped).toBe(false);
+    expect(fiveYears.from).toBe("2020-11-23");
+    expect(fiveYears.to).toBe("2025-11-23");
   });
 
-  it("plafonne un from/to plus large qu'un an", () => {
+  it("plafonne un from/to plus large que cinq ans", () => {
     const q = capChartQueryForVisitor({ from: "2015-01-01", to: "2025-12-31" });
     expect(q.capped).toBe(true);
-    expect(q.range).toBe("1A");
+    expect(q.range).toBe("5A");
     expect(q.from).toBeUndefined();
   });
 });
 
 describe("isLockedChartRange / isAnonChartRangeAllowed", () => {
-  it("verrouille 5A et MAX seulement", () => {
-    expect(isLockedChartRange("5A")).toBe(true);
+  it("verrouille seulement les fenêtres plus longues que 5 ans", () => {
     expect(isLockedChartRange("MAX")).toBe(true);
+    expect(isLockedChartRange("10A")).toBe(true);
+    expect(isLockedChartRange("ALL")).toBe(true);
     expect(isLockedChartRange("1A")).toBe(false);
+    expect(isLockedChartRange("3A")).toBe(false);
+    expect(isLockedChartRange("3Y")).toBe(false);
+    expect(isLockedChartRange("5A")).toBe(false);
+    expect(isLockedChartRange("5Y")).toBe(false);
     expect(isAnonChartRangeAllowed("3M")).toBe(true);
+    expect(isAnonChartRangeAllowed("5A")).toBe(true);
     expect(isAnonChartRangeAllowed("MAX")).toBe(false);
   });
 });

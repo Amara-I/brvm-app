@@ -17,7 +17,10 @@ export const PLAN_RANK: Record<ViewerPlan, number> = {
   PREMIUM: 3,
 };
 
-export const ANON_MAX_CHART_RANGE = "1A" as const;
+/** Plafond d'historique visiteur (années calendaires). */
+export const ANON_MAX_CHART_YEARS = 5;
+
+export const ANON_MAX_CHART_RANGE = "5A" as const;
 
 export const ANON_ALLOWED_CHART_RANGES = new Set<string>([
   "1J",
@@ -28,6 +31,10 @@ export const ANON_ALLOWED_CHART_RANGES = new Set<string>([
   "YTD",
   "1A",
   "1Y",
+  "3A",
+  "3Y",
+  "5A",
+  "5Y",
 ]);
 
 /**
