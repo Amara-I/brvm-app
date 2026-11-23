@@ -243,6 +243,10 @@ export const portfolio = {
     ytdBase: "vs dernier cours avant le 1er janvier",
   },
   actionsHeading: "Actions",
+  ngxHeading: "Actions NGX (₦)",
+  ngxIndicative: "≈ {amount} (indicatif, taux du {date})",
+  ngxNoRate: "Conversion FCFA indisponible (taux de change absent).",
+  ngxNote: "Montants en naira, séparés des totaux FCFA. La conversion en FCFA est purement indicative.",
   emptyLine: "Aucune position pour l’instant.",
   importStatement: "Importer un relevé SGI",
   fold: {
@@ -317,6 +321,7 @@ export const portfolio = {
     company: "Société",
     quantity: "Quantité",
     pruPrice: "Prix d'achat / PRU (FCFA)",
+    pruPriceNgn: "Prix d'achat / PRU (₦)",
     horizon: "Horizon d'achat",
     horizonAria: "Horizon d'achat",
     adding: "Ajout…",

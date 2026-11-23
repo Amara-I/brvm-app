@@ -53,6 +53,8 @@ type TradesBundle = {
 type Props = {
   initialPortfolios: UserPortfoliosWithMetrics;
   tickers: string[];
+  /** Titres NGX proposés à l'ajout (prix en ₦). */
+  ngxTickers?: string[];
   tradesByPortfolio: Record<string, TradesBundle>;
 };
 
@@ -109,7 +111,7 @@ function dayMove(series: { value: number; changePercent: number | null }[]): {
   return { amount: last.value - previous.value, percent: last.changePercent };
 }
 
-export default function PortfolioPageClient({ initialPortfolios, tickers, tradesByPortfolio }: Props) {
+export default function PortfolioPageClient({ initialPortfolios, tickers, ngxTickers = [], tradesByPortfolio }: Props) {
   const { t, format, locale } = useI18n();
   const [portfolios, setPortfolios] = useState(initialPortfolios);
   const [openId, setOpenId] = useState<string | null>(() => {
@@ -358,7 +360,7 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
 
             {p.holdings.length > 0 ? (
               <>
-                {p.otherHoldings.length > 0 ? (
+                {p.metrics.holdings.length > 0 && (p.otherHoldings.length > 0 || p.ngx) ? (
                   <h3 style={{ color: C.gold, fontSize: "0.95rem", margin: "4px 0 0" }}>
                     {t("portfolio.actionsHeading")}
                     <span style={{ color: C.textDim, fontWeight: 500, marginLeft: 8 }}>
@@ -366,15 +368,50 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
                     </span>
                   </h3>
                 ) : null}
-                <PortfolioHoldingsTable
-                  portfolioId={p.id}
-                  holdings={p.metrics.holdings}
-                  liveQuotes={liveQuotes}
-                  latestQuoteLabel={p.metrics.marketPricesAsOfLabel}
-                  portfolioValue={p.combined.totalMarketValue}
-                  discrete={discrete}
-                  masks={masks}
-                />
+                {p.metrics.holdings.length > 0 ? (
+                  <PortfolioHoldingsTable
+                    portfolioId={p.id}
+                    holdings={p.metrics.holdings}
+                    liveQuotes={liveQuotes}
+                    latestQuoteLabel={p.metrics.marketPricesAsOfLabel}
+                    portfolioValue={p.combined.totalMarketValue}
+                    discrete={discrete}
+                    masks={masks}
+                  />
+                ) : null}
+                {p.ngx ? (
+                  <>
+                    <h3 style={{ color: C.gold, fontSize: "0.95rem", margin: "4px 0 0" }}>
+                      {t("portfolio.ngxHeading")}
+                      <span style={{ color: C.textDim, fontWeight: 500, marginLeft: 8 }}>
+                        {hidePortfolioTotal
+                          ? DISCRETE_AMOUNT_LABEL
+                          : format.money(p.ngx.metrics.totalMarketValue, "NGN")}
+                      </span>
+                    </h3>
+                    <p style={{ color: C.textDim, fontSize: "0.75rem", margin: 0 }}>
+                      {!hidePortfolioTotal && p.ngx.indicativeFcfa.marketValue != null && p.ngx.indicativeFcfa.rateDate
+                        ? t("portfolio.ngxIndicative", {
+                            amount: format.fcfa(p.ngx.indicativeFcfa.marketValue),
+                            date: p.ngx.indicativeFcfa.rateDate,
+                          })
+                        : hidePortfolioTotal
+                          ? ""
+                          : t("portfolio.ngxNoRate")}{" "}
+                      {t("portfolio.ngxNote")}
+                    </p>
+                    <PortfolioHoldingsTable
+                      portfolioId={p.id}
+                      holdings={p.ngx.metrics.holdings}
+                      liveQuotes={liveQuotes}
+                      latestQuoteLabel={p.ngx.metrics.marketPricesAsOfLabel}
+                      portfolioValue={p.ngx.metrics.totalMarketValue}
+                      discrete={discrete}
+                      masks={masks}
+                      currency="NGN"
+                    />
+                  </>
+                ) : null}
               </>
             ) : p.otherHoldings.length === 0 ? (
               <p className={pageStyles.emptyLine}>
@@ -480,7 +517,7 @@ export default function PortfolioPageClient({ initialPortfolios, tickers, trades
             </ExpandSection>
 
             <ExpandSection title={t("portfolio.fold.add")} className={pageStyles.addMore} buttonClassName={pageStyles.foldBtn}>
-              <AddHoldingForm portfolioId={p.id} tickers={tickers} />
+              <AddHoldingForm portfolioId={p.id} tickers={tickers} ngxTickers={ngxTickers} />
               <OtherHoldingsSection portfolioId={p.id} holdings={p.otherHoldings} part="form" />
             </ExpandSection>
           </div>

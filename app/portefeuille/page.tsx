@@ -106,17 +106,24 @@ export default async function PortefeuillePage() {
 
   let portfolios: Awaited<ReturnType<typeof getUserPortfoliosWithMetrics>>;
   let tickers: string[];
+  let ngxTickers: string[];
   try {
-    const [loaded, companies] = await Promise.all([
+    const [loaded, companies, ngxCompanies] = await Promise.all([
       getUserPortfoliosWithMetrics(user.id),
       prisma.company.findMany({
         where: { isActive: true, exchange: "BRVM" },
         select: { ticker: true },
         orderBy: { ticker: "asc" },
       }),
+      prisma.company.findMany({
+        where: { isActive: true, exchange: "NGX" },
+        select: { ticker: true },
+        orderBy: { ticker: "asc" },
+      }),
     ]);
     portfolios = loaded;
-    tickers = companies.map((c) => c.ticker);
+    tickers = companies.map((c: { ticker: string }) => c.ticker);
+    ngxTickers = ngxCompanies.map((c: { ticker: string }) => c.ticker);
   } catch (err) {
     console.error("[portefeuille] lecture base impossible — aperçu invité :", err);
     return <GuestDemo />;
@@ -148,6 +155,7 @@ export default async function PortefeuillePage() {
       <PortfolioPageClient
         initialPortfolios={portfolios}
         tickers={tickers}
+        ngxTickers={ngxTickers}
         tradesByPortfolio={tradesByPortfolio}
       />
     </AppHeader>

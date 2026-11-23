@@ -242,6 +242,10 @@ export const portfolio = {
     ytdBase: "vs last price before 1 January",
   },
   actionsHeading: "Shares",
+  ngxHeading: "NGX shares (₦)",
+  ngxIndicative: "≈ {amount} (indicative, rate of {date})",
+  ngxNoRate: "FCFA conversion unavailable (no exchange rate).",
+  ngxNote: "Amounts in naira, kept apart from the FCFA totals. The FCFA conversion is indicative only.",
   emptyLine: "No position yet.",
   importStatement: "Import an SGI statement",
   fold: {
@@ -316,6 +320,7 @@ export const portfolio = {
     company: "Company",
     quantity: "Quantity",
     pruPrice: "Purchase price / average cost (FCFA)",
+    pruPriceNgn: "Purchase price / average cost (₦)",
     horizon: "Buy horizon",
     horizonAria: "Buy horizon",
     adding: "Adding…",
