@@ -49,7 +49,7 @@ export async function POST(
 
   const tickers = parsed.rows.map((r) => r.ticker);
   const companies = await prisma.company.findMany({
-    where: { ticker: { in: tickers }, isActive: true, exchange: "BRVM" },
+    where: { ticker: { in: tickers }, isActive: true, exchange: { in: ["BRVM", "NGX"] } },
     select: { id: true, ticker: true },
   });
   const companyByTicker = new Map(companies.map((c) => [c.ticker, c]));

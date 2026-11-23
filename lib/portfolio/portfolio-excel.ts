@@ -262,7 +262,7 @@ export function buildPortfolioWorkbook(
     ["Format", "OuestBourse Positions v2"],
     [
       "Import",
-      "Feuille Positions : dates en JJ/MM/AAAA (texte). Société ignorée (lookup Ticker). Mode remplacer = reconstitution exacte.",
+      "Feuille Positions : dates en JJ/MM/AAAA (texte). Société ignorée (lookup Ticker). Mode remplacer = reconstitution exacte. Lignes NGX : prix en naira (₦), bien que la colonne s'appelle PRU (FCFA).",
     ],
   ]);
   XLSX.utils.book_append_sheet(wb, meta, "Info");
