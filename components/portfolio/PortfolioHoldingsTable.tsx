@@ -125,6 +125,8 @@ type Props = {
   discrete?: boolean;
   /** Quels champs masquer (défaut = config historique, PRU/Marché visibles). */
   masks?: DiscreteMaskConfig;
+  /** Devise des lignes affichées (défaut FCFA ; « NGN » pour la section NGX en ₦). */
+  currency?: "XOF" | "NGN";
 };
 
 export default function PortfolioHoldingsTable({
@@ -135,11 +137,14 @@ export default function PortfolioHoldingsTable({
   portfolioValue = 0,
   discrete = false,
   masks = DEFAULT_DISCRETE_MASKS,
+  currency = "XOF",
 }: Props) {
   const { t, format, labels } = useI18n();
-  const fmtAmt = (n: number) => format.integer(n);
-  const fmtFcfa = (n: number) => format.fcfa(n);
-  const amtOrMask = (n: number, masked: boolean) => (masked ? DISCRETE_AMOUNT_LABEL : format.integer(n));
+  const isNgn = currency === "NGN";
+  // ₦ : deux décimales (cours NGX type 29,50) ; FCFA : entiers, comme avant.
+  const fmtAmt = (n: number) => (isNgn ? format.decimal(n, 2) : format.integer(n));
+  const fmtFcfa = (n: number) => (isNgn ? format.money(n, "NGN") : format.fcfa(n));
+  const amtOrMask = (n: number, masked: boolean) => (masked ? DISCRETE_AMOUNT_LABEL : fmtAmt(n));
   const [colSort, setColSort] = useState<ColumnSortState | null>(null);
   const [menuId, setMenuId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -501,7 +506,7 @@ export default function PortfolioHoldingsTable({
 
       <div className={styles.hintRow}>
         <p className={styles.hintLeft}>
-          {t("portfolio.holdings.amounts")} <strong className={styles.unitNote}>FCFA</strong>
+          {t("portfolio.holdings.amounts")} <strong className={styles.unitNote}>{isNgn ? "₦" : "FCFA"}</strong>
           {discrete ? t("portfolio.holdings.discrete") : ""}
           {" · "}
           <EducationTermLink slug="pru">{t("portfolio.holdings.definitions")}</EducationTermLink>

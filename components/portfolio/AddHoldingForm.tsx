@@ -13,6 +13,8 @@ import type { BuyHorizonCode } from "@/lib/calc/portfolio-advice";
 interface AddHoldingFormProps {
   portfolioId: string;
   tickers: string[];
+  /** Titres NGX (prix en ₦). Optionnel : sans lui, le formulaire reste BRVM seul. */
+  ngxTickers?: string[];
 }
 
 const inputStyle: React.CSSProperties = {
@@ -25,12 +27,13 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "inherit",
 };
 
-export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormProps) {
+export default function AddHoldingForm({ portfolioId, tickers, ngxTickers = [] }: AddHoldingFormProps) {
   const { t, labels } = useI18n();
   const [ticker, setTicker] = useState(tickers[0] ?? "");
   const [quantity, setQuantity] = useState("");
   const [avgBuyPrice, setAvgBuyPrice] = useState("");
   const [buyHorizon, setBuyHorizon] = useState<BuyHorizonCode>("MOYEN");
+  const isNgx = ngxTickers.includes(ticker);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -72,11 +75,30 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
           {t("portfolio.holdings.company")}
         </label>
         <select value={ticker} onChange={(e) => setTicker(e.target.value)} style={inputStyle}>
-          {tickers.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
+          {ngxTickers.length > 0 ? (
+            <>
+              <optgroup label="BRVM">
+                {tickers.map((tk) => (
+                  <option key={tk} value={tk}>
+                    {tk}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="NGX">
+                {ngxTickers.map((tk) => (
+                  <option key={tk} value={tk}>
+                    {tk}
+                  </option>
+                ))}
+              </optgroup>
+            </>
+          ) : (
+            tickers.map((tk) => (
+              <option key={tk} value={tk}>
+                {tk}
+              </option>
+            ))
+          )}
         </select>
       </div>
       <div>
@@ -95,12 +117,14 @@ export default function AddHoldingForm({ portfolioId, tickers }: AddHoldingFormP
       </div>
       <div>
         <label style={{ display: "block", fontSize: "0.7rem", color: C.textDim, marginBottom: 4 }}>
-          <EducationTermLink slug="pru">{t("portfolio.holdings.pruPrice")}</EducationTermLink>
+          <EducationTermLink slug="pru">
+            {isNgx ? t("portfolio.holdings.pruPriceNgn") : t("portfolio.holdings.pruPrice")}
+          </EducationTermLink>
         </label>
         <input
           type="number"
-          min={1}
-          step="1"
+          min={isNgx ? 0.01 : 1}
+          step={isNgx ? "0.01" : "1"}
           required
           value={avgBuyPrice}
           onChange={(e) => setAvgBuyPrice(e.target.value)}

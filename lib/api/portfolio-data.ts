@@ -26,6 +26,9 @@ import { priceDivisor } from "@/lib/corporate-actions/adjust";
 import { actionsByTicker } from "@/lib/corporate-actions/load";
 import { displayPosition, type PositionTrade } from "@/lib/corporate-actions/positions";
 import type { AdjustmentAction } from "@/lib/corporate-actions/types";
+import { portfolioCurrencyOf, splitByCurrency } from "@/lib/portfolio/currency";
+import { latestEurNgnRate } from "@/lib/markets/fx";
+import { ngnToFcfaExact } from "@/lib/portfolio-analysis/fx";
 
 export type EnrichedHoldingMetrics = HoldingMetrics & {
   buyDate: string | null;
@@ -36,6 +39,19 @@ export type EnrichedHoldingMetrics = HoldingMetrics & {
   advice: PortfolioAdvice;
   targetPrice: number | null;
   stopPrice: number | null;
+};
+
+/** Section « actions NGX » d'un portefeuille : totaux en ₦, jamais additionnés aux FCFA. */
+export type PortfolioNgxSection = {
+  currency: "NGN";
+  metrics: Omit<ReturnType<typeof computePortfolioMetrics>, "holdings"> & { holdings: EnrichedHoldingMetrics[] };
+  /** Conversion INDICATIVE (taux EUR→NGN open.er-api.com, XOF arrimé à l'euro). */
+  indicativeFcfa: {
+    marketValue: number | null;
+    costBasis: number | null;
+    rateDate: string | null;
+    rateSource: string | null;
+  };
 };
 
 export async function getUserPortfoliosWithMetrics(userId: string) {
@@ -102,6 +118,9 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
     tradesByHolding.set(key, list);
   }
 
+  const hasNgx = portfolios.some((p) => p.holdings.some((h) => portfolioCurrencyOf(h.company) === "NGN"));
+  const ngnPerEur = hasNgx ? await latestEurNgnRate(prisma).catch(() => null) : null;
+
   const adjustedClose = (ticker: string, date: Date, close: unknown): number => {
     const raw = Number(close);
     return raw / priceDivisor(splitActions.get(ticker) ?? [], date.toISOString().slice(0, 10));
@@ -134,26 +153,33 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
         })
       );
 
-      const metrics = computePortfolioMetrics(
-        p.holdings.map((h) => {
-          const price = prices.get(h.companyId);
-          const yearStartPrice = yearStartPrices.get(h.companyId);
-          const shown = displayedById.get(h.id)!;
-          return {
-            id: h.id,
-            ticker: h.company.ticker,
-            name: h.company.name,
-            sector: h.company.sector.name,
-            quantity: shown.quantity,
-            avgBuyPrice: shown.avgBuyPrice,
-            currentPrice: price ? adjustedClose(h.company.ticker, price.date, price.closePrice) : null,
-            currentPriceDate: price ? price.date.toISOString().slice(0, 10) : null,
-            yearStartPrice: yearStartPrice
-              ? adjustedClose(h.company.ticker, yearStartPrice.date, yearStartPrice.closePrice)
-              : null,
-          };
-        })
-      );
+      const byCurrency = splitByCurrency(p.holdings, (h) => portfolioCurrencyOf(h.company));
+
+      const metricsFor = (subset: typeof p.holdings) =>
+        computePortfolioMetrics(
+          subset.map((h) => {
+            const price = prices.get(h.companyId);
+            const yearStartPrice = yearStartPrices.get(h.companyId);
+            const shown = displayedById.get(h.id)!;
+            return {
+              id: h.id,
+              ticker: h.company.ticker,
+              name: h.company.name,
+              sector: h.company.sector.name,
+              quantity: shown.quantity,
+              avgBuyPrice: shown.avgBuyPrice,
+              currentPrice: price ? adjustedClose(h.company.ticker, price.date, price.closePrice) : null,
+              currentPriceDate: price ? price.date.toISOString().slice(0, 10) : null,
+              yearStartPrice: yearStartPrice
+                ? adjustedClose(h.company.ticker, yearStartPrice.date, yearStartPrice.closePrice)
+                : null,
+            };
+          })
+        );
+
+      // Totaux historiques : lignes BRVM uniquement (FCFA). Les lignes NGX (₦) ont leurs propres totaux.
+      const metrics = metricsFor(byCurrency.XOF);
+      const ngxMetricsRaw = byCurrency.NGN.length > 0 ? metricsFor(byCurrency.NGN) : null;
 
       const holdingsMeta = new Map(
         p.holdings.map((h) => [
@@ -171,31 +197,36 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
         ])
       );
 
-      const enrichedHoldings: EnrichedHoldingMetrics[] = metrics.holdings.map((hm) => {
-        const meta = hm.id ? holdingsMeta.get(hm.id) : undefined;
-        const buyHorizon: BuyHorizonCode = meta?.buyHorizon ?? "MOYEN";
-        const analysis = meta ? metricsByTicker.get(meta.ticker) : undefined;
-        const advice = adviseHolding({
-          buyHorizon,
-          signal: analysis?.signal ?? null,
-          horizonScores: analysis?.horizonScores ?? null,
-          signalSummary: analysis?.signalSummary ?? null,
-          signalReasons: analysis?.signalReasons ?? null,
+      const enrich = (hms: HoldingMetrics[]): EnrichedHoldingMetrics[] =>
+        hms.map((hm) => {
+          const meta = hm.id ? holdingsMeta.get(hm.id) : undefined;
+          const buyHorizon: BuyHorizonCode = meta?.buyHorizon ?? "MOYEN";
+          const analysis = meta ? metricsByTicker.get(meta.ticker) : undefined;
+          const advice = adviseHolding({
+            buyHorizon,
+            signal: analysis?.signal ?? null,
+            horizonScores: analysis?.horizonScores ?? null,
+            signalSummary: analysis?.signalSummary ?? null,
+            signalReasons: analysis?.signalReasons ?? null,
+          });
+          return {
+            ...hm,
+            buyDate: meta?.buyDate ?? null,
+            createdAt: meta?.createdAt ?? new Date().toISOString(),
+            buyHorizon,
+            analysisScore: analysis?.score ?? null,
+            advice,
+            targetPrice: (hm.id ? displayedById.get(hm.id)?.targetPrice : null) ?? null,
+            stopPrice: (hm.id ? displayedById.get(hm.id)?.stopPrice : null) ?? null,
+          };
         });
-        return {
-          ...hm,
-          buyDate: meta?.buyDate ?? null,
-          createdAt: meta?.createdAt ?? new Date().toISOString(),
-          buyHorizon,
-          analysisScore: analysis?.score ?? null,
-          advice,
-          targetPrice: (hm.id ? displayedById.get(hm.id)?.targetPrice : null) ?? null,
-          stopPrice: (hm.id ? displayedById.get(hm.id)?.stopPrice : null) ?? null,
-        };
-      });
 
+      const enrichedHoldings = enrich(metrics.holdings);
+      const ngxEnriched = ngxMetricsRaw ? enrich(ngxMetricsRaw.holdings) : [];
+
+      // Courbe de valeur : lignes BRVM uniquement (la série NGX viendra séparément).
       const navSeries: PortfolioNavPoint[] = await getPortfolioNavSeries(
-        p.holdings.map((h) => ({
+        byCurrency.XOF.map((h) => ({
           companyId: h.companyId,
           ticker: h.company.ticker,
           quantity: displayedById.get(h.id)?.quantity ?? Number(h.quantity),
@@ -204,7 +235,20 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
         }))
       );
 
-      const recap = adviceRecap(enrichedHoldings.map((h) => h.advice));
+      const ngx: PortfolioNgxSection | null = ngxMetricsRaw
+        ? {
+            currency: "NGN",
+            metrics: { ...ngxMetricsRaw, holdings: ngxEnriched },
+            indicativeFcfa: {
+              marketValue: ngnPerEur ? ngnToFcfaExact(ngxMetricsRaw.totalMarketValue, ngnPerEur.ngnPerEur) : null,
+              costBasis: ngnPerEur ? ngnToFcfaExact(ngxMetricsRaw.totalCostBasis, ngnPerEur.ngnPerEur) : null,
+              rateDate: ngnPerEur?.date ?? null,
+              rateSource: ngnPerEur?.source ?? null,
+            },
+          }
+        : null;
+
+      const recap = adviceRecap([...enrichedHoldings, ...ngxEnriched].map((h) => h.advice));
       const otherHoldings: OtherHoldingMetrics[] = (otherByPortfolio.get(p.id) ?? []).map((row) => valueOtherHolding(row));
       const combined: PortfolioHeadline = combinePortfolioHeadline(
         {
@@ -226,6 +270,7 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
             ticker: h.company.ticker,
             companyName: h.company.name,
             sector: h.company.sector.name,
+            currency: portfolioCurrencyOf(h.company),
             quantity: shown?.quantity ?? Number(h.quantity),
             avgBuyPrice: shown?.avgBuyPrice ?? Number(h.avgBuyPrice),
             buyDate: h.buyDate?.toISOString().slice(0, 10) ?? null,
@@ -238,6 +283,7 @@ export async function getUserPortfoliosWithMetrics(userId: string) {
           holdings: enrichedHoldings,
         },
         navSeries,
+        ngx,
         adviceRecap: recap,
         otherHoldings,
         combined,

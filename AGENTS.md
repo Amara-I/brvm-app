@@ -1122,6 +1122,23 @@ Issue d'un audit du 21/11/2026 (objectif : niveau des plateformes grand public).
   (les alertes de signal restent des règles explicites).
 - Un titre à la fois en watchlist ET en portefeuille peut produire deux notifications (« suivi » et « ligne »).
 
+## 28. Étape 32 — NGX phase 2 (1/3) : portefeuille en ₦
+
+Découpage convenu (une PR par lot) : (1) données + section « Actions NGX » ; (2) analyse du
+portefeuille et alertes objectif/stop NGX ; (3) import Excel / relevé SGI.
+
+- Aucune migration : la devise d'une ligne se déduit de sa société (`lib/portfolio/currency.ts`).
+  PRU, prix des opérations, objectif et stop d'une ligne NGX sont saisis/stockés en ₦ (les
+  commentaires du schéma disent « FCFA » : valable pour les lignes BRVM).
+- `getUserPortfoliosWithMetrics` : `metrics` = lignes BRVM uniquement (FCFA, comportement
+  historique inchangé) ; `ngx` = totaux/lignes en ₦ + conversion FCFA **indicative**
+  (`latestEurNgnRate`). Jamais de somme ₦ + FCFA. `combined` et `navSeries` restent BRVM.
+- UI : section « Actions NGX (₦) » (`PortfolioHoldingsTable currency="NGN"`), formulaire d'ajout
+  avec groupes BRVM/NGX, prix en ₦ à 2 décimales. `POST …/holdings` accepte les tickers NGX.
+- Reste à faire (lots 2 et 3) : courbe de valeur NGX, analyse, alertes portefeuille NGX (le cron
+  ignore pour l'instant les lignes NGX), import Excel/relevé (BRVM seul), totaux consolidés.
+- Non vérifié visuellement ni contre une base lors de la livraison.
+
 ---
 
 ## 6. Conventions de dépôt
