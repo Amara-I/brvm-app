@@ -4,6 +4,7 @@
 
 import CompanyMark from "@/components/ui/CompanyMark";
 import LockedTeaser from "@/components/entitlements/LockedTeaser";
+import { isLockedChartRange } from "@/lib/entitlements/chart-cap";
 import ScoreBadge from "@/components/ui/ScoreBadge";
 import SignalBadge from "@/components/ui/SignalBadge";
 import ConfidenceDot from "@/components/ui/ConfidenceDot";
@@ -311,6 +312,9 @@ export default function CompanySheetClient({
     }
   }, [initialTab, setTab]);
   const [range, setRange] = usePersistedState<ChartRange>(`ouestbourse:sheet:${company.ticker}:range`, "1A");
+  useEffect(() => {
+    if (gatedVisitor && isLockedChartRange(range)) setRange("1A");
+  }, [gatedVisitor, range, setRange]);
   const [series, setSeries] = useState<ChartClosePoint[]>(initialSeries);
   const seriesRef = useRef(series);
   seriesRef.current = series;
@@ -788,7 +792,7 @@ export default function CompanySheetClient({
                   </div>
                   <div className={styles.rangeRow}>
                     {RANGES.map((r) => (
-                      gatedVisitor && (r.key === "5A" || r.key === "MAX") ? (
+                      gatedVisitor && isLockedChartRange(r.key) ? (
                         <LockedTeaser key={r.key} compact label={t(r.labelKey)} callbackUrl={`/actions/${company.ticker}`} />
                       ) : (
                       <button

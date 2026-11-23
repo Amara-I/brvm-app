@@ -171,7 +171,7 @@ export function presentCompanySheetPayload(
       threeMonths: payload.performance.threeMonths,
       ytd: payload.performance.ytd,
       oneYear: payload.performance.oneYear,
-      fiveYears: null,
+      fiveYears: payload.performance.fiveYears,
     },
     keyRows: payload.keyRows.slice(0, 3).map((row) => ({ ...row, previous: "—", variation: "—" })),
     outlook: null,

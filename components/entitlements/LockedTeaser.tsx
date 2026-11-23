@@ -31,7 +31,7 @@ export default function LockedTeaser({
   children,
   className,
 }: {
-  /** Pastille / bouton (tableaux, fenêtres 5A/MAX). */
+  /** Pastille / bouton (tableaux, fenêtres plus longues que 5 ans). */
   compact?: boolean;
   callbackUrl?: string;
   title?: string;

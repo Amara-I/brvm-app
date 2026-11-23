@@ -6,12 +6,13 @@
 // graphes détaillés (onglet Analyse Graphique). Prix en naira (₦).
 // La série est celle déjà chargée pour la fiche (aucune lecture supplémentaire en base).
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import OverviewPriceChart from "@/components/actions/OverviewPriceChart";
 import styles from "@/components/actions/CompanySheet.module.css";
 import { trackFeature } from "@/components/analytics/track-client";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import LockedTeaser from "@/components/entitlements/LockedTeaser";
+import { isLockedChartRange } from "@/lib/entitlements/chart-cap";
 import { lastPointAsOf } from "@/lib/charts/chart-window";
 import { downsampleLttb } from "@/lib/charts/downsample";
 import { rangeFilter, type ChartClosePoint, type ChartRange } from "@/lib/charts/indicators";
@@ -42,6 +43,9 @@ export default function NgxOverviewPriceCard({
   const { t, format, locale } = useI18n();
   const nd = "N/D";
   const [range, setRange] = usePersistedState<ChartRange>(`ouestbourse:ngx-sheet:${ticker}:range`, "1A");
+  useEffect(() => {
+    if (gatedVisitor && isLockedChartRange(range)) setRange("1A");
+  }, [gatedVisitor, range, setRange]);
 
   const rangedSeries = useMemo(() => rangeFilter(series, range, lastPointAsOf(series)), [series, range]);
   const rangeChange = useMemo(() => computeWindowChange(rangedSeries), [rangedSeries]);
@@ -110,7 +114,7 @@ export default function NgxOverviewPriceCard({
           </div>
           <div className={styles.rangeRow}>
             {RANGES.map((r) => (
-              gatedVisitor && (r.key === "5A" || r.key === "MAX") ? (
+              gatedVisitor && isLockedChartRange(r.key) ? (
                 <LockedTeaser key={r.key} compact label={t(r.labelKey)} />
               ) : (
               <button

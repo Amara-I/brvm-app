@@ -91,7 +91,7 @@ describe("contrats API multi-marchés (Prisma simulé, pas une certification de 
     expect(response.status).toBe(401);
   });
 
-  it("limite l'historique du visiteur à un an, au dernier dividende et au dernier exercice", async () => {
+  it("limite l'historique du visiteur à cinq ans, au dernier dividende et au dernier exercice", async () => {
     auth.user = null;
     mocks.findFirst.mockResolvedValue({
       id: "c1", ticker: "SNTS", name: "Sonatel", exchange: "BRVM", currency: "XOF",
@@ -100,6 +100,7 @@ describe("contrats API multi-marchés (Prisma simulé, pas une certification de 
     });
     mocks.prices.mockResolvedValue([
       { date: new Date("2018-01-02T00:00:00Z"), closePrice: 100, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2018-01-02T17:00:00Z") },
+      { date: new Date("2023-06-01T00:00:00Z"), closePrice: 160, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2023-06-01T17:00:00Z") },
       { date: new Date("2026-06-01T00:00:00Z"), closePrice: 200, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2026-06-01T17:00:00Z") },
       { date: new Date("2026-11-20T00:00:00Z"), closePrice: 210, volume: null, source: "BRVM_OFFICIEL", ingestedAt: new Date("2026-11-20T17:00:00Z") },
     ]);
@@ -113,7 +114,7 @@ describe("contrats API multi-marchés (Prisma simulé, pas une certification de 
     ]);
     const response = await company(req("/api/companies/SNTS?exchange=BRVM"), { params: { ticker: "SNTS" } });
     const body = await response.json();
-    expect(body.data.priceHistory.map((row: { date: string }) => row.date)).toEqual(["2026-06-01", "2026-11-20"]);
+    expect(body.data.priceHistory.map((row: { date: string }) => row.date)).toEqual(["2023-06-01", "2026-06-01", "2026-11-20"]);
     expect(body.data.dividends).toHaveLength(1);
     expect(body.data.dividends[0].year).toBe(2025);
     expect(body.data.financialRatios).toHaveLength(1);

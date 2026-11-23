@@ -1,6 +1,7 @@
 export {
   ANON_ALLOWED_CHART_RANGES,
   ANON_MAX_CHART_RANGE,
+  ANON_MAX_CHART_YEARS,
   enforceAnonGates,
   isAnonChartRangeAllowed,
   PLAN_RANK,
